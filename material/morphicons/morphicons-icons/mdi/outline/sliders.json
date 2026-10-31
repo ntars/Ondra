@@ -1,0 +1,15 @@
+{
+ "id": "mdi-outline:sliders",
+ "set": "mdi-outline",
+ "library": "mdi",
+ "style": "outline",
+ "label": "sliders",
+ "upstreamName": "equalizer-outline",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/outline/sliders.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M15 21H9V3h6zm-4-2h2V5h-2zm-3 2H2V11h6zm-4-2h2v-6H4zm18 2h-6V8h6zm-4-2h2v-9h-2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

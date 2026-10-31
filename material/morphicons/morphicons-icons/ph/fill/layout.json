@@ -1,0 +1,15 @@
+{
+ "id": "ph-fill:layout",
+ "set": "ph-fill",
+ "library": "ph",
+ "style": "fill",
+ "label": "layout",
+ "upstreamName": "layout-fill",
+ "width": 256,
+ "height": 256,
+ "file": "ph/fill/layout.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" width=\"256\" height=\"256\"><path fill=\"currentColor\" d=\"M216 40H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16M40 56h176v40H40Zm176 144H112v-88h104z\"/></svg>",
+ "license": "MIT",
+ "version": "2.1.1",
+ "source": "@iconify-json/ph"
+}

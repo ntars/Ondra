@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-outline:minimize",
+ "set": "material-symbols-outline",
+ "library": "material-symbols",
+ "style": "outline",
+ "label": "minimize",
+ "upstreamName": "minimize-outline",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/outline/minimize.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M6 21v-2h12v2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

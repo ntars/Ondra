@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:phone",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "phone",
+ "upstreamName": "phone",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/phone.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

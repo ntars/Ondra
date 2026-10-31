@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:flag",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "flag",
+ "upstreamName": "flag",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/flag.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1-7 0a5 5 0 0 0-7 0zm0 16v-7\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

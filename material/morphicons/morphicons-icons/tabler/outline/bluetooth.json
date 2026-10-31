@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:bluetooth",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "bluetooth",
+ "upstreamName": "bluetooth",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/bluetooth.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m7 8l10 8l-5 4V4l5 4l-10 8\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:send",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "send",
+ "upstreamName": "send",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/send.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m2 21l21-9L2 3v7l15 2l-15 2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

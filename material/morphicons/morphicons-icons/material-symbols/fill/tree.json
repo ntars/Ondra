@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-fill:tree",
+ "set": "material-symbols-fill",
+ "library": "material-symbols",
+ "style": "fill",
+ "label": "tree",
+ "upstreamName": "park",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/fill/tree.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M13.95 22h-3.9v-4H3l4-6H5l7-10l7 10h-2l4 6h-7.05z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

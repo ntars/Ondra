@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:plus",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "plus",
+ "upstreamName": "plus",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/plus.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 5v14m-7-7h14\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

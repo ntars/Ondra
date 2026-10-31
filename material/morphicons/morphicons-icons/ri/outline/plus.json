@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:plus",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "plus",
+ "upstreamName": "add-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/plus.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-outline:more-vertical",
+ "set": "iconoir-outline",
+ "library": "iconoir",
+ "style": "outline",
+ "label": "more-vertical",
+ "upstreamName": "more-vert",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/outline/more-vertical.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M12 12.5a.5.5 0 1 0 0-1a.5.5 0 0 0 0 1m0 8a.5.5 0 1 0 0-1a.5.5 0 0 0 0 1m0-16a.5.5 0 1 0 0-1a.5.5 0 0 0 0 1\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

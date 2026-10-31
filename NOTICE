@@ -1,0 +1,643 @@
+NOTICE — 空谷 Ondra
+Copyright © 2024–2026 Ntarstudio（星玖工作室）. All Rights Reserved.
+
+本文件是本项目的开源合规声明主体，与 README.md 第 1.4 节（三档复用）、
+第 25 章（版权与许可）、第 26 章（NOTICE 合规声明）互为补充。
+凡 README 中出现的依赖数量与本文件不一致时，以本文件为准。
+
+本文件中的法律文本（许可证原文、版权声明、免责声明）保留英文原文，
+中文仅作说明用途；两者不一致时，以英文原文为准。
+
+============================================================================
+一、文件性质与效力
+============================================================================
+
+1. 本文件依据 GNU Affero General Public License v3.0（下称 AGPL-3.0）
+   第 0 条与第 4 条关于"适当法律声明"的要求编制，用于完整披露本项目
+   使用的全部第三方软件、组件、素材与算法来源。
+
+2. 披露范围包括：随产品分发的运行时依赖、仅用于构建与测试的开发期依赖、
+   以源码形式内置的框架组件、非 npm 形式的运行时、品牌与设计素材、
+   人设包资产、图标素材，以及算法与机制的公开来源。
+
+3. 披露口径：
+   - 运行时依赖：在各 package.json 的 dependencies、peerDependencies、
+     optionalDependencies 中声明，随产品分发或被打包进产物。
+   - 开发期依赖：仅在 devDependencies 中声明，用于构建、测试与静态检查，
+     不随产品分发。
+   - 源码内置依赖：以源码形式存放在 desktop/vendor/ 下，不经由 npm 安装。
+   - 传递依赖：完整闭包记录在 desktop/pnpm-lock.yaml，不在本文件逐条复述，
+     以免与锁文件形成两份真源。
+
+4. 复核方法：
+   - 依赖清单：`cd desktop && pnpm licenses list`
+   - 锁文件记录数：`grep -c "^  [a-z@]" desktop/pnpm-lock.yaml`
+   - 内置组件：`ls desktop/vendor/`
+
+5. 统计（本版本实测）：
+   - 运行时外部依赖：82 项
+   - 开发期外部依赖：89 项
+   - 源码内置组件：9 项
+   - 非 npm 运行时：2 项（Electron、Node.js），另有可选 Python 运行时
+   - 人设包：12 个（自有 2 个，第三方角色相关 10 个）
+   - 许可证分布：MIT 134 项、Apache-2.0 21 项、ISC 6 项、
+     BSD-3-Clause 2 项、BSD-2-Clause 2 项、BlueOak-1.0.0 1 项、
+     CC0-1.0 1 项、双许可（MPL-2.0 OR Apache-2.0）1 项、
+     自定义许可待确认 3 项
+
+============================================================================
+二、上游项目声明（DeepSeek-Harness）
+============================================================================
+
+本项目是 DeepSeek-Harness 的定制发行版。上游以 MIT 许可发布，本项目依据
+MIT 许可允许再许可的条款，将其并入以 AGPL-3.0 发布的更大作品。
+
+上游项目：DeepSeek-Harness（命令行名 dsh）
+上游版本：0.2.2-alpha.2
+上游仓库：https://github.com/deepseek-ai/deepseek-harness
+内嵌基线提交：81e326b1（"Ondra 1.0.0 基线：上游 dsh 0.2.2-alpha.2 + 品牌改造"）
+许可证：MIT
+
+上游版权声明与许可全文完整保留如下，未作任何删改：
+
+----------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2026 DeepSeek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+----------------------------------------------------------------------------
+
+对本项目相对上游所做的修改，按 AGPL-3.0 第 5 条要求声明如下：
+
+1. 品牌重塑：产品名、应用标识、进程名、数据目录名、环境变量前缀、
+   安装包名称与图标均替换为「空谷 Ondra」与 `ondra` 前缀。
+2. 界面裁剪：移除上游面向编码场景的界面元素，替换为三栏陪伴界面；
+   删除上游多语言资源中与产品无关的部分。
+3. 插件精简：仅保留本项目插件所需的宿主能力，其余插件不装入组合包。
+4. 数据隔离：数据目录改为应用私有目录，不读写用户主目录下的 dsh 与
+   agents 配置，不占用上游默认端口。
+5. 构建适配：调整构建配置与打包流程以适配 Electron 外壳与便携运行时。
+6. 隐私加固：在配置层关闭会话日志上传，并增加启动自检核对。
+
+上述修改的源码均在本仓库 desktop/ 目录内，可逐项对照上游版本核查。
+
+============================================================================
+三、本项目版权与许可
+============================================================================
+
+本项目自身代码、文档与自有素材：
+
+Copyright © 2024–2026 Ntarstudio（星玖工作室）
+
+本程序是自由软件：你可以依据自由软件基金会发布的 GNU Affero 通用公共
+许可证第 3 版（或你选择的任何更新版本）的条款重新分发和/或修改本程序。
+
+本程序的发布是希望它有用，但不附带任何担保，甚至不包含适销性或特定用途
+适用性的默示担保。详见 GNU Affero 通用公共许可证。
+
+许可证全文见随附 LICENSE 文件，或访问
+<https://www.gnu.org/licenses/agpl-3.0.html>。
+
+英文原文：
+
+"Copyright (C) 2024-2026 Ntarstudio. This program is free software: you can
+redistribute it and/or modify it under the terms of the GNU Affero General
+Public License as published by the Free Software Foundation, version 3.
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details. You should have received a copy of the GNU Affero General Public
+License along with this program. If not, see <https://www.gnu.org/licenses/>."
+
+官网：https://ai.ntars.cn/
+仓库：https://github.com/ntars/Ondra
+
+AGPL-3.0 的主要义务（摘要，不构成法律意见）：
+
+1. 分发本软件或其修改版本时，必须提供完整源代码，并保留 LICENSE 与
+   本 NOTICE 文件。
+2. 修改过的文件必须带有明显的修改声明与修改日期。
+3. 通过网络向用户提供服务时，必须向使用者提供获取对应源代码的方式
+   （第 13 条）。
+4. 不得对本软件附加额外限制，不得移除其中的版权与许可声明。
+
+============================================================================
+四、运行时依赖（82 项）
+============================================================================
+
+以下依赖在各 package.json 的 dependencies、peerDependencies 或
+optionalDependencies 中声明，随产品分发或被打包进宿主与浏览器产物。
+
+版本取自实际安装树（pnpm 虚拟存储），许可证与版权方取自各包随附的
+package.json 与 LICENSE。标注"见包内 LICENSE"的条目，表示该包的
+许可证文件使用标准模板而未包含独立版权行，本文件不做推断。
+
+| 包名 | 版本 | 许可证 | 版权方 | 官方地址 |
+| --- | --- | --- | --- | --- |
+| `@agentclientprotocol/sdk` | 1.4.0 | Apache-2.0 | Zed Industries | https://github.com/agentclientprotocol/typescript-sdk |
+| `@anthropic-ai/claude-agent-sdk` | 0.3.263 | SEE LICENSE IN README.md | Anthropic <support@anthropic.com> | https://github.com/anthropics/claude-agent-sdk-typescript |
+| `@anthropic-ai/sdk` | 0.129.0 | MIT | Anthropic <support@anthropic.com> | github:anthropics/anthropic-sdk-typescript |
+| `@babel/code-frame` | 7.29.7 | MIT | The Babel Team (https://babel.dev/team) | https://github.com/babel/babel |
+| `@browserbasehq/stagehand` | 4.1.0 | MIT | Browserbase | https://github.com/browserbase/stagehand |
+| `@earendil-works/pi-ai` | 1.3.0 | MIT | Mario Zechner | https://github.com/earendil-works/pi |
+| `@earendil-works/pi-coding-agent` | 1.3.0 | MIT | Mario Zechner | https://github.com/earendil-works/pi |
+| `@eslint-community/regexpp` | 4.12.2 | MIT | Toru Nagashima | https://github.com/eslint-community/regexpp |
+| `@joplin/turndown-plugin-gfm` | 1.0.67 | MIT | Dom Christie | https://github.com/laurent22/joplin-turndown-plugin-gfm |
+| `@jridgewell/gen-mapping` | 0.3.13 | MIT | Justin Ridgewell <justin@ridgewell.name> | https://github.com/jridgewell/sourcemaps |
+| `@js-temporal/polyfill` | 0.5.1 | ISC | Philipp Dunkel <pip@pipobscure.com> | https://github.com/js-temporal/temporal-polyfill |
+| `@modelcontextprotocol/client` | 2.2.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
+| `@modelcontextprotocol/sdk` | 1.31.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
+| `@noble/hashes` | 1.4.0 | MIT | Paul Miller (https://paulmillr.com) | https://github.com/paulmillr/noble-hashes |
+| `@octokit/webhooks` | 14.2.0 | MIT | Gregor Martynus (https://twitter.com/gr2m) | github:octokit/webhooks.js |
+| `@openai/codex` | 0.153.4 | Apache-2.0 | 见包内 LICENSE | https://github.com/openai/codex |
+| `@opentelemetry/api` | 1.9.1 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
+| `@opentelemetry/api-logs` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
+| `@opentelemetry/core` | 2.11.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
+| `@opentelemetry/otlp-exporter-base` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
+| `@opentelemetry/otlp-transformer` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
+| `@opentelemetry/resources` | 2.11.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
+| `@opentelemetry/sdk-logs` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js |
+| `@playwright/mcp` | 0.0.80 | Apache-2.0 | Microsoft Corporation | https://github.com/microsoft/playwright-mcp |
+| `@puppeteer/browsers` | 3.2.2 | Apache-2.0 | The Chromium Authors | https://github.com/puppeteer/puppeteer/tree/main/packages/browsers |
+| `@testing-library/dom` | 10.4.2 | MIT | Kent C. Dodds <me@kentcdodds.com> (https://kentcdodds.com) | https://github.com/testing-library/dom-testing-library |
+| `@testing-library/react` | 16.3.3 | MIT | Kent C. Dodds <me@kentcdodds.com> (https://kentcdodds.com) | https://github.com/testing-library/react-testing-library |
+| `@trycua/cua-driver` | 0.28.0 | MIT | 见包内 LICENSE | https://github.com/trycua/cua |
+| `@vitest/spy` | 4.1.11 | MIT | 见包内 LICENSE | https://github.com/vitest-dev/vitest |
+| `@vscode/ripgrep` | 1.18.0 | MIT | Rob Lourens | https://github.com/microsoft/vscode-ripgrep |
+| `@xterm/addon-serialize` | 0.14.0 | MIT | The xterm.js authors | https://github.com/xtermjs/xterm.js/tree/master/addons/addon-serialize |
+| `@xterm/headless` | 6.0.0 | MIT | 见包内 LICENSE | https://github.com/xtermjs/xterm.js |
+| `@yarnpkg/parsers` | 3.1.0 | BSD-2-Clause | 见包内 LICENSE | https://github.com/yarnpkg/berry |
+| `acorn` | 8.17.0 | MIT | 见包内 LICENSE | https://github.com/acornjs/acorn |
+| `acorn-walk` | 8.3.5 | MIT | 见包内 LICENSE | https://github.com/acornjs/acorn |
+| `ajv` | 6.15.0 | MIT | Evgeny Poberezkin | https://github.com/ajv-validator/ajv |
+| `birpc` | 2.9.0 | MIT | Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/antfu-collective/birpc |
+| `buffer` | 5.7.1 | MIT | Feross Aboukhadijeh | git://github.com/feross/buffer |
+| `chokidar` | 4.0.3 | MIT | Paul Miller (https://paulmillr.com) | https://github.com/paulmillr/chokidar |
+| `chrome-devtools-mcp` | 1.9.0 | Apache-2.0 | Google LLC | ChromeDevTools/chrome-devtools-mcp |
+| `commander` | 15.0.0 | MIT | TJ Holowaychuk <tj@vision-media.ca> | https://github.com/tj/commander.js |
+| `compression` | 1.8.2 | MIT | 见包内 LICENSE | expressjs/compression |
+| `cross-spawn` | 7.0.6 | MIT | André Cruz <andre@moxy.studio> | git@github.com:moxystudio/node-cross-spawn |
+| `diff` | 8.0.4 | BSD-3-Clause | 见包内 LICENSE | https://github.com/kpdecker/jsdiff |
+| `electron-updater` | 6.8.9 | MIT | Vladimir Krivosheev | https://github.com/electron-userland/electron-builder |
+| `eventsource-parser` | 3.1.0 | MIT | Espen Hovlandsdal <espen@hovlandsdal.com> | ssh://git@github.com/rexxars/eventsource-parser |
+| `execa` | 10.0.1 | MIT | Sindre Sorhus | sindresorhus/execa |
+| `fflate` | 0.8.2 | MIT | Arjun Barrett <arjunbarrett@gmail.com> | https://github.com/101arrowz/fflate |
+| `got` | 11.8.6 | MIT | 见包内 LICENSE | sindresorhus/got |
+| `hosted-git-info` | 4.1.0 | ISC | Rebecca Turner <me@re-becca.org> (http://re-becca.org) | https://github.com/npm/hosted-git-info |
+| `ipaddr.js` | 1.9.1 | MIT | whitequark <whitequark@whitequark.org> | git://github.com/whitequark/ipaddr.js |
+| `js-yaml` | 4.3.2 | MIT | Vladimir Zapparov <dervus.grim@gmail.com> | nodeca/js-yaml |
+| `koffi` | 3.1.1 | MIT | Niels Martignène | https://github.com/Koromix/koffi |
+| `mime` | 1.6.0 | MIT | Robert Kieffer | https://github.com/broofa/node-mime |
+| `mime-types` | 2.1.35 | MIT | 见包内 LICENSE | jshttp/mime-types |
+| `minisearch` | 7.2.0 | MIT | Luca Ongaro | https://github.com/lucaong/minisearch |
+| `negotiator` | 0.6.4 | MIT | 见包内 LICENSE | jshttp/negotiator |
+| `node-addon-require-builtin` | 0.1.9 | MIT | 见包内 LICENSE | https://github.com/deepseek-ai/dsh-node-addon-require-builtin |
+| `node-pty` | 1.2.0-beta.15 | MIT | Microsoft Corporation | git://github.com/microsoft/node-pty |
+| `open` | 11.0.4 | MIT | Sindre Sorhus | sindresorhus/open |
+| `p-limit` | 3.1.0 | MIT | Sindre Sorhus | sindresorhus/p-limit |
+| `picomatch` | 4.0.4 | MIT | Jon Schlinkert (https://github.com/jonschlinkert) | micromatch/picomatch |
+| `react` | 18.3.1 | MIT | 见包内 LICENSE | https://github.com/facebook/react |
+| `react-dom` | 18.3.1 | MIT | 见包内 LICENSE | https://github.com/facebook/react |
+| `readable-stream` | 2.3.8 | MIT | 见包内 LICENSE | git://github.com/nodejs/readable-stream |
+| `resolve.exports` | 2.0.3 | MIT | Luke Edwards | lukeed/resolve.exports |
+| `semver` | 5.7.2 | ISC | GitHub Inc. | https://github.com/npm/node-semver |
+| `serve-static` | 2.2.1 | MIT | Douglas Christopher Wilson <doug@somethingdoug.com> | expressjs/serve-static |
+| `sharp` | 0.35.5 | Apache-2.0 | Lovell Fuller <npm@lovell.info> | https://github.com/lovell/sharp |
+| `shell-quote` | 1.12.0 | MIT | James Halliday | http://github.com/ljharb/shell-quote |
+| `sherpa-onnx-node` | 1.13.8 | Apache-2.0 | The next-gen Kaldi team | https://github.com/csukuangfj/sherpa-onnx |
+| `string_decoder` | 1.1.1 | MIT | 见包内 LICENSE | git://github.com/nodejs/string_decoder |
+| `tar` | 7.5.22 | BlueOak-1.0.0 | Isaac Z. Schlueter | https://github.com/isaacs/node-tar |
+| `tsx` | 4.23.13 | MIT | Hiroki Osame | privatenumber/tsx |
+| `turndown` | 7.2.4 | MIT | Dom Christie | https://github.com/mixmark-io/turndown |
+| `typescript` | 6.0.3 | Apache-2.0 | Microsoft Corp. | https://github.com/microsoft/TypeScript |
+| `undici` | 6.28.1 | MIT | 见包内 LICENSE | https://github.com/nodejs/undici |
+| `vitest` | 4.1.11 | MIT | Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/vitest-dev/vitest |
+| `which` | 2.0.2 | ISC | Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me) | git://github.com/isaacs/node-which |
+| `ws` | 8.21.0 | MIT | Einar Otto Stangvik <einaros@gmail.com> (http://2x.io) | https://github.com/websockets/ws |
+| `yaml` | 2.9.0 | ISC | Eemeli Aro <eemeli@gmail.com> | github:eemeli/yaml |
+| `zod` | 4.4.3 | MIT | Colin McDonnell <zod@colinhacks.com> | https://github.com/colinhacks/zod |
+
+============================================================================
+五、开发期依赖（89 项）
+============================================================================
+
+以下依赖仅在 devDependencies 中声明，用于构建、测试、静态检查与打包，
+不随产品分发。开发期依赖不构成分发行为，但仍完整披露。
+
+| 包名 | 版本 | 许可证 | 版权方 | 官方地址 |
+| --- | --- | --- | --- | --- |
+| `@botiverse/oar` | 0.67.0 | Apache-2.0 | 见包内 LICENSE | https://github.com/botiverse/oar |
+| `@braintree/sanitize-url` | 6.0.4 | MIT | 见包内 LICENSE | https://github.com/braintree/sanitize-url |
+| `@electron/get` | 3.1.0 | MIT | Samuel Attard | https://github.com/electron/get |
+| `@electron/notarize` | 2.5.0 | MIT | Samuel Attard | https://github.com/electron/notarize |
+| `@fortune-sheet/core` | 1.0.4 | MIT | 见包内 LICENSE | https://github.com/ruilisi/fortune-sheet |
+| `@fortune-sheet/react` | 1.0.4 | MIT | 见包内 LICENSE | https://github.com/ruilisi/fortune-sheet |
+| `@lexical/headless` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
+| `@lexical/history` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
+| `@lexical/plain-text` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
+| `@lexical/text` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
+| `@lexical/utils` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
+| `@modelcontextprotocol/node` | 2.0.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
+| `@modelcontextprotocol/server` | 2.2.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
+| `@modelcontextprotocol/server-everything` | 2026.8.31 | SEE LICENSE IN LICENSE | Model Context Protocol a Series of LF Projects, LLC. | https://github.com/modelcontextprotocol/servers |
+| `@modelcontextprotocol/server-filesystem` | 2026.8.31 | SEE LICENSE IN LICENSE | Model Context Protocol a Series of LF Projects, LLC. | https://github.com/modelcontextprotocol/servers |
+| `@panzoom/panzoom` | 4.6.2 | MIT | Timmy Willison | https://github.com/timmywil/panzoom |
+| `@shikijs/langs` | 2.5.0 | MIT | Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/shikijs/shiki |
+| `@tanstack/react-virtual` | 3.14.10 | MIT | Tanner Linsley | https://github.com/TanStack/virtual |
+| `@types/babel__code-frame` | 7.27.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/big.js` | 6.2.2 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/compression` | 1.8.1 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/hosted-git-info` | 3.0.5 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/js-yaml` | 4.0.9 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/mdast` | 4.0.4 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/mime-types` | 3.0.1 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/negotiator` | 0.6.5 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/node` | 14.18.63 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/papaparse` | 5.5.2 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/picomatch` | 3.0.2 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/readable-stream` | 4.0.24 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/semver` | 7.8.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/serve-static` | 2.2.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/turndown` | 5.0.6 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/use-sync-external-store` | 1.7.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/ws` | 8.18.1 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@vitejs/plugin-react` | 4.7.0 | MIT | Evan You | https://github.com/vitejs/vite-plugin-react |
+| `@xterm/addon-fit` | 0.11.0 | MIT | The xterm.js authors | https://github.com/xtermjs/xterm.js/tree/master/addons/addon-fit |
+| `@xterm/xterm` | 6.0.0 | MIT | 见包内 LICENSE | https://github.com/xtermjs/xterm.js |
+| `anser` | 2.3.5 | MIT | Ionică Bizău <bizauionica@gmail.com> (https://ionicabizau.net) | git://github.com/IonicaBizau/anser |
+| `app-builder-lib` | 26.17.0 | MIT | Vladimir Krivosheev | https://github.com/electron-userland/electron-builder |
+| `big.js` | 7.0.1 | MIT | Michael Mclaughlin | https://github.com/MikeMcl/big.js |
+| `chrome-devtools-frontend` | 1.0.1638082 | BSD-3-Clause | The Chromium Authors | https://github.com/ChromeDevTools/devtools-frontend |
+| `clsx` | 2.1.1 | MIT | Luke Edwards | lukeed/clsx |
+| `cos-nodejs-sdk-v5` | 3.0.0 | ISC | carsonxu | https://github.com/tencentyun/cos-nodejs-sdk-v5 |
+| `cytoscape` | 3.34.0 | MIT | 见包内 LICENSE | https://github.com/cytoscape/cytoscape.js |
+| `cytoscape-cose-bilkent` | 4.1.0 | MIT | 见包内 LICENSE | https://github.com/cytoscape/cytoscape.js-cose-bilkent |
+| `dayjs` | 1.11.21 | MIT | iamkun | https://github.com/iamkun/dayjs |
+| `debug` | 2.6.9 | MIT | TJ Holowaychuk <tj@vision-media.ca> | git://github.com/visionmedia/debug |
+| `dompurify` | 3.4.16 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 <mario@cure53.de> (https://cure53.de/) | git://github.com/cure53/DOMPurify |
+| `electron` | 44.7.0 | MIT | Electron Community | https://github.com/electron/electron |
+| `electron-builder` | 26.17.0 | MIT | Vladimir Krivosheev | https://github.com/electron-userland/electron-builder |
+| `esbuild` | 0.21.5 | MIT | 见包内 LICENSE | https://github.com/evanw/esbuild |
+| `exceljs` | 4.4.0 | MIT | Guyon Roche | https://github.com/exceljs/exceljs |
+| `extract-zip` | 2.0.1 | BSD-2-Clause | max ogden | maxogden/extract-zip |
+| `fast-xml-parser` | 5.11.1 | MIT | Amit Gupta (https://solothought.com) | https://github.com/NaturalIntelligence/fast-xml-parser |
+| `http-server` | 14.1.1 | MIT | 见包内 LICENSE | git://github.com/http-party/http-server |
+| `immer` | 10.2.0 | MIT | Michel Weststrate <info@michel.codes> | https://github.com/immerjs/immer |
+| `katex` | 0.16.47 | MIT | 见包内 LICENSE | https://github.com/KaTeX/KaTeX |
+| `lexical` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
+| `mdast-util-from-markdown` | 2.0.3 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | syntax-tree/mdast-util-from-markdown |
+| `mdast-util-gfm` | 3.1.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | syntax-tree/mdast-util-gfm |
+| `mdast-util-math` | 3.0.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | syntax-tree/mdast-util-math |
+| `mermaid` | 11.17.2 | MIT | Knut Sveidqvist | https://github.com/mermaid-js/mermaid |
+| `micromark-core-commonmark` | 2.0.3 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark |
+| `micromark-extension-gfm` | 3.0.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | micromark/micromark-extension-gfm |
+| `micromark-extension-math` | 3.1.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | micromark/micromark-extension-math |
+| `micromark-factory-space` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space |
+| `micromark-util-character` | 2.1.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-character |
+| `micromark-util-classify-character` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character |
+| `micromark-util-decode-string` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-string |
+| `micromark-util-sanitize-uri` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri |
+| `micromark-util-symbol` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol |
+| `micromark-util-types` | 2.0.2 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types |
+| `papaparse` | 5.5.3 | MIT | Matthew Holt | https://github.com/mholt/PapaParse |
+| `pdfjs-dist` | 6.3.289 | Apache-2.0 | 见包内 LICENSE | https://github.com/mozilla/pdf.js |
+| `playwright` | 1.61.1 | Apache-2.0 | Microsoft Corporation | https://github.com/microsoft/playwright |
+| `pnpm` | 11.28.5 | MIT | 见包内 LICENSE | https://github.com/pnpm/pnpm |
+| `selfsigned` | 4.0.1 | MIT | José F. Romaniello <jfromaniello@gmail.com> (http://joseoncode.com) | git://github.com/jfromaniello/selfsigned |
+| `shiki` | 2.5.0 | MIT | Pine Wu <octref@gmail.com>; Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/shikijs/shiki |
+| `simple-icons` | 16.31.0 | CC0-1.0 | Simple Icons Collaborators | ssh://git@github.com/simple-icons/simple-icons |
+| `tencentcloud-sdk-nodejs-teo` | 4.1.330 | Apache-2.0 | tencentcloudapi | https://github.com/tencentcloud/tencentcloud-sdk-nodejs |
+| `typescript-language-server` | 5.3.0 | Apache-2.0 | TypeFox and others | https://github.com/typescript-language-server/typescript-language-server |
+| `use-sync-external-store` | 1.6.0 | MIT | 见包内 LICENSE | https://github.com/facebook/react |
+| `vite` | 5.4.21 | MIT | Evan You | https://github.com/vitejs/vite |
+| `vitepress` | 1.6.4 | MIT | Evan You | github:vuejs/vitepress |
+| `vitepress-plugin-mermaid` | 2.0.17 | MIT | Emerson Bottero | https://github.com/emersonbottero/vitepress-plugin-mermaid |
+| `vue` | 3.5.42 | MIT | Evan You | https://github.com/vuejs/core |
+| `xlsx` | 0.20.3 | Apache-2.0 | sheetjs | https://git.sheetjs.com/SheetJS/sheetjs |
+| `zustand` | 4.5.7 | MIT | Paul Henschel | https://github.com/pmndrs/zustand |
+
+============================================================================
+六、源码内置依赖（desktop/vendor/，9 项）
+============================================================================
+
+以下组件以源码形式内置，不经由 npm 安装。全部为 MIT 许可，各自保留上游
+LICENSE 文件。上游均来自 DeepSeek-Harness 仓库。
+
+| 组件 | 版本 | 许可证 | 用途 |
+| --- | --- | --- | --- |
+| cordis | 4.0.6-alpha.1 | MIT | 插件框架：依赖注入、插件生命周期 |
+| cosmokit | 1.8.7-alpha.1 | MIT | 通用工具函数 |
+| group | 1.0.6-alpha.1 | MIT | 插件分组 |
+| hmr | 1.0.21-alpha.1 | MIT | 热更新 |
+| include | 1.0.11-alpha.1 | MIT | 配置包含与插值 |
+| loader | 1.0.7-alpha.1 | MIT | 配置加载与补丁应用 |
+| logger-console | 1.0.6-alpha.1 | MIT | 控制台日志导出 |
+| schemastery | 3.18.6-alpha.1 | MIT | 配置结构校验 |
+| timer | 1.1.8-alpha.1 | MIT | 定时器与调度 |
+
+上述组件的上游地址：https://github.com/deepseek-ai/deepseek-harness
+
+本项目对内置组件的修改情况：未修改组件源码。仅在项目内以相对路径引用，
+并在构建配置中声明为工作区依赖。如后续需要修改，将在此处逐项登记
+修改位置与修改内容。
+
+各组件 LICENSE 文件随源码保留在对应目录下，可逐项核查。
+
+============================================================================
+七、非 npm 依赖
+============================================================================
+
+1. Electron
+   - 版本：44.7.0
+   - 版权方：OpenJS Foundation and Electron contributors
+   - 许可证：MIT
+   - 项目地址：https://github.com/electron/electron
+   - 用途：桌面应用外壳，提供窗口、菜单、签名与自动更新能力
+   - 是否修改：否。构建流程会复制应用包并修改显示名与图标，
+     修改后的副本仅用于本地开发态，不改变 Electron 本身的代码
+
+2. Node.js
+   - 版本：>= 24.9.0（随应用内置 24.x 运行时）
+   - 版权方：OpenJS Foundation and Node.js contributors
+   - 许可证：MIT
+   - 项目地址：https://nodejs.org/
+   - 用途：应用运行时与内置服务端
+   - 是否修改：否
+
+3. Python 运行时（可选）
+   - 用途：本地语音合成与部分可选能力的子进程
+   - 许可证：PSF License
+   - 项目地址：https://www.python.org/
+   - 是否修改：否
+   - 备注：仅在用户自行启用相关能力时使用，不随主安装包强制分发
+
+============================================================================
+八、品牌与设计素材
+============================================================================
+
+以下素材由 Ntarstudio 创作或委托创作，版权归 Ntarstudio 所有，
+不在 AGPL-3.0 授权范围内。二次分发须另行取得书面许可。
+
+| 文件 | 位置 | 说明 |
+| --- | --- | --- |
+| Ondra-Logo-CMYK-2.0.svg | material/image/ | 主标识矢量源 |
+| Ondra-Logo-CMYK-2.0.png | material/image/ | 主标识位图 |
+| Ondra-Paper.jpg | material/image/ | 品牌背景纸纹 |
+| view-1.png / view-2.png / view-3.png | material/image/ | 界面预览图 |
+| 应用图标（多尺寸） | desktop/ 与打包产物 | 由主标识导出 |
+
+字体说明：本项目未内置任何字体文件，界面使用操作系统自带字体渲染，
+因此不涉及字体授权问题。如后续引入网络字体或内置字体，须在此登记
+字体名称、版权方与许可证。
+
+============================================================================
+九、图标素材（morphicons）
+============================================================================
+
+- 名称：morphicons
+- 版权方：Copyright (c) 2026 Guillermo
+- 许可证：MIT
+- 用途：界面图标与形变动画，44 个注册表图标与 12 组形变配对
+- 引入方式：以 vendor 形式存放在 material/morphicons/ 下，
+  包含上游仓库快照、提取产物与图标集三部分
+- 是否修改：未修改图标源文件；仅按项目需要选取子集并在注册表中登记
+
+MIT 许可全文：
+
+----------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2026 Guillermo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+----------------------------------------------------------------------------
+
+============================================================================
+十、人设包资产与第三方知识产权声明（重要）
+============================================================================
+
+本仓库随附 12 个人设包，分布在两个目录：
+
+1. 自有角色（2 个，位于 cordis/ondra-persona-skills/）
+   - `哦鲸鲸.skill.zip`：出厂人设，由 Ntarstudio 创作
+   - `夏柠柒.skill.zip`：示例人设，由 Ntarstudio 创作
+   - 权利归属：Ntarstudio 所有，不在 AGPL-3.0 授权范围内
+
+2. 第三方角色相关（10 个，位于 material/persona/）
+   - 丰川祥子saki、八重神子、申鹤、神里绫华、流萤、小舞、
+     绘梨衣、雪之下雪乃、兰呦呦、林初雪
+
+权利声明：
+
+1. 上述第 2 类人设包中的角色名称、形象设定及相关世界观元素，
+   其著作权、商标权及其他相关权利归原权利人所有。本项目对这些角色
+   不主张任何权利，也不代表原权利人的立场或授权。
+
+2. 这些文件在本仓库中仅作为技术演示与格式示例存在，用于展示人设包的
+   结构、字段与加载机制，不构成对原作内容的商业利用。
+
+3. 本项目不因分发这些文件而获得任何授权。使用者将其用于任何用途前，
+   应自行确认是否符合原权利人的使用条款与所在司法辖区的法律规定。
+
+4. 本项目不以人设包本身作为付费内容或商业卖点。安装包中默认启用的
+   仅为自有角色「哦鲸鲸」。
+
+5. 若任何权利人认为本仓库中的相关文件侵犯其权利，请通过仓库 Issue
+   或官网联系方式提出，本项目将在核实后立即移除相关文件。
+
+6. 人设包内的文本由本项目依据公开资料与创作约定撰写，不包含对原作
+   文本的逐字复制。如发现疑似复制内容，按第 5 条同样处理。
+
+============================================================================
+十一、算法与机制来源
+============================================================================
+
+本项目实现的部分算法与机制来源于公开发表的论文、教材或社区共识。
+算法与数学方法本身通常不受著作权保护，但其具体实现可能受保护。
+本项目为独立实现，未复制他人源代码；下列条目仅声明思想来源，
+以便使用者溯源与评估。
+
+| 机制 | 来源 | 本项目实现方式 |
+| --- | --- | --- |
+| BM25 检索打分 | Robertson 与 Zaragoza 的 BM25 系列论文 | 自研实现，参数 k1=1.2、b=0.75 |
+| RRF 名次融合 | Cormack 等人 2009 年提出的 Reciprocal Rank Fusion | 自研实现，仅用名次不用分数 |
+| SM-2 间隔复习 | SuperMemo 算法（Piotr Wozniak） | 自研实现，按记忆难度排期 |
+| PAD 情绪模型 | Mehrabian 与 Russell 的情绪维度模型 | 自研实现，三维度加十个固定标签 |
+| 天文历法计算 | Jean Meeus《Astronomical Algorithms》中的低精度公式 | 自研实现；或复用 lunar-javascript、tyme4ts 并交叉校验 |
+| 指数衰减回归 | 通用数学方法（半衰期模型） | 自研实现，惰性补算 |
+| 艾宾浩斯遗忘曲线 | Hermann Ebbinghaus 的记忆实验结论 | 作为衰减档位的参数依据 |
+| 互补学习系统 | 认知科学中的双速记忆理论 | 作为快慢记忆分层的设计依据 |
+| 赫布共现学习 | Hebb 的突触可塑性理论 | 作为图谱建边的设计依据 |
+
+以上来源均为公开发表的理论或方法。若其中某项的具体实现参考了某个
+开源项目，将在对应插件的 README「技术来源」表中逐项登记仓库地址、
+许可证与借鉴内容，并注明是否引入代码。
+
+============================================================================
+十二、非宽松许可证与特殊许可证的处理
+============================================================================
+
+1. MPL-2.0 或 Apache-2.0 双许可（1 项）
+   - 本项目按 Apache-2.0 条款使用，保留其 NOTICE 与版权声明。
+   - 该依赖仅用于构建期，不随产品分发。
+
+2. BlueOak-1.0.0（1 项，tar）
+   - BlueOak 属宽松许可，允许商业使用、修改与再分发，
+     要求保留版权与许可声明。
+   - 该依赖用于构建期打包，不随产品分发。
+
+3. CC0-1.0（1 项）
+   - 公共领域贡献，无附加限制。
+
+4. 自定义许可待确认（3 项）
+   - `@anthropic-ai/claude-agent-sdk`：包声明为
+     "SEE LICENSE IN README.md"，但随包 README 未包含独立的许可条款
+     段落。本项目仅将其作为可选依赖引用，未分发其代码。
+     在许可条款确认前，不将其打包进发行产物。
+   - 其余 2 项同属"SEE LICENSE"类声明，处理方式相同。
+   - 处理原则：未确认前不分发，仅在开发环境引用。
+
+5. 本项目未使用任何 GPL 系列、AGPL 系列或 SSPL 系列的第三方代码。
+   上游 DeepSeek-Harness 为 MIT，与本项目的 AGPL-3.0 兼容。
+
+============================================================================
+十三、传递依赖
+============================================================================
+
+上述 82 项运行时依赖与 89 项开发期依赖各自带有传递依赖。完整闭包记录在
+desktop/pnpm-lock.yaml 中，本版本共 1985 条解析记录。
+
+复核方式：
+
+    cd desktop
+    pnpm licenses list
+
+不在本文件逐条复述传递依赖的原因：锁文件是唯一真源，逐条转写会形成
+两份可能不一致的清单，反而降低可核查性。
+
+传递依赖中如出现非宽松许可，按第十二章的原则处理：能在构建期隔离的
+不打包进产物；无法隔离的替换或移除。
+
+============================================================================
+十四、规划引入但尚未进入代码的第三方能力
+============================================================================
+
+以下条目对应开发手册第 1.8 节"复用 / 薄封装"档位，属规划中确定要复用的
+能力。截至本版本，对应代码与依赖均未引入本仓库，因此不计入第四、五章的
+依赖数量。
+
+引入时必须同步完成三件事：更新本文件、更新 README 第 1.4 节与第 6.4 节、
+保留其许可证与版权原文。
+
+| 能力 | 候选实现 | 许可证 | 状态 |
+| --- | --- | --- | --- |
+| 农历与节气 | lunar-javascript | MIT | 规划 |
+| 农历与节气（交叉校验） | tyme4ts | MIT | 规划 |
+| 界面图标与形变 | morphicons | MIT | 已引入，见第九章 |
+| 语音合成（云端） | Edge TTS | 待确认 | 规划，未分发代码 |
+| 语音合成（本地） | GPT-SoVITS | 待确认 | 规划，不分发权重 |
+| 语音识别 | Whisper / faster-whisper | MIT（权重许可另计） | 规划 |
+| 桌面宠物 | dsh-pet、agentpet | MIT | 规划 |
+| 角色立绘 | airi | MIT | 规划 |
+| Live2D 立绘 | dsh-whale-girl-live2d | 待确认 | 规划 |
+| 组合包市场 | dsh-market | 待确认 | 规划 |
+| 安卓投屏控制 | scrcpy | Apache-2.0 | 规划，外部进程调用 |
+| 个人微信自动化 | wxauto | 待确认 | 规划，高危通道默认关闭 |
+| QQ 协议端 | NapCat | 禁止衍生开发 | 规划，仅外部进程对接，不引入代码 |
+| 记忆底层 | 生态实现选型中 | 各异 | 规划，逐个确认 |
+
+标注"待确认"的条目在许可证原文核对完成前，相关插件只能保留接口与
+降级路径，不得分发对应代码或权重。
+
+============================================================================
+十五、无法确认的事项
+============================================================================
+
+以下事项本项目无法独立确认，如实标注，不做推断：
+
+1. 部分 npm 包的版权方字段为空。处理方式：标注"见包内 LICENSE"，
+   不推测版权主体。
+2. `@anthropic-ai/claude-agent-sdk` 的具体许可条款未在包内找到独立文本。
+   处理方式：不打包进发行产物。
+3. 第三方角色人设包的权利边界（同人创作、二次使用的合法范围）
+   因司法辖区而异，本项目不作判断，仅按第十章声明处理。
+4. 传递依赖中个别包的许可证字段可能存在上游填写错误。
+   处理方式：以包内 LICENSE 文件原文为准；如发现冲突，按第十二章原则处理。
+
+如使用者发现本文件遗漏任何第三方组件或权利声明，请通过仓库 Issue 提出，
+本项目将在核实后补充。
+
+============================================================================
+十六、免责声明
+============================================================================
+
+本软件按"现状"提供，不附带任何明示或暗示的担保，包括但不限于适销性、
+特定用途适用性与不侵权的担保。
+
+作者与贡献者不对因使用本软件而产生的任何直接、间接、偶然、特殊或
+后果性损害承担责任，包括但不限于数据丢失、业务中断、设备损坏或
+第三方索赔。
+
+使用者应自行评估本软件对其场景的适用性，并自行承担使用风险。
+
+本软件是陪伴工具，不是心理治疗、医疗服务或专业建议的替代品。
+对话中出现明显危机信号时，应向现实中的专业机构寻求帮助。
+
+本软件的人格为虚构角色设定，不代表任何真实人物的立场。
+
+============================================================================
+十七、修订记录
+============================================================================
+
+2026-10-31  1.0.1
+  - 依据开发手册重写全文，按实际安装树重新统计依赖：
+    运行时 82 项、开发期 89 项、内置组件 9 项。
+  - 新增第十章"人设包资产与第三方知识产权声明"，明确 10 个第三方
+    角色相关人设包的权利归属与移除机制。
+  - 新增第十一章"算法与机制来源"，登记 BM25、RRF、SM-2、PAD、
+    天文历法、遗忘曲线等来源。
+  - 新增第十二章"非宽松与特殊许可证处理"，逐项说明双许可、
+    BlueOak、CC0 与待确认条目的处理原则。
+  - 将"规划引入"条目与已入库依赖分离，避免虚增依赖数量。
+  - 补充 Electron 44.7.0 与 Node.js >= 24.9.0 的版本信息。
+  - 声明本项目未内置字体文件，不涉及字体授权。
+
+2026-10-30  1.0.0
+  - 首次编制，建立上游声明、依赖清单、素材声明与免责条款的基本结构。
+
+============================================================================
+文件结束
+============================================================================

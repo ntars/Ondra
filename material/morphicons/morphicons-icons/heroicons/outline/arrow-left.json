@@ -1,0 +1,15 @@
+{
+ "id": "heroicons-outline:arrow-left",
+ "set": "heroicons-outline",
+ "library": "heroicons",
+ "style": "outline",
+ "label": "arrow-left",
+ "upstreamName": "arrow-left",
+ "width": 24,
+ "height": 24,
+ "file": "heroicons/outline/arrow-left.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18\"/></svg>",
+ "license": "MIT",
+ "version": "2.2.0",
+ "source": "@iconify-json/heroicons"
+}

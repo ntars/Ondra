@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-outline:login",
+ "set": "iconoir-outline",
+ "library": "iconoir",
+ "style": "outline",
+ "label": "login",
+ "upstreamName": "log-in",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/outline/login.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M19 12h-7m0 0l3 3m-3-3l3-3m4-3V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

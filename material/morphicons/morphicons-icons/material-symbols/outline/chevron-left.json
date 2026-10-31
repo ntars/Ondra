@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-outline:chevron-left",
+ "set": "material-symbols-outline",
+ "library": "material-symbols",
+ "style": "outline",
+ "label": "chevron-left",
+ "upstreamName": "chevron-left-outline",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/outline/chevron-left.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m14 18l-6-6l6-6l1.4 1.4l-4.6 4.6l4.6 4.6z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

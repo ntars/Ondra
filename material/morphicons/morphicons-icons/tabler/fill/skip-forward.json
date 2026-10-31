@@ -1,0 +1,15 @@
+{
+ "id": "tabler-fill:skip-forward",
+ "set": "tabler-fill",
+ "library": "tabler",
+ "style": "fill",
+ "label": "skip-forward",
+ "upstreamName": "player-skip-forward-filled",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/fill/skip-forward.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 5v14a1 1 0 0 0 1.504.864l12-7a1 1 0 0 0 0-1.728l-12-7A1 1 0 0 0 3 5m17-1a1 1 0 0 1 .993.883L21 5v14a1 1 0 0 1-1.993.117L19 19V5a1 1 0 0 1 1-1\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

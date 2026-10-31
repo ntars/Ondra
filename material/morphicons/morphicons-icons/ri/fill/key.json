@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:key",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "key",
+ "upstreamName": "key-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/key.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M17 14h-4.341a6 6 0 1 1 0-4H23v4h-2v4h-4zM7 14a2 2 0 1 0 0-4a2 2 0 0 0 0 4\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

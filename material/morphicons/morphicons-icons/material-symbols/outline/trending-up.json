@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-outline:trending-up",
+ "set": "material-symbols-outline",
+ "library": "material-symbols",
+ "style": "outline",
+ "label": "trending-up",
+ "upstreamName": "trending-up-outline",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/outline/trending-up.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3.4 18L2 16.6l7.4-7.45l4 4L18.6 8H16V6h6v6h-2V9.4L13.4 16l-4-4z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

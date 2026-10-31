@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:skip-back",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "skip-back",
+ "upstreamName": "skip-previous",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/skip-back.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M6 18V6h2v12zm3.5-6L18 6v12z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

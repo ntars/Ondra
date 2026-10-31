@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:home",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "home",
+ "upstreamName": "home",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/home.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M10 20v-6h4v6h5v-8h3L12 3L2 12h3v8z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

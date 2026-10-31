@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:minimize",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "minimize",
+ "upstreamName": "minimize-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/minimize.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-width=\"2\" d=\"M5 12h14\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

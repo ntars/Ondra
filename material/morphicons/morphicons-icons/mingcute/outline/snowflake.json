@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:snowflake",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "snowflake",
+ "upstreamName": "snowflake-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/snowflake.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-width=\"2\" d=\"M12 3v18m-9-9h18M8 5l4 4l4-4M5 16l4-4l-4-4m3 11l4-4l4 4m3-3l-4-4l4-4\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

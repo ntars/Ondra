@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:power",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "power",
+ "upstreamName": "power",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/power.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M7 6a7.75 7.75 0 1 0 10 0m-5-2v8\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-08-19-session-projection-mandatory-seam.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-19-session-projection-mandatory-seam.md
+/agent-note-session-projections-as-a-required-reader-seam:
+  en: 41f30d473ff53ce2
+  zh: 6851c4414f5331c1
+/agent-note-session-projections-as-a-required-reader-seam/problem:
+  en: fca00eeb7a8d9abd
+  zh: d7a9766f5322dff9
+/agent-note-session-projections-as-a-required-reader-seam/decision:
+  en: 8d38ed9356085c7e
+  zh: e15ede51415192f3
+/agent-note-session-projections-as-a-required-reader-seam/alternatives-considered:
+  en: aea3da939c90d240
+  zh: 21e91c481cdd23b7
+/agent-note-session-projections-as-a-required-reader-seam/consequences:
+  en: ab45eb87f7c22cdb
+  zh: e65a97991a45164f

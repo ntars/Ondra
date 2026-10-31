@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:chevron-right",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "chevron-right",
+ "upstreamName": "arrow-right-s-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/chevron-right.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m13.172 12l-4.95-4.95l1.414-1.413L16 12l-6.364 6.364l-1.414-1.415z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

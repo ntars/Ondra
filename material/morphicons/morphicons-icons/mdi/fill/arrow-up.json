@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:arrow-up",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "arrow-up",
+ "upstreamName": "arrow-up",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/arrow-up.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M13 20h-2V8l-5.5 5.5l-1.42-1.42L12 4.16l7.92 7.92l-1.42 1.42L13 8z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

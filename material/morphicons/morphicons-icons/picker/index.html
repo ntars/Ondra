@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>morphicons 图标选板</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-row">
+    <div class="brand">
+      <strong>morphicons</strong>
+      <span>图标选板</span>
+    </div>
+
+    <label class="search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M12.8 12.8 17 17"/></svg>
+      <input id="q" type="search" placeholder="搜索图标名、上游名或图标库" autocomplete="off" spellcheck="false">
+      <kbd>/</kbd>
+    </label>
+
+    <div class="seg" id="seg" role="tablist" aria-label="风格">
+      <button type="button" role="tab" data-style="" class="on">全部</button>
+      <button type="button" role="tab" data-style="outline">线性</button>
+      <button type="button" role="tab" data-style="fill">填充</button>
+    </div>
+
+    <select id="lib" class="lib" aria-label="图标库"></select>
+  </div>
+
+  <div class="bar-row meta">
+    <span id="count" class="count">载入中…</span>
+    <button type="button" id="reset" class="lnk" hidden>清除筛选</button>
+  </div>
+</header>
+
+<main>
+  <div id="spacer" class="spacer"><div id="grid" class="grid"></div></div>
+  <p id="empty" class="empty" hidden>没有匹配的图标</p>
+</main>
+
+<aside id="detail" class="detail" hidden aria-label="图标详情">
+  <button type="button" id="close" class="detail-close" aria-label="关闭">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5"/></svg>
+  </button>
+
+  <div class="detail-head">
+    <div id="dPrev" class="detail-prev"></div>
+    <div class="detail-title">
+      <h2 id="dName">—</h2>
+      <p id="dMeta" class="detail-meta"></p>
+    </div>
+  </div>
+
+  <div class="detail-acts">
+    <button type="button" data-copy="svg">复制 SVG</button>
+    <button type="button" data-copy="jsx">复制 JSX</button>
+    <button type="button" data-copy="path">复制路径</button>
+    <a id="dFile" class="ghost" download>打开 .svg</a>
+  </div>
+
+  <pre id="dCode" class="detail-code" tabindex="0"></pre>
+</aside>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="data/index.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

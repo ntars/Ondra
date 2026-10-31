@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-fill:navigation",
+ "set": "material-symbols-fill",
+ "library": "material-symbols",
+ "style": "fill",
+ "label": "navigation",
+ "upstreamName": "navigation",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/fill/navigation.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m5 21l-1-1l8-18l8 18l-1 1l-7-3z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

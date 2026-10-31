@@ -1,0 +1,15 @@
+{
+ "id": "lucide-outline:x-circle",
+ "set": "lucide-outline",
+ "library": "lucide",
+ "style": "outline",
+ "label": "x-circle",
+ "upstreamName": "circle-x",
+ "width": 24,
+ "height": 24,
+ "file": "lucide/outline/x-circle.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m15 9l-6 6m0-6l6 6\"/></g></svg>",
+ "license": "ISC",
+ "version": "未记录",
+ "source": "@iconify-json/lucide"
+}

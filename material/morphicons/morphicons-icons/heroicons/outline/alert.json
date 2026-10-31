@@ -1,0 +1,15 @@
+{
+ "id": "heroicons-outline:alert",
+ "set": "heroicons-outline",
+ "library": "heroicons",
+ "style": "outline",
+ "label": "alert",
+ "upstreamName": "exclamation-circle",
+ "width": 24,
+ "height": 24,
+ "file": "heroicons/outline/alert.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M12 9v3.75m9-.75a9 9 0 1 1-18 0a9 9 0 0 1 18 0m-9 3.75h.008v.008H12z\"/></svg>",
+ "license": "MIT",
+ "version": "2.2.0",
+ "source": "@iconify-json/heroicons"
+}

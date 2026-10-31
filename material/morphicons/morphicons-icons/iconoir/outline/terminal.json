@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-outline:terminal",
+ "set": "iconoir-outline",
+ "library": "iconoir",
+ "style": "outline",
+ "label": "terminal",
+ "upstreamName": "terminal",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/outline/terminal.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M13 17h7M5 7l5 5l-5 5\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "lucide-outline:check-circle",
+ "set": "lucide-outline",
+ "library": "lucide",
+ "style": "outline",
+ "label": "check-circle",
+ "upstreamName": "circle-check",
+ "width": 24,
+ "height": 24,
+ "file": "lucide/outline/check-circle.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9l-5.5 5.5L8 12\"/></g></svg>",
+ "license": "ISC",
+ "version": "未记录",
+ "source": "@iconify-json/lucide"
+}

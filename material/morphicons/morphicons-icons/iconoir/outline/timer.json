@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-outline:timer",
+ "set": "iconoir-outline",
+ "library": "iconoir",
+ "style": "outline",
+ "label": "timer",
+ "upstreamName": "timer",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/outline/timer.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M9 2h6m-3 8v4m0 8a8 8 0 1 0 0-16a8 8 0 0 0 0 16\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

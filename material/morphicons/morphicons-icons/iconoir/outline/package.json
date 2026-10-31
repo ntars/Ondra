@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-outline:package",
+ "set": "iconoir-outline",
+ "library": "iconoir",
+ "style": "outline",
+ "label": "package",
+ "upstreamName": "package",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/outline/package.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M20 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2m-8 3V4\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

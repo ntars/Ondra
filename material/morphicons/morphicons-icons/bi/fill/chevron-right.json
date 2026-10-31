@@ -1,0 +1,15 @@
+{
+ "id": "bi-fill:chevron-right",
+ "set": "bi-fill",
+ "library": "bi",
+ "style": "fill",
+ "label": "chevron-right",
+ "upstreamName": "caret-right-fill",
+ "width": 16,
+ "height": 16,
+ "file": "bi/fill/chevron-right.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\"><path fill=\"currentColor\" d=\"m12.14 8.753l-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z\"/></svg>",
+ "license": "MIT",
+ "version": "1.13.1",
+ "source": "@iconify-json/bi"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "tabler-fill:menu",
+ "set": "tabler-fill",
+ "library": "tabler",
+ "style": "fill",
+ "label": "menu",
+ "upstreamName": "menu-2-filled",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/fill/menu.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M21 6a1 1 0 0 1-1 1H4a1 1 0 1 1 0-2h16a1 1 0 0 1 1 1m0 6a1 1 0 0 1-1 1H4a1 1 0 0 1 0-2h16a1 1 0 0 1 1 1m0 6a1 1 0 0 1-1 1H4a1 1 0 0 1 0-2h16a1 1 0 0 1 1 1\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

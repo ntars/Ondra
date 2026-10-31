@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-fill:send",
+ "set": "material-symbols-fill",
+ "library": "material-symbols",
+ "style": "fill",
+ "label": "send",
+ "upstreamName": "send",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/fill/send.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 20v-6l8-2l-8-2V4l19 8z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

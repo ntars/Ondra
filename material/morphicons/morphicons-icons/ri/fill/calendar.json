@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:calendar",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "calendar",
+ "upstreamName": "calendar-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/calendar.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M2 11h20v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zm15-8h4a1 1 0 0 1 1 1v5H2V4a1 1 0 0 1 1-1h4V1h2v2h6V1h2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

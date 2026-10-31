@@ -1,0 +1,15 @@
+{
+ "id": "heroicons-outline:chevron-up",
+ "set": "heroicons-outline",
+ "library": "heroicons",
+ "style": "outline",
+ "label": "chevron-up",
+ "upstreamName": "chevron-up",
+ "width": 24,
+ "height": 24,
+ "file": "heroicons/outline/chevron-up.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"m4.5 15.75l7.5-7.5l7.5 7.5\"/></svg>",
+ "license": "MIT",
+ "version": "2.2.0",
+ "source": "@iconify-json/heroicons"
+}

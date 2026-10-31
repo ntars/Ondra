@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-fill:chevron-up",
+ "set": "iconoir-fill",
+ "library": "iconoir",
+ "style": "fill",
+ "label": "chevron-up",
+ "upstreamName": "nav-arrow-up-solid",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/fill/chevron-up.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M5.307 15.287A.75.75 0 0 0 6 15.75h12a.75.75 0 0 0 .53-1.28l-6-6a.75.75 0 0 0-1.06 0l-6 6a.75.75 0 0 0-.163.817\" clip-rule=\"evenodd\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

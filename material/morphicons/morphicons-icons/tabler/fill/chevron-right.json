@@ -1,0 +1,15 @@
+{
+ "id": "tabler-fill:chevron-right",
+ "set": "tabler-fill",
+ "library": "tabler",
+ "style": "fill",
+ "label": "chevron-right",
+ "upstreamName": "chevron-right-filled",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/fill/chevron-right.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m9.707 5.293l6 6a1 1 0 0 1 0 1.414l-6 6a1 1 0 1 1-1.414-1.414L13.586 12L8.293 6.707a1 1 0 0 1 1.414-1.414\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

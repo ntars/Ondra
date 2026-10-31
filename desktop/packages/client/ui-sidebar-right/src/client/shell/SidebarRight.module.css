@@ -1,0 +1,63 @@
+/*
+ * The Sidebar's own chrome only: the panel box, the placeholder tab bodies, and
+ * the column's stacking. Everything inside the split tree is styled by the
+ * docking kit. Tokens only.
+ *
+ * The column is permanent, so there is nothing to slide, hide or promote: the
+ * panel sits at its final position from the first commit, and the only stacking
+ * it declares is the docked layer frame overlays (20) must cover, with floating
+ * panels above that (60). The common content root owns no stacking context or
+ * transform.
+ */
+
+.session {
+  display: contents;
+}
+
+.session[hidden] {
+  display: none;
+}
+
+.panel {
+  --dsh-dockkit-dock-layer: 10;
+  --dsh-dockkit-float-layer: 60;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Keeps a page's stray overflow inside the column instead of widening the
+     frame's scrollable area. `clip` does not clip fixed floating children,
+     whose containing block is the viewport. */
+  overflow: clip;
+  pointer-events: none;
+}
+
+.panelBody {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.unavailable {
+  margin: 0;
+  padding: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+}
+
+/* Keep the title's icon and text in dockkit's flex row while retaining occurrence markers. */
+.tabTitle {
+  display: contents;
+}
+
+.tabBody {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}

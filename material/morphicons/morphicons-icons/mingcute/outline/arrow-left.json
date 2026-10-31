@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:arrow-left",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "arrow-left",
+ "upstreamName": "arrow-left-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/arrow-left.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h15m-10 5.657L4.343 12L10 6.343\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

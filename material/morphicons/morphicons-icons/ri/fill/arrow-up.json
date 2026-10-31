@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:arrow-up",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "arrow-up",
+ "upstreamName": "arrow-up-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/arrow-up.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M13 12v8h-2v-8H4l8-8l8 8z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

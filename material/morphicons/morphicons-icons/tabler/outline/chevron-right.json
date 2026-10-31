@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:chevron-right",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "chevron-right",
+ "upstreamName": "chevron-right",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/chevron-right.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m9 6l6 6l-6 6\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

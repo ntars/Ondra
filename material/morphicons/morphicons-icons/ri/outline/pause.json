@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:pause",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "pause",
+ "upstreamName": "pause-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/pause.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M6 5h2v14H6zm10 0h2v14h-2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

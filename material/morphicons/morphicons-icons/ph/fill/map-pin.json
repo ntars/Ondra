@@ -1,0 +1,15 @@
+{
+ "id": "ph-fill:map-pin",
+ "set": "ph-fill",
+ "library": "ph",
+ "style": "fill",
+ "label": "map-pin",
+ "upstreamName": "map-pin-fill",
+ "width": 256,
+ "height": 256,
+ "file": "ph/fill/map-pin.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" width=\"256\" height=\"256\"><path fill=\"currentColor\" d=\"M128 16a88.1 88.1 0 0 0-88 88c0 75.3 80 132.17 83.41 134.55a8 8 0 0 0 9.18 0C136 236.17 216 179.3 216 104a88.1 88.1 0 0 0-88-88m0 56a32 32 0 1 1-32 32a32 32 0 0 1 32-32\"/></svg>",
+ "license": "MIT",
+ "version": "2.1.1",
+ "source": "@iconify-json/ph"
+}

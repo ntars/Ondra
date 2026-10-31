@@ -1,0 +1,30 @@
+{
+  "name": "ondra",
+  "productName": "空谷 Ondra",
+  "description": "空谷 Ondra：基于 DeepSeek Harness 定制、全插件式的桌面 AI 陪伴体应用",
+  "version": "1.0.1",
+  "private": true,
+  "license": "AGPL-3.0",
+  "author": {
+    "name": "Ntarstudio（星玖工作室）",
+    "url": "https://ai.ntars.cn/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ntars/Ondra.git"
+  },
+  "homepage": "https://ai.ntars.cn/",
+  "type": "module",
+  "main": "lib/main.js",
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "semver": "^7.8.5",
+    "ws": "^8.21.3",
+    "@deepseek-ai/dsh-api-gateway": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "dshDesktopAppId": "com.ntars.ondra",
+  "dshDesktopUpdateChannel": "nightly",
+  "dshBuildCommit": "81e326b14f9c92f40ebd4c81c491ce15ec5f4430",
+  "dshBuildDirty": true
+}

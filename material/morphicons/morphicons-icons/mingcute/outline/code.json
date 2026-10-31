@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:code",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "code",
+ "upstreamName": "code-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/code.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M14.216 4.106L9.784 19.894M6.5 7.757L2.257 12L6.5 16.243m11-8.486L21.743 12L17.5 16.243\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

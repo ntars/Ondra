@@ -1,0 +1,54 @@
+# 依赖目录
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+
+# 构建产物
+build/
+dist/
+out/
+release/
+.desktop-build/
+*.tsbuildinfo
+*.asar
+*.dmg
+*.exe
+*.AppImage
+*.snap
+
+# 注意：不全局排除 *.zip 与 *.tar.gz
+# cordis/ondra-persona-skills/ 下的人格包与 material/ 下的素材包属于源码资产，必须入库。
+
+# 工具链缓存（体积大，可由安装器重建）
+toolchain/
+
+# 备份与本地工作目录
+.backup/
+.workbuddy/
+.trash/
+tmp/
+.tmp/
+
+# 系统与编辑器
+.DS_Store
+._*
+__MACOSX/
+.idea/
+.vscode/
+*.swp
+
+# 日志与运行时文件
+*.log
+logs/
+*.pid
+.pid
+
+# 环境与密钥（绝不入库）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# 根 .gitignore 补充

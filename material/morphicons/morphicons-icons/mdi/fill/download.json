@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:download",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "download",
+ "upstreamName": "download",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/download.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "mdi-outline:plus",
+ "set": "mdi-outline",
+ "library": "mdi",
+ "style": "outline",
+ "label": "plus",
+ "upstreamName": "plus-outline",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/outline/plus.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M4 9h5V4h6v5h5v6h-5v5H9v-5H4zm7 4v5h2v-5h5v-2h-5V6h-2v5H6v2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

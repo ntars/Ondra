@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-sidebar-right/README.md
+/:
+  en: 518758fdef3d319b
+  zh: e4bcd1eb92b23629
+/deepseek-ai-dsh-client-ui-sidebar-right:
+  en: 0b446bc3fbd57fad
+  zh: e0b6491a6c43bee1
+/deepseek-ai-dsh-client-ui-sidebar-right/summary:
+  en: f6a61251ce7f4266
+  zh: eb0c59d4f329a160
+/deepseek-ai-dsh-client-ui-sidebar-right/table-of-contents:
+  en: d297c6fd67addba0
+  zh: fc86e50125b82aae
+/deepseek-ai-dsh-client-ui-sidebar-right/what-lives-here-and-what-does-not:
+  en: 3b007cc4d2d89c60
+  zh: 74d9795c6392ad74
+/deepseek-ai-dsh-client-ui-sidebar-right/the-permanent-column:
+  en: b4157915f781c6a5
+  zh: 01c885efc44999b8
+/deepseek-ai-dsh-client-ui-sidebar-right/state:
+  en: 98597ce087c48075
+  zh: c5466bf7955ea7b0
+/deepseek-ai-dsh-client-ui-sidebar-right/extension-seats:
+  en: 68694c12f2544ad7
+  zh: c7cf769743f2acd4
+/deepseek-ai-dsh-client-ui-sidebar-right/ctx-sidebarright:
+  en: 9b746d1b3de93ca2
+  zh: 928001f80bc5eed8
+/deepseek-ai-dsh-client-ui-sidebar-right/the-tab-domain:
+  en: 35aa300f707a1ac8
+  zh: 36b62b4703bbd908
+/deepseek-ai-dsh-client-ui-sidebar-right/the-guide:
+  en: 5fcda0a3a4453b52
+  zh: d7818c63bf3371f2
+/deepseek-ai-dsh-client-ui-sidebar-right/copy:
+  en: 4315a1c03ca5fef3
+  zh: c09a09f1d9b99107
+/deepseek-ai-dsh-client-ui-sidebar-right/model-experience:
+  en: 3120df665299c634
+  zh: 242f3d68e8267e55
+/deepseek-ai-dsh-client-ui-sidebar-right/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: f57cc48a1b5cbfa9
+/deepseek-ai-dsh-client-ui-sidebar-right/known-limitations-and-deferred-work:
+  en: 76a763b4dd71babd
+  zh: fdc966dd427a82fb
+/deepseek-ai-dsh-client-ui-sidebar-right/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: e88aeb617ffb74ea

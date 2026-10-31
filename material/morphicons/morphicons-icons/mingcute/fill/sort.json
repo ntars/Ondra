@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-fill:sort",
+ "set": "mingcute-fill",
+ "library": "mingcute",
+ "style": "fill",
+ "label": "sort",
+ "upstreamName": "sort-ascending-fill",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/fill/sort.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"3\" d=\"M18 19V5m-2.828 2L18 4.172L20.828 7M4 12h9m-9 7h9M4 5h7\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

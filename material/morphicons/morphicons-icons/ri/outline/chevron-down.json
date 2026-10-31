@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:chevron-down",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "chevron-down",
+ "upstreamName": "arrow-down-s-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/chevron-down.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m12 13.171l4.95-4.95l1.414 1.415L12 16L5.636 9.636L7.05 8.222z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

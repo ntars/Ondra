@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-fill:trash",
+ "set": "material-symbols-fill",
+ "library": "material-symbols",
+ "style": "fill",
+ "label": "trash",
+ "upstreamName": "delete",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/fill/trash.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zm2-4h2V8H9zm4 0h2V8h-2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

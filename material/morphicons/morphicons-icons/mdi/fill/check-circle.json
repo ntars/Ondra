@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:check-circle",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "check-circle",
+ "upstreamName": "check-circle",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/check-circle.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10s10-4.5 10-10S17.5 2 12 2m-2 15l-5-5l1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

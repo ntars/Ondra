@@ -1,0 +1,15 @@
+{
+ "id": "heroicons-outline:more-vertical",
+ "set": "heroicons-outline",
+ "library": "heroicons",
+ "style": "outline",
+ "label": "more-vertical",
+ "upstreamName": "ellipsis-vertical",
+ "width": 24,
+ "height": 24,
+ "file": "heroicons/outline/more-vertical.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M12 6.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5m0 6a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5m0 6a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5\"/></svg>",
+ "license": "MIT",
+ "version": "2.2.0",
+ "source": "@iconify-json/heroicons"
+}

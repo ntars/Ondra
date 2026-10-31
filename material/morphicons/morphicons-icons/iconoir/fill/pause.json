@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-fill:pause",
+ "set": "iconoir-fill",
+ "library": "iconoir",
+ "style": "fill",
+ "label": "pause",
+ "upstreamName": "pause-solid",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/fill/pause.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" d=\"M6 18.4V5.6a.6.6 0 0 1 .6-.6h2.8a.6.6 0 0 1 .6.6v12.8a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6Zm8 0V5.6a.6.6 0 0 1 .6-.6h2.8a.6.6 0 0 1 .6.6v12.8a.6.6 0 0 1-.6.6h-2.8a.6.6 0 0 1-.6-.6Z\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

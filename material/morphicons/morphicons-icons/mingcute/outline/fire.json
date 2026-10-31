@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:fire",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "fire",
+ "upstreamName": "flame-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/fire.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M19 14a7 7 0 1 1-14 0c0-6 7-11 7-11s7 5 7 11Z\"/><path fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15.699 17.306a3.694 3.694 0 0 1-7.389 0c0-3.167 3.694-5.806 3.694-5.806s3.695 2.639 3.695 5.806Z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

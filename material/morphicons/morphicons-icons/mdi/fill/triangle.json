@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:triangle",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "triangle",
+ "upstreamName": "triangle",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/triangle.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M1 21h22L12 2\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

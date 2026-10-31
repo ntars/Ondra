@@ -1,0 +1,15 @@
+{
+ "id": "mdi-outline:stop",
+ "set": "mdi-outline",
+ "library": "mdi",
+ "style": "outline",
+ "label": "stop",
+ "upstreamName": "square-outline",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/outline/stop.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 3h18v18H3zm2 2v14h14V5z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

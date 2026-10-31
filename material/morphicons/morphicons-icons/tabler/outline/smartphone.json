@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:smartphone",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "smartphone",
+ "upstreamName": "device-mobile",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/smartphone.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M6 5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zm5-1h2m-1 13v.01\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

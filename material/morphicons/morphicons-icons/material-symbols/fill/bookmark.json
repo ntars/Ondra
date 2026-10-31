@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-fill:bookmark",
+ "set": "material-symbols-fill",
+ "library": "material-symbols",
+ "style": "fill",
+ "label": "bookmark",
+ "upstreamName": "bookmark",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/fill/bookmark.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M5 21V5q0-.825.588-1.412T7 3h10q.825 0 1.413.588T19 5v16l-7-3z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

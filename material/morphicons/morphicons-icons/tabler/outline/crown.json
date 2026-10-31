@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:crown",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "crown",
+ "upstreamName": "crown",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/crown.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m12 6l4 6l5-4l-2 10H5L3 8l5 4z\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

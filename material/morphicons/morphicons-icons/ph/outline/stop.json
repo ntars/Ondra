@@ -1,0 +1,15 @@
+{
+ "id": "ph-outline:stop",
+ "set": "ph-outline",
+ "library": "ph",
+ "style": "outline",
+ "label": "stop",
+ "upstreamName": "square",
+ "width": 256,
+ "height": 256,
+ "file": "ph/outline/stop.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" width=\"256\" height=\"256\"><path fill=\"currentColor\" d=\"M208 32H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16m0 176H48V48h160z\"/></svg>",
+ "license": "MIT",
+ "version": "2.1.1",
+ "source": "@iconify-json/ph"
+}

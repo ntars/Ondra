@@ -1,0 +1,15 @@
+{
+ "id": "ph-fill:list",
+ "set": "ph-fill",
+ "library": "ph",
+ "style": "fill",
+ "label": "list",
+ "upstreamName": "list-dashes-fill",
+ "width": 256,
+ "height": 256,
+ "file": "ph/fill/list.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" width=\"256\" height=\"256\"><path fill=\"currentColor\" d=\"M208 32H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16M72 184h-8a8 8 0 0 1 0-16h8a8 8 0 0 1 0 16m0-48h-8a8 8 0 0 1 0-16h8a8 8 0 0 1 0 16m0-48h-8a8 8 0 0 1 0-16h8a8 8 0 0 1 0 16m120 96h-88a8 8 0 0 1 0-16h88a8 8 0 0 1 0 16m0-48h-88a8 8 0 0 1 0-16h88a8 8 0 0 1 0 16m0-48h-88a8 8 0 0 1 0-16h88a8 8 0 0 1 0 16\"/></svg>",
+ "license": "MIT",
+ "version": "2.1.1",
+ "source": "@iconify-json/ph"
+}

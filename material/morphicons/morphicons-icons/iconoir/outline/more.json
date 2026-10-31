@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-outline:more",
+ "set": "iconoir-outline",
+ "library": "iconoir",
+ "style": "outline",
+ "label": "more",
+ "upstreamName": "more-horiz",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/outline/more.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M20 12.5a.5.5 0 1 0 0-1a.5.5 0 0 0 0 1m-8 0a.5.5 0 1 0 0-1a.5.5 0 0 0 0 1m-8 0a.5.5 0 1 0 0-1a.5.5 0 0 0 0 1\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

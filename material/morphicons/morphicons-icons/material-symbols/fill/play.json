@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-fill:play",
+ "set": "material-symbols-fill",
+ "library": "material-symbols",
+ "style": "fill",
+ "label": "play",
+ "upstreamName": "play-arrow",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/fill/play.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M8 19V5l11 7z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

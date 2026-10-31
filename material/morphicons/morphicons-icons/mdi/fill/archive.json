@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:archive",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "archive",
+ "upstreamName": "archive",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/archive.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 3h18v4H3zm1 5h16v13H4zm5.5 3a.5.5 0 0 0-.5.5V13h6v-1.5a.5.5 0 0 0-.5-.5z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

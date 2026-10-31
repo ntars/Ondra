@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:folder",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "folder",
+ "upstreamName": "folder-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/folder.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" d=\"M3 5a1 1 0 0 1 1-1h5.52a1 1 0 0 1 .78.375l1.4 1.75a1 1 0 0 0 .78.375H20a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

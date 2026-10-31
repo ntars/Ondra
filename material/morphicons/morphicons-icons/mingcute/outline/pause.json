@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:pause",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "pause",
+ "upstreamName": "pause-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/pause.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-width=\"2\" d=\"M8 5v14m8-14v14\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

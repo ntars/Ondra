@@ -1,0 +1,218 @@
+{
+  "generatedAt": "2026-10-29T17:06:42+08:00",
+  "repo": "https://github.com/guillermolg00/morphicons",
+  "site": "https://www.morphicons.com",
+  "origin": "website/lib/icon-sets/*.ts (Studio 图标集)",
+  "sets": [
+    {
+      "set": "bi-fill",
+      "library": "bi",
+      "style": "fill",
+      "label": "Bootstrap Icons",
+      "version": "1.13.1",
+      "license": "MIT",
+      "source": "@iconify-json/bi",
+      "count": 102,
+      "dir": "bi/fill"
+    },
+    {
+      "set": "bi-outline",
+      "library": "bi",
+      "style": "outline",
+      "label": "Bootstrap Icons",
+      "version": "1.13.1",
+      "license": "MIT",
+      "source": "@iconify-json/bi",
+      "count": 159,
+      "dir": "bi/outline"
+    },
+    {
+      "set": "heroicons-fill",
+      "library": "heroicons",
+      "style": "fill",
+      "label": "Heroicons",
+      "version": "2.2.0",
+      "license": "MIT",
+      "source": "@iconify-json/heroicons",
+      "count": 137,
+      "dir": "heroicons/fill"
+    },
+    {
+      "set": "heroicons-outline",
+      "library": "heroicons",
+      "style": "outline",
+      "label": "Heroicons",
+      "version": "2.2.0",
+      "license": "MIT",
+      "source": "@iconify-json/heroicons",
+      "count": 137,
+      "dir": "heroicons/outline"
+    },
+    {
+      "set": "iconoir-fill",
+      "library": "iconoir",
+      "style": "fill",
+      "label": "Iconoir",
+      "version": "7.12.1",
+      "license": "MIT",
+      "source": "@iconify-json/iconoir",
+      "count": 48,
+      "dir": "iconoir/fill"
+    },
+    {
+      "set": "iconoir-outline",
+      "library": "iconoir",
+      "style": "outline",
+      "label": "Iconoir",
+      "version": "7.12.1",
+      "license": "MIT",
+      "source": "@iconify-json/iconoir",
+      "count": 149,
+      "dir": "iconoir/outline"
+    },
+    {
+      "set": "lucide-outline",
+      "library": "lucide",
+      "style": "outline",
+      "label": "Lucide",
+      "version": "未记录",
+      "license": "ISC",
+      "source": "@iconify-json/lucide",
+      "count": 175,
+      "dir": "lucide/outline"
+    },
+    {
+      "set": "material-symbols-fill",
+      "library": "material-symbols",
+      "style": "fill",
+      "label": "Material Symbols",
+      "version": "未记录",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/material-symbols",
+      "count": 173,
+      "dir": "material-symbols/fill"
+    },
+    {
+      "set": "material-symbols-outline",
+      "library": "material-symbols",
+      "style": "outline",
+      "label": "Material Symbols",
+      "version": "未记录",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/material-symbols",
+      "count": 173,
+      "dir": "material-symbols/outline"
+    },
+    {
+      "set": "mdi-fill",
+      "library": "mdi",
+      "style": "fill",
+      "label": "Material Design Icons",
+      "version": "未记录",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/mdi",
+      "count": 176,
+      "dir": "mdi/fill"
+    },
+    {
+      "set": "mdi-outline",
+      "library": "mdi",
+      "style": "outline",
+      "label": "Material Design Icons",
+      "version": "未记录",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/mdi",
+      "count": 121,
+      "dir": "mdi/outline"
+    },
+    {
+      "set": "mingcute-fill",
+      "library": "mingcute",
+      "style": "fill",
+      "label": "MingCute",
+      "version": "未记录",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/mingcute",
+      "count": 150,
+      "dir": "mingcute/fill"
+    },
+    {
+      "set": "mingcute-outline",
+      "library": "mingcute",
+      "style": "outline",
+      "label": "MingCute",
+      "version": "未记录",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/mingcute",
+      "count": 150,
+      "dir": "mingcute/outline"
+    },
+    {
+      "set": "ph-fill",
+      "library": "ph",
+      "style": "fill",
+      "label": "Phosphor",
+      "version": "2.1.1",
+      "license": "MIT",
+      "source": "@iconify-json/ph",
+      "count": 171,
+      "dir": "ph/fill"
+    },
+    {
+      "set": "ph-outline",
+      "library": "ph",
+      "style": "outline",
+      "label": "Phosphor",
+      "version": "2.1.1",
+      "license": "MIT",
+      "source": "@iconify-json/ph",
+      "count": 171,
+      "dir": "ph/outline"
+    },
+    {
+      "set": "ri-fill",
+      "library": "ri",
+      "style": "fill",
+      "label": "Remix Icon",
+      "version": "4.8.0",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/ri",
+      "count": 159,
+      "dir": "ri/fill"
+    },
+    {
+      "set": "ri-outline",
+      "library": "ri",
+      "style": "outline",
+      "label": "Remix Icon",
+      "version": "4.8.0",
+      "license": "Apache-2.0",
+      "source": "@iconify-json/ri",
+      "count": 159,
+      "dir": "ri/outline"
+    },
+    {
+      "set": "tabler-fill",
+      "library": "tabler",
+      "style": "fill",
+      "label": "Tabler",
+      "version": "3.49.0",
+      "license": "MIT",
+      "source": "@iconify-json/tabler",
+      "count": 115,
+      "dir": "tabler/fill"
+    },
+    {
+      "set": "tabler-outline",
+      "library": "tabler",
+      "style": "outline",
+      "label": "Tabler",
+      "version": "3.49.0",
+      "license": "MIT",
+      "source": "@iconify-json/tabler",
+      "count": 172,
+      "dir": "tabler/outline"
+    }
+  ],
+  "totalIcons": 2797
+}

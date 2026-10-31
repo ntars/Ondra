@@ -1,0 +1,15 @@
+{
+ "id": "material-symbols-outline:send",
+ "set": "material-symbols-outline",
+ "library": "material-symbols",
+ "style": "outline",
+ "label": "send",
+ "upstreamName": "send-outline",
+ "width": 24,
+ "height": 24,
+ "file": "material-symbols/outline/send.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 20V4l19 8zm2-3l11.85-5L5 7v3.5l6 1.5l-6 1.5zm0 0V7z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/material-symbols"
+}

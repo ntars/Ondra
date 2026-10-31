@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:key",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "key",
+ "upstreamName": "key-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/key.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M12.917 13A6.002 6.002 0 0 1 1 12a6 6 0 0 1 11.917-1H23v2h-2v4h-2v-4h-2v4h-2v-4zM7 16a4 4 0 1 0 0-8a4 4 0 0 0 0 8\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

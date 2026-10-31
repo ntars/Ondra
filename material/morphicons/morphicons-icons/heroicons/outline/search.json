@@ -1,0 +1,15 @@
+{
+ "id": "heroicons-outline:search",
+ "set": "heroicons-outline",
+ "library": "heroicons",
+ "style": "outline",
+ "label": "search",
+ "upstreamName": "magnifying-glass",
+ "width": 24,
+ "height": 24,
+ "file": "heroicons/outline/search.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"m21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607\"/></svg>",
+ "license": "MIT",
+ "version": "2.2.0",
+ "source": "@iconify-json/heroicons"
+}

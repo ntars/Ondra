@@ -1,0 +1,15 @@
+{
+ "id": "iconoir-fill:chevron-right",
+ "set": "iconoir-fill",
+ "library": "iconoir",
+ "style": "fill",
+ "label": "chevron-right",
+ "upstreamName": "nav-arrow-right-solid",
+ "width": 24,
+ "height": 24,
+ "file": "iconoir/fill/chevron-right.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M8.713 18.693A.75.75 0 0 1 8.25 18V6a.75.75 0 0 1 1.28-.53l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 0 1-.817.163\" clip-rule=\"evenodd\"/></svg>",
+ "license": "MIT",
+ "version": "7.12.1",
+ "source": "@iconify-json/iconoir"
+}

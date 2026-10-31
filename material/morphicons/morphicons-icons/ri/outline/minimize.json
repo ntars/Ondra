@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:minimize",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "minimize",
+ "upstreamName": "fullscreen-exit-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/minimize.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M18 7h4v2h-6V3h2zM8 9H2V7h4V3h2zm10 8v4h-2v-6h6v2zM8 15v6H6v-4H2v-2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

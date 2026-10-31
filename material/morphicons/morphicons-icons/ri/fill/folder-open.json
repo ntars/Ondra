@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:folder-open",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "folder-open",
+ "upstreamName": "folder-open-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/folder-open.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 21a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h7.414l2 2H20a1 1 0 0 1 1 1v3H4v9.996L6 11h16.5l-2.31 9.243a1 1 0 0 1-.97.757z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

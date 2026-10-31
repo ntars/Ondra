@@ -1,0 +1,15 @@
+{
+ "id": "mdi-outline:bookmark",
+ "set": "mdi-outline",
+ "library": "mdi",
+ "style": "outline",
+ "label": "bookmark",
+ "upstreamName": "bookmark-outline",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/outline/bookmark.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m17 18l-5-2.18L7 18V5h10m0-2H7a2 2 0 0 0-2 2v16l7-3l7 3V5a2 2 0 0 0-2-2\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

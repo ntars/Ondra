@@ -1,0 +1,15 @@
+{
+ "id": "lucide-outline:compass",
+ "set": "lucide-outline",
+ "library": "lucide",
+ "style": "outline",
+ "label": "compass",
+ "upstreamName": "compass",
+ "width": 24,
+ "height": 24,
+ "file": "lucide/outline/compass.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16.24 7.76l-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z\"/></g></svg>",
+ "license": "ISC",
+ "version": "未记录",
+ "source": "@iconify-json/lucide"
+}

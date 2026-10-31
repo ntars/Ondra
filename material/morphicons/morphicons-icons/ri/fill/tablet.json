@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:tablet",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "tablet",
+ "upstreamName": "tablet-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/tablet.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M5 2h14a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1m7 15a1 1 0 1 0 0 2a1 1 0 0 0 0-2\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

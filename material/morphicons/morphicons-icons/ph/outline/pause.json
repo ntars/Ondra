@@ -1,0 +1,15 @@
+{
+ "id": "ph-outline:pause",
+ "set": "ph-outline",
+ "library": "ph",
+ "style": "outline",
+ "label": "pause",
+ "upstreamName": "pause",
+ "width": 256,
+ "height": 256,
+ "file": "ph/outline/pause.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" width=\"256\" height=\"256\"><path fill=\"currentColor\" d=\"M200 32h-40a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h40a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16m0 176h-40V48h40ZM96 32H56a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h40a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16m0 176H56V48h40Z\"/></svg>",
+ "license": "MIT",
+ "version": "2.1.1",
+ "source": "@iconify-json/ph"
+}

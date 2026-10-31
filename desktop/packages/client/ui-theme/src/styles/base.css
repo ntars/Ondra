@@ -1,0 +1,156 @@
+/* Base variables referenced by the token sheets and component CSS but defined
+ * upstream (deepsuite theme/global.css) — supplied here so the composite
+ * --dsw-font-* variables resolve and motion rides the upstream curve. Code
+ * font stack deliberately omits a bare `monospace` tail (Windows CJK falls
+ * back to SimSun otherwise). */
+:root {
+  --dsh-font-family-text-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --dsw-font-family: var(--dsh-font-family-text-default);
+  --dsw-font-family-brand: 'Montserrat', var(--dsh-font-family-text-default);
+  --dsh-font-family-code-default: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  --ds-font-family-code: var(--dsh-font-family-code-default);
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-transition-duration: 0.2s;
+  --ds-transition-duration-fast: 0.1s;
+  --ds-transition-duration-slow: 0.3s;
+  --dsw-radius-xs: 4px;
+  --dsw-radius-sm: 8px;
+  --dsw-radius-md: 12px;
+  --dsw-radius-lg: 16px;
+  --dsw-radius-xl: 20px;
+  --dsw-radius-panel: 28px;
+}
+
+/* User font lists (--dsh-font-family-text/-code, written on body by the theme
+ * boot script and ThemePresenter) lead the built-in stacks. An unset list
+ * falls back to the built-in stack itself; the repeated families are inert. */
+body {
+  --dsw-font-family: var(--dsh-font-family-text, var(--dsh-font-family-text-default)), var(--dsh-font-family-text-default);
+  --ds-font-family-code: var(--dsh-font-family-code, var(--dsh-font-family-code-default)), var(--dsh-font-family-code-default);
+  --dsw-alias-settings-card-fill: var(--dsw-alias-bg-layer-2);
+  --dsw-alias-settings-card-stroke: var(--dsw-alias-border-l4);
+}
+
+[data-dsh-automatic-focus]:focus,
+[data-dsh-automatic-focus]:focus:focus-visible {
+  outline: none;
+}
+
+/* The Ondra glass tint — the single alpha every surface shares.
+ *
+ * The window carries the native vibrancy material. This tint is what the left
+ * column already used (a 40%-alpha mix of the sidebar fill with a faint blue in
+ * light, a 50%-alpha fill in dark); the whole app now paints it, so the material
+ * reads through every screen with the same density instead of one panel looking
+ * denser than its neighbour. */
+html[data-platform='darwin'] {
+  --ondra-glass-tint:
+    color-mix(in srgb, color-mix(in srgb, var(--dsw-specific-sidebar-fill) 97%, rgb(122 155 240)) 40%, transparent);
+}
+
+html[data-platform='darwin'] body[data-ds-dark-theme] {
+  --ondra-glass-tint: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 50%, transparent);
+}
+
+/* The frame columns add the left column's washes over that same tint: a blue
+ * wash gone by a third of the height, a violet-grey rise through the bottom
+ * third. Every layer stays translucent. */
+html[data-platform='darwin'] {
+  --ondra-glass-surface:
+    linear-gradient(
+      to bottom,
+      rgb(122 155 240 / 0.1),
+      rgb(122 155 240 / 0) 35%,
+      rgb(143 137 184 / 0) 68%,
+      rgb(143 137 184 / 0.09)
+    ),
+    var(--ondra-glass-tint);
+}
+
+html[data-platform='darwin'] body[data-ds-dark-theme] {
+  --ondra-glass-surface:
+    linear-gradient(
+      to bottom,
+      rgb(122 155 240 / 0.08),
+      rgb(122 155 240 / 0) 35%,
+      rgb(143 137 184 / 0) 68%,
+      rgb(143 137 184 / 0.07)
+    ),
+    var(--ondra-glass-tint);
+}
+
+/* macOS Reduce Transparency flattens the vibrancy layer to a solid grey, so the
+ * thin tint reads washed-out over it. Both themes fall back to a 90%-opaque
+ * fill of the same token. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-platform='darwin'],
+  html[data-platform='darwin'] body[data-ds-dark-theme] {
+    --ondra-glass-tint: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 90%, transparent);
+    --ondra-glass-surface: var(--ondra-glass-tint);
+  }
+}
+
+/* Ondra frosted pages, whole app.
+ *
+ * One tint, one alpha, everywhere: the page fill and the card layers read the
+ * same glass, so the window's vibrancy material shows through every screen
+ * instead of one surface looking denser than its neighbour. `--ondra-glass-
+ * surface` adds the left column's original washes for the frame columns.
+ *
+ * The dark block repeats every override because the token sheet defines its
+ * values on `body[data-ds-dark-theme]`: a selector that outranks that one is
+ * the only way to win in dark mode. */
+html[data-platform='darwin'] body {
+  --dsw-alias-bg-base: var(--ondra-glass-tint);
+  --dsw-alias-bg-document-preview: var(--ondra-glass-tint);
+  --dsw-alias-bg-layer-1: var(--ondra-glass-tint);
+  --dsw-alias-bg-layer-2: var(--ondra-glass-tint);
+  --dsw-alias-bg-layer-3: var(--ondra-glass-tint);
+  --dsw-alias-bg-module-platform: var(--ondra-glass-tint);
+}
+
+html[data-platform='darwin'] body[data-ds-dark-theme] {
+  --dsw-alias-bg-base: var(--ondra-glass-tint);
+  --dsw-alias-bg-document-preview: var(--ondra-glass-tint);
+  --dsw-alias-bg-layer-1: var(--ondra-glass-tint);
+  --dsw-alias-bg-layer-2: var(--ondra-glass-tint);
+  --dsw-alias-bg-layer-3: var(--ondra-glass-tint);
+  --dsw-alias-bg-module-platform: var(--ondra-glass-tint);
+}
+
+/* Settings, dialogs and every flyout stay official: they float over live
+ * content, and translucent text panels are hard to read. Resetting the tokens
+ * on each surface's own root makes the whole subtree inherit the untouched
+ * upstream colours — no component style is overridden here. Flyouts are
+ * portalled to body, so they need the reset on their own root as well. */
+html[data-platform='darwin'] [data-shortcut-modal],
+html[data-platform='darwin'] [role='dialog'],
+html[data-platform='darwin'] [role='alertdialog'],
+html[data-platform='darwin'] [role='menu'],
+html[data-platform='darwin'] [role='listbox'],
+html[data-platform='darwin'] [data-menu-material],
+html[data-platform='darwin'] [data-menu-backing] {
+  --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-document-preview: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-00);
+}
+
+html[data-platform='darwin'] body[data-ds-dark-theme] [data-shortcut-modal],
+html[data-platform='darwin'] body[data-ds-dark-theme] [role='dialog'],
+html[data-platform='darwin'] body[data-ds-dark-theme] [role='alertdialog'],
+html[data-platform='darwin'] body[data-ds-dark-theme] [role='menu'],
+html[data-platform='darwin'] body[data-ds-dark-theme] [role='listbox'],
+html[data-platform='darwin'] body[data-ds-dark-theme] [data-menu-material],
+html[data-platform='darwin'] body[data-ds-dark-theme] [data-menu-backing] {
+  --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+  --dsw-alias-bg-document-preview: var(--dsw-static-neutral-bluish-950);
+  --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
+  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+  --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+}

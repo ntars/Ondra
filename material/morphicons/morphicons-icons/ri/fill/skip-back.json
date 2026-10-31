@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:skip-back",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "skip-back",
+ "upstreamName": "skip-back-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/skip-back.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m8 11.333l10.223-6.815a.5.5 0 0 1 .777.416v14.132a.5.5 0 0 1-.777.416L8 12.667V19a1 1 0 1 1-2 0V5a1 1 0 0 1 2 0z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

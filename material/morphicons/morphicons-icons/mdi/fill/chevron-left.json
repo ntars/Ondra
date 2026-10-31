@@ -1,0 +1,15 @@
+{
+ "id": "mdi-fill:chevron-left",
+ "set": "mdi-fill",
+ "library": "mdi",
+ "style": "fill",
+ "label": "chevron-left",
+ "upstreamName": "chevron-left",
+ "width": 24,
+ "height": 24,
+ "file": "mdi/fill/chevron-left.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M15.41 16.58L10.83 12l4.58-4.59L14 6l-6 6l6 6z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mdi"
+}

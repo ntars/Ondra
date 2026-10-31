@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:check",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "check",
+ "upstreamName": "check-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/check.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"m10 15.17l9.192-9.191l1.414 1.414L10 17.999l-6.364-6.364l1.414-1.414z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

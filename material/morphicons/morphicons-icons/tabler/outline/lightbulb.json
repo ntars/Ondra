@@ -1,0 +1,15 @@
+{
+ "id": "tabler-outline:lightbulb",
+ "set": "tabler-outline",
+ "library": "tabler",
+ "style": "outline",
+ "label": "lightbulb",
+ "upstreamName": "lamp",
+ "width": 24,
+ "height": 24,
+ "file": "tabler/outline/lightbulb.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 20h6m-3 0v-8m-7 0h14l-4-8H9z\"/></svg>",
+ "license": "MIT",
+ "version": "3.49.0",
+ "source": "@iconify-json/tabler"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "ri-fill:music",
+ "set": "ri-fill",
+ "library": "ri",
+ "style": "fill",
+ "label": "music",
+ "upstreamName": "music-fill",
+ "width": 24,
+ "height": 24,
+ "file": "ri/fill/music.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M12 13.535V3h8v3h-6v11a4 4 0 1 1-2-3.465\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:chart",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "chart",
+ "upstreamName": "bar-chart-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/chart.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M3 12h2v9H3zm16-4h2v13h-2zm-8-6h2v19h-2z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

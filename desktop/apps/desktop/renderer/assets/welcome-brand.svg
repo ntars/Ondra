@@ -1,0 +1,17 @@
+<svg width="472" height="40" viewBox="0 0 472 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<style>
+  :root {
+    --ondra-wordmark: #0f1115;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ondra-wordmark: #f9fafb;
+    }
+  }
+</style>
+<!-- Ondra wordmark: the product's own name replaces the upstream lettering. -->
+<text x="0" y="30"
+  font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+  font-size="34" font-weight="600" letter-spacing="-0.6"
+  fill="var(--ondra-wordmark)">空谷 Ondra</text>
+</svg>

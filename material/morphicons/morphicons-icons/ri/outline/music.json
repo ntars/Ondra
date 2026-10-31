@@ -1,0 +1,15 @@
+{
+ "id": "ri-outline:music",
+ "set": "ri-outline",
+ "library": "ri",
+ "style": "outline",
+ "label": "music",
+ "upstreamName": "music-line",
+ "width": 24,
+ "height": 24,
+ "file": "ri/outline/music.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"currentColor\" d=\"M12 13.535V3h8v2h-6v12a4 4 0 1 1-2-3.465M10 19a2 2 0 1 0 0-4a2 2 0 0 0 0 4\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "4.8.0",
+ "source": "@iconify-json/ri"
+}

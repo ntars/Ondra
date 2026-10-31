@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:mouse",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "mouse",
+ "upstreamName": "mouse-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/mouse.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 7v4m-1 10h2a5 5 0 0 0 5-5V8a5 5 0 0 0-5-5h-2a5 5 0 0 0-5 5v8a5 5 0 0 0 5 5\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

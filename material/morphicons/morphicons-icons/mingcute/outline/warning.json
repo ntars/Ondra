@@ -1,0 +1,15 @@
+{
+ "id": "mingcute-outline:warning",
+ "set": "mingcute-outline",
+ "library": "mingcute",
+ "style": "outline",
+ "label": "warning",
+ "upstreamName": "warning-line",
+ "width": 24,
+ "height": 24,
+ "file": "mingcute/outline/warning.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-width=\"2\" d=\"M12 7v6m0 3h.002M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0Z\"/></svg>",
+ "license": "Apache-2.0",
+ "version": "未记录",
+ "source": "@iconify-json/mingcute"
+}

@@ -1,0 +1,15 @@
+{
+ "id": "ph-outline:more-vertical",
+ "set": "ph-outline",
+ "library": "ph",
+ "style": "outline",
+ "label": "more-vertical",
+ "upstreamName": "dots-three-vertical",
+ "width": 256,
+ "height": 256,
+ "file": "ph/outline/more-vertical.svg",
+ "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" width=\"256\" height=\"256\"><path fill=\"currentColor\" d=\"M140 128a12 12 0 1 1-12-12a12 12 0 0 1 12 12m-12-56a12 12 0 1 0-12-12a12 12 0 0 0 12 12m0 112a12 12 0 1 0 12 12a12 12 0 0 0-12-12\"/></svg>",
+ "license": "MIT",
+ "version": "2.1.1",
+ "source": "@iconify-json/ph"
+}
