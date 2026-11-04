@@ -18,13 +18,17 @@ export const TRAY_ICON_SIZES = [16, 20, 24, 32, 40, 48, 64] as const
 
 /** Vector source and committed output of the tray icon. */
 export const TRAY_ICON_PATHS = {
-  source: fileURLToPath(new URL('../resources/icon-windows.svg', import.meta.url)),
+  // 用托盘专用矢量：白底圆角徽章 + 深色主体，且主体画到接近满幅。
+  // 应用图标四周留白太大，缩到 16 逻辑像素后主体只剩几像素，任务栏上看不清。
+  source: fileURLToPath(new URL('../resources/tray-windows.svg', import.meta.url)),
   output: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)),
 } as const
 
 /** Coordinate space of the vector source; sharp's SVG density is scaled against it. */
 const SOURCE_EDGE = 1024
 const SOURCE_DENSITY = 72
+/** 主体相对徽章的放大倍率；`tray-windows.svg` 已画满，故取 1。 */
+const TRAY_GLYPH_SCALE = 1
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const ICON_DIRECTORY_BYTES = 6
 const ICON_ENTRY_BYTES = 16
@@ -101,8 +105,9 @@ export async function renderTrayIconEntries(svg: Buffer, sizes: readonly number[
   const source = svg.toString('utf8')
   const glyph = '<g id="tray-glyph"'
   if (!source.includes(glyph)) throw new Error('tray icon: SVG requires a tray-glyph group')
-  // Scale around the application tile center, retaining its background and the whale's aspect ratio.
-  const tray = Buffer.from(source.replace(glyph, `${glyph} transform="translate(552 544) scale(1.2) translate(-552 -544)"`))
+  // 围绕应用徽章中心放大：16 逻辑像素下主体若只占十来个像素，任务栏上就是一坨糊。
+  // 1.45 是在「主体够大」与「不溢出圆角白底」之间试出来的上限，改大就会切边。
+  const tray = Buffer.from(source.replace(glyph, `${glyph} transform="translate(552 544) scale(${String(TRAY_GLYPH_SCALE)}) translate(-552 -544)"`))
   return Promise.all(sizes.map(async size => ({
     size,
     png: await sharp(tray, { density: SOURCE_DENSITY * size / SOURCE_EDGE }).resize(size, size).png().toBuffer(),

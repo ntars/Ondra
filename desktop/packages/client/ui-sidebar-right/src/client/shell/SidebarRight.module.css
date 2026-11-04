@@ -151,3 +151,16 @@
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
+
+/*
+ * Windows：右栏与左栏同底板，并且不画分隔线。
+ *
+ * mac 用这条发丝线把「中栏白纸」与「右栏浮层」分开；Win 的窗口边框本身更硬，
+ * 再加一条竖线会把界面切成三块卡片拼贴。这里改成与左栏同一个填充色，让两侧对称，
+ * 中栏保持白色即自然分层。选择器沿用全局 `html[data-platform]` 约定（与
+ * `ui-settings-account` 的 PlatformOverlay 一致），darwin 完全不受影响。
+ */
+:global(html[data-platform='win32']) .panel {
+  border-left-color: transparent;
+  background: var(--dsw-specific-sidebar-fill);
+}
