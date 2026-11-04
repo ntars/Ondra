@@ -1,0 +1,79 @@
+{
+  "name": "@ntars/ondra-client-ui-theme",
+  "description": "Theme plugin: Host bootstrap for the pre-plugin palette; ThemeRuntime for light/dark/system state and icon replacements; --dsw-* token styles and Appearance settings row",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/client/ui-theme"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./brand-font.css": "./lib/styles/brand-font.css",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-client-connection",
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-shortcuts",
+        "@ntars/ondra-client-ui-renderer",
+        "@ntars/ondra-client-ui-settings",
+        "@ntars/ondra-api-remotes"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-api-remotes": "workspace:*",
+    "@ntars/ondra-client-connection": "workspace:*",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-shortcuts": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-settings": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "@ntars/ondra-host-webserver": "workspace:*",
+    "react": "^18.2.0",
+    "clsx": "^2.0.0",
+    "@ntars/ondra-settings": "workspace:*"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/styles",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  }
+}

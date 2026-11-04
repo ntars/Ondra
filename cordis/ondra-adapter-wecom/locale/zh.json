@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 企业微信通道",
+    "description": "企业微信自建应用通道：回调路由挂在宿主 webServer 上（不自己 listen 端口）、自实现 WXBizMsgCrypt 只解不封（AES-256-CBC + PKCS#7/32）、单条 2000 字切条、先回 success 再走应用消息异步回答。加密回调是唯一入口——明文报文会被拒，因为明文模式没有签名，谁都能伪造一条来信。"
+  }
+}

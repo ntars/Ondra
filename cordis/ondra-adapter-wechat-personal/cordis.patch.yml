@@ -1,0 +1,21 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 这里再抄一份就会分叉——而这个分叉在**高危通道**上尤其危险：
+# 面板显示「已打开」，而实际的双闸门是关的。
+#
+# 刻意**不写 inject**：依赖全软（router / channel-kit / channel-health 等）。
+# 高危通道最该做到的事恰恰是「缺了 kit 也要显示在面板上：它在，但没确认」。
+#
+# 刻意**不写 disabled**：enable=false 已经让路由回 503 并写清原因。
+# 摘掉入口等于让用户失去「它存在但没开」这条信息——而这条信息本身就是安全的一部分。
+- insert:
+    - id: ondra-adapter-wechat-personal
+      name: 'ondra-adapter-wechat-personal'

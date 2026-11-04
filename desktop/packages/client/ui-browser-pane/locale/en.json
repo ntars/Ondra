@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "ui-browser-pane",
+    "description": "A chrome-less surface for built-in plugin pages, with no address bar and no way to type a URL."
+  }
+}

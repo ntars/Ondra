@@ -1,0 +1,24 @@
+# 本插件对宿主入口树的补丁（手册 §8.3-1：漏了它，宿主只在 stderr 打一行
+# `skipping profile bundle ... declares no ondra.bundle`，插件永远不加载）。
+#
+# 语义（手册 §8.3-2，实现在 desktop/vendor/include/src/index.ts 的 applyEntryPatches）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 inject**：`ondra-path-layout` 是软依赖。声明成入口级 inject，
+# 缺它就停在 PENDING 且一声不响，而本包的前提是「缺路径就只在内存里记，
+# 但要说得出这一条为什么没落盘」——静默停 PENDING 连这句话都说不出。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 这里抄一遍最容易漂的是 `max-excerpt-chars`：补丁写死 60、代码改成 120 之后，
+# 日志写着「留 60 字」而实际存了 120——两个数字对不上，查起来要先怀疑截断逻辑。
+#
+# 刻意**不写 disabled**：`enable: false` 已经能关掉一切，而服务仍注册、
+# `stats()` 与旧记录仍可查。写成入口级 disabled，面板只看到「它不在」，
+# 读不到「它关着」，也读不到「关之前发生过什么」。
+- insert:
+    - id: ondra-narrative-log
+      name: 'ondra-narrative-log'

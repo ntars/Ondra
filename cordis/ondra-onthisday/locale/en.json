@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra On This Day",
+    "description": "Every day, look back at memories from the same month and day (block four of the eight-block assembly, handbook section 2.6). Three shelves: anniversary (the same month and day in earlier years, with February 29 folded onto February 28 in common years), exactly 365 days (the fallback for leap days and year-boundary drift), and whole 30 or 31 days (one month ago). It pages through the entire memory store rather than sampling it, includes archived entries because archived means forgotten-not-deleted, and never touches sealed ones. Ordering is shelf, then years, then salience, then id; three at most, with the number held back and the number left unscanned reported separately so nothing is dropped silently. The plugin only produces structured material: wording belongs to the injection layer and clarity phrasing to the decay layer, so it renders no text, calls no model, does not speak on its own, holds no timer, and records a mention once, only when the items are actually taken."
+  }
+}

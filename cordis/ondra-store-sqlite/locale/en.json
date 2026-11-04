@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra SQLite store",
+    "description": "SQLite storage port for Ondra: WAL, foreign keys, STRICT tables, column backfill and 0600 permissions, degrading instead of blocking."
+  }
+}

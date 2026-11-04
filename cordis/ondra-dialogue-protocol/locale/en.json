@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Dialogue Frames",
+    "description": "One reply is not one string but five frames: a text delta, a whole-text replacement, a crisis marker, a usage report and a done marker. The shape is defined once here so the UI and every channel branch on the same thing — treating a replacement as a delta shows the user the opening twice, and dropping a crisis frame means the notice never reaches them."
+  }
+}

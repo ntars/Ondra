@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Dialogue Orchestration",
+    "description": "She remembers because the opening never changes. Persona and worldbook are assembled once at session start and then frozen; date and mood are only appended to the tail. Reassembling the system prompt each turn drops the cache hit rate from 99% to zero, and the bill notices before anyone else does. History only grows, and compaction happens only between turns."
+  }
+}

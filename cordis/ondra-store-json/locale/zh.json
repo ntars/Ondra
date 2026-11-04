@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra JSONL 存储",
+    "description": "空谷 Ondra 的 JSONL 持久化后端：无 SQLite 或库损坏时的兜底分支，追加日志落盘、压缩时原子重写。默认关闭。"
+  }
+}

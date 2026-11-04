@@ -1,0 +1,54 @@
+{
+  "name": "@ntars/ondra-client-web",
+  "description": "Web boot kernel: static module table, Cordis loader, framework-free boot page, and UI-renderer handoff",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/client/web"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./injections": {
+      "types": "./lib/types/apply-injections.d.ts",
+      "default": "./lib/apply-injections.js"
+    }
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-client-modules": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-ui-dockkit": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^6.0.3",
+    "@ntars/ondra-host-webserver": "workspace:*",
+    "zod": "4.4.3",
+    "@tanstack/react-virtual": "3.14.10"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/**/*.css",
+    "lib/apply-injections.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

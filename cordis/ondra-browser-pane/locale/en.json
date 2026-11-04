@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Built-in Browser",
+    "description": "A minimal pane reserved for built-in plugins: pages are registered by plugins, the host allowlist is enforced, and no address is shown or editable."
+  }
+}

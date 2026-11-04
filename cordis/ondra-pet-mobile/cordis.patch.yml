@@ -1,0 +1,21 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+#
+# 刻意**不写 inject**：本包对 ondra-identity / ondra-config-schema / ondra-clock /
+# ondra-memory-core / ondra-pet / webServer 全是软依赖（探测「在不在」而不是「必须有」），
+# 声明成插件级 inject 会让任一上游缺席时整插件停在 PENDING（手册 §8.3 的静默失败之一）。
+# 尤其 `webServer`：无头/命令行形态可能没有它，而那正是「前提没齐」要说的事，不是启动失败。
+#
+# 刻意**不写 disabled**：enable=false 已经让 connect() 如实回 disabled，
+# 服务照常注册、`check()` 仍能报出七条前提的现状——那正是本包存在的意义。
+- insert:
+    - id: ondra-pet-mobile
+      name: 'ondra-pet-mobile'

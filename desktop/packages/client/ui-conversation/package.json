@@ -1,0 +1,108 @@
+{
+  "name": "@ntars/ondra-client-ui-conversation",
+  "description": "Target-neutral Conversation assembly, shell, composer, queue, and view navigation",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/client/ui-conversation"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-api-session-controller",
+        "@ntars/ondra-client-file-upload",
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-layout",
+        "@ntars/ondra-client-ui-renderer",
+        "@ntars/ondra-client-ui-session",
+        "@ntars/ondra-client-ui-settings",
+        "@ntars/ondra-client-ui-workspace"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-api-remotes": "workspace:*",
+    "@ntars/ondra-api-session-controller": "workspace:*",
+    "@ntars/ondra-api-workspace-controller": "workspace:*",
+    "@ntars/ondra-attachment": "workspace:*",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-file-upload": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@ntars/ondra-client-ui-layout": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-session": "workspace:*",
+    "@ntars/ondra-client-ui-settings": "workspace:*",
+    "@ntars/ondra-client-ui-workspace": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "@ntars/ondra-commands": "workspace:*",
+    "@ntars/ondra-goal": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-llm-retry": "workspace:*",
+    "@ntars/ondra-plan-mode": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/ondra-token-meter": "workspace:*",
+    "@ntars/ondra-tool-todo": "workspace:*",
+    "@ntars/ondra-util-crypto": "workspace:*",
+    "@ntars/ondra-workspace": "workspace:*",
+    "@ntars/ondra-file-reference": "workspace:*",
+    "@ntars/ondra-util-workspace-path": "workspace:*",
+    "react": "^18.2.0",
+    "@lexical/headless": "^0.49.0",
+    "react-dom": "^18.2.0",
+    "zod": "4.4.3",
+    "lexical": "^0.49.0",
+    "clsx": "^2.0.0",
+    "@lexical/utils": "^0.49.0",
+    "@lexical/text": "^0.49.0",
+    "@lexical/plain-text": "^0.49.0",
+    "@lexical/history": "^0.49.0",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-settings": "workspace:*",
+    "@ntars/ondra-client-shortcuts": "workspace:*",
+    "@ntars/ondra-client-product-analytics": "workspace:*",
+    "@ntars/ondra-message-quotes": "workspace:*"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

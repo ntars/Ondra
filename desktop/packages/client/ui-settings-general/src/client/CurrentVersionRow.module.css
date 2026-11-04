@@ -1,0 +1,9 @@
+/* Matches the shared Settings field rhythm: 6px rather than 10px so this row
+   sits at the same density as the form rows above and below it. */
+.row {
+  padding: 6px 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}

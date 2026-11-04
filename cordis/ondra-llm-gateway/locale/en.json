@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra model gateway",
+    "description": "Model supply for Ondra: a source list of online API / local / free routes, priority routing, first-chunk and idle timeouts, retry and cross-source fallback before the first chunk, plus usage accounting."
+  }
+}

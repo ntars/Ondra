@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra QQ 通道（NapCat）",
+    "description": "QQ 的 NapCat / OneBot v11 通道，属高危通道：enable 与 confirmed 双闸门 + 独立确认档案、QQ 号与群号分开的白名单、六道防封闸（内容、深夜静默、去重、令牌桶、会话冷却、抖动与熔断）、反向 WS 升级路由。编解码留给传输端口：仓内没有 OneBot 帧依据，就不写「看起来能跑」的握手，缺实现时明确报「没有传输实现」。"
+  }
+}

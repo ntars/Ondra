@@ -1,0 +1,87 @@
+{
+  "name": "@ntars/ondra-session-log-export",
+  "description": "Web Session-log ZIP export and Session Markdown copy",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/session-query/session-log-export"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/ondra-session-format": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "fflate": "^0.8.2",
+    "@ntars/ondra-brand": "workspace:*"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-persistence": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-attachment": "workspace:*",
+    "@ntars/ondra-client-connection": "workspace:*",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-ui-commands": "workspace:*",
+    "@ntars/ondra-client-ui-conversation": "workspace:*",
+    "@ntars/ondra-client-ui-layout": "workspace:*",
+    "@ntars/ondra-client-ui-message-feedback": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-session": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "@ntars/ondra-commands": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-persistence": "workspace:*",
+    "@ntars/ondra-session-query": "workspace:*",
+    "@ntars/ondra-session-title": "workspace:*",
+    "react": "^18.2.0"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-commands",
+        "@ntars/ondra-client-ui-conversation",
+        "@ntars/ondra-client-ui-layout",
+        "@ntars/ondra-client-ui-renderer",
+        "@ntars/ondra-client-ui-session"
+      ],
+      "platform": "web"
+    }
+  }
+}

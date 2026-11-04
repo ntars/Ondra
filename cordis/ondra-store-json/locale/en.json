@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra JSONL store",
+    "description": "JSONL persistent backend for Ondra: the multi-plan fallback branch when SQLite is unavailable or corrupted. Append-log with atomic compaction. Disabled by default."
+  }
+}

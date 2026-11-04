@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Message Rhythm",
+    "description": "How many bubbles a reply becomes, and how long she waits between them — all computed here, without sending a single character. Four bubbles keep one of the platform's five chances in reserve, forty characters is one breath, and the late-night pause is multiplied by 1.6 and then clamped again, otherwise a long message would wait exactly as long at midnight as at noon."
+  }
+}

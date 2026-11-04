@@ -1,0 +1,41 @@
+{
+  "name": "ondra-narrative-log",
+  "description": "空谷 Ondra 的回复决策解释（手册 §1.5 O-135，P1）：记下「她为什么这么回」，只追加、只读，供界面与审计查。四条写死的判定。第一，不进提示词：这份记录天然带计数（「拦了 2 处」），拼进上下文会直接撞上禁止报数铁律，也会让「解释自己」变成表演，所以本包没有任何 prompt/inject 出口。第二，只追加不改不删：对外只有 record() 一个写入口，文件以 a 打开，审计日志一旦可改就不再是审计。第三，不自己推断理由：因子由择档、情绪、九步过滤、证据门控各自交进来，本包不知道 emotion.tension 的语义，只负责收下、脱敏、截断、按权重排序、说成人话；自己推断就会写出没人说过的话。第四，不存正文全文：只留她说出口那一小段（默认 60 字，可关）与结构化因子，用户原话、记忆正文、提示词一律不存。落盘是一天一个 JSONL，坏行跳过不影响别的行；保留期只在 prune() 被显式调用时生效，没有定时器——自动删日志的风险不对称，删错了就永久丢掉唯一线索。本包不发工具、不装定时器、不出站、不画界面：日志视图与筛选归应用外壳。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

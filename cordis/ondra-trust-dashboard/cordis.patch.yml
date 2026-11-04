@@ -1,0 +1,17 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（master-plan §8.3-2，全仓 108 份对照确认）：
+#   - `insert` 块自身不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 块自身带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / `name` 不一致 → 宿主只告警然后跳过（不报错，也不会加载）。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+#
+# 刻意**不写 inject**：五项依赖（关系 / 承诺 / 记忆 / 审计 / 时钟）全是软依赖。
+# 本插件的价值是「缺了什么就明说缺什么」——若声明 inject，缺关系服务就会整包
+# 停在 PENDING，那时连「关系服务没装」这句话都读不到，正是最需要它的场景失效。
+- insert:
+    - id: ondra-trust-dashboard
+      name: 'ondra-trust-dashboard'

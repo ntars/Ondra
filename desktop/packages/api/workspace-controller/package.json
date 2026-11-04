@@ -1,0 +1,104 @@
+{
+  "name": "@ntars/ondra-api-workspace-controller",
+  "description": "Workspace Remote commands and reconnect-safe state transport",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/api/workspace-controller"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./default-workspace": {
+      "types": "./lib/types/default-workspace.d.ts",
+      "default": "./lib/types/default-workspace.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "ondra": {
+    "client": {
+      "external": [
+        "@ntars/ondra-api-gateway/client"
+      ],
+      "inject": [
+        "@ntars/ondra-api-gateway",
+        "@ntars/ondra-client-connection"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/ondra-deque": "workspace:*",
+    "@ntars/ondra-home-paths": "workspace:*",
+    "@ntars/ondra-native-command": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-api-gateway": "workspace:*",
+    "@ntars/ondra-client-connection": "workspace:*",
+    "@ntars/ondra-host-directory-picker": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-storage-domain": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/ondra-workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-api-gateway": "workspace:*",
+    "@ntars/ondra-api-remote-access": "workspace:*",
+    "@ntars/ondra-client-connection": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@ntars/ondra-host-directory-picker": "workspace:*",
+    "@ntars/ondra-remote-mock": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-storage-domain": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/ondra-workspace": "workspace:*"
+  }
+}

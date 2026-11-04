@@ -1,0 +1,22 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 这里再抄一份，改一处不生效、改另一处才生效——正是最难查的那种「配置不生效」。
+#
+# 刻意**不写 inject**：本插件四个依赖全软（config-schema / path-layout / clock / identity）。
+# 声明 inject 会让缺一个就整包停在 PENDING，而「某个通道为什么不回消息」
+# 恰恰要靠探针回答：探针自己没装载，连这个问题都没人答。
+#
+# 刻意**不写 disabled**：探针没有副作用（不联网、不发消息、不写别人的文件），
+# 默认开着才有意义。要关请写配置 `enable=false`，那时服务照常注册，
+# 面板还能显示「探针已关闭」——而不是整块消失。
+- insert:
+    - id: ondra-channel-health
+      name: 'ondra-channel-health'

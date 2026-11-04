@@ -1,0 +1,32 @@
+Usage: ondra [--profile] <name> [options] [app-args...]
+       ondra plugin --profile <name> <pnpm-args...>
+
+ondra: boot a Ondra profile — an ordered stack of plugin-bundle patch
+layers under your own overrides.
+
+Arguments:
+  args                           arguments for the booted profile's app (see:
+                                 ondra --profile <name> --help)
+
+Options:
+  -V, --version                  output the version number
+  --profile <name>               the profile under $ONDRA_HOME/profiles to boot
+  --from-default-profile <name>  replace a custom profile with a fresh copy of a
+                                 shipped profile template
+  --patch <path>                 extra patch-list overlay applied after the
+                                 profile layer (repeatable)
+  --dump-config                  print the composed profile tree and exit
+  --dump-config-schema           print JSON Schema for profile entries and
+                                 patches without mounting
+  --dump-default-config          print the profile tree without its user layer
+                                 or --patch overlays and exit
+
+Examples:
+  ondra web                                   boot the web profile (same as: ondra --profile web)
+  ondra rescue --from-default-profile web
+                                            recreate rescue from the shipped web template, then boot it
+  ondra headless "run the tests"              answer one task, print the result, and exit
+  ondra tui --patch ./extra.yml               boot a custom profile with one extra overlay
+  ondra tui --resume <session>                arguments after the launcher flags reach the app
+  ondra web --help                            the web app's own flags and help
+  ondra plugin --profile tui add <package>    install a plugin into the tui profile

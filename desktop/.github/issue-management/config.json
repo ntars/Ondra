@@ -1,0 +1,19 @@
+{
+  "organization": "ondra",
+  "repository": "ondra",
+  "projectNumber": 1,
+  "projectTitle": "Ondra Issue Management",
+  "lifecycleActor": "ondra-issue-management",
+  "priorityField": "Priority",
+  "startDateField": "Start Date",
+  "projectTimeZone": "Asia/Shanghai",
+  "statuses": [
+    "Inbox",
+    "Backlog",
+    "Ready",
+    "In progress",
+    "In review",
+    "Done",
+    "No action"
+  ]
+}

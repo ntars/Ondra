@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Morning Brief",
+    "description": "Morning brief for Ondra (thin tier, L9 extension pool): the first screen of the day carries three things only — a promise with a deadline, something left unfinished from yesterday, and the outside world (solar term, festival, weather). Each section names exactly one item, quoted verbatim from upstream, three items at most. Three hard rules: never report counts (no 'you still have 7 open items' — a number turns into a progress bar, and then a person starts living against the progress bar); 'there is genuinely nothing today' and 'this section cannot be read' must stay separate (merge them and, on the day an upstream is down, the user will believe all is well); generated only when called (no timers, no push, no messages, no UI). It only selects and orders — it redefines no number: promises come from the prospective service, memory from the memory core (used only to check whether the memory behind a promise has been deleted, because the right to be forgotten wins), solar terms and festivals and weather from their own services. Whichever section is missing says so plainly rather than substituting zero or empty content. Nothing is persisted: a brief is a projection of this moment, and the acknowledgement record lives only in this process."
+  }
+}

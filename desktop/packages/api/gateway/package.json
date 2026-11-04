@@ -1,0 +1,85 @@
+{
+  "name": "@ntars/ondra-api-gateway",
+  "description": "Typert Remote Host dispatcher and Client API endpoint",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/api/gateway"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "node": "./lib/client.node.js",
+      "browser": "./lib/client.browser.js",
+      "default": "./lib/client.browser.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./stream-protocol": {
+      "types": "./lib/types/stream-protocol.d.ts",
+      "default": "./lib/types/stream-protocol.js"
+    },
+    "./locale/*.json": "./locale/*.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-typert-registry",
+        "@ntars/ondra-client-connection"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.browser.js",
+    "lib/client.node.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/ondra-deque": "workspace:*",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "ws": "^8.21.3",
+    "@ntars/ondra-typert-protocol": "workspace:*"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/ondra-api-remote-access": "workspace:*",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-cmdline": "workspace:*",
+    "@ntars/ondra-client-connection": "workspace:*",
+    "@ntars/ondra-host-webserver": "workspace:*",
+    "@ntars/ondra-remote-mock": "workspace:*",
+    "@ntars/ondra-typert-registry": "workspace:*",
+    "@ntars/ondra-util-crypto": "workspace:*",
+    "@types/ws": "^8.18.1",
+    "@ntars/cordis": "workspace:~",
+    "zod": "4.4.3"
+  }
+}

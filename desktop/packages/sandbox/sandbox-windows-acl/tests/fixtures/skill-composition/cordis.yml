@@ -1,0 +1,4 @@
+- id: sandbox
+  name: '@ntars/ondra-sandbox-local'
+- id: skills
+  name: '@ntars/ondra-skill'

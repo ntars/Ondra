@@ -1,0 +1,70 @@
+{
+  "name": "@ntars/ondra-experimental-translator",
+  "description": "Machine translation with reusable Session results",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/translator"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-persistence": "workspace:*",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-credentials": "workspace:*",
+    "@ntars/ondra-launch-environment": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-app-boot": "workspace:*",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-persistence": "workspace:*",
+    "@ntars/ondra-session-persistence-jsonl": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-credentials": "workspace:*",
+    "@ntars/ondra-launch-environment": "workspace:*",
+    "@ntars/ondra-llm-deepseek": "workspace:*",
+    "@ntars/ondra-llm-deepseek-api-key": "workspace:*",
+    "@ntars/ondra-llm-deepseek-account": "workspace:*",
+    "@ntars/ondra-deepseek-account": "workspace:*",
+    "@ntars/ondra-deepseek-llm-api-extensions": "workspace:*",
+    "@ntars/ondra-session-log-deepseek": "workspace:*",
+    "@ntars/ondra-session-query-sqlite": "workspace:*"
+  }
+}

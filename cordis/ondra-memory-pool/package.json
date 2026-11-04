@@ -1,0 +1,41 @@
+{
+  "name": "ondra-memory-pool",
+  "description": "空谷 Ondra 的记忆八池分层：宽限 / 半衰期 / 归档三段天级时间轴（core ∞ 上限 32、skillRule 730d、skillExp 60d、dailyCore 60d、dailyPartial 20d、emotion 1d、hippocampus 1d 永不注入）；标签未命中不猜→海马体 + 未归类，同一句写满 3 次升级「需人工定池」。不算强度、不改 memory_fact 任何一列。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

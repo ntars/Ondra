@@ -1,0 +1,184 @@
+# Standalone minimal SDK application. Unlike the ordinary SDK profile, this
+# bundle does not layer over ondra-base: this insert is the complete Cordis tree.
+# User profile, home, and invocation patches still apply above it.
+
+- insert:
+    - id: sdk-app-startup
+      name: '@ntars/ondra-sdk-app'
+      config:
+        profile: sdk-minimal
+
+    - id: sdk-jsonrpc-server
+      name: '@ntars/ondra-sdk-jsonrpc-server'
+      inject: [sdkAppStartup, loader]
+      config:
+        maxTokensAsSuccess: false
+
+    - id: deepseek-llm-api-extensions
+      name: '@ntars/ondra-deepseek-llm-api-extensions'
+
+    - id: session-log-deepseek
+      disabled: true
+      name: '@ntars/ondra-session-log-deepseek'
+
+    - id: plugin-package-inventory-deepseek
+      disabled: true
+      name: '@ntars/ondra-plugin-package-inventory-deepseek'
+
+    - id: llm-deepseek
+      name: '@ntars/ondra-llm-deepseek-api-key'
+      config:
+        apiKeyEnv: DEEPSEEK_API_KEY
+        defaultContextWindow: !!js Number(process.env.ONDRA_CONTEXT_WINDOW ?? 1000000)
+        streamIdleTimeoutMs: 172800000
+
+    - id: sandbox
+      name: '@ntars/ondra-sandbox-local'
+
+    # Shared projection registry: sandbox-policy and terminal-bash fold
+    # sandbox-mode state through its units and require it as a hard injection.
+    - id: filesystem
+      name: '@ntars/ondra-fs-local'
+
+    - id: attachment-local
+      name: '@ntars/ondra-attachment-local'
+
+    - id: tool-fs
+      name: '@ntars/ondra-tool-fs'
+      config:
+        read: false
+        readImage: true
+        write: false
+        edit: false
+
+    - id: working-directory
+      name: '@ntars/ondra-working-directory'
+
+    - id: tool-working-directory
+      disabled: true
+      name: '@ntars/ondra-tool-working-directory'
+
+    - id: session-projection
+      name: '@ntars/ondra-session-projection'
+
+    - id: token-meter
+      name: '@ntars/ondra-token-meter'
+
+    - id: compaction-basic
+      name: '@ntars/ondra-compaction-basic'
+
+    - id: image-offload
+      disabled: true
+      name: '@ntars/ondra-compaction-image-offload'
+
+    - id: sandbox-policy
+      name: '@ntars/ondra-sandbox-policy'
+      config:
+        mode: danger-full-access
+        workspaceRoot: !!js process.cwd()
+
+    - id: subprocess
+      name: '@ntars/ondra-subprocess-local'
+
+    - id: pty
+      name: '@ntars/ondra-terminal'
+
+    - id: terminal-bash
+      name: '@ntars/ondra-terminal-bash'
+      disabled: !!js process.platform === 'win32'
+      config:
+        timeoutMs: 300000
+
+    - id: terminal-pwsh
+      name: '@ntars/ondra-terminal-bash'
+      disabled: !!js process.platform !== 'win32'
+      config:
+        shellDialect: pwsh
+        timeoutMs: 300000
+
+    # Keep the minimal agent kernel explicit: unlike ondra-base, this profile
+    # owns each service row and omits every optional producer it does not use.
+    - id: timer
+      name: '@ntars/cordis-plugin-timer'
+
+    - id: llm
+      name: '@ntars/ondra-llm'
+
+    - id: session
+      name: '@ntars/ondra-session'
+
+    - id: session-title
+      name: '@ntars/ondra-session-title'
+      config:
+        fallbackMaxWords: 5
+        fallbackMaxBytes: 40
+        maxTitleBytes: 80
+
+    - id: system-prompt
+      name: '@ntars/ondra-system-prompt'
+      config:
+        includeProductIdentity: false
+        includeRuntimeContext: false
+        personaPrefix: !!js process.env.ONDRA_SYSTEM_PROMPT ?? 'You are a helpful software engineer assistant.'
+
+    - id: tools
+      name: '@ntars/ondra-tools'
+
+    - id: tool-executor-native
+      name: '@ntars/ondra-tool-executor-native'
+
+    - id: mcp-resources
+      disabled: true
+      name: '@ntars/ondra-mcp-resources'
+
+    - id: agent
+      name: '@ntars/ondra-agent'
+
+
+    - id: llm-retry
+      name: '@ntars/ondra-llm-retry'
+
+    - id: jobs
+      name: '@ntars/ondra-jobs-local'
+
+    - id: agent-loop
+      name: '@ntars/ondra-agent-loop'
+      config:
+        agents: []
+
+    - id: persistent-bash
+      name: '@ntars/ondra-tool-bash-persistent'
+      disabled: !!js process.platform === 'win32'
+      config:
+        timeoutMs: 300000
+        description: |-
+          Run commands in a bash shell
+          * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+          * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+          * State is persistent across command calls and discussions with the user.
+          * To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.
+          * Please avoid commands that may produce a very large amount of output.
+          * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
+
+    - id: persistent-pwsh
+      name: '@ntars/ondra-tool-pwsh-persistent'
+      disabled: !!js process.platform !== 'win32'
+      config:
+        timeoutMs: 300000
+        description: |-
+          Run commands in a PowerShell shell
+          * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+          * You don't have access to the internet via this tool.
+          * State is persistent across command calls and discussions with the user.
+          * Use native Windows paths (C:\...) and $env:NAME variables; this is PowerShell, not bash.
+          * Please avoid commands that may produce a very large amount of output.
+          * Please run long lived commands in the background, e.g. 'Start-Job' or start a server with Start-Process.
+
+    - id: sessions
+      name: '@ntars/ondra-session-persistence-jsonl'
+      config:
+        root: !!js ondraHomePath('sessions')
+        compression: none
+
+    - id: session-checkpoint-policy
+      name: '@ntars/ondra-session-checkpoint-policy'

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 记忆快照",
+    "description": "空谷 Ondra 的记忆快照：VACUUM INTO 一致副本、KEEP=3 轮转、quick_check 校验；恢复必须显式确认，绝不自动执行。"
+  }
+}

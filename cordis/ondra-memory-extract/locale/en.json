@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory extract",
+    "description": "Memory extraction for Ondra: turns a conversation into facts carrying four-source quotes with verbatim verification, tool-backed numbers, and a five-level parse fallback. It proposes clean candidates only; dedupe and lifespan live elsewhere."
+  }
+}

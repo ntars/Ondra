@@ -1,0 +1,20 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组，本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+#
+# 刻意**不写 inject**：本插件只硬依赖「对话链」一件事，而它缺席时
+# 最该给出的答案是 `no-dialogue` 这句可读的原因，不是整包停在 PENDING。
+# 声明 inject 会让「为什么通道收得到消息却没人回」变成一条查不动的线索：
+# 插件根本没加载，连日志都没有。
+#
+# 刻意**不写 disabled**：默认开着才有意义（关掉等于公共段不存在）。
+# 用户要关请写配置 `enable=false`，那时服务照常注册、面板还能看见「已关闭」。
+- insert:
+    - id: ondra-channel-kit
+      name: 'ondra-channel-kit'

@@ -1,0 +1,59 @@
+{
+  "name": "@ntars/ondra-client-ui-browser-pane",
+  "description": "Web pane for built-in plugin pages: a chrome-less surface with no address bar and no way to type a URL, fed by ondra-browser-pane's /pane routes",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/client/ui-browser-pane"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-sidebar-right",
+        "@ntars/ondra-client-ui-renderer"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-sidebar-right": "workspace:*"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra QQ Channel (Official Bot)",
+    "description": "The official QQ bot channel: 1200-character chunking, passive replies always carrying the original msg_id, six anti-ban gates (content, night silence, dedup, token buckets, per-conversation cooldown, jitter and circuit breaker), one credential file and one state file per channel. The transport is a port, not an implementation: the handbook gives the protocol outline but not the frame format, so there is no \"looks runnable\" handshake here — a missing implementation is reported as exactly that."
+  }
+}

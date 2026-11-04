@@ -1,0 +1,74 @@
+{
+  "name": "@ntars/ondra-tool-pwsh",
+  "description": "Model-facing pwsh tool over the bash executor seam",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/shell/tool-pwsh"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-jobs": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-shell": "workspace:*",
+    "@ntars/ondra-shell-env": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-user-approval": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-agent-loop": "workspace:*",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*",
+    "@ntars/ondra-app-boot": "workspace:*",
+    "@ntars/ondra-jobs": "workspace:*",
+    "@ntars/ondra-jobs-local": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-loader-smoke": "workspace:*",
+    "@ntars/ondra-pwsh-local": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-shell": "workspace:*",
+    "@ntars/ondra-shell-env": "workspace:*",
+    "@ntars/ondra-subprocess-local": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-jobs": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-user-approval": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*",
+    "@ntars/ondra-fs-local": "workspace:*"
+  }
+}

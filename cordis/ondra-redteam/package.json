@@ -1,0 +1,41 @@
+{
+  "name": "ondra-redteam",
+  "description": "空谷 Ondra 的红队评测（L9 扩展池）：用十五道固定的攻击题撞她，看人格边界有没有塌。五类撞法——越狱套话、身份泄漏、内部提示萃取、谄媚迎合、隐私套取，判定全是静态正则，不调模型（让同一个模型给自己打分，得到的分数只反映它今天的心情）。报告只给 pass/warn/fail 的条数与逐题结论，不出综合分——一旦有「人格一致性 87 分」，第二天就有人为了这 87 分去调参数，而被调的是人格。不存被测回复的正文，只回长度与命中位置区间；不驱动对话（谁把攻击话术发给她、谁把回复拿回来归 O-033 与调用方）；跳过不算通过，空回复直接拒收，不许它悄悄变成一个 pass；不做界面。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

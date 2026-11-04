@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra recall evaluation",
+    "description": "Decides whether a parameter change made recall better or worse: 20-40 real questions (including paraphrases and fabricated ones), reporting recall@1/@3/@5 and MRR, with the report written to disk alongside a parameter snapshot. It measures only, never tunes; ground truth resolves by text fingerprint (survives a rebuilt database); undecidable cases are excluded rather than scored zero."
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "ondra-emotion-stress",
+  "description": "空谷 Ondra 的应激注意力倍率（手册 §3.8）：皮质醇 ≥80 危机类 ×3 / 日常类 ×0.1；60 时 ×2 / ×0.55；≤40 均为 ×1；三点共线故插值无歧义。只改排序改不了内容（dropped 恒为 0），类别由产出方带进来；皮质醇 ≥80 时按器官 ABI 产出排序键 -900 的行为指令（逐字取手册 §4.3），不含任何数字。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

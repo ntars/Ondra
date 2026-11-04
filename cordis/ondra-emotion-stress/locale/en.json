@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Stress Attention Multiplier",
+    "description": "Re-weights attention by cortisol: crisis items are amplified up to three times under stress while everyday preferences are pushed down to one tenth. It only reorders, never drops an item. Above the crisis line it injects a single behaviour directive at the very front of the prompt (shorter replies, no joking around), and that directive never contains a number."
+  }
+}

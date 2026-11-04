@@ -1,0 +1,77 @@
+{
+  "name": "@ntars/ondra-llm",
+  "description": "Provider-neutral LLM service interface for the Ondra",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/llm/llm"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./brand": {
+      "types": "./lib/types/brand.d.ts",
+      "default": "./lib/types/brand.js"
+    },
+    "./message": {
+      "types": "./lib/types/message.d.ts",
+      "default": "./lib/types/message.js"
+    },
+    "./assistant-stream": {
+      "types": "./lib/types/assistant-stream.d.ts",
+      "default": "./lib/types/assistant-stream.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "dependencies": {
+    "@ntars/ondra-util-crypto": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "zod": "4.4.3",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/ondra-attachment": "workspace:*",
+    "@ntars/ondra-package-manifest": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  }
+}

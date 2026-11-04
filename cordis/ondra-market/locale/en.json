@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Plugin Market",
+    "description": "A closed plugin market: it lists only approved plugins and also accepts user-added entries. The handbook files the market under reuse, and the upstream service already reads indexes, fuzzy-matches text, picks a default version and evaluates engine compatibility, so this package parses nothing itself. It adds the three things upstream does not do: closure, read-only behaviour, and an install plan. After filtering it never reports the pre-filter total, because a list of two rows labelled twelve matches makes people believe paging is broken; each page carries both the upstream total and the number hidden. The plan only states what to install, from which index, and what must exist first: version compatibility is judged upstream, the snapshot restore point belongs to the snapshot plugin, and writing files belongs to the installer. This package installs nothing, removes nothing and never changes index sources. A missing upstream is normal rather than an error: the service still registers, the reason reads no-market, and the local approval list stays readable, so a caller can tell an absent host apart from an unconfigured index. No method throws; a broken market must not affect the conversation."
+  }
+}

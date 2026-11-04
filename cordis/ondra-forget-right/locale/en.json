@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Right to Be Forgotten",
+    "description": "Right to be forgotten for Ondra (L9 extension pool): when the user says \"forget this\", it counts every place the thing has leaked into at once — memory facts (O-010), pins (O-017), graph edges (O-015), vectors (O-122), todos and promises (O-021), time capsules (O-101), speech samples (O-137), diaries (O-045), decision traces (O-135) and database snapshots (O-009): eleven surfaces in all. What can be erased is erased and reported per surface; what cannot be erased is reported honestly as not erasable, with a best-effort count of what is still there. Two phases: plan() is read-only and only produces a checklist, execute() requires { confirm: 'forget' }. If any surface fails, or a surface that should have been erased was skipped, complete is false — the right to be forgotten has only two outcomes, all or nothing; the middle state is called \"thought it was clean\". It never connects to any data table directly, never deletes files itself, never reports a half-done job as done, never clears the speech sample pool automatically (that would wipe other people's words too), and never renders UI."
+  }
+}

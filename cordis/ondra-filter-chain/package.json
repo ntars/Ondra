@@ -1,0 +1,41 @@
+{
+  "name": "ondra-filter-chain",
+  "description": "空谷 Ondra 的输出过滤九步链（手册 §4.1，P0）：草稿腔 → AI 自我暴露 → 硬红线 → 关系越线 → 阶段越线 → 旁白叙述 → 4-gram 复读 → 客服腔 → 长度兜底，逐条剥离、只在句边界动手。另带锚点检测（§4.6）与事后评审回环（§1.7：独立模型 1–100 分，低于阈值带反馈 steer，每轮最多 2 轮）。不生成正文、不改语气、不做需要第二个模型的语义判定。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

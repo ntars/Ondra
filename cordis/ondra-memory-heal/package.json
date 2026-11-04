@@ -1,0 +1,41 @@
+{
+  "name": "ondra-memory-heal",
+  "description": "空谷 Ondra 的记忆自愈（L9 扩展池）：按需巡检记忆库的可修问题（孤儿边、钉子指向已删记忆、墓碑泄漏、状态位互斥违例、摘要为空），把每一项分成「可自动修」「只能建议」「不该动」三档，并以试运行优先的方式给出一份可核对的修复计划。只出计划与逐项执行，不做后台常驻、不自动跑、不猜数据。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra path layout",
+    "description": "Resolves the data root, creates the five area directories, and tightens their permissions to 0700/0600."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Phone Read-only Capabilities",
+    "description": "A read-only capability surface for the phone: notifications, SMS, contacts, battery and foreground app, each with an 8-second timeout as the handbook specifies. Tool names use hyphens (device-notifications and so on): the dotted spelling in the findings does not match the hard tool-name pattern and would be rejected on the model side. Data comes from a port. The only source available today is ondra-adb's readSms(), so in practice only device-sms returns data; the other four say unsupported honestly instead of returning an empty array that would read as \"the phone has no notifications\". Privacy defaults are on: phone numbers masked, SMS bodies truncated and flagged, notification bodies omitted, contacts disabled and requiring a keyword. It does not import any tools package; registration is injected through useRegistrar(), so the service works without one. Disabled by default."
+  }
+}

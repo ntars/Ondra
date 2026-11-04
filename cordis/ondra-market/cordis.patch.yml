@@ -1,0 +1,20 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2，实现在 desktop/vendor/include/src/index.ts 的 applyEntryPatches）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+#
+# 刻意**不写 inject**：本包对 ondra-identity / ondra-path-layout / ondra-config-schema / ondra-clock
+# 全是软依赖，上游键 `pluginMarket` 更是可能根本不在。声明成插件级 inject 会让任一上游缺席时
+# 整插件停在 PENDING——而本包的降级路径（只出本地认可清单、`reason: no-market`）正是它存在的意义。
+#
+# 刻意**不写 disabled**：enable=false 只让查询停手，服务照常注册、`status().reason` 如实报 disabled，
+# 这样消费方能区分「关着」与「没装」。
+- insert:
+    - id: ondra-market
+      name: 'ondra-market'

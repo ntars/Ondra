@@ -1,0 +1,79 @@
+{
+  "name": "@ntars/ondra-spill-policy",
+  "description": "Token-budgeted tool-result retention with recoverable text and image paths",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/spill/spill-policy"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./notice": {
+      "types": "./lib/types/notice.d.ts",
+      "default": "./lib/types/notice.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-output-retention": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-spill": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-attachment": "workspace:*",
+    "@ntars/ondra-fs": "workspace:*",
+    "@ntars/ondra-token-meter": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-ptc-runtime-node": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-output-retention": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-spill": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-fs-local": "workspace:*",
+    "@ntars/ondra-subprocess-local": "workspace:*",
+    "@ntars/ondra-sandbox-local": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-attachment": "workspace:*",
+    "@ntars/ondra-fs": "workspace:*",
+    "@ntars/ondra-token-meter": "workspace:*",
+    "@ntars/ondra-mcp-client": "workspace:*",
+    "@ntars/ondra-spill-local": "workspace:*",
+    "@ntars/ondra-llm-deepseek": "workspace:*",
+    "@ntars/ondra-ptc-runtime": "workspace:*",
+    "@ntars/ondra-attachment-local": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-executor-ptc": "workspace:*",
+    "@ntars/ondra-tool-fs": "workspace:*",
+    "sharp": "0.35.5",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*"
+  }
+}

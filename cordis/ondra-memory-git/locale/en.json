@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Memory Timeline",
+    "description": "A memory timeline for Ondra (L9 extension pool): projects the lifecycle of one memory into repository terms — current stage (active / archived / sealed / forgotten), version depth (revision count + 1), a character-level diff of the latest revision, and checkpoint labels bound to real snapshots. Read-only orchestration: it stores no second copy of any text, keeps no full history (capability is latest-only because ondra-memory-core retains only a revision counter and the most recent oldText), never rolls back automatically (swapping the database requires explicit confirmation through ondra-snapshot), and never runs git in a subprocess. When the memory core is absent, available is false with reason no-core; when the snapshot service is absent, views and diffs still work and only tag() refuses — it never stores an empty snapshot id to fake success."
+  }
+}

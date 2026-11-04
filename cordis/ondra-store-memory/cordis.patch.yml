@@ -1,0 +1,3 @@
+- insert:
+    - id: ondra-store-memory
+      name: 'ondra-store-memory'

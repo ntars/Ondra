@@ -1,0 +1,41 @@
+{
+  "name": "ondra-dev-companion",
+  "description": "空谷 Ondra 的开发者陪伴（L9 扩展池，自研）：只回答一句话——主人正卡在一件事上，她该不该出声、出声说什么。外壳报四个事实（编译挂了、测试绿了、长任务跑完了、提交了），它先判该不该开口，再决定给什么调门。五个调门里的「安静」是一等公民：失败后的安静期里一个字都不说（人在改）、同一条错误咬久了唯一允许说的是「先放下」而不是「再试一次」、只有红转绿说一句「绿了呀」而从未红过的成功一句都不说（每跑一次测试都被夸一次，夸就贬值了）、开会或在离开或在场读不到时一律闭嘴。不报任何数字：失败几次、跑了多久、改了几行，契约里连一个数字字段都没有。不读代码、不读 diff、不点评实现——代码是雇主的资产，本包只有写台账那一处文件读写，错误只认外壳给的不透明指纹且不落盘不打日志。安静有六种可分辨的理由（还在红、会议中、人不在、读不到、刚说过、什么都没发生），不许折进一个「静音」里。台账只存水位与计数，不存事件明细。不做界面、不装定时器、不主动发消息。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "name": "@ntars/ondra-message-feedback",
+  "description": "Canonical Session-log ratings and notes for finalized assistant messages",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/feedback/message-feedback"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-persistence": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-command-feedback": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-persistence": "workspace:*",
+    "@ntars/ondra-session-persistence-jsonl": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-command-feedback": "workspace:*"
+  }
+}

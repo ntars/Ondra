@@ -1,0 +1,63 @@
+{
+  "name": "@ntars/ondra-subprocess-local",
+  "description": "Local-subprocess implementation of the Ondra subprocess seam",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/subprocess/subprocess-local"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./runner": {
+      "types": "./lib/types/bin.d.ts",
+      "default": "./lib/runner.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./output": {
+      "types": "./lib/types/output.d.ts",
+      "default": "./lib/output.js"
+    },
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/runner.js",
+    "lib/runner-*.js",
+    "lib/output.js",
+    "scripts/ensure-spawn-helper.mjs",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/ensure-spawn-helper.mjs"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-subprocess": "workspace:*",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  },
+  "dependencies": {
+    "@ntars/ondra-lazy-require": "workspace:*",
+    "@ntars/ondra-win32-process": "workspace:*",
+    "koffi": "3.1.1",
+    "node-pty": "1.2.0-beta.15"
+  },
+  "devDependencies": {
+    "@ntars/ondra-loader-smoke": "workspace:*",
+    "@ntars/ondra-subprocess": "workspace:*",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  }
+}

@@ -1,0 +1,141 @@
+/* Shared message IconActions row (user + assistant). Parent modules own
+   layout offsets via the composed className. Row containers gate visibility
+   by recency through data-actions-reveal. */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: calc(28px + var(--ondra-content-font-delta, 0px));
+}
+
+/* The user clock keeps the secondary tier. */
+.timeStart {
+  padding-right: 12px;
+  font-size: var(--ondra-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--ondra-content-font-delta, 0px));
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+/* Assistant-tail metadata keeps the smaller information size while sharing
+   the action icons' resting color. */
+.timeEnd {
+  font-size: calc(var(--ondra-content-font-size-secondary, 13px) - 1px);
+  line-height: calc(24px + var(--ondra-content-font-delta, 0px));
+  color: inherit;
+  white-space: nowrap;
+}
+
+.endInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: 8px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Earlier user-authored flow rows and opted-in turn tails reveal the complete
+   actions row on hover or focus-within. Opacity keeps layout stable, and
+   devices without hover keep every row visible. */
+@media (hover: hover) {
+  [data-actions-reveal='hover'] .actions,
+  :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
+    ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
+  ) .actions {
+    opacity: 0;
+    transition: opacity 80ms ease;
+  }
+
+  [data-actions-reveal='hover']:hover .actions,
+  [data-actions-reveal='hover']:focus-within .actions,
+  :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
+    ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
+  ):hover .actions,
+  :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
+    ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
+  ):focus-within .actions {
+    opacity: 1;
+  }
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px + var(--ondra-content-font-delta, 0px));
+  height: calc(28px + var(--ondra-content-font-delta, 0px));
+  padding: 6px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+/* Action glyphs follow the same px delta as the text they serve; the
+   assistant completion row gives them two extra pixels. */
+.action svg {
+  width: calc(15px + var(--ondra-content-font-delta, 0px));
+  height: calc(15px + var(--ondra-content-font-delta, 0px));
+}
+
+.actions[data-clock='end'] .action svg {
+  width: calc(17px + var(--ondra-content-font-delta, 0px));
+  height: calc(17px + var(--ondra-content-font-delta, 0px));
+}
+
+@media (hover: hover) {
+  .action:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-secondary);
+  }
+}
+
+/* Unavailable stays focusable and hoverable so Tooltip can explain why. */
+.action[data-unavailable] {
+  cursor: default;
+  opacity: 0.4;
+}
+
+@media (hover: hover) {
+  .action[data-unavailable]:hover {
+    background: transparent;
+    color: var(--dsw-alias-label-tertiary);
+  }
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Footer is time-only by instruction: the copy / branch / usage controls stay
+   mounted — their behaviour is still reachable and covered by tests — but are
+   not painted, and the row collapses to the clock instead of reserving gaps for
+   them. Bringing the toolbar back is this one rule, not a code transplant. */
+.actions[data-footer='time-only'] {
+  gap: 0;
+  min-height: 0;
+}
+
+.actions[data-footer='time-only'] > :not(.timeStart):not(.timeEnd):not(.endInfo) {
+  display: none;
+}
+
+/* The assistant's clock rides .endInfo together with the usage pill: keep the
+   clock, drop the pill. */
+.actions[data-footer='time-only'] .endInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.actions[data-footer='time-only'] .endInfo > :not(.timeStart):not(.timeEnd) {
+  display: none;
+}

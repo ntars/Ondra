@@ -1,0 +1,290 @@
+/* The run log: a timestamped narration column, one line per thing she did. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  /* Fill the column: the log is the whole reading while it is on screen, so it
+     takes every pixel the view area offers instead of hugging its content. */
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* No ground of its own.
+   *
+   * This used to paint `--ondra-reading-surface` again on top of the one the
+   * conversation column already paints (ui-conversation `.scrollBody`), which
+   * stacked two translucent layers and left the log visibly denser — and
+   * greyer — than the transcript beside it. The log is a reading of the same
+   * session on the same pane, so it inherits that pane instead of restating it:
+   * one layer, identical to 对话, and the glass stays continuous across tabs. */
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  box-sizing: border-box;
+  /* Same left inset as the conversation column's prose, so switching views does
+     not shift the text's left edge. Tighter than the transcript's insets on
+     purpose: the log is a scan target, not a page — the eye should cross many
+     rows per screen. */
+  padding: 10px 20px 18px;
+}
+
+/* Turn grouping: the heading is a quiet rule, the rows under it are the list.
+   The gap above every group but the first is what makes an exchange read as one
+   block instead of five contiguous lines. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* A new turn arrives as a group appearing at the foot of the log; the fade
+     keeps the eye from snapping to it mid-read. Short and once-only. */
+  animation: dsw-fade-in var(--dsw-motion-duration) var(--dsw-motion-curve);
+}
+
+.groupHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 9px 0 2px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.group:first-child .groupHeading {
+  margin-top: 0;
+}
+
+.groupLabel {
+  color: var(--dsw-alias-label-primary);
+}
+
+.groupTime {
+  font-family: var(--ds-font-family-code, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.groupCount {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.divider {
+  height: 0.5px;
+  margin: 8px 0 0;
+  background: var(--dsw-alias-border-l2);
+}
+
+/* One line: time, family badge, sender badge, narration. A grid rather than
+   inline flow so the timestamps and both badges form straight columns — a reader
+   scanning for "when did she think" or "what did the tool do" follows one edge
+   instead of a ragged one. */
+.row {
+  display: grid;
+  grid-template-columns: auto 44px 32px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Who acted. A quiet word, not a chip: the family badge already carries colour,
+   and two coloured pills per row would fight for the same attention. */
+.sender {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.sender[data-sender='user'] {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.sender[data-sender='assistant'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+/* An expandable body: her reasoning or her reply, in full.
+   Spans the grid's text column so the prose aligns with the narration above it
+   rather than running back under the time and badges. */
+.body {
+  grid-column: 4;
+  margin: 1px 0 2px;
+  /* Product rule: every neutral-token border is a 0.5px hairline. A 2px rail
+     here would be the only heavy rule in the app. */
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
+  padding-left: 8px;
+}
+
+.bodySummary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.bodySummary::-webkit-details-marker {
+  display: none;
+}
+
+/* A caret that states its own state: right when closed, down when open. */
+.bodySummary::before {
+  content: '›';
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 120ms ease;
+}
+
+.body[open] > .bodySummary::before {
+  transform: rotate(90deg);
+}
+
+.bodySize {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.bodyText {
+  margin: 4px 0 0;
+  max-height: 280px;
+  overflow-y: auto;
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.time {
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code, ui-monospace, monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  /* The mono face renders smaller than the prose beside it; one hair of optical
+     correction keeps the columns reading as one block. */
+  letter-spacing: 0.01em;
+}
+
+/* The category chip: a soft tinted pill carrying only the word, so the colour
+   is a scanning aid rather than the only carrier of meaning. */
+.badge {
+  justify-self: start;
+  padding: 0 5px;
+  border-radius: var(--dsw-radius-sm);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Five tints, one per family of work. They are soft enough to sit quietly under
+   the narration and distinct enough to group a scan; the palette is the theme's
+   own state tokens, so both colour schemes get a working pair for free. */
+.badge[data-category='channel'] {
+  background: var(--dsw-alias-state-business-tertiary);
+  color: var(--dsw-alias-label-primary-bluish);
+}
+
+.badge[data-category='model'] {
+  background: var(--dsw-alias-state-success-tertiary);
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.badge[data-category='tool'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.badge[data-category='pace'] {
+  background: var(--dsw-alias-state-idle-tertiary, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.badge[data-category='error'] {
+  background: var(--dsw-alias-state-error-tertiary);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.text {
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  /* The narration is prose, so it wraps at word boundaries and never clips. */
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* The subject of a tool call — the file, the command, the query. It sits in the
+   same line, set in the code face and a quieter ink: the reader who wants it
+   finds it, and the reader scanning verbs is not slowed down by it. */
+.detail {
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-interactive-bg-hover);
+  font-family: var(--ds-font-family-code, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* How long the step itself took. Right-aligned in its own column so a scan down
+   the log compares durations instead of hunting them at ragged line ends — the
+   one per-line figure a reader actually asks for, as opposed to a ratio of the
+   whole session. */
+.duration {
+  margin-left: 6px;
+  font-family: var(--ds-font-family-code, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The empty reading: nothing has happened yet, and saying so is the whole
+   content of the column. Centred on the available height rather than pinned to
+   the top, so a blank session's log does not read as a broken page. */
+.empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* The rows carry the column's own insets; the empty state stands alone. */
+  min-height: 40vh;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.emptyHint {
+  margin: 0;
+  max-width: 34em;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}

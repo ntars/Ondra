@@ -1,0 +1,41 @@
+{
+  "name": "ondra-expression-decide",
+  "description": "空谷 Ondra 的表情判定（手册新增自研档）：把已经定稿的正文按线索词、标点与句形判成六态之一，交给立绘去换脸。它只回答「这句话说出口时脸上该是什么」，不往正文里插任何标记、也不往提示词写状态名（§4.3 禁命名）。正文没线索时回落到 O-031 的当前六态，两者都没有时给一个最不容易出错的默认表情，并让调用方看得见「这次没有依据」。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Live",
+    "description": "What day it is, answered locally: solar date, weekday, lunar date, solar terms and festivals, computed on this machine with no network. Lunar data is not reimplemented here: the plugin wires up lunar-javascript or tyme4ts, cross-checks the two against each other, and degrades to an honest solar-only mode when neither is installed. Text output is meant for the volatile tail of the prompt, never for the frozen prefix."
+  }
+}

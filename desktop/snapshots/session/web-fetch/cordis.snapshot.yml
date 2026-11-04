@@ -1,0 +1,31 @@
+# Keyless replay counterpart: deterministic HTTP remains real; only the model
+# adapter is replaced by replay.
+- id: llm-deepseek
+  name: '@ntars/ondra-llm-deepseek-api-key'
+  disabled: true
+
+- insert:
+    - id: llm-replay
+      name: '@ntars/ondra-llm-replay'
+      config:
+        providers:
+          - id: deepseek-official
+            name: DeepSeek
+            models:
+              - id: deepseek-v4-flash
+              - id: deepseek-v4-pro
+
+    - id: web-fetch-fixture
+      name: './web-fetch-fixture-server.mjs'
+
+- id: web
+  name: '@ntars/ondra-web'
+
+- id: web-fetch-http
+  name: '@ntars/ondra-web-fetch-http'
+  disabled: true
+
+- id: tool-web
+  name: '@ntars/ondra-tool-web'
+  config:
+    search: false

@@ -1,0 +1,24 @@
+[
+  {
+    "label": "Check for Updates…"
+  },
+  {
+    "label": "Manage ondra Command…"
+  },
+  {
+    "role": "hide",
+    "label": "Hide Ondra"
+  },
+  {
+    "role": "hideOthers",
+    "label": "Hide Others"
+  },
+  {
+    "role": "unhide",
+    "label": "Show All"
+  },
+  {
+    "role": "quit",
+    "label": "Quit Ondra"
+  }
+]

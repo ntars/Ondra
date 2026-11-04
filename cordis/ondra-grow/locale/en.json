@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Grow",
+    "description": "Growth for Ondra (L9 extension pool): four existing readings (days together, interaction count, active memory count, relationship stage order) are normalised and weighted into one mileage score, mapped onto five levels (sprout / bud / leaf / bloom / fruit), with a single next-step hint that contains no numbers. Read-only derivation: no second set of numbers, no score read-out, no relationship writes, no UI."
+  }
+}

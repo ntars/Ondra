@@ -1,0 +1,40 @@
+{
+  "name": "@ntars/ondra-tool-testkit",
+  "description": "Tool definition and execution fixtures for tests and benchmarks",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/test-support/tool-testkit"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*"
+  }
+}

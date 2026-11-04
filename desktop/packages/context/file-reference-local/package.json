@@ -1,0 +1,59 @@
+{
+  "name": "@ntars/ondra-file-reference-local",
+  "description": "Local-filesystem ctx.fileReferences provider with bounded fuzzy indexes",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/context/file-reference-local"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./search": {
+      "types": "./lib/types/search.d.ts",
+      "default": "./lib/types/search.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  },
+  "peerDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-file-reference": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-working-directory": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-file-reference": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-working-directory": "workspace:*",
+    "@ntars/ondra-fs-local": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*"
+  }
+}

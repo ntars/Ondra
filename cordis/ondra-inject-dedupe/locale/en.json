@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Injection Deduplication",
+    "description": "Said once at the start, then only what is new: a ledger tracks which memories have already entered the context, so the same memory is not repeated across turns or blocks. When the context is compacted the ledger is released and the full block is injected again, because she genuinely no longer has it. The ledger lives in memory only and is cleared on restart."
+  }
+}

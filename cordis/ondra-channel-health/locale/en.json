@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Channel Health",
+    "description": "One independent probe per channel, reading only traces that were already written down and never asking the observed process anything. It answers \"when did this channel last show any sign of life\", not \"is it alive right now\" — the latter cannot be answered while the observed side is wedged, reconnecting, or already gone, and those three need completely different handling. Silence is neither alive nor dead: only a heartbeat proves life."
+  }
+}

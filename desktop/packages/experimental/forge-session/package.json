@@ -1,0 +1,88 @@
+{
+  "name": "@ntars/ondra-experimental-forge-session",
+  "description": "Binds change requests to the Session that created, pushed, or tracked them",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/forge-session"
+  },
+  "dependencies": {
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "shell-quote": "^1.12.0",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-experimental-forge": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-shell": "workspace:*",
+    "@ntars/ondra-shell-env": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-agent-loop": "workspace:*",
+    "@ntars/ondra-bash-local": "workspace:*",
+    "@ntars/ondra-experimental-forge": "workspace:*",
+    "@ntars/ondra-experimental-forge-github": "workspace:*",
+    "@ntars/ondra-fs-local": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-shell-env": "workspace:*",
+    "@ntars/ondra-subprocess-local": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tool-bash": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*",
+    "@ntars/ondra-shell": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@ntars/ondra-shell": {
+      "optional": true
+    },
+    "@ntars/ondra-shell-env": {
+      "optional": true
+    },
+    "@ntars/ondra-tools": {
+      "optional": true
+    },
+    "@ntars/ondra-sandbox-policy": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "ondra-tts",
+  "description": "空谷 Ondra 的语音合成（手册 §1.7 / §1.8 复用档）：三条通道并存——本地 GPT-SoVITS（api_v2）、macOS say（零依赖）、Edge TTS（19 音色 + 8 套预设）。只做接线、选路与降级，不重写任何合成机制：文字进、音频出、落 cache/tts 内容寻址缓存，失败一律返回原因码而不是抛错。要不要出声归 O-051 的四道闸门，本插件不做判定、不注册工具。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

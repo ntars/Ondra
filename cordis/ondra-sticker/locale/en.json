@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Stickers",
+    "description": "Reads and dispatches sticker packs where the folder is the index and the filename is the tag, so dropping an image into a folder is all it takes. Several images under one tag rotate in order instead of repeating at random. Lookup falls back through the persona pack, the shared pack and the built-in pack; the built-in layer is an empty slot you can register into, because this repository ships no sticker artwork and the plugin will not invent any. It only answers which images exist for a tag and which one comes next. When to send one is not its business."
+  }
+}

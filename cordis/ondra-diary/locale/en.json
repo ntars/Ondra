@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Diary",
+    "description": "One first-person diary entry a day, one Markdown file per day under user/diary/YYYY-MM-DD.md, mode 0600. It writes itself in a 02:00-04:00 window, retries with backoff while the window is still open, checks for missing days at startup and on every trigger, and falls back to a written-out template when the model is unavailable, so a day is never left blank. It never sends a message into a conversation, never triggers the proactive chain, and never writes memory."
+  }
+}

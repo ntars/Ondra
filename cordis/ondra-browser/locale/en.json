@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Browser Guardrails",
+    "description": "Guardrails and a sandbox for browser automation. The browser itself is not here: it belongs to the backends the host already ships (Playwright MCP, Chrome DevTools MCP, Stagehand), and this package only wires and governs them. It blocks tools that execute arbitrary code inside the page (disabled by default, since they can read data from sites the user is signed into), refuses file:, javascript: and data: targets as well as private destinations such as 127.0.0.1, localhost and *.local (the door to routers and internal consoles), and squeezes oversized page snapshots into the context budget; that last step is measured at 315KB down to 5.4KB. Trimming states how large the original was and that the rest was not expanded, so the model knows it has not seen everything and should take a narrower snapshot instead. It deliberately does not split actions into read and write: without a tool registry, guessing by name would block the wrong half, and being blocked wrongly means the browser suddenly stops working. Disabled by default; when off, the service still registers so the panel can answer whether the guardrails are in place and which backend is active."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra scene cards",
+    "description": "Parses a persona package's references/scenes.md verbatim into trigger / inner / surface / lines / action / closing / hard-rule fields, scores keyword hits with negation protection (\"not fat\" must not fire the \"fat\" card), keeps one card per chapter group so a single turn uses exactly one skeleton, and expands recursively at most three levels from the winning card only. The \"inner\" field is stripped at render time — it is inferred monologue, not dialogue, and putting it in the prompt makes her say her private thoughts out loud. Lines the parser cannot classify are reported instead of being forced into some field."
+  }
+}

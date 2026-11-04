@@ -1,0 +1,69 @@
+{
+  "name": "@ntars/ondra-tools",
+  "description": "Tool registry and execution pipeline for the Ondra",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/core/tools"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./presentation": {
+      "types": "./lib/types/presentation.d.ts",
+      "default": "./lib/types/presentation.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./pipeline": {
+      "types": "./lib/types/pipeline.d.ts",
+      "default": "./lib/pipeline.js"
+    }
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/pipeline.js",
+    "lib/shared-*.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-user-approval": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/schemastery": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-user-approval": "workspace:*",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*"
+  }
+}

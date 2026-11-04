@@ -1,0 +1,16 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（master-plan §8.3-2）：
+#   - `insert` 块自身不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 块自身带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+#
+# 刻意**不写 inject**：本插件一项硬依赖都没有（身份与配置都是软依赖）。
+# 尤其刻意**不接 LLM 网关**——一旦接上，「让模型给自己的回复打一致性分」这条路就通了，
+# 那时整份评测变成自证：她说自己没走形，评测就报没走形（O-104 已定裁决，这里不重开）。
+- insert:
+    - id: ondra-consistency-bench
+      name: 'ondra-consistency-bench'

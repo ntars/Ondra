@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Avatar",
+    "description": "Turns \"what should her face be\" into \"which image or model to show\" and hands that to the interface or an external Live2D runtime. It renders nothing, judges no emotion, and ships no artwork of its own: the six states come from the emotion layer, the text cues come from the expression decider, and the images come from a folder you own. When there is no artwork it says so plainly instead of inventing a placeholder nobody reviewed."
+  }
+}

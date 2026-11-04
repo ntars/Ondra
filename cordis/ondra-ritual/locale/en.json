@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Ritual",
+    "description": "Ritual days for Ondra (L9 extension pool): it answers two questions in a row — what day is today, and what one thing suits this day. The first half comes entirely from O-046 ondra-live (solar terms and lunar festivals); this plugin does not compute a single line of calendar itself. The second half is a lookup in a ritual table that is hard-coded in the source, giving one direction and one concrete action. Any day that is not in the table gets an honest 'there is no confirmable ritual today': reporting no ritual is always better than inventing a festival, because an invented solar term is worse than none — people will believe it and use it. Not a single number is given: never how many days remain until the winter solstice, never which solar term in the sequence this is, since a countdown turns a day into a progress bar. Without ondra-live it names only the solar season and says plainly that no ritual can be confirmed, rather than dressing the season up as one. It never reminds, never installs a timer, never sends anything and never writes state, so there is no 'did you do it today' record that could later be used to judge her. Every dependency is soft — calendar, clock, weather, identity — and each missing one degrades with a log line."
+  }
+}

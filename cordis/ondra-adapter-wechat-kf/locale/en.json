@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra WeChat Channel (Customer Service)",
+    "description": "The WeChat Customer Service channel: pull-based sync_msg once every 5 seconds with cursor-based deduplication, so no public callback is required. 800-character chunking, a 48-hour session window. The optional callback only receives events; sha1 verification applies only when it is mounted."
+  }
+}

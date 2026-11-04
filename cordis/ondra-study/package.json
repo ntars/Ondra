@@ -1,0 +1,41 @@
+{
+  "name": "ondra-study",
+  "description": "空谷 Ondra 的学伴（L9 扩展池）：陪人学习时只管一件事——把专注段与休息段的节奏推进住。推进只有两个入口，外部 tick(now) 或低频 checkpoint()，本插件没有一处自己数时间：不装 setInterval、不装 setTimeout、不按文件时间戳推断「过了多久」，因为常驻定时器在没人看着的时候照样加时长，于是「关掉窗口八小时、回来读今天学了八小时」，而那八小时里她一秒都没学。时间只认外部喂进来的时刻，且两次打点间隔过大（默认超过 15 分钟）判为中断，那一段一秒都不计入，并记「被打断」而不是「完成了这一段」——这是全插件唯一真正重要的一行判断，也是假时长的唯一来源被切断的地方。stop() 复用同一套间隔判定，否则「关掉三小时再点停止」就把那道口子重新打开了。休息提示必须能被拒绝：契约里 declinable 是字面量 true、mandatory 是字面量 false，类型层面就没有「必须」这条分支，不锁屏、不弹窗、不打断，拒绝后按冷却退让。跨天把「今天」的累计清零，但保住「曾经开始过」的标记——清掉它，第二天第一次读取会报「从来没开始过」，对一个昨天学了两小时的人来说那是假平安。不测评、不打分、不存笔记正文与学习内容，start(subject) 收下科目名然后丢掉；不做打卡日历与连续天数（那是考勤，而考勤第一天就开始撒谎）；不做界面，渲染归应用外壳。落盘 user/study.json，0600 原子写，只有时刻与毫秒数。四项上游（时钟 / 身份 / 路径 / 配置真源）全是软依赖，缺谁都能起来，降级在 stored 与日志里都留痕。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

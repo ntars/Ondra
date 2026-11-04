@@ -1,0 +1,73 @@
+/* Appearance row (figma 'Frame 2117131228': title + cube row, column gap 8,
+ * pad 16/0, hairline separator; the section column strips it when last). */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The three choices are ONE row at every panel width — a wrapped third cube
+ * reads as a separate, unrelated control. They shrink together instead. */
+.cubeRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+/* Appearance cube (figma '.Selector Cube' 276x82, centered icon-over-label
+ * column, gap 4). The equal basis is what keeps three on one row: a
+ * content-sized basis makes the longest label ("跟随系统") claim more
+ * width and push its neighbour over. Horizontal padding shrinks before the
+ * cubes ever wrap, so the label stays on one line down to the narrowest panel.
+ *
+ * Vertical padding is 12px rather than the figma 20px: three stacked rows of
+ * 82px cubes pushed the section past one screen, and the extra height bought no
+ * legibility — the icon and the label are the whole content. The hit target
+ * stays well above 44px. */
+.themeCube {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--dsw-motion-fast),
+    border-color var(--dsw-motion-fast);
+}
+
+@media (hover: hover) {
+  .themeCube:hover:not(.selected) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+/* Selected cube: #F5F6F7 fill + #ADB2B8 border (static token — the bluish-400
+ * step has no alias-layer name). */
+.selected {
+  background: var(--dsw-alias-bg-module-platform);
+  border-color: var(--dsw-static-neutral-bluish-400);
+}

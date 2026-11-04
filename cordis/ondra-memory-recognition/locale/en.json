@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory recognition",
+    "description": "The recognition retrieval branch: hand the whole index (one line of recognition triggers per memory) to a small model that picks slugs, then walk the [[links]] neighbourhood. About 6k tokens for 500 entries; the index block is ordered by seq, append-only, and hits the prefix cache. It sits beside the vector branch, while inverted search stays the default."
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "name": "@ntars/ondra-ssh-helper-runtime",
+  "description": "Private executable carrier for the POSIX SSH helper and managed workers",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-app-boot": "workspace:*",
+    "@ntars/ondra-fs-ssh": "workspace:*",
+    "@ntars/ondra-subprocess-ssh": "workspace:*",
+    "@ntars/ondra-sandbox-ssh": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/cosmokit": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-fs": "workspace:*",
+    "@ntars/ondra-fs-local": "workspace:*",
+    "@ntars/ondra-fs-sandbox": "workspace:*",
+    "@ntars/ondra-http-proxy": "workspace:*",
+    "@ntars/ondra-lazy-require": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-ptc-runtime": "workspace:*",
+    "@ntars/ondra-ptc-runtime-node": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-local": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-sandbox-windows-acl": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-skill": "workspace:*",
+    "@ntars/ondra-ssh": "workspace:*",
+    "@ntars/ondra-subprocess": "workspace:*",
+    "@ntars/ondra-subprocess-local": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-timeout": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/ondra-util-crypto": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/ondra-win32-process": "workspace:*",
+    "@ntars/node-addon-system": "workspace:~",
+    "@ntars/schemastery": "workspace:~"
+  }
+}

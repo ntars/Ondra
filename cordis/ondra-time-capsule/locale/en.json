@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Time Capsule",
+    "description": "Time capsules for Ondra (L9 extension pool): write a letter to a future day. While sealed, its body is structurally unreadable (always null in every view). On the due day a person opens it by hand, which hands the text to the memory store and clears the local copy. It does exactly three things — write, wait, open. Minimum hold is 7 days; anything within 7 days belongs to the todo plugin (ondra-memory-prospective) so the two mechanisms never overlap in time. It never auto-opens on the due date (auto-opening would put the text into context before the user has read it), never offers early opening (that would reduce a capsule to a sticky note), never keeps a second copy of the body (a second copy would survive a user's \"forget\"), and never pushes reminders or renders lists (those belong to the proactive domain and the app shell). Missing path service means in-memory only; missing clock falls back to the local time zone; missing memory service makes opening fail loudly while leaving the text intact."
+  }
+}

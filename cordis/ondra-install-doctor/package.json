@@ -1,0 +1,41 @@
+{
+  "name": "ondra-install-doctor",
+  "description": "空谷 Ondra 的安装自检（手册 §8.3 / 语料·第一编 4.2）：用移植的 parsePatchYaml / applyEntryPatches / composeEntries 算出「宿主会看到的那份入口树」，报告哪些 bundle 会被跳过、补丁告警几条。它回答的问题与逐包体检不同：那份问「我这个包会不会被加载」，本包问「这份 profile 装配出来长什么样」——包自己的补丁写对了，不代表它所在的 profile 装得上：profile 里没登记它、bundle 解析不到、ondra.bundle 缺声明、补丁路径相对包目录写错，这四种失败全发生在包外面，而且全都不报错，只让功能凭空消失。三条实现裁决：逐层应用而不是把多层摊平（语义等价，差别是告警能带上层名，而层名正是本包存在的理由）；报告按内容指纹缓存、三十秒 TTL 在读取时比对，不装定时器；inspect() 永不抛错，任何异常折成「未判定」加一条结论，因为它被启动自检和界面同时调用，抛一次就会被永久关掉。只读是硬属性：不改 profile、不写 disabled、不装包、不跑器官。刻意不猜 profile 路径——宿主解析它依赖安装锚点与 node_modules 提升规则，本包拿不到，硬抄必然漂移，那时报告说装得上而宿主说跳过，比没有报告更坏。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

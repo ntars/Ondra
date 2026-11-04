@@ -1,0 +1,168 @@
+/* Global motion: one cadence, applied where the eye already moves.
+ *
+ * WHY A SINGLE SHEET. Motion scattered across forty component files drifts —
+ * three curves, five durations, and a hover that eases while the panel beside it
+ * snaps. The product reads as jittery even though every individual transition is
+ * reasonable. So the curve and the durations are declared once here as tokens,
+ * and components opt in by using `--dsw-motion-*` rather than writing their own.
+ *
+ * WHAT ANIMATES, AND WHAT DOESN'T. Only things whose position or presence the
+ * eye is already following: a surface appearing, a row disclosing, a hover
+ * answering. Nothing loops, nothing decorates, nothing waits to be noticed. A
+ * window that animates on every keystroke is worse than one that never moves.
+ *
+ * ACCESSIBILITY IS NOT OPTIONAL. `prefers-reduced-motion` collapses every
+ * duration to zero in one place, so an opt-in cannot forget to honour it.
+ */
+
+:root {
+  /* The house curve: fast out of the gate, long tail. Matches --ds-ease-in-out
+     so the motion the tokens describe is the motion the components already had. */
+  --dsw-motion-curve: cubic-bezier(0.4, 0, 0.2, 1);
+  /* A surface arriving or leaving: 180 ms reads as immediate without a snap. */
+  --dsw-motion-duration: 180ms;
+  /* A small answer — hover, focus, a colour settling: below ~120 ms the eye
+     stops reading it as motion and it becomes a flicker. */
+  --dsw-motion-duration-fast: 120ms;
+  /* A layout change the person asked for — a panel opening, a view swapping. */
+  --dsw-motion-duration-slow: 260ms;
+  /* Shared shorthand so a component writes one property, not three. */
+  --dsw-motion: var(--dsw-motion-duration) var(--dsw-motion-curve);
+  --dsw-motion-fast: var(--dsw-motion-duration-fast) var(--dsw-motion-curve);
+  --dsw-motion-slow: var(--dsw-motion-duration-slow) var(--dsw-motion-curve);
+}
+
+/* Surfaces that appear on demand.
+ *
+ * Dialog and menu surfaces mount already-visible in the DOM, so the entrance is
+ * a keyframe rather than a transition: `from { opacity: 0 }` at the same
+ * duration and curve as everything else. Only opacity and a 4px rise — no
+ * scale, which makes text shimmer as it grows.
+ */
+@keyframes dsw-surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A view swapping in place: the column's two readings, a settings section. */
+@keyframes dsw-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* A surface that opens upward (a menu anchored above its trigger, a picker at
+ * the bottom of the window). Same distance and curve, opposite sign: the panel
+ * has to arrive from the side it will occupy, or the eye reads it as dropping
+ * out of the anchor. */
+@keyframes dsw-surface-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Disclosure: rows that unfold keep their height animation out of layout where
+ * the engine allows it, so a long list does not reflow on every open. */
+@keyframes dsw-disclose {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A row joining a list that was already on screen.
+ *
+ * 3 px and one opacity step: enough for the eye to find the new line, not
+ * enough to read as a performance. Used by sidebar rows, dialog lists and
+ * anything else that appends while the person is looking at the list.
+ */
+@keyframes dsw-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A block arriving as a whole — a first screen, an empty state, a page body.
+ *
+ * The only place a 6 px travel is used, and only at the slow duration: a block
+ * covers most of the column, so the same 3 px a row uses would be invisible.
+ */
+@keyframes dsw-enter-block {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Interactive controls answer on the same curve.
+ *
+ * Scoped to the primitives' own elements rather than `*`: a blanket `transition:
+ * all` on every element makes layout properties animate by accident (a table
+ * column width, a scrollbar gutter), which is exactly the jitter this sheet
+ * exists to remove. */
+button,
+a,
+summary,
+select,
+input[type='checkbox'],
+input[type='radio'] {
+  transition:
+    background-color var(--dsw-motion-fast),
+    border-color var(--dsw-motion-fast),
+    color var(--dsw-motion-fast),
+    opacity var(--dsw-motion-fast);
+}
+
+/* Focus rings appear, they do not travel. */
+:focus-visible {
+  transition: outline-color var(--dsw-motion-fast);
+}
+
+/* Reduced motion: every duration to zero, in one place.
+ *
+ * Not `animation: none` — that would leave a surface mounted at its `from`
+ * state (invisible) instead of skipping to the end. Zero duration plays the
+ * same keyframes instantly, which lands on the final frame. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dsw-motion-duration: 0ms;
+    --dsw-motion-duration-fast: 0ms;
+    --dsw-motion-duration-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Smooth scrolling stays opt-in per scroller (a view that owns long content),
+ * never global: a document-wide smooth scroll makes every programmatic jump —
+ * restoring a scroll position, focusing the composer — swim. */

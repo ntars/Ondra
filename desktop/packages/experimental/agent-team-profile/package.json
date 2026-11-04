@@ -1,0 +1,54 @@
+{
+  "name": "@ntars/ondra-experimental-agent-team-profile",
+  "description": "Agent Teams collaboration, tools, and Web UI in one experimental bundle",
+  "version": "1.2.0",
+  "icon": "./icon.svg",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/agent-team-profile"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "icon.svg",
+    "locale/*.json",
+    "docs",
+    "lib/index.js",
+    "cordis.patch.yml",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@ntars/ondra-experimental-agent-team": "workspace:*",
+    "@ntars/ondra-experimental-client-ui-agent-team": "workspace:*",
+    "@ntars/ondra-experimental-tool-agent-team": "workspace:*"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@ntars/cordis": "workspace:~",
+    "js-yaml": "^4.3.2"
+  }
+}

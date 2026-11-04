@@ -1,0 +1,67 @@
+{
+  "dialogs": [
+    {
+      "type": "info",
+      "title": "Manage ondra Command",
+      "message": "Add the Desktop command to your terminal.",
+      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\Ondra\\resources\\runtime\\cli\\bin\\ondra.cmd",
+      "buttons": [
+        "Install",
+        "Cancel"
+      ],
+      "defaultId": 0,
+      "cancelId": 1
+    },
+    {
+      "type": "info",
+      "title": "Manage ondra Command",
+      "message": "The Desktop command is installed.",
+      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\Ondra\\resources\\runtime\\cli\\bin\\ondra.cmd\n\nCurrent ondra command: C:\\Users\\user\\AppData\\Local\\Programs\\Ondra\\resources\\runtime\\cli\\bin\\ondra.cmd",
+      "buttons": [
+        "Close",
+        "Repair",
+        "Remove"
+      ],
+      "defaultId": 0,
+      "cancelId": 0
+    },
+    {
+      "type": "info",
+      "title": "Manage ondra Command",
+      "message": "The Desktop command needs repair.",
+      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\Ondra\\resources\\runtime\\cli\\bin\\ondra.cmd",
+      "buttons": [
+        "Close",
+        "Repair",
+        "Remove"
+      ],
+      "defaultId": 0,
+      "cancelId": 0
+    },
+    {
+      "type": "warning",
+      "title": "Manage ondra Command",
+      "message": "The Desktop command is installed.",
+      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\Ondra\\resources\\runtime\\cli\\bin\\ondra.cmd\n\nCurrent ondra command: C:\\Program Files\\nodejs\\ondra.cmd\n\nAnother ondra takes precedence. Remove or reorder that installation to use the Desktop command by default. You can also run the Desktop command by its full path.",
+      "buttons": [
+        "Close",
+        "Repair",
+        "Remove"
+      ],
+      "defaultId": 0,
+      "cancelId": 0
+    },
+    {
+      "type": "info",
+      "title": "Manage ondra Command",
+      "message": "Add the Desktop command to your terminal.",
+      "detail": "Desktop command: C:\\Users\\user\\AppData\\Local\\Programs\\Ondra\\resources\\runtime\\cli\\bin\\ondra.cmd\n\nYour shell command could not be verified. An alias or another ondra installation may take precedence.",
+      "buttons": [
+        "Install",
+        "Cancel"
+      ],
+      "defaultId": 0,
+      "cancelId": 1
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "ondra-zero-residence",
+  "description": "空谷 Ondra 的零常驻上下文（手册 §8.6，P1）：用确定性指针替换常驻内容，被遮的每一个字都能逐字恢复。手册原话是「确定性指针替换常驻内容，被遮字节可从 session log 逐字恢复（可逆可审计）；压缩前状态先写 SQLite」——本包把这四件事落成四个动作：compact 把一段常驻正文切成可恢复的片段并交出指针文本，recall 按指针取回原文并校验，ledger 列出账本（只列凭据，不倒正文），fast 是不写盘、不建账的纯预览。三条写死的判定。第一，指针是内容的函数，不是时间的函数：同一段正文在同一个会话里压两次必须得到同一个指针，否则每压一次就换一次前缀，前缀缓存当场归零（§8.5）。第二，压缩只允许发生在用户回合边界（§8.5-3），中途重写前缀等于把这一轮的缓存全部作废。第三，没有存储后端就不发指针：手册要求「压缩前状态先写 SQLite」，写不进去的指针就是一条通向丢失的链接，宁可这一轮不压。人格、世界书、边界禁令这三类永不入账——它们就是被冻结的稳定段本身。本包不接管消息序列、不拼接提示词、不调模型、不装定时器；替换动作由调用方（O-033 或应用外壳）执行，本包只提供「可恢复的替换文本」与「可审计的凭据」。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

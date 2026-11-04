@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Telegram 通道",
+    "description": "Telegram 长轮询通道：getUpdates timeout 50 秒、offset 做结构性去重（不靠内存表）、失败固定 3 秒退避、单条 4000 字切条。它是拉取式——不注册路由、不占端口，循环挂在 ctx.effect 的 disposer 上，卸载即停、不留定时器。token 只能放在 URL 里，所以本插件对每一处可能进日志的地址都做脱敏：日志里永远看不到它。"
+  }
+}

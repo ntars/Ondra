@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Free Models",
+    "description": "A catalog layer for two keyless lanes and 76 aggregate providers: no outbound traffic by default, emitting provider profiles that pi-ai consumes directly, with no protocol reimplementation."
+  }
+}

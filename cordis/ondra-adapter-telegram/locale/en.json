@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Telegram Channel",
+    "description": "The Telegram long-polling channel: getUpdates with a 50-second timeout, offset as structural de-duplication rather than an in-memory table, a fixed 3-second backoff on failure, and 4000-character chunking. It is pull-based, so it registers no routes and binds no port; the loop hangs off the ctx.effect disposer and stops on unload, leaving no timers behind. The bot token can only live in the URL, so every address that could reach a log is redacted: it never appears in the logs."
+  }
+}

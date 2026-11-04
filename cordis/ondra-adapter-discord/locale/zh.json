@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Discord 通道",
+    "description": "Discord 通道：Gateway WS v10，帧层以 DiscordSocket 端口注入（手册只给了协议轮廓，没有 op 码、IDENTIFY 载荷与心跳应答的依据，故不写假握手）；鉴权头 `Bot <token>`，因此脱敏对象是字符串而非地址，全包只有一处把 token 拼进去、也只有一处把异常折成文本。单条 1900 切条；关闭码 4004 停止重连，其余固定 5 秒重连。手册明写「无去重」：本包不建跨时间去重表（用户真的会连发两遍同一句话），只保留「同一 message.id 在飞行中即丢」的幂等占位。不注册路由、不占端口，连接与定时器都挂在 ctx.effect 的 disposer 上，卸载即停。"
+  }
+}

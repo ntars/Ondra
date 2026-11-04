@@ -1,0 +1,72 @@
+{
+  "name": "@ntars/ondra-client-ui-plugin-market",
+  "description": "Discover tab of the ondra web Plugins page: browse configured plugin market indexes and install their bundles",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/client/ui-plugin-market"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-api-remotes",
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-plugin-manager"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-api-remotes": "workspace:*",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@ntars/ondra-client-ui-plugin-manager": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "@ntars/ondra-package-manifest": "workspace:*",
+    "@ntars/ondra-plugin-manager": "workspace:*",
+    "@ntars/ondra-plugin-market": "workspace:*",
+    "@ntars/ondra-plugin-market-index": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@testing-library/react": "^16.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Weather",
+    "description": "Weather that only speaks when it has explicit coordinates. With a latitude,longitude pair it asks Open-Meteo for current conditions plus today's high, low and precipitation chance, and keeps the answer in memory for ten minutes. A missing or malformed coordinate, a timeout, or a changed payload yields a reason code instead of a guessed forecast. Nothing is written to disk, no tool is registered, and no message is sent into a conversation."
+  }
+}

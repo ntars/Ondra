@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra WeCom Channel",
+    "description": "The WeCom (Enterprise WeChat) self-built app channel: the callback route mounts on the host webServer (no port of its own), a decrypt-only WXBizMsgCrypt implementation (AES-256-CBC with PKCS#7/32), 2000-character chunking, and an immediate `success` acknowledgment with the real answer delivered asynchronously through app messages. Encrypted callbacks are the only entrance — plaintext bodies are rejected because plaintext mode carries no signature, so anyone could forge an inbound message."
+  }
+}

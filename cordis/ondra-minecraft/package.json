@@ -1,0 +1,41 @@
+{
+  "name": "ondra-minecraft",
+  "description": "空谷 Ondra 的 Minecraft 接入能力入口（骨架）：复用 Mineflayer 的那一层由驱动端口承接，本包只做话术闸门、文本整形与连接状态机。开工前查证过三处都是零命中——手册全文没有 minecraft 或 Mineflayer、desktop/packages 没有可复用服务键、本仓禁装依赖——所以不写猜参数的连接代码：那种代码的坏形态是「连上了但什么也收不到」，与「根本没连」在界面上完全同形。闸门解决的是真接上之后风险最高的三处，而且恰好都不在协议层：聊天超 256 字符会被服务端直接断开（不是报错，是掉线）、指令参数可以塞选择器（/kill @a 一次作用到全服）、刷屏会导致封号且不可逆。指令白名单出厂为空，等于一个指令都不许发。没有自动重连：账号在别人服务器上反复上下线最容易被判异常，且重连窗口里收到什么完全不可知。文本整形按 UTF-16 码元截断，不切断代理对。默认关闭，出厂只允许读状态。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

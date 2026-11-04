@@ -1,0 +1,21 @@
+# Exercise the model-facing LSP tool through the shipped Loader entry path.
+# The scenario workspace supplies the deterministic stdio server used by this test composition.
+- insert:
+    - id: lsp
+      name: '@ntars/ondra-lsp'
+    - id: lsp-stdio
+      name: '@ntars/ondra-lsp-stdio'
+      config:
+        servers:
+          fixture:
+            command: !!js process.execPath
+            args: ['./lsp-server.mjs']
+            extensionToLanguage:
+              '.ts': typescript
+    - id: tool-lsp
+      name: '@ntars/ondra-tool-lsp'
+      config:
+        maxLocations: 1
+
+- id: timeout-policy
+  name: '@ntars/ondra-tool-call-timeout-policy'

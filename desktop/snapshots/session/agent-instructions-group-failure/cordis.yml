@@ -1,0 +1,31 @@
+# The snapshot harness supplies scenario-local .ondra and .agents roots.
+- id: agent-default-model
+  name: '@ntars/ondra-agent-default-model'
+  config:
+    provider: deepseek-official
+    model: deepseek-v4-pro
+
+- id: session-persistence-jsonl
+  name: '@ntars/ondra-session-persistence-jsonl'
+  config:
+    root: !!js ondraHomePath('sessions')
+    compression: none
+
+- id: agent-instructions
+  name: '@ntars/ondra-agent-instructions'
+  config:
+    maxBytes: 65536
+    projectRootMarkers:
+      - .ondra-project
+
+- id: system-prompt
+  name: '@ntars/ondra-system-prompt'
+  config:
+    personaPrefix: |
+      You are a coding assistant powered by the {{model}} model.
+
+      Verify your work by running the code or tests. Keep answers brief and factual.
+
+- insert:
+    - id: workspace-context-global-failure
+      name: '../../../packages/test-support/session-snapshot/tests/fixtures/workspace-context-global-failure.ts'

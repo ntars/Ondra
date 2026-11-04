@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra QQ Channel (NapCat)",
+    "description": "The NapCat / OneBot v11 channel for QQ — a high-risk channel: two independent gates (enable and confirmed) plus a stored confirmation record, separate whitelists for QQ numbers and groups, six anti-ban gates (content, night silence, dedup, token buckets, per-conversation cooldown, jitter and circuit breaker), and a reverse-WebSocket upgrade route. Framing is left to a transport port: without in-repo evidence for OneBot frames, there is no \"looks runnable\" handshake — a missing implementation is reported as exactly that."
+  }
+}

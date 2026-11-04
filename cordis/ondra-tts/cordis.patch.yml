@@ -1,0 +1,17 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组，本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`，
+# 写进来就等于把同一份默认值抄成两处，改一处忘一处时面板与运行期会各说一套。
+#
+# 刻意**不写 inject**：`ondra-path-layout` / `ondra-config-schema` / `ondra-clock`
+# 三条依赖全软，缺了也该照常注册服务并报一行「缺什么」。
+# 写成 inject 会让缺一个就整包停 PENDING，面板连「语音为什么没声音」都读不到。
+- insert:
+    - id: ondra-tts
+      name: 'ondra-tts'

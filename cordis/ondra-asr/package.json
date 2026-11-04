@@ -1,0 +1,41 @@
+{
+  "name": "ondra-asr",
+  "description": "空谷 Ondra 的语音转写（手册 §1.5 O-127 / 语料·第一编 2.3，P1，〔复〕复用档）：本地 whisper 优先、云端兜底，产出带时间戳的文本。手册原话是「语音转写（时间戳 + 说话人分离），本地 whisper 优先云端兜底」，落点写着「失败静默；转写文本按普通记忆入库」。所以本包只做接线：拼一条 whisper 命令、等它结束、把它写的 JSON 读成毫秒时间戳；本地不可用时才走云端的一次 multipart 上传。三条写死的判定。第一，本地优先：语音是最私密的一类内容，能在本机转就不出站。第二，失败静默：手册逐字要求「失败静默」——用户发语音时不该收到一条报错，拿不到转写就当作没听见。第三，不编说话人：whisper 不做说话人分离，本包也不假装做了；speaker 字段留着，但没有就不填，diarized 恒为 false。转写文本不直接入库，只交一份 MultimodalDraft 给 O-128；本包不建表、不拼提示词、不画界面、不装定时器。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

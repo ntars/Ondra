@@ -1,0 +1,56 @@
+{
+  "name": "@ntars/ondra-config-editor",
+  "description": "Persist plugin configuration through profile patches and Loader reconciliation",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/boot/config-editor"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-hmr": "workspace:*",
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@ntars/ondra-app-boot": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/ondra-atomic-write": "workspace:*",
+    "yaml": "^2.8.1",
+    "js-yaml": "^4.3.2"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-hmr": "workspace:*",
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@types/js-yaml": "^4.0.9",
+    "@ntars/ondra-app-boot": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@ntars/ondra-hmr": {
+      "optional": true
+    }
+  }
+}

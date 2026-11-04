@@ -1,0 +1,41 @@
+{
+  "name": "ondra-rhythm-typing",
+  "description": "空谷 Ondra 的打字执行层（手册 §9.2 / 第 1363 行）：把 ondra-rhythm 的分条计划跑成真实时间线——首条「在想」、两条之间「正在输入」、长停顿期间不装打字、可按会话取消、同会话新一轮顶掉旧一轮、卸载即停。缺节奏服务时退回一次性整段发出（不模拟打字）。只执行不发内容：分条归 ondra-rhythm，正在输入与呼吸感归 ondra-breath。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

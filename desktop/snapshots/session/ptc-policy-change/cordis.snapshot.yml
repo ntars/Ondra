@@ -1,0 +1,58 @@
+# Keyless PTC mode combines the runtime/registry changes with the
+# DeepSeek-to-replay swap in one profile patch.
+- insert:
+    - id: ptc-mode-change
+      name: '../../../packages/test-support/session-snapshot/tests/fixtures/ptc-mode-change.ts'
+
+- id: llm-deepseek
+  name: '@ntars/ondra-llm-deepseek-api-key'
+  disabled: true
+
+- id: plugin-package-inventory-deepseek
+  disabled: true
+
+- id: agent-default-model
+  name: '@ntars/ondra-agent-default-model'
+  config:
+    provider: deepseek-official
+    model: deepseek-v4-flash
+
+- id: session-persistence-jsonl
+  name: '@ntars/ondra-session-persistence-jsonl'
+  config:
+    root: !!js ondraHomePath('sessions')
+    compression: none
+
+- id: agent-instructions
+  name: '@ntars/ondra-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: tool-executor-native
+  disabled: true
+
+- id: tool-executor-ptc
+  disabled: false
+
+- id: system-prompt
+  name: '@ntars/ondra-system-prompt'
+  config:
+    personaPrefix: |
+      You are a coding assistant powered by the {{model}} model.
+
+      Verify your work by running the code or tests. Keep answers brief and factual.
+
+- insert:
+    - id: llm-replay
+      name: '@ntars/ondra-llm-replay'
+      config:
+        providers:
+          - id: deepseek-official
+            name: DeepSeek
+            models:
+              - id: deepseek-v4-flash
+              - id: deepseek-v4-pro
+
+- id: ptc-runtime
+  config:
+    executionMode: per-call

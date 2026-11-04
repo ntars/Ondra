@@ -1,0 +1,41 @@
+{
+  "name": "ondra-forget-right",
+  "description": "空谷 Ondra 的被遗忘权（L9 扩展池）：用户说「把这件事忘掉」时，把要清的地方一次数清——正文（O-010）、钉子（O-017）、图边（O-015）、向量（O-122）、待办与承诺（O-021）、时间胶囊（O-101）、语感样本（O-137）、日记（O-045）、叙事日志（O-135）、快照（O-009）共十一面。能删的删并逐面报数，删不掉的如实说删不掉并尽量数出还剩多少。两阶段：plan() 只读只出清单，execute() 必须带 { confirm: 'forget' }。任何一面失败或本该删的跳过，complete 就是 false——被遗忘权只有全对与没做到两种结果。不直连任何数据表、不自己删文件、不自算「已清干净」、不自动清台词库（那会连带清掉别人说的话）、不做界面。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

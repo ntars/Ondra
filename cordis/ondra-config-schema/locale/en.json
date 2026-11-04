@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra config source",
+    "description": "The single implementation of four-layer config resolution (factory -> bundle -> user -> runtime) with per-field provenance; a bad value falls back to its own default instead of failing the whole section."
+  }
+}

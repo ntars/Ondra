@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Desktop Read-only Capabilities",
+    "description": "A read-only capability surface for the computer: processes, foreground app, clipboard metadata, file search and system status, each with a 5-second timeout as the handbook specifies (shorter than the phone side). Tool names use hyphens (desktop-processes and so on): the dotted spelling in the findings does not match the hard tool-name pattern and would be rejected on the model side. Privacy is structural rather than promised: the process type has no command-line column and the clipboard type has no content field, so a source cannot hand them over even if it wants to. Failures always point somewhere instead of only refusing: without process access it suggests reading load and memory, and without foreground access it suggests simply asking the user what they are doing. Output goes through the tool-output sandbox, trimmed against both a line and a character budget, with an explicit note of how many entries were left out. Only system status (node:os, without battery) and filename search (node:fs) have real sources today; the other three say unsupported honestly instead of returning empty arrays. Disabled by default."
+  }
+}

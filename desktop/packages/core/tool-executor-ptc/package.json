@@ -1,0 +1,75 @@
+{
+  "name": "@ntars/ondra-tool-executor-ptc",
+  "description": "PTC program execution, tool bindings, and generated SDK prompts",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/core/tool-executor-ptc"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/types/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-ptc-runtime": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-user-approval": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/schemastery": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-ptc-runtime": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-user-approval": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*"
+  }
+}

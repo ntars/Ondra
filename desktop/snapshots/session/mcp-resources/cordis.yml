@@ -1,0 +1,11 @@
+- insert:
+    - id: mcp-resource-catalog
+      name: '@ntars/ondra-mcp-client'
+      config:
+        transport: stdio
+        serverName: catalog
+        command: !!js process.execPath
+        args: !!js '[process.env.ONDRA_MCP_RESOURCES_FIXTURE]'
+        failOnStartupError: true
+        reconnect:
+          enabled: false

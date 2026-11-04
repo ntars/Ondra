@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra persona vars & tone",
+    "description": "Replaces {{user}} / {{char}} / {{relation}} with the address, name and relation the user configured (unknown or empty values are left verbatim so sentences never get holes), then emits one of five tone sections from a 0–100 speech-intensity slider. It only changes reference and density, never a word of the persona text — and the tone section is always separate, never merged into the kernel."
+  }
+}

@@ -1,0 +1,11 @@
+- insert:
+    - id: mcp-pagination-limit
+      name: '@ntars/ondra-mcp-client'
+      config:
+        transport: stdio
+        serverName: pagination-limit
+        command: !!js process.execPath
+        args: !!js '[process.env.ONDRA_MCP_PAGINATION_FIXTURE]'
+        failOnStartupError: true
+        reconnect:
+          enabled: false

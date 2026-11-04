@@ -1,0 +1,41 @@
+{
+  "name": "ondra-emotion-conflict",
+  "description": "空谷 Ondra 的冲突锁（手册 §3.2）：冲突事件（否定/指责/冷暴力）进锁，建议张力 +0.15、心情压到 ≤0.35（= 六态「蔫」档下界）；锁定期间不撒娇、不主动、回复变短。两个进锁入口（事件 / 阈值 tension>0.5 或 stress>0.85），阈值那条只派生不落盘。解锁只有两条路：致歉，或连续 2 次正向信号且心情回升过 0.45 并高于进锁时。解锁后建议把张力压到 ≤0.25，否则阈值会立刻把锁扣回去。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

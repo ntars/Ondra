@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Persona Workshop",
+    "description": "Persona pack workshop for Ondra (L9 extension pool): an eight-item metadata audit of existing .skill.zip persona packs (id vs archive name, file declaration, SKILL.md size, six-slot coverage, trigger words, hard boundaries, profile fields, licence), plus a variant draft (which file and section to change, a path-only skeleton for the new pack, and the three things you must decide yourself). Strictly read-only: never writes a persona pack, never emits ZIP, never writes prose, never judges how in-character it reads."
+  }
+}

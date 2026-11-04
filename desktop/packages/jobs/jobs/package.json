@@ -1,0 +1,57 @@
+{
+  "name": "@ntars/ondra-jobs",
+  "description": "Background job registry (ctx.jobs) for the Ondra — shared ids, owner isolation, polling, cancellation, and completion listeners for long-running tool work",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/jobs/jobs"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./brand": {
+      "types": "./lib/types/brand.d.ts",
+      "default": "./lib/types/brand.js"
+    },
+    "./view": {
+      "types": "./lib/types/view.d.ts",
+      "default": "./lib/types/view.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-workspace": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  },
+  "peerDependenciesMeta": {
+    "@ntars/ondra-workspace": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-workspace": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  }
+}

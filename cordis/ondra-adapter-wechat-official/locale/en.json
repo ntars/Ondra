@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra WeChat Channel (Official Account)",
+    "description": "The WeChat Official Account channel: the callback route mounts on the host webServer (no port of its own), sha1 signature verification, 800-character chunking, a 5-second hard limit answered first with a fallback line, and the real reply delivered through customer-service messages within the 48-hour window. A timeout does not abandon the turn — it changes the exit."
+  }
+}

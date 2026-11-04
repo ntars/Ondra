@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ondra-runtime-bin"
+version = "0.0.0.dev0"
+description = "Bundled ondra CLI runtime for the Ondra Python SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "ntars" }]
+
+[project.urls]
+Homepage = "https://github.com/ntars/Ondra"
+Documentation = "https://github.com/ntars/Ondra/blob/master/python/sdk-runtime/README.md"
+Issues = "https://github.com/ntars/Ondra/issues"
+Source = "https://github.com/ntars/Ondra"
+
+[project.scripts]
+ondra = "ondra_runtime:main"
+
+# Include the injected ondra executable and sidecars; exclude the dev-only node closure.
+[tool.hatch.build]
+artifacts = [
+  "src/ondra_runtime/runtime/ondra-sdk-runtime-*",
+  "src/ondra_runtime/runtime/ondra-sdk-runtime-*/**",
+  "src/ondra_runtime/runtime/linux-*/**",
+  "src/ondra_runtime/runtime/macos-*/**",
+  "src/ondra_runtime/runtime/win-*/**",
+]
+exclude = ["src/ondra_runtime/runtime/node"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ondra_runtime"]
+# The release job uses Twine 6.2.0, which accepts core metadata through 2.4.
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+
+[tool.hatch.build.targets.sdist.hooks.custom]

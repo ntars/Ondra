@@ -1,0 +1,22 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2，实现在 desktop/vendor/include/src/index.ts 的 applyEntryPatches）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 inject**：`tools` 与 `ondra-organ-host` 都是软依赖。工具注册表缺席时
+# 本插件照样 `apply()`、照样注册服务，只是收不到事件（`results` 恒为 0）。
+# 写成入口级 inject 会让「只想装归因看看」的配置停在 PENDING 且一声不响——
+# 那正是手册 §8.3 说的最隐蔽的失败。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 这里最容易漂的是 `chronic-after-ms`：补丁写死 300000、代码改成别的值之后，
+# 报告上写着「五分钟标 chronic」而实际不是，两个数都对不上。
+#
+# 刻意**不写 disabled**：`enable=false` 已能关掉，且服务仍注册、报告仍可查（空）。
+- insert:
+    - id: ondra-failure-attrib
+      name: 'ondra-failure-attrib'

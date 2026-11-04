@@ -1,0 +1,9 @@
+# 补丁语义（手册 §8.3-2）：`insert` 不带 id → 追加根入口列表，无需父 group。
+# 本插件是 L0 基座，无父 group，直接追加到根。
+#
+# **刻意不写 config**：默认值只在 `src/index.ts` 的 `DEFAULT_CONFIG` 里存在一份。
+# 若这里再抄一遍，"默认值真源"就成了两份，改一处漏一处，
+# 而症状是"界面上显示的值和实际生效值不一样"——正是本插件要消灭的那类 bug。
+- insert:
+    - id: ondra-config-schema
+      name: 'ondra-config-schema'

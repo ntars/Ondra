@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Speech",
+    "description": "Three synthesis channels, one of which is used at a time: local GPT-SoVITS, the macOS built-in voice, and Edge TTS with nineteen voices and eight presets. This plugin only turns text into sound — rate and volume follow whatever the caller asks for, and it never decides on its own whether she should speak. Audio is content-addressed and cached under cache/tts, so the same line is never synthesized twice; a missing channel, a timeout, or a failed playback each yields a readable reason code instead of an exception."
+  }
+}

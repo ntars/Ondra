@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Ondra badge skill",
+    "description": "Let agents add a “powered by ondra” badge to documents, pull requests, and other outputs.",
+    "detail": "docs/DETAIL.md"
+  }
+}

@@ -1,0 +1,76 @@
+# The SDK application over ondra-base. Stdout belongs exclusively to JSON-RPC.
+
+- id: system-prompt
+  config:
+    personaPrefix: >-
+      You are a coding agent powered by the {{model}} model.
+
+- id: session-title-llm
+  disabled: true
+
+- insert:
+    - id: sdk-app-startup
+      name: '@ntars/ondra-sdk-app'
+      config:
+        profile: sdk
+
+    - id: sdk-jsonrpc-server
+      name: '@ntars/ondra-sdk-jsonrpc-server'
+      inject: [sdkAppStartup, loader]
+      config:
+        maxTokensAsSuccess: !!js "process.env.ONDRA_MAX_TOKENS_AS_SUCCESS === undefined ? true : JSON.parse(process.env.ONDRA_MAX_TOKENS_AS_SUCCESS)"
+
+- id: hmr
+  disabled: true
+
+# The packaged carrier supplies a default; ONDRA_PRIMARY_RUNTIME overrides it,
+# including an empty-string opt-out. Each row can be patched independently.
+- insert:
+    - id: workspace-dependencies
+      name: '@ntars/ondra-tool-workspace-dependencies'
+      disabled: !!js "!(process.env.ONDRA_PRIMARY_RUNTIME ?? process.env.ONDRA_BUNDLED_PRIMARY_RUNTIME)"
+      config:
+        source: !!js "process.getBuiltinModule('node:path').resolve(process.env.ONDRA_PRIMARY_RUNTIME ?? process.env.ONDRA_BUNDLED_PRIMARY_RUNTIME ?? '')"
+
+    - id: skill-office
+      name: '@ntars/ondra-skill-office'
+      disabled: !!js "!(process.env.ONDRA_PRIMARY_RUNTIME ?? process.env.ONDRA_BUNDLED_PRIMARY_RUNTIME) && !process.env.ONDRA_BUNDLED_OFFICE_CLI"
+      config:
+        assetRoot: !!js "process.env.ONDRA_BUNDLED_OFFICE_SKILLS ?? process.getBuiltinModule('node:path').resolve(process.env.ONDRA_PRIMARY_RUNTIME ?? process.env.ONDRA_BUNDLED_PRIMARY_RUNTIME ?? '', '..', 'office-skills')"
+        cli: !!js "process.env.ONDRA_BUNDLED_OFFICE_CLI === '' ? false : process.env.ONDRA_BUNDLED_OFFICE_CLI"
+        node: !!js "process.env.ONDRA_BUNDLED_OFFICE_NODE ?? process.getBuiltinModule('node:path').resolve(process.env.ONDRA_PRIMARY_RUNTIME ?? process.env.ONDRA_BUNDLED_PRIMARY_RUNTIME ?? '', 'dependencies', 'node', 'bin', process.platform === 'win32' ? 'node.exe' : 'node')"
+
+# Share native desktop tools and model context without starting a Web server.
+- insert:
+    - id: connection
+      name: '@ntars/ondra-client-connection'
+
+    - id: file-upload
+      name: '@ntars/ondra-client-file-upload'
+
+    - id: workspace
+      name: '@ntars/ondra-workspace'
+
+    - id: schedule
+      disabled: true
+      name: '@ntars/ondra-schedule'
+      inject: [sdkSessionActivation]
+
+    - id: time-context
+      name: '@ntars/ondra-time-context'
+
+    - id: tool-schedule
+      name: '@ntars/ondra-tool-schedule'
+
+    - id: tool-ask-user
+      name: '@ntars/ondra-tool-ask-user'
+
+    - id: present
+      name: '@ntars/ondra-tool-present'
+
+    - id: file-reference-local
+      name: '@ntars/ondra-file-reference-local'
+
+    - id: deliverable-file-references
+      disabled: true
+      name: '@ntars/ondra-deliverable-file-references'

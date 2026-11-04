@@ -1,0 +1,44 @@
+# The parent owns its file and web tools; the child selects a separate preset.
+- id: tool-fs
+  disabled: true
+
+- id: tool-fs-search
+  disabled: true
+
+- id: tool-web
+  disabled: true
+
+- insert:
+    - id: agent-preset-registry
+      name: '@ntars/ondra-agent-preset-registry'
+      config:
+        default: parent
+    - id: preset-parent
+      name: '@ntars/ondra-agent-preset'
+      config:
+        id: parent
+        plugins:
+          - name: '@ntars/ondra-tool-fs'
+          - name: '@ntars/ondra-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - name: '@ntars/ondra-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+    - id: preset-child
+      name: '@ntars/ondra-agent-preset'
+      config:
+        id: child
+        plugins: []
+    - id: parent-agent-preset
+      name: '../../../packages/test-support/session-snapshot/tests/fixtures/parent-agent-preset.ts'
+
+- id: tool-subagent
+  name: '@ntars/ondra-tool-subagent'
+  inject: [agentPresets]
+  config:
+    provider: spawn
+    toolName: subagent
+    maxDepth: 1
+    agentPreset: child

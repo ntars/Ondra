@@ -1,0 +1,101 @@
+{
+  "name": "@ntars/ondra-experimental-client-ui-cot-translation",
+  "description": "Optional machine translation of expanded reasoning, preserving original Session text",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/client-ui-cot-translation"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./types": {
+      "types": "./lib/types/types.d.ts"
+    }
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-api-remotes",
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-chat",
+        "@ntars/ondra-client-ui-plugin-manager",
+        "@ntars/ondra-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-experimental-translator": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~",
+    "zod": "^4.4.3",
+    "@ntars/ondra-typert-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-settings": "workspace:*",
+    "@ntars/ondra-experimental-translator": "workspace:*",
+    "@ntars/ondra-api-remotes": "workspace:*",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@ntars/ondra-client-ui-chat": "workspace:*",
+    "@ntars/ondra-client-ui-plugin-manager": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-settings": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@testing-library/react": "^16.3.3",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-api-remote-access": "workspace:*",
+    "@ntars/ondra-api-session-controller": "workspace:*",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*",
+    "@ntars/ondra-session-persistence-jsonl": "workspace:*",
+    "@ntars/ondra-session-query": "workspace:*",
+    "@ntars/ondra-typert-registry": "workspace:*"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "ondra-sticker",
+  "description": "空谷 Ondra 的贴纸包读取与分发（手册 §7.3-3 自研档）：目录即索引、文件名即标签，不写清单文件；同标签多张按序号轮转，缺失时按「人设包 → 共享包 → 内置包」三层回退。内置层是一个可注册的兜底槽，出厂为空——本仓没有贴纸美术素材，不凭空造图，取不到时如实给原因码。它只回答「这个标签有哪些图、下一张是哪张」，什么时候发不归它管（间隔在 O-040，概率在 O-031）。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

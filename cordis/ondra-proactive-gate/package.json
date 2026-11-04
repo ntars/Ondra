@@ -1,0 +1,41 @@
+{
+  "name": "ondra-proactive-gate",
+  "description": "空谷 Ondra 的主动消息门控（手册 §5.3 / §5.5）：一条待投递的消息此刻能不能发。九道闸——总开关与群聊红线、熔断与退避、内容红线、静默时段、每日预算、空闲阈值、会话冷却、重复去重、三层令牌桶。只判定不发送、不排闹钟、不装定时器；状态落盘到 user/proactive-state.json（0600、原子写），因为「重启若清零 = 重启绕过防封」。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

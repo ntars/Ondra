@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Phone SMS (adb)",
+    "description": "The phone SMS channel, read-only by construction. It polls only `content://sms/inbox` for unread messages (every 15 seconds, at most 20 per round, and trims a 1000-entry handled set down to 500), as the device-side findings in the handbook state. It never takes screenshots, never taps, never types Chinese, and never sends an SMS: replies go through `replyWebhook` to a bridge you supply. Read-only is not a documentation promise here, it is a structural allowlist in `policy.ts`: anything other than that single `content query` is refused, including the `;`, `|` and `$` characters that the device-side shell would re-parse. Command execution and reply delivery are ports; the timer hangs off the ctx.effect disposer and stops on unload. Disabled by default."
+  }
+}

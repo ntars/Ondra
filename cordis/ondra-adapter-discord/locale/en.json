@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Discord Channel",
+    "description": "The Discord channel: Gateway WS v10, with the frame layer injected through a DiscordSocket port (the handbook gives only the protocol outline and no basis for op codes, the IDENTIFY payload or heartbeat acknowledgement, so no handshake is faked here). Authentication is the `Bot <token>` header, so redaction targets strings rather than addresses: exactly one place puts the token in, and exactly one place turns an exception into text. 1900-character chunking; close code 4004 stops reconnecting, every other code retries after a fixed 5 seconds. The handbook states there is no de-duplication, and this package honours that: no cross-time de-duplication table exists (users genuinely send the same sentence twice), only an idempotent guard that drops a message.id already in flight. It registers no routes and binds no port; the connection and timers hang off the ctx.effect disposer and stop on unload."
+  }
+}

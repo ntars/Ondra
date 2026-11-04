@@ -1,0 +1,22 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2，实现在 desktop/vendor/include/src/index.ts 的 applyEntryPatches）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 inject**：三个上游（身份、配置、时钟）全是软依赖，缺哪个都能跑
+# （时间退回 `Date.now()`，配置退回插件实例配置，日志退回 `ondra.install-doctor`）。
+# 写成插件级 inject 会让「只想装一个体检工具」的配置永远停在 PENDING——
+# 而体检工具的全部意义就是在装配出问题时还能站起来。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 这里最容易漂的是 `profile-path`：补丁写死一个开发机路径、换机器后自检对着
+# 一个不存在的目录跑出「未判定」，而配置页写着另一个路径，两边都对不上。
+#
+# 刻意**不写 disabled**：`enable=false` 只是不查，服务仍注册、接口仍可调。
+- insert:
+    - id: ondra-install-doctor
+      name: 'ondra-install-doctor'

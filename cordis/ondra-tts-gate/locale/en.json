@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Speech Gate",
+    "description": "Decides whether a given line should be spoken out loud: the master switch, six to thirty characters, enough emotional intensity (or an emotion word in the line), three seconds since the last utterance, and a rule that after two spoken lines in a row the next one stays text only. It decides but never speaks — each decision carries the real character count, the intensity, the rate to use, and a reason code when blocked. Missing emotion data means a degraded pass, and a missing synthesis channel is reported as no channel at all."
+  }
+}

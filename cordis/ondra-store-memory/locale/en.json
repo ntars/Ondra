@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory store",
+    "description": "In-memory fallback store for Ondra: keeps the conversation running when SQLite cannot open. Explicitly not persistent."
+  }
+}

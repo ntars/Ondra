@@ -1,0 +1,33 @@
+- id: agent-default-model
+  name: '@ntars/ondra-agent-default-model'
+  config:
+    provider: deepseek-official
+    model: deepseek-v4-flash-vision-exp
+
+- id: session-persistence-jsonl
+  name: '@ntars/ondra-session-persistence-jsonl'
+  config:
+    root: !!js ondraHomePath('sessions')
+    compression: none
+
+- id: agent-instructions
+  name: '@ntars/ondra-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: system-prompt
+  name: '@ntars/ondra-system-prompt'
+  config:
+    personaPrefix: |
+      You are a coding assistant powered by the {{model}} model. Your bash tool runs under a file sandbox — a `[sandbox: file access denied …]` result is policy, not a command bug.
+
+      Verify your work by running the code or tests. Keep answers brief and factual.
+
+- id: attachment-local
+  name: '@ntars/ondra-attachment-local'
+
+- insert:
+    - id: computer-use
+      name: '@ntars/ondra-computer-use'
+    - id: native-computer-use-fixture
+      name: './native-fixture.mjs'

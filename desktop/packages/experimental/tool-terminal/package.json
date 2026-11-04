@@ -1,0 +1,70 @@
+{
+  "name": "@ntars/ondra-tool-terminal",
+  "description": "Six model-facing persistent PTY tools with owner isolation and generic background-job integration",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/tool-terminal"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/schemastery": "workspace:~"
+  },
+  "peerDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-terminal": "workspace:*",
+    "@ntars/ondra-output-retention": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-jobs": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-working-directory": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-terminal": "workspace:*",
+    "@ntars/ondra-terminal-bash": "workspace:*",
+    "@ntars/ondra-output-retention": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-subprocess-local": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-jobs": "workspace:*",
+    "@ntars/ondra-jobs-local": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-executor-ptc": "workspace:*",
+    "@ntars/ondra-tool-jobs": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "ondra-cocreate",
+  "description": "空谷 Ondra 的共创流程（L9 扩展池）：两个人一起做出点什么时的分工与轮次。四拍固定序——立题、出稿、提意见、收束。提出方只定目标与验收标准，动手方只出稿与改稿，两个角色在结构上永不重合（同一个人既提又改，共创就退化成独白）。版数有硬上限，到点只能收束：上限按版数算而不按发言次数算，发言谁都能刷，版数是硬的。handoff() 必须带版号，对不上直接拒绝——两个人同时改时，后到的那个会当场报错，而不是把别人的改动悄悄盖掉。改必须基于上一版，另起一稿会让版号失去意义，谁也说不清在改什么。收束只做一件事：明确问出「这版算定稿吗」，然后停住；本插件没有定稿这个状态（final 在类型上就是 false），定稿是人回答的，不是流程替人答的。不生成任何内容（归对话链 O-033）、不存作品正文（归调用方与 O-010 记忆）、不装定时器、不主动发消息、不做界面。状态只在内存，不落盘。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

@@ -1,0 +1,153 @@
+/*
+ * The Sidebar's own chrome only: the panel box, the placeholder tab bodies, and
+ * the column's stacking. Everything inside the split tree is styled by the
+ * docking kit. Tokens only.
+ *
+ * The column is permanent, so there is nothing to slide, hide or promote: the
+ * panel sits at its final position from the first commit, and the only stacking
+ * it declares is the docked layer frame overlays (20) must cover, with floating
+ * panels above that (60). The common content root owns no stacking context or
+ * transform.
+ */
+
+.session {
+  display: contents;
+}
+
+.session[hidden] {
+  display: none;
+}
+
+.panel {
+  --ondra-dockkit-dock-layer: 10;
+  --ondra-dockkit-float-layer: 60;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* The column fills its track, and the track is the frame's; a seat with a
+     measured width overrides this inline. The empty column has no measurement
+     of its own, so without this it collapses to zero and the divider the
+     column owns would have nothing to sit on. */
+  width: 100%;
+  /* The 0.5px divider has to sit on a whole pixel or it is not the same line
+     the centre column draws on its `border-left`: on a fractional phase the
+     hairline is antialiased across two device pixels at roughly half density
+     and reads thinner than the sidebar's divider. A content-box width would
+     put this box half a pixel wider than its track, and `right: 0` would then
+     shift the whole panel — border included — half a pixel left onto exactly
+     that phase. Border-box keeps the left edge on the track's edge, which is
+     the same edge the centre column's divider sits on, and keeps the rendered
+     width equal to the `--ondra-sidebar-width` handed to the subtree. */
+  box-sizing: border-box;
+  /* The divider belongs to the column, not to whatever page is inside it:
+     the frame gives the track a left edge and the occupant draws it, so the
+     line stays put across the empty column, a page, and a settings panel. */
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
+  /* Keeps a page's stray overflow inside the column instead of widening the
+     frame's scrollable area. `clip` does not clip fixed floating children,
+     whose containing block is the viewport. */
+  overflow: clip;
+  pointer-events: none;
+}
+
+.panelBody {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.unavailable {
+  margin: 0;
+  padding: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--ondra-content-font-size-secondary, 13px);
+}
+
+/* Keep the title's icon and text in dockkit's flex row while retaining occurrence markers. */
+.tabTitle {
+  display: contents;
+}
+
+.tabBody {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  /* A page swapping inside the pane. The body is keyed per tab, so this runs
+     when a different page arrives and never on a re-render of the same one. */
+  animation: dsw-fade-in var(--dsw-motion) both;
+}
+
+/*
+ * The column as a standing status panel (data-sidebar-right-resting).
+ *
+ * When the panel holds nothing but its resting page, the tab strip has no
+ * choice to offer and no tab to close, so it withdraws entirely and the page
+ * owns the column's top edge — that is what turns a tabbed viewer into the
+ * status column the product's information architecture describes ("右栏：
+ * 她现在怎么样", 7.2). The kit's strip is a child of the docked surface, and
+ * this package is its embedder, so the rule lives here rather than in the kit.
+ *
+ * Nothing is unmounted: the strip stays in the tree and only stops being laid
+ * out, so the moment a second tab exists (a document preview, a split) the
+ * attribute drops and the strip is back with its keyboard model intact. The
+ * media-independent part of the contract — "a lone unclosable chip is a label"
+ * — is dockkit's own rule and still governs whenever the strip does show.
+ */
+.panel[data-sidebar-right-resting] [data-dockkit-strip] {
+  display: none;
+}
+
+/* The empty column's card.
+ *
+ * Centred on the panel rather than pinned to a corner: the third column is
+ * always present, so an empty state is the column's resting appearance and has
+ * to look composed at a glance. The tint and stroke are the theme's own card
+ * material, the same pair the dock cards beside it use. */
+.emptyCard {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px;
+  padding: 24px 20px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-interactive-bg-hover);
+  text-align: center;
+  /* The column arrives empty on a cold start and fills the moment the first
+     Session is selected. The card is the first thing on that track, so it gets
+     the block entrance rather than the row's 3 px. */
+  animation: dsw-surface-in var(--dsw-motion) both;
+}
+
+.emptyMark {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--dsw-alias-label-tertiary);
+  opacity: 0.7;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.emptyBody {
+  margin: 0;
+  max-width: 24em;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}

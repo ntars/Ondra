@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Beichen Entry",
+    "description": "Mints a local v1 minute-keyed HMAC token and redirects to the registration page in one hop; no URL is ever shown, and the affiliate code is only concatenated at redirect time."
+  }
+}

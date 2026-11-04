@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra DingTalk Channel",
+    "description": "The DingTalk outgoing-webhook channel: the callback URL mounts on the host webServer (no port of its own), HmacSHA256 plus timestamp signature checking that answers 401 so misconfiguration is visible in the console, an immediate empty 200 with the reply sent asynchronously afterwards (DingTalk waits for a response, not for an answer), and 4000-character chunking. Replies go through the sessionWebhook carried by that message first; once it expires they fall back to the robot's active-send API. The two exits degrade independently, so it never silently believes it sent something."
+  }
+}

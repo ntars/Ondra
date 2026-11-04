@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Port Picker",
+    "description": "Loopback port selection that splits one vague request into two opposite intents. Asking for a listener means a number nobody is bound to right now, which can be left to the kernel (the equivalent of --port 0, the most stable option) or scanned in order inside the fixed 9060-9079 range. Asking for an endpoint means the number the host webServer is already bound to, which can only be read as an established fact. Conflating the two hands a child process the port the host itself occupies, and the symptom is an immediate address-in-use failure while the log claims a free port was found. Probing always releases immediately and the interface offers no hold operation, because holding the number you are about to hand over is what stops the other side from binding. Every number therefore carries an honest race marker, and only reading the host's bound port is race-free. Only loopback literals are accepted and wildcard addresses are refused. The plugin composes no URLs: the onboarding layer owns that, since only it knows where the token comes from. Nothing is probed at load time, because binding a port that nobody asked for only wastes a kernel table entry."
+  }
+}

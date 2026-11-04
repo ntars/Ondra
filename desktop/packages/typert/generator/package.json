@@ -1,0 +1,48 @@
+{
+  "name": "@ntars/ondra-typert-generator",
+  "description": "TypeScript project analyzer and model-driven Typert artifact generator",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/typert/generator"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./tsdown": {
+      "types": "./lib/types/tsdown-plugin.d.ts",
+      "default": "./lib/types/tsdown-plugin.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@jridgewell/gen-mapping": "^0.3.13",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-tool-cordis": "workspace:*",
+    "@ntars/ondra-typert-registry": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "zod": "4.4.3"
+  }
+}

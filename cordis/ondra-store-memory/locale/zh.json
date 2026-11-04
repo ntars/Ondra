@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 内存存储",
+    "description": "空谷 Ondra 的内存兜底存储：SQLite 打不开时让对话还能进行，明确不持久化。"
+  }
+}

@@ -1,0 +1,21 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2，实现在 desktop/vendor/include/src/index.ts 的 applyEntryPatches）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+#
+# 刻意**不写 inject**：本包对 ondra-identity / ondra-config-schema / ondra-path-layout /
+# ondra-clock / ondra-port-picker 全是软依赖。声明成插件级 inject 会让
+# 「宿主没装挑端口插件」变成「首启插件根本装不上」，而少装一个下游时本包的
+# 前三段照样能走——`suggestPort()` 报 `no-picker` 就够了。
+#
+# 刻意**不写 disabled**：`enable=false` 只拒绝 `begin()` / `advance()`，
+# `acceptance()` / `diagnose()` / `title()` 这些只读判定仍然可用（排障时要靠它们）。
+- insert:
+    - id: ondra-onboarding
+      name: 'ondra-onboarding'

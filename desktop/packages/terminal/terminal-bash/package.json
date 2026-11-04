@@ -1,0 +1,60 @@
+{
+  "name": "@ntars/ondra-terminal-bash",
+  "description": "Persistent shell PTY backend over the Ondra subprocess terminal primitive",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/terminal/terminal-bash"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-terminal": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-subprocess": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-working-directory": "workspace:*"
+  },
+  "dependencies": {
+    "@ntars/ondra-lazy-require": "workspace:*",
+    "@ntars/ondra-pwsh-local": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "@xterm/headless": "^6.0.0"
+  },
+  "devDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-agent-loop-testkit": "workspace:*",
+    "@ntars/ondra-terminal": "workspace:*",
+    "@ntars/ondra-sandbox": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-subprocess": "workspace:*",
+    "@ntars/ondra-subprocess-local": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-working-directory": "workspace:*"
+  }
+}

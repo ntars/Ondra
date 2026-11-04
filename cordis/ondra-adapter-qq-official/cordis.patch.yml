@@ -1,0 +1,23 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / name 不一致 → 只告警，然后**跳过**。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 这里再抄一份，就会出现「面板显示已开启、实际还是关的」这种最难查的分叉。
+# 通道默认关闭这件事已经写在 FIELD_SPECS.default=false 里，不需要 patch 再写一遍。
+#
+# 刻意**不写 inject**：四个依赖全软（router / channel-kit / channel-health / config-schema）。
+# 声明 inject 会让缺一个就整包停 PENDING——而一个通道插件最该能做到的事，
+# 正是「缺了路由也要把收到的消息记下来，并说清为什么没人回」。
+#
+# 刻意**不写 disabled**：`enable=false` 已经让 start() 明确返回 `disabled`，
+# 服务照常注册、面板能看见「已关闭」。用 disabled 把它从入口树上摘掉，
+# 用户就再也看不到「这个通道存在但没开」——只剩一个空空的列表。
+- insert:
+    - id: ondra-adapter-qq-official
+      name: 'ondra-adapter-qq-official'

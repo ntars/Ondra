@@ -1,0 +1,41 @@
+{
+  "name": "ondra-dialogue-protocol",
+  "description": "空谷 Ondra 的对话帧协议（手册 §9.5）：text-delta / text-replace / crisis / usage / done 五帧，结束原因四值闭集。帧的形状、跨帧纪律（终帧唯一、usage 与 crisis 各一次）与 NDJSON 编解码只在这里存在一份——旧项目这三个形状散落在会话循环、界面、通道三处，于是「text-replace 被当增量追加」让用户看到两遍开头，「crisis 被静默丢掉」让危机提示永远到不了用户。不做业务判断、不改写正文、不落盘、不建 Session。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "AGPL-3.0",
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@types/node": "22.20.1"
+  }
+}

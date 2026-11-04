@@ -1,0 +1,94 @@
+{
+  "name": "@ntars/ondra-client-ui-deliverables",
+  "description": "Changed-files card with per-file comparison tabs, delivery cards, and clickable final-response file references for Web",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/client/ui-deliverables"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-api-remotes",
+        "@ntars/ondra-client-connection",
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-chat",
+        "@ntars/ondra-client-ui-conversation",
+        "@ntars/ondra-client-ui-renderer",
+        "@ntars/ondra-client-ui-sidebar-right",
+        "@ntars/ondra-client-ui-tool",
+        "@ntars/ondra-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/ondra-api-remotes": "workspace:*",
+    "@ntars/ondra-client-connection": "workspace:*",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@ntars/ondra-client-ui-chat": "workspace:*",
+    "@ntars/ondra-client-ui-conversation": "workspace:*",
+    "@ntars/ondra-client-ui-dockkit": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-sidebar-right": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "react": "^18.2.0",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-session-query": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-client-ui-tool": "workspace:*",
+    "@ntars/ondra-tool-present": "workspace:*",
+    "@ntars/ondra-workspace-changes": "workspace:*",
+    "@ntars/ondra-api-session-controller": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/ondra-util-workspace-path": "workspace:*",
+    "@ntars/ondra-api-workspace-files": "workspace:*",
+    "@ntars/ondra-fs": "workspace:*",
+    "@ntars/ondra-fs-local": "workspace:*",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-sandbox-policy": "workspace:*",
+    "@ntars/ondra-client-ui-settings": "workspace:*"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "dependencies": {
+    "@ntars/ondra-typert-protocol": "workspace:*"
+  }
+}

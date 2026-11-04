@@ -1,0 +1,41 @@
+{
+  "name": "@ntars/ondra-skill-badge",
+  "description": "Bundled ondra badge skill provider for Ondra",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/skill-badge"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "icon": "./icon.svg",
+  "files": [
+    "icon.svg",
+    "locale/*.json",
+    "lib/index.js",
+    "assets",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-skill": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/ondra-skill": "workspace:*",
+    "@ntars/cordis": "workspace:~"
+  }
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>空谷 Ondra — 全插件式桌面 AI 陪伴体</title>
+<meta name="description" content="空谷 Ondra 是一款基于 Ondra 定制、全插件式的桌面 AI 陪伴体应用。能力以插件形式装载，模型按需接入。">
+<meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png">
+<style>
+  :root {
+    --bg: #fbfbfd; --panel: #ffffff; --text: #1d1d1f; --sub: #6e6e73;
+    --line: rgba(0,0,0,.10); --accent: #0071e3; --accent-soft: rgba(0,113,227,.08);
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000; --panel: #1c1c1e; --text: #f5f5f7; --sub: #98989d;
+      --line: rgba(255,255,255,.14); --accent: #0a84ff; --accent-soft: rgba(10,132,255,.14);
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 400 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  /* 顶栏：毛玻璃，滚动时保持可读 */
+  header.site {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  header.site .wrap {
+    height: 52px; display: flex; align-items: center; gap: 10px;
+  }
+  .mark { width: 22px; height: 22px; border-radius: 5px; flex: none; display: block; }
+  .brand { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  nav.top { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+  nav.top a { color: var(--sub); font-size: 13px; }
+  nav.top a:hover { color: var(--text); }
+  @media (max-width: 560px) { nav.top { gap: 14px; } nav.top a.opt { display: none; } }
+
+  /* 首屏 */
+  .hero { padding: 96px 0 72px; text-align: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 12px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 12px; font-weight: 500; letter-spacing: .01em;
+  }
+  h1 {
+    margin: 22px 0 16px; font-size: 56px; line-height: 1.08;
+    font-weight: 600; letter-spacing: -.025em;
+  }
+  h1 .thin { color: var(--sub); font-weight: 400; display: block; font-size: 40px; letter-spacing: -.02em; margin-top: 6px; }
+  .lede {
+    margin: 0 auto; max-width: 560px; color: var(--sub); font-size: 17px;
+  }
+  .actions { margin-top: 34px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 46px; padding: 0 24px; border-radius: 12px;
+    font-size: 15px; font-weight: 600; transition: opacity .15s ease, transform .15s ease;
+  }
+  .btn:hover { opacity: .9; }
+  .btn:active { transform: scale(.985); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { border: 1px solid var(--line); color: var(--text); background: var(--panel); }
+  @media (max-width: 560px) {
+    .hero { padding: 64px 0 48px; }
+    h1 { font-size: 36px; }
+    h1 .thin { font-size: 26px; }
+    .lede { font-size: 15px; }
+  }
+
+  /* 特性 */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-bottom: 88px; }
+  @media (max-width: 760px) { .features { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    padding: 24px; box-shadow: var(--shadow);
+  }
+  .card h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .card p { margin: 0; color: var(--sub); font-size: 14px; }
+  .glyph {
+    width: 34px; height: 34px; border-radius: 9px; margin-bottom: 14px;
+    background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center; font-size: 16px; font-weight: 600;
+  }
+
+  /* 合作 API */
+  .api {
+    margin-bottom: 96px; border: 1px solid var(--line); border-radius: 22px;
+    background: var(--panel); box-shadow: var(--shadow);
+    padding: 40px; display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center;
+  }
+  @media (max-width: 720px) { .api { grid-template-columns: 1fr; padding: 28px; text-align: left; } }
+  .api h2 { margin: 0 0 10px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+  .api p { margin: 0; color: var(--sub); font-size: 15px; max-width: 520px; }
+  .api .hint { margin-top: 14px; font-size: 13px; color: var(--sub); }
+
+  footer.site { border-top: 1px solid var(--line); padding: 28px 0 40px; }
+  footer.site .wrap {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    color: var(--sub); font-size: 13px;
+  }
+  footer.site a { color: var(--sub); }
+  footer.site a:hover { color: var(--text); }
+  footer.site .spacer { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <img class="mark" src="icon.svg" alt="空谷 Ondra" width="22" height="22">
+    <span class="brand">空谷 Ondra</span>
+    <nav class="top">
+      <a class="opt" href="#features">特性</a>
+      <a href="#api">合作 API</a>
+      <a class="opt" href="https://github.com/ntars/Ondra" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <span class="eyebrow">桌面端 · 全插件架构</span>
+    <h1>空谷 Ondra<span class="thin">安静的桌面 AI 陪伴体</span></h1>
+    <p class="lede">基于 Ondra 定制。能力以插件形式装载，模型按需接入，界面只留下你真正会用的那些。</p>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/ntars/Ondra/releases" target="_blank" rel="noopener noreferrer">下载客户端</a>
+      <a class="btn ghost" href="#api">了解合作 API</a>
+    </div>
+  </section>
+
+  <section class="features wrap" id="features">
+    <article class="card">
+      <div class="glyph">1</div>
+      <h3>插件式装载</h3>
+      <p>核心只保留对话与工作台，其余能力由插件提供。装什么、开什么，由你决定。</p>
+    </article>
+    <article class="card">
+      <div class="glyph">2</div>
+      <h3>模型自选</h3>
+      <p>支持接入多家模型服务。切换模型只改配置，会话与工具调用不受影响。</p>
+    </article>
+    <article class="card">
+      <div class="glyph">3</div>
+      <h3>本地运行</h3>
+      <p>桌面应用形态，不依赖浏览器标签页。窗口关掉，进程就停。</p>
+    </article>
+  </section>
+
+<footer class="site">
+  <div class="wrap">
+    <span>© 2024–2026 Ntarstudio（星玖工作室）</span>
+    <a href="https://github.com/ntars/Ondra" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <span>AGPL-3.0</span>
+    <span class="spacer"></span>
+    <a href="https://www.ntars.cn/" target="_blank" rel="noopener noreferrer">ntars.cn</a>
+  </div>
+</footer>
+
+</body>
+</html>

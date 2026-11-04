@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory graph",
+    "description": "Who relates to whom in memory: same_topic starts at 0.72 and gains 0.05 per reinforcement, cooccur starts at 0.15 and gains 0.10, surreal sits at 0.03 and never enters retrieval. Diffusion threshold 0.4, hub cap 40, 90-day x0.5 decay with a decayed_at cursor. It only touches the edge table, never the memory rows."
+  }
+}

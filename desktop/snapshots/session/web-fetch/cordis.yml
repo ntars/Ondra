@@ -1,0 +1,18 @@
+# Web-fetch composition for the web-fetch snapshot scenario. The base bundle
+# supplies the web seam and public HTTP provider; this overlay inserts a
+# deterministic provider and exposes only fetch.
+- insert:
+    - id: web-fetch-fixture
+      name: './web-fetch-fixture-server.mjs'
+
+- id: web
+  name: '@ntars/ondra-web'
+
+- id: web-fetch-http
+  name: '@ntars/ondra-web-fetch-http'
+  disabled: true
+
+- id: tool-web
+  name: '@ntars/ondra-tool-web'
+  config:
+    search: false

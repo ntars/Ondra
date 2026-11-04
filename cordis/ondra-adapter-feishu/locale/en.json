@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Feishu Channel",
+    "description": "The Feishu (Lark) event-subscription channel: the request URL mounts on the host webServer (no port of its own), verificationToken checking, encrypted payloads rejected outright with a 400 and a reason so the failure is visible in the developer console, 4000-character chunking, and an immediate {\"code\":0} acknowledgment with the answer sent asynchronously afterwards. Replies go to the chat_id, not the open_id — replying to the sender would turn an @-mention in a group into a private message."
+  }
+}

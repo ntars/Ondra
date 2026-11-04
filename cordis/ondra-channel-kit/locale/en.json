@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Channel Kit",
+    "description": "The three things every channel does the same way: ask the persona once (through the dialogue chain, never by rebuilding the prompt), split text to whatever length the platform allows, and keep twelve lines of peer history per channel. It writes nothing to disk, throttles nothing, and holds no state of its own — history instances belong to the adapter, because sharing one is exactly where cross-channel bleed begins. Splitting never pads: the pieces must rejoin to the original byte for byte, and adding a full stop for looks would be putting words in her mouth."
+  }
+}

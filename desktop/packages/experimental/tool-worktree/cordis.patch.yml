@@ -1,0 +1,5 @@
+- insert:
+    - id: worktree
+      name: '@ntars/ondra-experimental-worktree'
+    - id: tool-worktree
+      name: '@ntars/ondra-experimental-tool-worktree'

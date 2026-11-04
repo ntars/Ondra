@@ -1,0 +1,129 @@
+/** Real Loader and AgentLoop composition with only external native/model fixtures. */
+import { executeToolFixture } from '@ntars/ondra-tool-testkit'
+
+import * as NativeToolExecutor from '@ntars/ondra-tool-executor-native'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { afterEach, expect, it, vi } from 'vitest'
+import { Context } from '@ntars/cordis'
+import Loader from '@ntars/cordis-plugin-loader'
+import Include from '@ntars/cordis-plugin-include'
+import AgentRegistry from '@ntars/ondra-agent'
+import AgentLoop from '@ntars/ondra-agent-loop'
+import ComputerUseRegistry from '@ntars/ondra-computer-use'
+import LocalAttachmentStore from '@ntars/ondra-attachment-local'
+import LlmRuntime, { LlmAdapter, ToolCallId, createUserMessage } from '@ntars/ondra-llm'
+import type { GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@ntars/ondra-llm'
+import SessionStore, { SessionId } from '@ntars/ondra-session'
+import SessionProjectionRegistry from '@ntars/ondra-session-projection'
+import SystemPrompt from '@ntars/ondra-system-prompt'
+import ToolRuntime from '@ntars/ondra-tools'
+import * as NativeProvider from '../src/index.ts'
+import { resetFixture, screenshotBase64 } from './fixtures/cua-driver.ts'
+
+vi.mock('@trycua/cua-driver', async () => import('./fixtures/cua-driver.ts'))
+
+class VisualModel extends LlmAdapter {
+  readonly requests: GenerateOptions[] = []
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model, inputModalities: ['text', 'image'] })
+  }
+
+  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    if (this.requests.length === 1) {
+      const call = { type: 'tool-call' as const, id: ToolCallId('native-window'), name: 'cua_driver_native__get_window_state', arguments: '{"pid":9,"window_id":7}' }
+      yield { type: 'block-start', index: 0, blockType: 'tool-call' }
+      yield { type: 'block-end', index: 0, block: call }
+      yield { type: 'finish', reason: { kind: 'tool-calls' } }
+      return
+    }
+    yield { type: 'block-start', index: 0, blockType: 'text' }
+    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'Observed the fixture window.' } }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+}
+
+let ctx: Context | undefined
+let root: string | undefined
+
+afterEach(async () => {
+  await ctx?.fiber.dispose()
+  if (root !== undefined) await rm(root, { recursive: true, force: true })
+  ctx = undefined
+  root = undefined
+})
+
+it('loads from cordis.yml and logs the native screenshot before the next model request', async () => {
+  resetFixture()
+  root = await mkdtemp(join(tmpdir(), 'ondra-native-composition-'))
+  const configPath = join(root, 'cordis.yml')
+  const modules = new Map<string, unknown>([
+    ['@ntars/ondra-llm', LlmRuntime],
+    ['@ntars/ondra-session', SessionStore],
+    ['@ntars/ondra-session-projection', SessionProjectionRegistry],
+
+    ['@ntars/ondra-system-prompt', SystemPrompt],
+    ['@ntars/ondra-tools', ToolRuntime],
+    ['@ntars/ondra-tool-executor-native', NativeToolExecutor],
+    ['@ntars/ondra-agent', AgentRegistry],
+    ['@ntars/ondra-agent-loop', AgentLoop],
+    ['@ntars/ondra-attachment-local', LocalAttachmentStore],
+    ['@ntars/ondra-computer-use', ComputerUseRegistry],
+    ['@ntars/ondra-experimental-computer-use-cua-driver-native', NativeProvider],
+  ])
+  await writeFile(configPath, [...modules.keys()].flatMap(name => [
+    `- name: '${name}'`,
+    ...name === '@ntars/ondra-attachment-local' ? ['  config:', `    ondraHome: ${JSON.stringify(root)}`] : [],
+  ]).join('\n') + '\n')
+
+  const context = ctx = new Context()
+  context.baseUrl = pathToFileURL(root).href + '/'
+  await context.plugin(Loader)
+  context.loader.builtins.include = Include
+  context.loader.internal = {
+    version: 'v2',
+    async import(specifier: string) {
+      if (!modules.has(specifier)) throw new Error(`Unexpected fixture module: ${specifier}`)
+      return modules.get(specifier)
+    },
+  } as unknown as NonNullable<typeof context.loader.internal>
+  await context.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
+  await context.loader.await()
+  for (const entry of context.loader.entries()) await entry.fiber?.await()
+  const model = new VisualModel()
+  context.llm.registerAdapter(['native-fixture'], model)
+  const agent = await context.agentLoop.create(SessionId('native-loader'), { provider: 'native-fixture', model: 'vision' })
+  const idle: PromiseWithResolvers<void> = Promise.withResolvers()
+  const stop = context.on('agent/status', ({ agent: subject, status }) => {
+    if (subject === agent && status === 'idle') idle.resolve()
+  })
+  agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Observe the fixture window.' }], source: { kind: 'user' } }))
+  await idle.promise
+  stop()
+
+  expect(model.requests).toHaveLength(2)
+  expect(JSON.stringify(model.requests[0])).toContain('cua_driver_native__get_window_state')
+  expect(JSON.stringify(model.requests[0])).toContain('Cua Driver native computer-use tools operate the host desktop.')
+  const toolEvent = agent.session.snapshotEvents().find(event => event.type === 'tool/result')
+  expect(toolEvent?.data.message.source.callId).toBe('native-window')
+  const toolResult = agent.session.deriveMessages().find(message => message.role === 'tool')
+  if (toolResult?.role !== 'tool') throw new Error('Native screenshot result was not admitted')
+  const image = toolResult.content.find(block => block.type === 'image')
+  expect(image?.type).toBe('image')
+  if (image?.type !== 'image') throw new Error('Native screenshot was not admitted')
+  expect(image.attachment).toMatchObject({ mediaType: 'image/png', width: 1, height: 1 })
+  const stored = await context.attachments.readImage(image.attachment)
+  expect(Buffer.from(stored.data).toString('base64')).toBe(screenshotBase64)
+  expect(JSON.stringify(model.requests[1]?.messages)).toContain(JSON.stringify(image.attachment))
+  expect(JSON.stringify(toolResult.content)).not.toContain(screenshotBase64)
+  const direct = await executeToolFixture(context, {
+    agent, signal: new AbortController().signal, callId: ToolCallId('programmatic-window'),
+    name: 'cua_driver_native__get_window_state', arguments: { pid: 9, window_id: 7 },
+  })
+  if (direct.isError) throw new Error('Programmatic native screenshot failed')
+  expect(direct.value).toMatchObject({ structuredContent: { window_id: 7, clicked: false } })
+})

@@ -1,0 +1,9 @@
+- insert:
+    - id: subagent-codex
+      name: '@ntars/ondra-subagent-codex'
+    - id: tool-subagent-codex
+      name: '@ntars/ondra-tool-subagent'
+      config:
+        provider: codex
+        toolName: subagent_codex
+        maxDepth: provider-managed

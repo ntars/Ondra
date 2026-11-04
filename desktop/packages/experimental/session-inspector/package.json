@@ -1,0 +1,75 @@
+{
+  "name": "@ntars/ondra-experimental-session-inspector",
+  "description": "Experimental virtualized Session log and live Chat group/node inspectors",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/experimental/session-inspector"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "ondra": {
+    "client": {
+      "inject": [
+        "@ntars/ondra-client-locale",
+        "@ntars/ondra-client-ui-conversation",
+        "@ntars/ondra-client-ui-sidebar-right",
+        "@ntars/ondra-client-ui-session",
+        "@ntars/ondra-client-ui-renderer"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@ntars/ondra-client-test-runtime": "workspace:*",
+    "@testing-library/react": "^16.3.3",
+    "react-dom": "^18.2.0",
+    "@ntars/ondra-api-session-controller": "workspace:*",
+    "@ntars/ondra-client-store": "workspace:*",
+    "@ntars/ondra-client-ui-chat": "workspace:*",
+    "@ntars/ondra-client-ui-primitives": "workspace:*",
+    "@ntars/ondra-client-ui-sidebar-right": "workspace:*",
+    "@ntars/ondra-client-ui-session": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@tanstack/react-virtual": "^3.14.10",
+    "react": "^18.2.0",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-client-locale": "workspace:*",
+    "@ntars/ondra-client-ui-conversation": "workspace:*",
+    "@ntars/ondra-client-ui-renderer": "workspace:*",
+    "@ntars/ondra-client-ui-slots": "workspace:*"
+  }
+}

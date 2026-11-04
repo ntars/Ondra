@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Channel Router",
+    "description": "Whether an incoming message should wake her, how several conversations queue up when they arrive at once, and what a given channel can actually send. Routing answers only \"handle it or not\"; it does not decide \"should she speak up right now\" — that belongs to the proactive gate. Both sound like \"should she talk\", but one looks at the clock and the other at the inbox, and merging them is how she ends up sometimes unable to hear you. Waking her is private-chat only, and the delivered body is a single ellipsis: what she wants to say never rides in the owner's mouth."
+  }
+}

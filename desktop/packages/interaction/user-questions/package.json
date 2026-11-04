@@ -1,0 +1,72 @@
+{
+  "name": "@ntars/ondra-user-questions",
+  "description": "Abstract user-questions seam (ctx.userQuestions) for asking the human during agent runs",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/interaction/user-questions"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*"
+  },
+  "devDependencies": {
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-scope": "workspace:*",
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-tool-executor-ptc": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-session-persistence-jsonl": "workspace:*"
+  },
+  "dependencies": {
+    "zod": "4.4.3",
+    "@ntars/schemastery": "workspace:~"
+  }
+}

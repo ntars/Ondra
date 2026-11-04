@@ -1,0 +1,346 @@
+/* The status page's own sheet. Tokens only: every fill, border and ink here is
+ * an alias or an Ondra accent variable, so the page tracks the system light and
+ * dark palette without a second colour list.
+ *
+ * Two rules carry the page's whole visual argument:
+ *
+ *   1. A meter's length is the value. Fills never change hue to mean a range —
+ *      the handbook retired the sixteen-colour ramp for "情绪用长度不用色相"
+ *      (9.9). `aria-valuenow` carries the same reading to assistive tech.
+ *   2. A card is a surface, not a decoration: one radius, one hairline border,
+ *      one padding step. Cards stack at the column's own gap and nothing
+ *      floats or overlaps.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  /* The column's vertical rhythm. Four cards have to stand in one 760px-tall
+     window without a scroll (the demo's whole point is reading her state at a
+     glance), so the rhythm is tighter than the app's default 12px stack: 10px
+     between cards still separates them, while 12px pushed the pet card off the
+     first screen at the shipping window height. */
+  gap: 10px;
+  box-sizing: border-box;
+  /* Top clearance for the window's chrome band, matching the docked strip; the
+     column already pads 12px, so this only adds the difference. */
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* The page's top edge: the title on the reading side, the freshness stamp on
+   the trailing edge. It replaces the withdrawn strip, so it stands exactly as
+   tall as the strip did (38px: the kit's 28px chip row over its 10px inset),
+ *and* it scrolls with the cards — a standing header would have to own a
+   border and a stacking context the column does not need. */
+.pageHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Cancels the root's own 12px top and 12px side, then re-insets to the
+     strip's geometry, so the title lands where the chip was. */
+  margin: -12px -12px 0;
+  padding: 10px 12px 0;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.pageTitle {
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 590;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pageStamp {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* macOS: the column itself is the frosted glass, so a card painted on the
+   solid layer token would read as an opaque slab dropped on it. The card takes
+   a translucent wash instead and keeps its hairline. */
+:global([data-platform='darwin']) .card {
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 55%, transparent);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 590;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cardAside {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The settled emotion state: an accent tint, because it is a state rather than
+   a quantity and has no length to show. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  /* Full-round capsule: opt out of the shared superellipse smoothing, which
+     would square the ends off. */
+  corner-shape: round;
+  background: var(--ondra-accent-soft);
+  color: var(--ondra-accent-ink);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+/* A quiet fact on the card's trailing edge (relationship stage, pet state). */
+.chipQuiet {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.summary {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 8px;
+}
+
+.meterLabel {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.meterTrack {
+  position: relative;
+  overflow: hidden;
+  height: 4px;
+  border-radius: 999px;
+  /* Full-round capsule, same reason as the chip: keep the ends circular. */
+  corner-shape: round;
+  background: var(--ondra-accent-track);
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ondra-accent-fill);
+  /* A bare transition on the inline size, so a snapshot refresh slides rather
+     than jumps; the reduced-motion query below turns the slide into a cut. */
+  transition: inline-size var(--ds-transition-duration, 0.2s) var(--ds-ease-in-out, ease);
+}
+
+.meterValue {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.note {
+  margin: 2px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* The card's one text control: quiet until hovered, never a bordered button —
+   it competes with the card's title otherwise. */
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ondra-accent-ink);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .link:hover {
+    color: var(--ondra-accent-hover);
+  }
+}
+
+.link:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+  border-radius: var(--dsw-radius-xs);
+}
+
+.memoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Two lines: the remembered line takes the width it needs, the relative time
+   sits under it rather than squeezing the text into a narrow column. */
+.memoryRow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding-block-end: 6px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+}
+
+.memoryRow:last-child {
+  padding-block-end: 0;
+  border-bottom: none;
+}
+
+.memoryText {
+  /* Two lines of summary, then an ellipsis: enough to recognise the memory,
+     not enough to scroll the card. */
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.memoryTime {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.empty {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.petBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The invitation tile: a soft accent square with the pet silhouette, sized so
+   the card's button stays the primary control. 46px rather than 54px keeps the
+   fourth card inside the first screen at the shipping window height — the whole
+   column is meant to be read at a glance, and a taller tile spent that budget on
+   a decoration while pushing the only real control below the fold. */
+.petMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--dsw-radius-md);
+  background: var(--ondra-accent-soft);
+  color: var(--ondra-accent-ink);
+}
+
+.petHint {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.petButton {
+  padding: 4px 14px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .petButton:hover {
+    background: var(--dsw-alias-button-floating-hover);
+  }
+}
+
+.petButton:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+/* The chip title's glyph, beside the label the strip lays out. */
+.titleIcon {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The chip's label, at the primary ink: the strip paints chips in the secondary
+   alias, which reads as disabled next to the page's own headings in dark mode. */
+.titleText {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A meter that slides is motion a reduced-motion reader did not ask for. */
+@media (prefers-reduced-motion: reduce) {
+  .meterFill {
+    transition: none;
+  }
+}

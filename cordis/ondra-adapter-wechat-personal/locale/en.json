@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra WeChat Channel (Personal Account, high risk)",
+    "description": "The personal WeChat channel: wiring, dual gate and semantics only — the actual WeChat automation is a user-supplied wxauto bridge on Windows. The inbound route accepts loopback requests only, 1000 characters per message, and replies only when both `enabled` and a written second-confirmation record say yes."
+  }
+}

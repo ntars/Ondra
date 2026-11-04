@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 飞书通道",
+    "description": "飞书事件订阅通道：请求地址挂在宿主 webServer 上（不自己 listen 端口）、verificationToken 校验、加密体明确拒绝（400 + 原因，让人在后台看得见）、单条 4000 字切条、先回 {\"code\":0} 再由后台异步发消息。回复发到 chat_id 而不是 open_id——否则群里被 @ 时会把回答发成私聊。"
+  }
+}

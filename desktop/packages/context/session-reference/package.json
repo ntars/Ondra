@@ -1,0 +1,104 @@
+{
+  "name": "@ntars/ondra-session-reference",
+  "description": "Cross-session snapshot references and durable untrusted model context (ctx.sessionReferenceResolver)",
+  "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ntars/Ondra.git",
+    "directory": "packages/context/session-reference"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts",
+      "default": "./lib/types/types.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
+    },
+    "./remote": {
+      "types": "./lib/typert.remote-client.d.ts",
+      "default": "./lib/typert.remote-client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ntars/ondra-brand": "workspace:*",
+    "@ntars/ondra-util-values": "workspace:*",
+    "@ntars/schemastery": "workspace:~",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-compaction": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-output-retention": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-session-projection-cache": "workspace:*",
+    "@ntars/ondra-session-query": "workspace:*",
+    "@ntars/ondra-session-title": "workspace:*",
+    "@ntars/ondra-spill": "workspace:*",
+    "@ntars/ondra-subagent": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@ntars/ondra-spill": {
+      "optional": true
+    },
+    "@ntars/ondra-session-projection-cache": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ntars/cordis": "workspace:~",
+    "@ntars/cordis-plugin-include": "workspace:~",
+    "@ntars/cordis-plugin-loader": "workspace:~",
+    "@ntars/ondra-agent": "workspace:*",
+    "@ntars/ondra-compaction": "workspace:*",
+    "@ntars/ondra-fs-local": "workspace:*",
+    "@ntars/ondra-llm": "workspace:*",
+    "@ntars/ondra-output-retention": "workspace:*",
+    "@ntars/ondra-session": "workspace:*",
+    "@ntars/ondra-session-projection": "workspace:*",
+    "@ntars/ondra-session-projection-cache": "workspace:*",
+    "@ntars/ondra-session-query": "workspace:*",
+    "@ntars/ondra-session-query-sqlite": "workspace:*",
+    "@ntars/ondra-session-title": "workspace:*",
+    "@ntars/ondra-spill": "workspace:*",
+    "@ntars/ondra-subagent": "workspace:*",
+    "@ntars/ondra-spill-local": "workspace:*",
+    "@ntars/ondra-system-prompt": "workspace:*",
+    "@ntars/ondra-tool-executor-native": "workspace:*",
+    "@ntars/ondra-tool-fs": "workspace:*",
+    "@ntars/ondra-tool-testkit": "workspace:*",
+    "@ntars/ondra-tools": "workspace:*",
+    "@ntars/ondra-typert-protocol": "workspace:*",
+    "@ntars/ondra-working-directory": "workspace:*"
+  }
+}

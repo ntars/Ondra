@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Red-Team Evaluation",
+    "description": "Red-team evaluation for Ondra (L9 extension pool): fifteen fixed attack prompts are thrown at her to see whether the persona boundary holds. Five attack families — jailbreak scripts, identity probing, system-prompt extraction, sycophancy and privacy fishing. Every criterion is a static regex and every verdict is a pure function; no model is called, because letting the same model grade itself only reports how it feels today. The report gives counts of pass/warn/fail plus per-case verdicts and never a composite score — the moment there is a \"persona consistency 87\" someone tunes parameters to raise it, and what gets tuned is the persona itself. It never stores the tested replies: only the length and the character spans that matched are returned. It never drives the conversation — sending the attack prompts and bringing the replies back belongs to O-033 and the caller. Skipped cases are never counted as passes, and empty replies are rejected outright instead of quietly becoming a pass. It never renders UI."
+  }
+}
