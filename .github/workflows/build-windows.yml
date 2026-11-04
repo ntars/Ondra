@@ -28,13 +28,13 @@ jobs:
     timeout-minutes: 90
 
     env:
-      DSH_CLIENT_COMMIT_HASH: ${{ github.sha }}
-      DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: ${{ vars.DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN || 'https://ai.ntars.cn' }}
-      DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN: ${{ vars.DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN || 'https://ai.ntars.cn' }}
-      # 测试部署（DSH_DESKTOP_AUTO_UPDATE_ENV=test）在打包准备阶段强制要求
+      ONDRA_CLIENT_COMMIT_HASH: ${{ github.sha }}
+      ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: ${{ vars.ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN || 'https://ai.ntars.cn' }}
+      ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN: ${{ vars.ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN || 'https://ai.ntars.cn' }}
+      # 测试部署（ONDRA_DESKTOP_AUTO_UPDATE_ENV=test）在打包准备阶段强制要求
       # allowedAuthOrigins 非空，否则 package-target 直接以
       # "test policy requires nonempty allowedAuthOrigins" 退出。
-      DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: '{"allowedAuthOrigins":["https://ai.ntars.cn"]}'
+      ONDRA_DESKTOP_MANDATORY_UPDATE_CONFIG: '{"allowedAuthOrigins":["https://ai.ntars.cn"]}'
 
     steps:
       - name: 检出源码
@@ -57,12 +57,12 @@ jobs:
         shell: pwsh
         run: |
           $lines = @(
-            'DSH_DESKTOP_APP_ID=com.ntars.ondra',
-            'DSH_DESKTOP_AUTO_UPDATE_ENV=test',
-            "DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=$env:DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN",
-            "DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=$env:DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN",
-            "DSH_DESKTOP_MANDATORY_UPDATE_CONFIG='$env:DSH_DESKTOP_MANDATORY_UPDATE_CONFIG'",
-            "DSH_DESKTOP_WINDOWS_COMPRESSION_LEVEL=${{ inputs.compression }}"
+            'ONDRA_DESKTOP_APP_ID=com.ntars.ondra',
+            'ONDRA_DESKTOP_AUTO_UPDATE_ENV=test',
+            "ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=$env:ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN",
+            "ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=$env:ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN",
+            "ONDRA_DESKTOP_MANDATORY_UPDATE_CONFIG='$env:ONDRA_DESKTOP_MANDATORY_UPDATE_CONFIG'",
+            "ONDRA_DESKTOP_WINDOWS_COMPRESSION_LEVEL=${{ inputs.compression }}"
           )
           $lines | Set-Content -LiteralPath .env.windows -Encoding utf8
           Get-Content .env.windows
