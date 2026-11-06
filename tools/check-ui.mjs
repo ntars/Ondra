@@ -311,6 +311,45 @@ async function run() {
   same('未悬停时操作条透明', '0', quote.hiddenOpacity)
   eq('操作按钮热区 24', 24, quote.buttonSize)
 
+  /**
+   * 操作条不能压住自己这条消息的文字。
+   *
+   * ## 为什么必须自动判而不是靠眼睛看截图
+   *
+   * 第一版把操作条写 `top: -10px; right: 0`，在用户消息（右对齐、
+   * 右边界就是正文右边界）上正好盖住最后几个字。截图里能看出，
+   * 但那是「正好看了一眼」才发现的——把它变成断言，以后改样式
+   * 撞到同一处会立刻报红。
+   */
+  const overlap = await page.evaluate(() => {
+    const message = document.querySelector('.message[data-role="user"]')
+    if (message === null) return { found: false }
+    const body = message.querySelector('.message__body')
+    const actions = message.querySelector('.message__actions')
+    if (body === null || actions === null) return { found: false }
+    // 让操作条进入「显形」态再量几何：visibility: hidden 时 box 仍然可读，
+    // 但这里要的是显形后的实际位置，切换属性最省事。
+    message.setAttribute('data-actions', '')
+    const b = body.getBoundingClientRect()
+    const a = actions.getBoundingClientRect()
+    const intersects = a.top < b.bottom && a.bottom > b.top && a.left < b.right && a.right > b.left
+    return {
+      found: true,
+      intersects,
+      // 操作条是否完整落在滚动视口内（否则会被裁掉一半）。
+      insideViewport: (() => {
+        const view = document.querySelector('.scrollarea__viewport')
+        if (view === null) return false
+        const v = view.getBoundingClientRect()
+        return a.top >= v.top - 1 && a.bottom <= v.bottom + 1
+      })(),
+      actionsTop: Math.round(a.top),
+      bodyTop: Math.round(b.top),
+    }
+  })
+  truthy('操作条不压住自己这条消息的文字', overlap.found === true && overlap.intersects === false)
+  truthy('操作条完整落在滚动视口内', overlap.insideViewport === true)
+
   // --- 引用写入草稿 ---
   await page.evaluate(() => {
     const message = document.querySelector('.message')
