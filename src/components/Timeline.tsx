@@ -78,6 +78,12 @@ type Row =
   | { kind: 'day'; key: string; at: number; label: string; dayIndex: number | undefined }
   | { kind: 'message'; key: string; message: ChatMessage; last: boolean }
 
+/** 时间轴对外暴露的能力。 */
+export interface TimelineHandle {
+  /** 滚到最新一条。`Cmd/Ctrl + ↓` 与浮标按钮共用。 */
+  jumpToLatest(smooth: boolean): void
+}
+
 export interface TimelineProps {
   /** 消息。按时间升序。 */
   messages: ChatMessage[]
@@ -100,6 +106,17 @@ export interface TimelineProps {
    * 而且用户读到它的时候视线正在消息区。
    */
   error?: InlineErrorSpec
+  /**
+   * 挂载后交出「跳到最新」能力。
+   *
+   * 用回调而不是 `forwardRef`：`Cmd/Ctrl + ↓` 的处理在 `App` 里，
+   * 而 `App` 与 `Timeline` 之间本来就有一堆 props。为一个方法引入
+   * `useImperativeHandle` + `forwardRef` 两层包装，读起来比一个回调重。
+   *
+   * 回调在卸载时以 `undefined` 再调一次，让上层清掉引用——
+   * 不清的话切换会话后会调到上一个实例的滚动节点，滚的是已经被卸掉的 DOM。
+   */
+  onHandle?(handle: TimelineHandle | undefined): void
 }
 
 /** 一条内联错误。 */
@@ -127,6 +144,7 @@ export function Timeline({
   empty,
   onQuote,
   error,
+  onHandle,
 }: TimelineProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   /** 是否贴底。用 ref 而不是 state：`onScroll` 每帧都可能触发，不该引起重渲染。 */
@@ -200,6 +218,17 @@ export function Timeline({
   useEffect(() => {
     scrollToBottom(false)
   }, [scrollToBottom])
+
+  /*
+   * 把「跳到最新」交给上层，卸载时收回。
+   *
+   * 依赖里放 `onHandle`：它通常是 `App` 里的 `setState` 型回调，引用稳定，
+   * 但如果调用方传了内联箭头函数，不带着依赖就会一直交旧闭包。
+   */
+  useEffect(() => {
+    onHandle?.({ jumpToLatest: (smooth: boolean) => { scrollToBottom(smooth) } })
+    return () => { onHandle?.(undefined) }
+  }, [onHandle, scrollToBottom])
 
   /**
    * 复制整条消息的正文。

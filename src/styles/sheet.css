@@ -1,0 +1,184 @@
+/**
+ * 快捷键总表（Sheet，§5.12 / §9.4）。
+ *
+ * ## 为什么单独一个文件
+ *
+ * Sheet 与 Dialog 是 §5.12 并列的两种浮层，规格只共用圆角与曲线，
+ * 尺寸、位置、遮罩三处全不同。合进 `dialog.css` 会让那个文件里
+ * 每一条规则都要先问「这条属于哪个」。
+ *
+ * ## 贴顶而不是居中
+ *
+ * §5.12：Sheet 顶部贴边、下方圆角 16、最大 70vh。贴顶的含义是
+ * 「从上方滑下来的一张纸」，用户知道它随时可以滑回去；居中则暗示
+ * 「需要你处理完才能走」——而查快捷键不是一件要处理的事。
+ */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  /* 无遮罩：§9.4 明确「查阅不是决策，不该阻断」。用极淡的一层压暗
+     背后的内容，让视线落在表上，但背后仍看得清、仍可读。 */
+  background: rgba(28, 31, 29, 0.06);
+}
+
+/**
+ * 面板。
+ *
+ * `max-height: 70vh` 是 §5.12 的定值：15 条快捷键加上四个分组在 580 高的
+ * 窗口里装不下（实测内容 673px、上限 406px），不给上限就会顶出窗口。
+ *
+ * ## 滚动交给 ScrollArea，面板自己不滚
+ *
+ * `base.css` 把原生滚动条宽度设成了 0（§12.1 要求 overlay 自绘），
+ * 所以面板若自己 `overflow: auto`，会**溢出但看不见滚动条**——用户
+ * 只会看到列表在中间被切断。滚动交给 `ScrollArea`，滚动时才会浮现
+ * 一根滑块，溢出这件事才可能被察觉。
+ *
+ * 用 flex 列而不是固定高度：面板撑到 70vh 就停，内容区吃掉剩余空间。
+ */
+.sheet__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-width: 420px;
+  /*
+   * 上限 70vh **含**贴顶那 44：§5.12 写的是「高按内容、最大 70vh」，
+   * 指的是这张纸本身。但贴顶 44 是窗口留白，纸从 44 开始，
+   * 所以可用高度 = 70vh − 44。写 `calc()` 而不是 362 这种绝对值，
+   * 窗口变高时它会跟着长。
+   */
+  max-height: calc(70vh - var(--titlebar-h));
+  margin: var(--titlebar-h) auto 0;
+  padding: 20px 20px 8px;
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  background: var(--alias-bg-overlay);
+  box-shadow: var(--shadow-lv3);
+  animation: sheet-panel var(--motion-base) var(--ease-fluid);
+  /* 面板本身可聚焦以接 Esc，但不该出现焦点环。 */
+  outline: none;
+}
+
+@keyframes sheet-panel {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/*
+ * 滚动区。`min-height: 0` 是 flex 子项能收缩的必要条件——
+ * 不给的话它按内容撑开，面板又被 `max-height` 卡住，结果是内容溢出面板
+ * 而不是在内部滚动。
+ *
+ * ## 右内边距 12 是给滑块让位
+ *
+ * 滑块是 `position: absolute` 贴在 `.scrollarea` 右缘的 8px overlay，
+ * 不给这 12px，它会**压在键帽上**：实测「Enter」被滑块的圆头吃掉一半，
+ * 读成「Ent」。overlay 的含义是不占布局，但内容必须主动让出那一条。
+ */
+.sheet__scroll {
+  flex: 1;
+  min-height: 0;
+  padding-right: 12px;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: var(--line-width) solid var(--alias-border-l1);
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+/* 换平台的说明。11px 三级字，它是一句注解不是标题。 */
+.sheet__note {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+  text-align: right;
+}
+
+.sheet__body {
+  padding-top: 4px;
+}
+
+.sheet__group {
+  padding: 8px 0;
+}
+
+/* 分组名。11px 三级字，与 §5.8 检查器的小标题同级。 */
+.sheet__group-title {
+  margin: 0 0 4px;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+.sheet__list {
+  margin: 0;
+}
+
+/**
+ * 一行。
+ *
+ * 两列：左名右键。名称列 `1fr`、键位列自适应——键位长短不一
+ * （`↑` 一格，`⌘+Shift+I` 三格），固定宽度会让长的那条挤在一起。
+ */
+.sheet__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 0;
+}
+
+.sheet__name {
+  font-size: var(--text-body);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+}
+
+.sheet__keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+/**
+ * 一个键帽。
+ *
+ * 圆角 5 而不是 `--radius-sm`(8)：键帽是「一个字符」的量级，8 在
+ * 12px 高的方块上会显得过圆，像药丸。字的行高收到 1 让方块高度
+ * 由内边距决定，不受字体度量影响。
+ */
+.sheet__key {
+  min-width: 20px;
+  padding: 2px 5px;
+  border: var(--line-width) solid var(--alias-border-l1);
+  border-radius: 5px;
+  background: var(--alias-bg-base);
+  font-family: inherit;
+  font-size: var(--text-label);
+  line-height: 1;
+  color: var(--alias-label-tertiary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

@@ -72,6 +72,12 @@ jobs:
       - name: 类型检查
         run: pnpm run typecheck
 
+      - name: 校验品牌标志与 icon.svg 一致
+        # §13 要求 CI 校验 `src/brand/mark.ts` 与 `/icon.svg` 一致。
+        # 放在构建之前：真源改了却忘了重新生成时，先在这里失败，
+        # 不必等三十分钟打包完才发现界面用的是旧标志。
+        run: pnpm run check:brand
+
       - name: 编译前端、插件、宿主与内核
         run: pnpm run build
 

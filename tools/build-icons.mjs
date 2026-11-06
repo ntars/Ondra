@@ -196,7 +196,17 @@ async function main() {
     ${glyph}
   </g>
 </svg>`
-    writeFileSync(join(repoRoot, 'icon-1024.svg'), finalSvg)
+    /*
+     * 只写进临时目录，**不落进仓库根**。
+     *
+     * §13 与 §2549 都要求「logo 只来自 `/icon.svg`」，`icon-1024.svg`
+     * 这一份 1024 尺寸的 squircle + 缩放版本是**中间产物**：它由
+     * `icon.svg` 算出，没有任何代码读它，留在仓库里就成了第二个真源
+     * ——有人会去改它，然后发现下次生成就被覆盖。
+     *
+     * 真正要交付的是下面的 PNG（进 `src-tauri/icons/`）。
+     */
+    writeFileSync(join(tmpdir(), 'ondra-icon-1024.svg'), finalSvg)
 
     // 用浏览器渲染成 PNG。透明背景，让 squircle 之外真正透明。
     const renderHtml = `<!doctype html><body style="margin:0;background:transparent">${finalSvg}</body>`

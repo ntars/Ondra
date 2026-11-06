@@ -290,12 +290,23 @@
     opacity var(--motion-fast) var(--ease-fluid);
 }
 
-.composer__send:hover:not(:disabled) {
+.composer__send:hover:not([aria-disabled='true']) {
   background: var(--accent-hover);
 }
 
-.composer__send:disabled {
+/**
+ * 不可用态：40% 不透明度（§5.6）。
+ *
+ * 用 `[aria-disabled='true']` 而不是 `:disabled`：发送键改成了
+ * `aria-disabled` 以保留可聚焦性（§13），`:disabled` 伪类对它不生效。
+ *
+ * `cursor: default` 而不是 `not-allowed`：后者是浏览器默认的「禁止」
+ * 光标，它暗示「这里有个操作被系统拒绝了」，而实际情况是
+ * 「还没写东西」。禁止符号会让用户先去找哪里出了问题。
+ */
+.composer__send[aria-disabled='true'] {
   opacity: 0.4;
+  cursor: default;
 }
 
 /**

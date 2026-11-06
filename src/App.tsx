@@ -31,13 +31,16 @@ import { Spine } from './components/Spine.tsx'
 import { Inspector } from './components/Inspector.tsx'
 import { Drawer } from './components/Drawer.tsx'
 import { Timeline } from './components/Timeline.tsx'
+import type { TimelineHandle } from './components/Timeline.tsx'
 import { Composer } from './components/Composer.tsx'
+import { ShortcutSheet } from './components/ShortcutSheet.tsx'
 import { Mark } from './components/Mark.tsx'
 import { Settings } from './components/Settings.tsx'
 import { Dialog } from './components/Dialog.tsx'
 import { ToastProvider, useToast } from './components/Toast.tsx'
 import { invokeShell, isDesktopShell, listenShell } from './lib/shell.ts'
-import { isMac } from './lib/platform.ts'
+import { isTypingTarget, keyContext, matches } from './lib/shortcuts.ts'
+import type { ThemeMode } from './lib/api.ts'
 
 /** 渲染应用。外层只包一个 Toast 提供者。 */
 export function App(): React.JSX.Element {
@@ -83,6 +86,12 @@ function Shell(): React.JSX.Element {
   const [closing, setClosing] = useState(false)
   /** 确认框里「以后直接退出」的勾选状态。 */
   const [rememberClose, setRememberClose] = useState(false)
+  /** 快捷键总表是否展开（§9.4）。 */
+  const [sheetOpen, setSheetOpen] = useState(false)
+  /** 时间轴的「跳到最新」能力。由 Timeline 挂载后交回。 */
+  const timelineRef = useRef<TimelineHandle | undefined>(undefined)
+  /** 输入框。`Cmd/Ctrl + N` 回到首页后要把焦点送进去。 */
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
 
   /**
    * 点击 Rail 入口。
@@ -118,42 +127,157 @@ function Shell(): React.JSX.Element {
   }, [])
 
   /**
-   * 键盘与 Esc。
+   * 全部快捷键的单一入口。
    *
-   * §9.3 的层级：正在生成 → 停止；有浮层 → 关浮层；抽屉 → 关抽屉；
-   * 检查器 → 关检查器；其余无操作（不退出应用）。
+   * ## 为什么收成一个 effect
+   *
+   * 原先 `Cmd+,`、`Cmd+Shift+I`、Esc 各挂一个 `keydown` 监听，Rail 里
+   * 还挂了第四个。四个监听器都在 `window` 上，谁先跑取决于注册顺序——
+   * 于是「按 Esc 时抽屉先关还是设置先关」取决于组件挂载先后，而不是
+   * §9.3 的层级。合成一处后，顺序由代码里的 `if` 排列决定。
+   *
+   * ## 三层判定顺序
+   *
+   * 1. **输入法组合中一律不拦**（§12.3）：组合期间 `key` 是 `Process`，
+   *    但 `Esc` 会以 `'Escape'` 出现——用户按 Esc 是想取消候选词，
+   *    此时关抽屉会让他刚打的字白打了。
+   * 2. **Esc 走 §9.3 的八层**，最后一层无操作。
+   * 3. **其余键先判「在不在输入」**：`Cmd+B` 这类在输入框里通常有原生
+   *    含义（加粗），但本项目的发送/换行由 Composer 自己处理，
+   *    全局只剩「不与输入冲突」的那些。
    */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
+      // 输入法正在选词。`keydown` 的 `isComposing` 在 Safari 上是 false，
+      // 但 `keyCode === 229` 覆盖了那一路。
+      if (event.isComposing || event.keyCode === 229) return
 
-      // 关闭确认框打开时不处理：那一层自己接管 Esc（它用 capture 阶段
-      // 并且会 stopPropagation，这里是第二道防线）。
-      if (closing) return
+      const context = keyContext(event)
 
-      // 生成中优先停生成，此时不关任何层。
-      if (state.busy) {
-        void state.stop()
+      if (context.key === 'escape') {
+        // 关闭确认框自己接管 Esc（capture 阶段 + stopPropagation），
+        // 这里是第二道防线，防止事件从别的路径漏进来。
+        if (closing) return
+        // 快捷键总表自己接管（同样是 capture 阶段）。
+        if (sheetOpen) return
+        // §9.3 第 1 条：生成中优先停生成，此时不关任何层。
+        if (state.busy) {
+          void state.stop()
+          return
+        }
+        // 第 3–6 条：抽屉 → 检查器 → 设置。设置放最后，
+        // 因为它是用户主动打开的、意图最明确的一层。
+        if (drawer !== undefined) {
+          setDrawer(undefined)
+          return
+        }
+        if (inspector) {
+          setInspector(false)
+          return
+        }
+        if (settings) {
+          setSettings(false)
+          return
+        }
+        // 第 8 条：无操作。刻意不退出应用。
         return
       }
-      if (drawer !== undefined) {
-        setDrawer(undefined)
+
+      /*
+       * `↑` 编辑上一条（§9.1）。它**没有平台修饰键**，所以必须排在下面
+       * 那道 `if (!context.mod) return` 之前——放在后面永远走不到。
+       *
+       * 触发条件两重：焦点在输入框里、且输入框为空。有字时 `↑` 是
+       * 正常的光标上移，抢过来会让多行编辑没法用方向键。
+       */
+      if (matches(context, 'editLast')) {
+        if (isTypingTarget(event.target) && event.target instanceof HTMLTextAreaElement && event.target.value === '') {
+          const lastUser = [...state.messages].reverse().find((message) => message.role === 'user')
+          if (lastUser !== undefined) {
+            event.preventDefault()
+            state.setDraft(lastUser.content)
+          }
+        }
         return
       }
-      if (settings) {
-        setSettings(false)
+
+      // 下面每一条都要求平台修饰键，先挡掉不带的。
+      if (!context.mod) return
+
+      if (matches(context, 'shortcutSheet')) {
+        event.preventDefault()
+        setSheetOpen(true)
         return
       }
-      if (inspector) {
+      if (matches(context, 'inspector')) {
+        event.preventDefault()
+        toggleInspector()
+        return
+      }
+      if (matches(context, 'preferences')) {
+        event.preventDefault()
+        openSettings()
+        return
+      }
+      if (matches(context, 'searchMemory')) {
+        event.preventDefault()
+        /*
+         * 打开记忆抽屉并把焦点送进搜索框（§9.1）。
+         *
+         * 抽屉按 `view` 决定内容。若记忆抽屉已经开着，再 `setDrawer('memory')`
+         * 不会重挂组件、焦点也就不会重新进来，所以先清空再设——这与
+         * 「点另一个图标原地替换」不冲突：那条规则管的是不同抽屉之间，
+         * 这里是同一个抽屉的「我要搜」，重新聚焦比省一次渲染重要。
+         */
         setInspector(false)
+        setSettings(false)
+        setDrawer(undefined)
+        // 下一帧再设：让 `data-open` 先落到 false，组件重挂后才会执行聚焦。
+        globalThis.requestAnimationFrame(() => { setDrawer('memory') })
         return
       }
-      // 其余无操作。刻意不退出应用（§9.3 第 8 条）。
+      if (matches(context, 'newSession')) {
+        event.preventDefault()
+        void state.newSession().catch((caught: unknown) => {
+          console.error('新建对话失败', caught)
+          toast({ text: '没能新建对话', tone: 'error' })
+        })
+        return
+      }
+      if (matches(context, 'jumpLatest')) {
+        event.preventDefault()
+        timelineRef.current?.jumpToLatest(true)
+        return
+      }
+      if (matches(context, 'cycleTheme')) {
+        event.preventDefault()
+        // 三态循环：跟随系统 → 浅 → 深 → 跟随系统。
+        const next: ThemeMode = state.theme === 'system' ? 'light' : state.theme === 'light' ? 'dark' : 'system'
+        state.setTheme(next)
+        toast(next === 'system' ? '跟系统走' : next === 'light' ? '浅色' : '深色')
+        return
+      }
+      if (matches(context, 'copyLast')) {
+        event.preventDefault()
+        const last = [...state.messages].reverse().find((message) => message.role === 'assistant')
+        if (last === undefined) {
+          toast('还没有回复可复制')
+          return
+        }
+        void navigator.clipboard.writeText(last.content).then(
+          () => { toast('已复制最后一条回复') },
+          () => { toast({ text: '复制失败', tone: 'error' }) },
+        )
+        return
+      }
     }
 
     globalThis.addEventListener('keydown', onKeyDown)
     return () => { globalThis.removeEventListener('keydown', onKeyDown) }
-  }, [state.busy, state.stop, drawer, inspector, settings, closing])
+  }, [
+    closing, sheetOpen, state, drawer, inspector, settings,
+    toggleInspector, openSettings, toast,
+  ])
 
   /**
    * 壳发来的窗口级事件。
@@ -218,33 +342,6 @@ function Shell(): React.JSX.Element {
       toast({ text: '没能关掉窗口，再试一次', tone: 'error' })
     })
   }, [rememberClose, toast])
-
-  /** `Cmd/Ctrl + Shift + I` 开关检查器（§9.1）。 */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (!event.shiftKey) return
-      if (event.key !== 'I' && event.key !== 'i') return
-      const modifier = event.metaKey || event.ctrlKey
-      if (!modifier) return
-      event.preventDefault()
-      toggleInspector()
-    }
-    globalThis.addEventListener('keydown', onKeyDown)
-    return () => { globalThis.removeEventListener('keydown', onKeyDown) }
-  }, [toggleInspector])
-
-  /** `Cmd/Ctrl + ,` 开关设置（§9.1）。 */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== ',') return
-      const modifier = isMac() ? event.metaKey : event.ctrlKey
-      if (!modifier) return
-      event.preventDefault()
-      openSettings()
-    }
-    globalThis.addEventListener('keydown', onKeyDown)
-    return () => { globalThis.removeEventListener('keydown', onKeyDown) }
-  }, [openSettings])
 
   /**
    * 窗口失焦与重获焦点（§12.9）。
@@ -444,6 +541,7 @@ function Shell(): React.JSX.Element {
               busy={state.busy}
               empty={state.messages.length === 0 && !state.busy}
               onQuote={quote}
+              onHandle={(handle) => { timelineRef.current = handle }}
               /*
                 条件展开而不是 `error={inlineError}`：项目开了
                 `exactOptionalPropertyTypes`，可选属性不接受显式 undefined。
@@ -462,7 +560,9 @@ function Shell(): React.JSX.Element {
               models={state.models}
               modelId={state.modelId}
               onSelectModel={state.setModel}
-            />          </main>
+              onInputRef={(node) => { composerRef.current = node }}
+            />
+          </main>
 
           <Spine
             mood={state.mood.mood}
@@ -540,6 +640,13 @@ function Shell(): React.JSX.Element {
           <span className="dropzone__hint">松手添加附件</span>
         </div>
       ) : null}
+
+      {/*
+        快捷键总表（§9.4）。Sheet 不是 Dialog——查阅不该阻断用户。
+        渲染在 Dialog 之前、拖拽提示之后：它与关闭确认框永远不会同时出现
+        （要看总表时不会正在关窗口），两者层级相同不影响。
+      */}
+      {sheetOpen ? <ShortcutSheet onClose={() => { setSheetOpen(false) }} /> : null}
 
       {/*
         首次关闭的解释框（§2.7）。

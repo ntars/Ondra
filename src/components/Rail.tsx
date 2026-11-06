@@ -30,7 +30,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconMemory, IconSettings, IconTheater, IconToday, IconWeek } from './icons.ts'
-import { isMac } from '../lib/platform.ts'
+import { isTypingTarget, keyContext } from '../lib/shortcuts.ts'
 import type { IconInput } from 'morphicons/react'
 
 /**
@@ -95,19 +95,27 @@ export function Rail({ active, onToggle, onOpenSettings }: RailProps): React.JSX
     nodes[clamped]?.focus()
   }, [])
 
-  // `Cmd/Ctrl + 1..4` 直达。§9.2 第 1 条：输入框里有文本时不抢数字键，
-  // 这里判焦点是否落在可输入元素上。
+  /*
+   * `Cmd/Ctrl + 1..4` 直达。
+   *
+   * ## 为什么这一条留在 Rail 而不并进 `App` 的总入口
+   *
+   * 数字键的含义就是「第几个入口」，顺序表 `ITEMS` 在 Rail 里；
+   * 挪到 `App` 就要把顺序表复制一份出去，两处迟早不一致。
+   * 其余快捷键都在 `App` 统一分发，只有这一条按「谁拥有数据谁处理」留下。
+   *
+   * ## 输入框里有内容时不抢
+   *
+   * §9.2 第 1 条。`Ctrl+1` 在浏览器里是切标签页，但在输入框里
+   * 用户可能正用输入法选第 1 个候选词——抢过来会打断他打字。
+   */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      const modifier = isMac() ? event.metaKey : event.ctrlKey
-      if (!modifier || event.shiftKey || event.altKey) return
+      const context = keyContext(event)
+      if (!context.mod || context.shift || context.alt) return
 
-      const target = event.target
-      const typing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
-      if (typing) {
-        const field = target as HTMLInputElement | HTMLTextAreaElement
+      if (isTypingTarget(event.target)) {
+        const field = event.target as HTMLInputElement | HTMLTextAreaElement
         if (field.value !== '') return
       }
 

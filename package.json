@@ -35,6 +35,7 @@
     "release": "pnpm run build:app && node tools/bundle-release.mjs",
     "smoke": "node tools/smoke.mjs",
     "check:ui": "node tools/check-ui.mjs",
+    "check:brand": "node tools/gen-brand.mjs --check",
     "check:installer": "node tools/check-installer.mjs",
     "check:core": "node cordis-host/check-core.mjs",
     "prepare:plugins": "node tools/prepare-plugins.mjs",

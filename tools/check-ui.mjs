@@ -210,9 +210,59 @@ async function checkTokens() {
   return missing.length === 0
 }
 
+/**
+ * 品牌单一真源核对（§4.5、§13）。
+ *
+ * ## 两件事
+ *
+ * 1. `icon-1024.svg` **不许存在**。它是 `tools/build-icons.mjs` 的中间
+ *    产物，落进仓库就成了第二个真源：有人会去改它，下次生成又覆盖回去。
+ *    现在它只写临时目录。
+ * 2. `src/brand/mark.ts` 必须与 `icon.svg` 一致。做法是让生成器自己
+ *    `--check` 一遍——比对逻辑不另写一份，避免「生成器改了、校验没改」。
+ *
+ * ## 为什么放这里而不是另开脚本
+ *
+ * 本机跑 `pnpm run check:ui` 就全覆盖。CI 里另有独立的 `check:brand`
+ * 步骤（Windows 构建前），两处调的是同一份实现。
+ */
+async function checkBrand() {
+  const { access } = await import('node:fs/promises')
+  const { spawnSync } = await import('node:child_process')
+  const repo = new URL('../', import.meta.url).pathname
+
+  console.log('\n品牌核对：')
+
+  let legacy = false
+  try {
+    await access(join(repo, 'icon-1024.svg'))
+    legacy = true
+  } catch { /* 不存在才对 */ }
+
+  if (legacy) {
+    console.log('  ✗ icon-1024.svg 仍在仓库根，它是 build-icons 的中间产物，不该提交')
+  } else {
+    console.log('  ✓ icon-1024.svg 已移除，logo 只来自 icon.svg')
+  }
+
+  const result = spawnSync('node', [join(repo, 'tools', 'gen-brand.mjs'), '--check'], {
+    cwd: repo,
+    encoding: 'utf8',
+  })
+  const ok = result.status === 0
+  // 成功时生成器会打印一行「一致」，直接转述比另写一句好——
+  // 两处说法不同会让日志看起来像两个检查。
+  const detail = (ok ? result.stdout : result.stderr).trim()
+  console.log(`  ${ok ? '✓' : '✗'} ${detail.split('\n')[0]}`)
+  if (!ok) {
+    for (const line of detail.split('\n').slice(1)) console.log(`    ${line}`)
+  }
+
+  return !legacy && ok
+}
+
 /** 量一组尺寸与交互。 */
-async function run() {
-  const { chromium } = loadPlaywright()
+async function run() {  const { chromium } = loadPlaywright()
   const { server, port } = await serve()
   const browser = await chromium.launch({ executablePath: findChrome() })
   const page = await browser.newPage({ viewport: { width: 820, height: 580 }, deviceScaleFactor: 2 })
@@ -267,9 +317,33 @@ async function run() {
       composerH: card === null ? 0 : Math.round(card.getBoundingClientRect().height),
       // 输入框的 computed line-height 必须是 20px，76 = 16+20+28+12 才成立。
       textareaLineHeight: textarea === null ? '' : getComputedStyle(textarea).lineHeight,
+      /*
+       * 空输入时发送键的禁用语义。
+       *
+       * §13 要求「禁用项用 `aria-disabled` 且可聚焦，聚焦时朗读禁用原因」，
+       * 所以这里读的是 ARIA 属性而不是原生 `disabled`。两者都要看：
+       * 只查 `aria-disabled` 会漏掉「顺手又加了 disabled」的回归，
+       * 那会让键盘用户彻底碰不到这个按钮。
+       */
       sendDisabled: (() => {
         const node = document.querySelector('.composer__send')
+        return node === null ? null : node.getAttribute('aria-disabled')
+      })(),
+      sendNativeDisabled: (() => {
+        const node = document.querySelector('.composer__send')
         return node === null ? null : node.disabled
+      })(),
+      // 可聚焦 = `tabIndex >= 0` 且不是原生禁用。
+      sendFocusable: (() => {
+        const node = document.querySelector('.composer__send')
+        return node === null ? null : node.tabIndex >= 0 && !node.disabled
+      })(),
+      // 禁用原因必须挂在同一棵树里，读屏才念得到。
+      sendHint: (() => {
+        const node = document.querySelector('.composer__send')
+        const id = node?.getAttribute('aria-describedby')
+        if (id === null || id === undefined) return ''
+        return (document.getElementById(id)?.textContent ?? '').trim()
       })(),
       sendBg: (() => {
         const node = document.querySelector('.composer__send')
@@ -299,7 +373,10 @@ async function run() {
   eq('输入卡上沿 y=492', 492, result.card?.y)
   same('输入框行高 20px', '20px', result.textareaLineHeight)
   eq('无横向滚动', 820, result.docWidth)
-  truthy('空输入时发送键保留且禁用', result.sendDisabled === true)
+  same('空输入时发送键 aria-disabled', 'true', result.sendDisabled)
+  same('发送键不用原生 disabled', 'false', String(result.sendNativeDisabled))
+  truthy('禁用的发送键仍可聚焦', result.sendFocusable === true)
+  truthy('禁用的发送键带可朗读原因', result.sendHint.length > 0)
   same('模型名显示当前模型', 'magpie', result.modelLabel)
 
   // --- 打字后发送键启用 ---
@@ -308,7 +385,7 @@ async function run() {
   const afterType = await page.evaluate(() => {
     const node = document.querySelector('.composer__send')
     return {
-      disabled: node === null ? true : node.disabled,
+      disabled: node === null ? 'true' : node.getAttribute('aria-disabled'),
       opacity: node === null ? '' : getComputedStyle(node).opacity,
     }
   })
@@ -448,6 +525,216 @@ async function run() {
   await page.unroute('**/api/inference')
   await page.screenshot({ path: join(OUT, 'inline-error-v5.png') })
 
+  /*
+   * --- 快捷键层（§9.1 / §9.4）---
+   *
+   * ## 为什么这一批值得脚本化
+   *
+   * 上一版把每条快捷键各挂一个 `window` 监听，谁先跑取决于挂载顺序。
+   * 后果是「按 Esc 时抽屉先关还是设置先关」不确定——这种缺陷靠手点
+   * 很难稳定复现，但写成断言一按就知道。
+   *
+   * 平台用 `isMac()` 判，测试跑在 macOS 上，所以修饰键是 `Meta`。
+   * Linux / Windows 的 CI 会走 `Control` 分支，同一份断言两边通用。
+   */
+  const isMacPlatform = await page.evaluate(() => /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent))
+  const MOD = isMacPlatform ? 'Meta' : 'Control'
+
+  // 1. Esc 的层级：抽屉开着时按一次只关抽屉。
+  await page.locator('.rail__item').first().click()
+  await page.waitForTimeout(400)
+  const drawerOpen = await page.evaluate(() => document.querySelector('.drawer[data-open]') !== null)
+  truthy('点 Rail 打开抽屉', drawerOpen === true)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+  const afterDrawerEsc = await page.evaluate(() => ({
+    drawer: document.querySelector('.drawer[data-open]') !== null,
+    // 抽屉关了，但会话还在——Esc 不该把人踢回首页。
+    stillInSession: document.querySelector('.workspace') !== null,
+  }))
+  truthy('Esc 关掉抽屉', afterDrawerEsc.drawer === false)
+  truthy('Esc 关抽屉后仍停在会话里', afterDrawerEsc.stillInSession === true)
+
+  // 2. 连按 Esc 到底 = 无操作，不退出应用。
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  const afterManyEsc = await page.evaluate(() => ({
+    quitCalled: (window.__ondraCalls ?? []).some((call) => call.command === 'resolve_close'),
+    stillInSession: document.querySelector('.workspace') !== null,
+  }))
+  truthy('Esc 到底不退出应用', afterManyEsc.quitCalled === false)
+  truthy('Esc 到底不离开会话', afterManyEsc.stillInSession === true)
+
+  // 3. `Cmd/Ctrl + /` 打开快捷键总表。
+  await page.keyboard.press(`${MOD}+/`)
+  await page.waitForTimeout(400)
+  const sheet = await page.evaluate(() => {
+    const panel = document.querySelector('.sheet__panel')
+    if (panel === null) return { found: false }
+    const rect = panel.getBoundingClientRect()
+    const rows = panel.querySelectorAll('.sheet__row')
+    const keys = panel.querySelectorAll('.sheet__key')
+    return {
+      found: true,
+      rows: rows.length,
+      keys: keys.length,
+      top: Math.round(rect.top),
+      within: rect.bottom <= window.innerHeight + 1,
+      // Sheet 不是 Dialog：不许有 aria-modal="true"，否则读屏会锁住背后。
+      modal: panel.getAttribute('aria-modal'),
+      firstRow: (rows[0]?.textContent ?? '').trim(),
+    }
+  })
+  truthy('Cmd+/ 打开快捷键总表', sheet.found === true)
+  eq('总表列出全部 15 条', 15, sheet.rows)
+  truthy('总表键位切成键帽', sheet.keys >= 15)
+  eq('总表贴顶 44', 44, sheet.top)
+  truthy('总表不超出视口', sheet.within === true)
+  same('总表不是模态框', 'false', sheet.modal)
+  await page.screenshot({ path: join(OUT, 'shortcut-sheet-v6.png') })
+
+  /*
+   * 总表**必须能滚**，而且滚动这件事必须看得见。
+   *
+   * ## 为什么这三条要一起断言
+   *
+   * 15 条快捷键在 580 高的窗口里装不下（实测内容 611px、可视 300px）。
+   * 而全项目把原生滚动条宽度设成了 0（§12.1 要 overlay 自绘），
+   * 于是「溢出但看不见滑块」是默认结果——用户只看到列表在中间被切断，
+   * 会以为布局坏了。
+   *
+   * 第一版就是这么坏的：面板自己 `overflow: auto`，没有滑块。
+   * 改成 ScrollArea 后又踩了第二个坑——滑块是绝对定位的 overlay，
+   * 压在键帽上把「Enter」吃成「Ent」。所以还要断言滑块不碰键帽。
+   */
+  const sheetScroll = await page.evaluate(() => {
+    const view = document.querySelector('.scrollarea__viewport.sheet__scroll')
+    const thumb = document.querySelector('.sheet__panel .scrollarea__thumb')
+    if (view === null) return { found: false }
+    // 滚一下让滑块显形，再量它与键帽的横向关系。
+    view.scrollTop = 0
+    view.dispatchEvent(new Event('scroll', { bubbles: true }))
+    const rows = [...document.querySelectorAll('.sheet__row')]
+    const firstKey = rows[0]?.querySelector('.sheet__key')
+    return {
+      found: true,
+      overflow: view.scrollHeight > view.clientHeight + 1,
+      hasThumb: thumb !== null,
+      thumbLeft: thumb === null ? 0 : Math.round(thumb.getBoundingClientRect().left),
+      keyRight: firstKey === null || firstKey === undefined ? 0 : Math.round(firstKey.getBoundingClientRect().right),
+    }
+  })
+  truthy('总表内容超出一屏', sheetScroll.found === true && sheetScroll.overflow === true)
+  truthy('总表有可见滑块', sheetScroll.hasThumb === true)
+  // 滑块左缘必须落在最右侧键帽的右边，否则它压在字上。
+  truthy('滑块不压键帽', sheetScroll.thumbLeft >= sheetScroll.keyRight)
+
+  // 4. Esc 关掉总表，且**不**连带关掉别的层。
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  const sheetClosed = await page.evaluate(() => ({
+    sheet: document.querySelector('.sheet__panel') === null,
+    stillInSession: document.querySelector('.workspace') !== null,
+  }))
+  truthy('Esc 关掉总表', sheetClosed.sheet === true)
+  truthy('Esc 关总表不切换会话', sheetClosed.stillInSession === true)
+
+  // 5. `Cmd/Ctrl + Shift + L` 切主题：三态循环。
+  const themeBefore = await page.evaluate(() => document.documentElement.dataset.theme ?? 'system')
+  await page.keyboard.press(`${MOD}+Shift+L`)
+  await page.waitForTimeout(300)
+  const themeAfter = await page.evaluate(() => document.documentElement.dataset.theme ?? 'system')
+  truthy('Cmd+Shift+L 改变了主题', themeBefore !== themeAfter)
+
+  // 6. `Cmd/Ctrl + ,` 打开设置。
+  await page.keyboard.press(`${MOD}+,`)
+  await page.waitForTimeout(500)
+  truthy('Cmd+, 打开设置', await page.evaluate(() => document.querySelector('.settings') !== null))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+  truthy('Esc 关掉设置', await page.evaluate(() => document.querySelector('.settings') === null))
+
+  /*
+   * 7. `Cmd/Ctrl + K` 打开记忆抽屉并聚焦搜索框。
+   *
+   * 这条最容易做错：抽屉按 `view` 复用同一个组件，若 `view` 已经是
+   * `'memory'`，再设一次不会重挂、焦点也就不会重新进来。断言要看
+   * 「焦点真的在搜索框里」，不能只看抽屉开着。
+   */
+  /*
+   * Playwright 的按键约定：`press('Meta+K')` 里的大写字母**隐含 Shift**，
+   * 等价于 `Meta+Shift+K`。不带 Shift 的组合必须写小写（`Meta+k`），
+   * 否则测的是一条根本不存在的键位。
+   */
+  await page.keyboard.press(`${MOD}+k`)
+  await page.waitForTimeout(500)
+  const search = await page.evaluate(() => {
+    const input = document.querySelector('.drawer__search-input')
+    return {
+      exists: input !== null,
+      focused: input !== null && document.activeElement === input,
+      // 搜索框必须在滚动容器之外，否则滚到下面时会跟着滚走。
+      outsideScroll: input === null ? false : input.closest('.drawer__body') === null,
+      placeholder: input?.getAttribute('placeholder') ?? '',
+    }
+  })
+  truthy('Cmd+K 打开带搜索框的抽屉', search.exists === true)
+  truthy('搜索框自动获得焦点', search.focused === true)
+  truthy('搜索框在滚动容器之外', search.outsideScroll === true)
+
+  /*
+   * 8. 搜索能筛出结果，也能给出「没找到」。
+   *
+   * 在**记忆**抽屉里搜不到东西是对的——`deriveMemories()` 目前返回空数组
+   * （记忆那条链路还没接），所以这里必须切到「今天」抽屉，那里有
+   * 一条标题含「雨」的历史会话。在空的记忆抽屉里断言「搜得到」，
+   * 测的是假数据而不是搜索本身。
+   */
+  await page.locator('.rail__item').first().click()
+  await page.waitForTimeout(500)
+  await page.locator('.drawer__search-input').fill('雨')
+  await page.waitForTimeout(250)
+  const filtered = await page.evaluate(() => ({
+    rows: document.querySelectorAll('.drawer__row').length,
+    value: document.querySelector('.drawer__search-input')?.value ?? '',
+  }))
+  truthy('搜索「雨」筛出会话', filtered.rows > 0)
+
+  await page.locator('.drawer__search-input').fill('这个词一定搜不到')
+  await page.waitForTimeout(250)
+  const noHit = await page.evaluate(() => ({
+    empty: (document.querySelector('.drawer__empty')?.textContent ?? '').trim(),
+  }))
+  truthy('搜不到时给具体说法', noHit.empty.includes('没找到'))
+
+  // 9. 搜索框里按 Esc 先清词，不直接关抽屉。
+  await page.locator('.drawer__search-input').press('Escape')
+  await page.waitForTimeout(250)
+  const cleared = await page.evaluate(() => ({
+    value: document.querySelector('.drawer__search-input')?.value ?? null,
+    drawerOpen: document.querySelector('.drawer[data-open]') !== null,
+  }))
+  same('搜索框 Esc 先清词', '', cleared.value)
+  truthy('清词时不关抽屉', cleared.drawerOpen === true)
+
+  // 10. 输入法组合中 Escape 不得被当成关闭。
+  /*
+   * 用派发原生事件模拟组合态：`isComposing` 是只读的，构造时给上即可。
+   * 这条守的是中文用户最容易被绊的一下——按 Esc 取消候选词，
+   * 结果整个抽屉关掉了。
+   */
+  await page.evaluate(() => {
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, isComposing: true })
+    window.dispatchEvent(event)
+  })
+  await page.waitForTimeout(300)
+  truthy('组合中 Esc 不关抽屉', await page.evaluate(() => document.querySelector('.drawer[data-open]') !== null))
+
+  // 收尾：关掉抽屉，回到干净状态。
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+
   // --- 关闭确认框（§2.7 §12.10）---
   /*
    * 壳拦截到关闭请求后会发 `close-requested`。测试里直接派发同名事件
@@ -529,6 +816,9 @@ async function run() {
 
   const tokensOk = await checkTokens()
   if (!tokensOk) process.exitCode = 1
+
+  const brandOk = await checkBrand()
+  if (!brandOk) process.exitCode = 1
 }
 
 await run()

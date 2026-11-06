@@ -26,7 +26,7 @@
  * `AUTO-GENERATED` 标记，CI 可据此校验「真源改了但没重新生成」。
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -112,5 +112,36 @@ lines.push(`export const MARK_PATH_EVEN_ODD = ${evenOdd ? 'true' : 'false'}`)
 lines.push('')
 
 mkdirSync(dirname(outPath), { recursive: true })
-writeFileSync(outPath, lines.join('\n'), 'utf8')
+
+/*
+ * `--check`：只校验，不写盘。
+ *
+ * §13 要求「CI 校验 `src/brand/mark.ts` 与 `/icon.svg` 一致」。做法不是
+ * 在 CI 里另写一份比对逻辑，而是**让生成器自己跑一遍再比结果**——
+ * 比对逻辑只有一份，改了生成规则也不会出现「生成器改了、校验没改」。
+ *
+ * 不一致时打印差异摘要而不是两份全文：真源通常只差几个坐标数字，
+ * 打整段反而看不出差在哪。
+ */
+const next = lines.join('\n')
+const previous = existsSync(outPath) ? readFileSync(outPath, 'utf8') : ''
+
+if (process.argv.includes('--check')) {
+  if (previous === next) {
+    console.log('品牌标志与 icon.svg 一致')
+    process.exit(0)
+  }
+  console.error('品牌标志与 icon.svg 不一致，跑 `node tools/gen-brand.mjs` 重新生成')
+  const before = previous.split('\n')
+  const after = next.split('\n')
+  for (let index = 0; index < Math.max(before.length, after.length); index += 1) {
+    if (before[index] === after[index]) continue
+    console.error(`  第 ${String(index + 1)} 行`)
+    console.error(`    文件: ${(before[index] ?? '（缺这一行）').slice(0, 120)}`)
+    console.error(`    应为: ${(after[index] ?? '（多出这一行）').slice(0, 120)}`)
+  }
+  process.exit(1)
+}
+
+writeFileSync(outPath, next, 'utf8')
 console.log(`已生成 ${outPath}`)

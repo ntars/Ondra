@@ -78,6 +78,15 @@ export interface ComposerProps {
    * 用户按下回车时想要的通常是「我现在就要说」。
    */
   interrupt?: 'queue' | 'interrupt'
+  /**
+   * 输入框节点交给上层。
+   *
+   * `Cmd/Ctrl + N`（新建对话）与 `↑`（编辑上一条）都要把焦点送回输入框，
+   * 而这两个键的处理在 `App` 里——只有它知道什么时候该回首页、
+   * 回填哪一条。把 textarea 的 ref 交出去，比在组件上加两个
+   * `focus()` 方法再各写一遍转发更省。
+   */
+  onInputRef?(node: HTMLTextAreaElement | null): void
 }
 
 /**
@@ -99,10 +108,17 @@ export function Composer({
   modelId,
   onSelectModel,
   interrupt = 'interrupt',
+  onInputRef,
 }: ComposerProps): React.JSX.Element {
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+
+  /** 把节点同时挂进本地 ref 与上层的 ref。 */
+  const attachInput = useCallback((node: HTMLTextAreaElement | null): void => {
+    inputRef.current = node
+    onInputRef?.(node)
+  }, [onInputRef])
 
   const current = models.find((model) => model.id === modelId)
 
@@ -169,6 +185,8 @@ export function Composer({
   }, [menuOpen])
 
   const overLimit = value.length > SOFT_LIMIT
+  /** 空输入：发送键保留但不可用（§5.6）。 */
+  const empty = value.trim() === '' && attachments.length === 0
 
   return (
     <div className="composer">
@@ -193,7 +211,7 @@ export function Composer({
         ) : null}
 
         <textarea
-          ref={inputRef}
+          ref={attachInput}
           className="composer__input"
           value={value}
           rows={1}
@@ -271,15 +289,34 @@ export function Composer({
               先别说
             </button>
           ) : (
-            <button
-              type="button"
-              className="composer__send"
-              aria-label="发送"
-              disabled={value.trim() === '' && attachments.length === 0}
-              onClick={submit}
-            >
-              <Icon icon={IconSend} size={16} />
-            </button>
+            /*
+             * 发送键。空输入时**保留在位置上**，但不可用且降为 40%（§5.6）。
+             *
+             * ## 用 `aria-disabled` 而不是 `disabled`
+             *
+             * §13 要求「禁用项用 `aria-disabled` 且可聚焦，聚焦时朗读禁用原因」。
+             * 原生 `disabled` 会把按钮从 Tab 顺序里摘掉、也不进可访问性树，
+             * 键盘用户既碰不到它、也听不到「为什么不能按」——只能猜。
+             *
+             * 代价是要自己在 `onClick` 里挡住点击（原生属性不挡了）。
+             */
+            <>
+              <button
+                type="button"
+                className="composer__send"
+                aria-label="发送"
+                aria-disabled={empty}
+                aria-describedby={empty ? 'composer-send-hint' : undefined}
+                onClick={empty ? undefined : submit}
+              >
+                <Icon icon={IconSend} size={16} />
+              </button>
+              {empty ? (
+                <span className="sr-only" id="composer-send-hint">
+                  写点什么才能发送
+                </span>
+              ) : null}
+            </>
           )}
         </div>
       </div>

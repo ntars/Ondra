@@ -18,9 +18,39 @@ export interface SettingsSnapshot {
   totals: { sections: number; fields: number; unregistered: number }
 }
 
-/** 读设置全景。段与字段的声明、用户层改动一次全给。 */
+/**
+ * 读设置全景。段与字段的声明、用户层改动一次全给。
+ *
+ * ## 为什么要在边界上验一次形状
+ *
+ * 宿主版本不一致时，这个接口可能返回 `{ ok: true }` 或某个字段缺失。
+ * 界面拿到之后会直接 `Object.keys(snapshot.user)`，遇到 `undefined`
+ * 抛 `TypeError`——而 React 在渲染期抛错会**卸载整棵树**，用户看到的是
+ * 白屏，不是「读不到设置」。
+ *
+ * 所以把畸形响应当成失败抛出：`Settings.tsx` 已有 `failed` 分支，
+ * 会显示原因加重试。错误在边界上变成一句人话，比在渲染里炸成白屏好。
+ *
+ * @returns 结构可信的设置快照。
+ * @throws 响应结构不符合预期时抛错。
+ */
 export async function getSettings(): Promise<SettingsSnapshot> {
-  return await request<SettingsSnapshot>('/api/settings')
+  const raw = await request<Partial<SettingsSnapshot>>('/api/settings')
+  if (raw === null || typeof raw !== 'object') throw new Error('设置接口返回了空响应')
+  if (!Array.isArray(raw.sections)) throw new Error('设置接口缺少 sections')
+  if (raw.user === null || typeof raw.user !== 'object' || Array.isArray(raw.user)) {
+    throw new Error('设置接口缺少 user')
+  }
+  const totals = raw.totals
+  return {
+    sections: raw.sections,
+    user: raw.user,
+    totals: {
+      sections: typeof totals?.sections === 'number' ? totals.sections : raw.sections.length,
+      fields: typeof totals?.fields === 'number' ? totals.fields : 0,
+      unregistered: typeof totals?.unregistered === 'number' ? totals.unregistered : 0,
+    },
+  }
 }
 
 /**

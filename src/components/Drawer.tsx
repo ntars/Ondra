@@ -21,7 +21,7 @@
  * 还原到触发元素。这里只负责「进来」，因为「回到哪」只有上层知道。
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconClose } from './icons.ts'
 import type { DrawerKey } from './Rail.tsx'
@@ -94,16 +94,33 @@ export function Drawer({
   onClose,
 }: DrawerProps): React.JSX.Element {
   const panelRef = useRef<HTMLDivElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const open = view !== undefined
+  /** 搜索词。故意只在本地：它不是会话状态，切抽屉即弃。 */
+  const [query, setQuery] = useState('')
 
-  /** 打开时把焦点移进来。收起时不主动抢——焦点该回到触发按钮。 */
+  /**
+   * 打开时把焦点移进来。
+   *
+   * §9.5：「打开抽屉 → 抽屉内第一个可聚焦项（搜索框）」。
+   * 所以搜索框必须排在 DOM 里第一个，否则焦点会落到关闭键上——
+   * 用户按 Esc 之前的第一个 Tab 就到了「关闭」，像在催他走。
+   *
+   * 收起时不主动抢焦点：焦点该由上层还原到触发按钮。
+   */
   useEffect(() => {
     if (!open) return
-    const first = panelRef.current?.querySelector<HTMLElement>(
+    // 搜索框优先。没有搜索框的视图（剧场）退到第一个可聚焦项。
+    const target = searchRef.current ?? panelRef.current?.querySelector<HTMLElement>(
       'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
     )
-    first?.focus()
+    target?.focus()
   }, [open, view])
+
+  /** 换视图时清掉搜索词：在记忆里搜的词带到会话列表里，只会得到空结果。 */
+  useEffect(() => {
+    setQuery('')
+  }, [view])
 
   /**
    * 列表按时间窗过滤。
@@ -122,6 +139,27 @@ export function Drawer({
     .filter((meta) => meta.updatedAt >= from)
     .sort((a, b) => b.updatedAt - a.updatedAt)
 
+  /*
+   * 搜索只在「今天 / 本周 / 记忆」三个视图里出现。
+   *
+   * 剧场里是一份扩展清单，它自己的条目还没有真实数据（见下方空态），
+   * 给一个筛不出东西的搜索框比不给更让人困惑。
+   */
+  const searchable = view === 'today' || view === 'week' || view === 'memory'
+
+  /*
+   * 过滤用「包含」而不是前缀：用户记得的是「雨」这个字，不是
+   * 「关于雨的那个比喻」这整串的开头。大小写与空格一并抹平，
+   * 中文没有大小写，但模型名、插件名里有英文。
+   */
+  const needle = query.trim().toLowerCase()
+  const shown = needle === ''
+    ? list
+    : list.filter((meta) => sessionTitle(meta).toLowerCase().includes(needle))
+  const shownMemories = needle === ''
+    ? memories
+    : memories.filter((memory) => memory.summary.toLowerCase().includes(needle))
+
   return (
     <div className="drawer" data-open={open ? '' : undefined}>
       <div className="drawer__panel" ref={panelRef} role="dialog" aria-label={view === undefined ? '抽屉' : TITLES[view]}>
@@ -132,15 +170,52 @@ export function Drawer({
           </button>
         </header>
 
+        {/*
+          搜索框（§9.1 的 `Cmd/Ctrl + K` 就是「打开抽屉并聚焦搜索框」）。
+
+          放在 `drawer__body` **之外**：body 是滚动容器，放进去会随列表
+          一起滚走——用户往下翻三屏后再想换词，得先滚回顶部。
+          它仍排在 DOM 里第一个可聚焦位置，聚焦才会落在它上面。
+        */}
+        {searchable ? (
+          <div className="drawer__search">
+            <input
+              ref={searchRef}
+              type="search"
+              className="drawer__search-input"
+              value={query}
+              placeholder={view === 'memory' ? '找一条记忆' : '找一轮对话'}
+              aria-label={view === 'memory' ? '搜索记忆' : '搜索对话'}
+              onChange={(event) => { setQuery(event.target.value) }}
+              onKeyDown={(event) => {
+                /*
+                 * Esc 在搜索框里先清词、再关抽屉。
+                 *
+                 * §9.3 的顺序是「浮层 → 抽屉」，但搜索框是抽屉内部的
+                 * 一个输入框——直接关掉整个抽屉，用户失去的是刚才打的
+                 * 那半句。两级退更贴直觉：先撤一个字，再撤这一层。
+                 */
+                if (event.key !== 'Escape') return
+                if (query !== '') {
+                  event.stopPropagation()
+                  setQuery('')
+                }
+              }}
+            />
+          </div>
+        ) : null}
+
         <div className="drawer__body">
           {view === 'today' || view === 'week' ? (
-            list.length === 0 ? (
+            shown.length === 0 ? (
               <p className="drawer__empty">
-                {view === 'today' ? '今天还没说过话' : '这一周还是空的'}
+                {needle === ''
+                  ? (view === 'today' ? '今天还没说过话' : '这一周还是空的')
+                  : `没找到「${query.trim()}」`}
               </p>
             ) : (
               <ul className="drawer__list">
-                {list.map((meta) => (
+                {shown.map((meta) => (
                   <li key={meta.id}>
                     <button
                       type="button"
@@ -158,11 +233,13 @@ export function Drawer({
           ) : null}
 
           {view === 'memory' ? (
-            memories.length === 0 ? (
-              <p className="drawer__empty">聊两句就有了</p>
+            shownMemories.length === 0 ? (
+              <p className="drawer__empty">
+                {needle === '' ? '聊两句就有了' : `没找到「${query.trim()}」`}
+              </p>
             ) : (
               <ul className="drawer__list">
-                {memories.map((memory) => (
+                {shownMemories.map((memory) => (
                   <li key={memory.id} className="drawer__memory">
                     <span className="drawer__memory-text">{memory.summary}</span>
                     <span className="drawer__row-time">{memory.relative}</span>
