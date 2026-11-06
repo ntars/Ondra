@@ -1,0 +1,18 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib",
+    "types": [
+      "node"
+    ],
+    "composite": true,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.json"
+  ]
+}

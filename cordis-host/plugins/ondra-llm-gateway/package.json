@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-llm-gateway",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的模型网关：三来源清单（在线 API / 本地 / 免费）、优先级选路、首块与块间隔超时、首块前重试与跨来源降级、用量记账。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

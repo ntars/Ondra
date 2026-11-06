@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>空谷 Ondra</title>
+    <style>
+      /* 内联样式：在外部 CSS 加载完成前就定住背景色，
+         避免深色模式下先闪一帧白底。 */
+      html { background: #fbfbfd; }
+      @media (prefers-color-scheme: dark) { html { background: #000000; } }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

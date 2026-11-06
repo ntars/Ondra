@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-adapter-wechat-personal",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的微信个人号通道（高危）：只做接线、双闸门与语义，真正操作微信的是用户自备的 wxauto 桥接端（Windows）。入站路由仅接受回环请求，单条 1000 字；必须同时满足 enabled 与二次确认档案才回话。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

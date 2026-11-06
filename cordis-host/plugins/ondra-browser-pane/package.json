@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-browser-pane",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的内置浏览器宿主半身：页面登记表、域名白名单与 /pane 路由，供内置插件展示调试页与引导页；不显示地址、不接受输入。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

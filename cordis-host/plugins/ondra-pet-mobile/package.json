@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-pet-mobile",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的三端互通前提入口（骨架）。台账只给九个字：占位，钉住三端技术前提。本包不做手机客户端——手册 §1.11-07 对手机端的原话是「即将适配」，插件里先做出一个窗口只会得到装了但什么都没有——而是把手册里散在三处的原始事实钉成七条可判定前提：三端共用同一份记忆（O-010，根因是各存一份就成了三只）、桌宠端入口在位、本机 HTTP 出口可用、WS 中继已接入、允许来源已配置（§9.2 的 CSWSH 教训，空清单等于全拒）、两侧 token 一致（语料里的坑：误点重新生成）、手机客户端已发布。判定用四值而不是布尔：结构上判不了的标判不了，还没发布的标未发布，压成 false 会让人去修没坏的东西，压成 true 会让人以为配好了。另外把同一个 peer 绑到两个端、或同一个端换人时的冲突拒掉——静默覆盖的后果是昨天还是她今天换了个人。中继地址判据与桌宠桥刻意不同：手机不在本机，所以要的是跨设备必须 wss，而不是回环白名单。不注册工具，也不定义帧格式：三端互通是基础设施，不是模型动作。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

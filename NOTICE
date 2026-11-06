@@ -1,733 +1,894 @@
-NOTICE — 空谷 Ondra
+空谷 Ondra 2.0.1
+开源合规声明（NOTICE）
+================================================================================
+
 Copyright © 2024–2026 Ntarstudio（星玖工作室）. All Rights Reserved.
 
-本文件是本项目的开源合规声明主体，与 README.md 第 1.4 节（三档复用）、
-第 25 章（版权与许可）、第 26 章（NOTICE 合规声明）互为补充。
-凡 README 中出现的依赖数量与本文件不一致时，以本文件为准。
-
-本文件中的法律文本（许可证原文、版权声明、免责声明）保留英文原文，
-中文仅作说明用途；两者不一致时，以英文原文为准。
-
-============================================================================
-一、文件性质与效力
-============================================================================
-
-1. 本文件依据 GNU Affero General Public License v3.0（下称 AGPL-3.0）
-   第 0 条与第 4 条关于"适当法律声明"的要求编制，用于完整披露本项目
-   使用的全部第三方软件、组件、素材与算法来源。
-
-2. 披露范围包括：随产品分发的运行时依赖、仅用于构建与测试的开发期依赖、
-   以源码形式内置的框架组件、非 npm 形式的运行时、品牌与设计素材、
-   人设包资产、图标素材、算法与机制的公开来源，以及插件级上游项目的
-   代码与数据复用（见第二节附）。
-
-3. 披露口径：
-   - 运行时依赖：在各 package.json 的 dependencies、peerDependencies、
-     optionalDependencies 中声明，随产品分发或被打包进产物。
-   - 开发期依赖：仅在 devDependencies 中声明，用于构建、测试与静态检查，
-     不随产品分发。
-   - 源码内置依赖：以源码形式存放在 desktop/vendor/ 下，不经由 npm 安装。
-   - 传递依赖：完整闭包记录在 desktop/pnpm-lock.yaml，不在本文件逐条复述，
-     以免与锁文件形成两份真源。
-
-4. 复核方法：
-   - 依赖清单：`cd desktop && pnpm licenses list`
-   - 锁文件记录数：`grep -c "^  [a-z@]" desktop/pnpm-lock.yaml`
-   - 内置组件：`ls desktop/vendor/`
-
-5. 统计（本版本实测）：
-   - 运行时外部依赖：82 项
-   - 开发期外部依赖：89 项
-   - 源码内置组件：9 项
-   - 非 npm 运行时：2 项（Electron、Node.js），另有可选 Python 运行时
-   - 人设包：12 个（自有 2 个，第三方角色相关 10 个）
-   - 许可证分布：MIT 134 项、Apache-2.0 21 项、ISC 6 项、
-     BSD-3-Clause 2 项、BSD-2-Clause 2 项、BlueOak-1.0.0 1 项、
-     CC0-1.0 1 项、双许可（MPL-2.0 OR Apache-2.0）1 项、
-     自定义许可待确认 3 项
-
-============================================================================
-二、上游项目声明（DeepSeek-Harness）
-============================================================================
-
-本项目是 DeepSeek-Harness 的定制发行版。上游以 MIT 许可发布，本项目依据
-MIT 许可允许再许可的条款，将其并入以 AGPL-3.0 发布的更大作品。
-
-上游项目：DeepSeek-Harness（命令行名 dsh）
-上游版本：0.2.2-alpha.2
-上游仓库：https://github.com/deepseek-ai/deepseek-harness
-内嵌基线提交：81e326b1（"Ondra 1.0.0 基线：上游 dsh 0.2.2-alpha.2 + 品牌改造"）
-许可证：MIT
-
-上游版权声明与许可全文完整保留如下，未作任何删改：
-
-----------------------------------------------------------------------------
-MIT License
-
-Copyright (c) 2026 DeepSeek
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-----------------------------------------------------------------------------
-
-对本项目相对上游所做的修改，按 AGPL-3.0 第 5 条要求声明如下：
-
-1. 品牌重塑：产品名、应用标识、进程名、数据目录名、环境变量前缀、
-   安装包名称与图标均替换为「空谷 Ondra」与 `ondra` 前缀。
-2. 界面裁剪：移除上游面向编码场景的界面元素，替换为三栏陪伴界面；
-   删除上游多语言资源中与产品无关的部分。
-3. 插件精简：仅保留本项目插件所需的宿主能力，其余插件不装入组合包。
-4. 数据隔离：数据目录改为应用私有目录，不读写用户主目录下的 dsh 与
-   agents 配置，不占用上游默认端口。
-5. 构建适配：调整构建配置与打包流程以适配 Electron 外壳与便携运行时。
-6. 隐私加固：在配置层关闭会话日志上传，并增加启动自检核对。
-
-上述修改的源码均在本仓库 desktop/ 目录内，可逐项对照上游版本核查。
-
-============================================================================
-二附、插件级上游声明（dsh-our-free-model）
-============================================================================
-
-本项目除整体继承 DeepSeek-Harness 之外，另有一个插件级上游：Ondra 的
-`cordis/ondra-our-free-model/` 由第三方 dsh 插件适配而来。该上游同样以
-MIT 许可发布，复用范围与改写情况逐项声明如下。
-
-上游项目：dsh-our-free-model
-上游仓库：https://github.com/Ebony-Vinyl/dsh-our-free-model
-采集基线提交：b52fa86（"Merge pull request #739 from zixin947/
-zixin/readme-qq-group-14"，2026-11-02）
-许可证：MIT
-本项目落点：cordis/ondra-our-free-model/
-
-一、复用的内容
-
-1. 渠道与模型清单。上游 `src/providers/registry.json`（125,713 字节）
-   为本项目 `cordis/ondra-our-free-model/src/registry.json`
-   （51,300 字节）的数据来源：保留 76 家渠道、502 个模型的 id、名称、
-   传输协议、端点、鉴权方式与模型清单；删除 `website` 字段并压缩为
-   紧凑 JSON。字段语义与取值未作改写，仅做结构精简。
-
-2. 免费车道定义。两条公开端点及其鉴权方式取自上游：
-   - `https://opencode.ai/inference/v1`（`Authorization: Bearer public`）
-   - `https://api.kilo.ai/api/gateway`
-   Kilo 侧的风险提示原文逐字保留，未作弱化：
-   "Not suitable for production or sensitive data workloads"
-
-3. 字段口径。上游 `src/providers/index.js` 定义的取值枚举被沿用：
-   传输格式三种（`openai-chat` / `openai-responses` / `anthropic-messages`）、
-   鉴权方式四种（`apiKey` / `none` / `oauth` / `adc`）、
-   分类五种（`apikey` / `free` / `free-tier` / `local` / `oauth`）。
-   本项目仅把 `openai-chat` 映射为 pi-ai 的 `openai-completions` 名称，
-   枚举语义未变。
-
-二、未复用的内容
-
-上游的广告位、看板（dashboard）、降级链、省 token（token-saver）、
-自升级逻辑、`client.js` 前端半身，以及 `packages/`、`worker/`、
-`catalog/`、`feed/`、`adapter/` 等子包均未进入本项目。本项目不包含
-任何广告投放或流量变现代码。
-
-三、本项目新增（上游没有的部分）
-
-- 探测机制：只对免密车道发 `GET /models` 做可达性探测（本插件不持有
-  用户凭据，渠道探测由调用方带自己的认证头显式发起），5 秒超时；
-  超时、网络失败、解析失败一律记为「不可达但在位」，不据此从选择器
-  移除任何模型。启动探测与定时探测都可关闭，默认关闭。
-- 地区判定：依次尝试 ipinfo.io 与 ipwho.is 两个直接返回国家码的源，
-  4 秒超时；两源全失败时 `known=false`，不做任何移除。上游无此逻辑。
-  未采用 api.ipify.org（只返回 IP、不含国家）与 ipapi.co（对非浏览器
-  请求返回 Cloudflare 挑战页，解析必然失败）——两者都在实测中被排除，
-  理由写在 `src/probe.ts` 的注释里。
-
-四、改写情况（AGPL-3.0 第 5 条要求的修改声明）
-
-上游是以 `index.js` + `client.js` 双半身运行的 dsh CommonJS 插件；
-Ondra 的插件体系只跑 Node 进程、无前端半身，故本项目按 Cordis 函数
-插件契约（`name` / `inject` / `apply` / `Config` 四导出）用 TypeScript
-重写，并把「自带渠道目录、装上即用」改为「可配置开关 + 注册到
-`@ntars/ondra-llm-pi-ai` 适配器」。因此这不是逐行移植，而是数据与
-机制的复用加接口层重写。改写后的源码全部位于
-`cordis/ondra-our-free-model/src/`，可对照上游同路径文件核查。
-
-五、MIT 许可全文（保留原文，未作删改）
-
-----------------------------------------------------------------------------
-MIT License
-
-Copyright (c) 2026 Ebony-Vinyl
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-----------------------------------------------------------------------------
-
-============================================================================
-三、本项目版权与许可
-============================================================================
-
-本项目自身代码、文档与自有素材：
-
-Copyright © 2024–2026 Ntarstudio（星玖工作室）
-
-本程序是自由软件：你可以依据自由软件基金会发布的 GNU Affero 通用公共
-许可证第 3 版（或你选择的任何更新版本）的条款重新分发和/或修改本程序。
-
-本程序的发布是希望它有用，但不附带任何担保，甚至不包含适销性或特定用途
-适用性的默示担保。详见 GNU Affero 通用公共许可证。
-
-许可证全文见随附 LICENSE 文件，或访问
-<https://www.gnu.org/licenses/agpl-3.0.html>。
-
-英文原文：
-
-"Copyright (C) 2024-2026 Ntarstudio. This program is free software: you can
-redistribute it and/or modify it under the terms of the GNU Affero General
-Public License as published by the Free Software Foundation, version 3.
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-details. You should have received a copy of the GNU Affero General Public
-License along with this program. If not, see <https://www.gnu.org/licenses/>."
-
-官网：https://ai.ntars.cn/
-仓库：https://github.com/ntars/Ondra
-
-AGPL-3.0 的主要义务（摘要，不构成法律意见）：
-
-1. 分发本软件或其修改版本时，必须提供完整源代码，并保留 LICENSE 与
-   本 NOTICE 文件。
-2. 修改过的文件必须带有明显的修改声明与修改日期。
-3. 通过网络向用户提供服务时，必须向使用者提供获取对应源代码的方式
-   （第 13 条）。
-4. 不得对本软件附加额外限制，不得移除其中的版权与许可声明。
-
-============================================================================
-四、运行时依赖（82 项）
-============================================================================
-
-以下依赖在各 package.json 的 dependencies、peerDependencies 或
-optionalDependencies 中声明，随产品分发或被打包进宿主与浏览器产物。
-
-版本取自实际安装树（pnpm 虚拟存储），许可证与版权方取自各包随附的
-package.json 与 LICENSE。标注"见包内 LICENSE"的条目，表示该包的
-许可证文件使用标准模板而未包含独立版权行，本文件不做推断。
-
-| 包名 | 版本 | 许可证 | 版权方 | 官方地址 |
-| --- | --- | --- | --- | --- |
-| `@agentclientprotocol/sdk` | 1.4.0 | Apache-2.0 | Zed Industries | https://github.com/agentclientprotocol/typescript-sdk |
-| `@anthropic-ai/claude-agent-sdk` | 0.3.263 | SEE LICENSE IN README.md | Anthropic <support@anthropic.com> | https://github.com/anthropics/claude-agent-sdk-typescript |
-| `@anthropic-ai/sdk` | 0.129.0 | MIT | Anthropic <support@anthropic.com> | github:anthropics/anthropic-sdk-typescript |
-| `@babel/code-frame` | 7.29.7 | MIT | The Babel Team (https://babel.dev/team) | https://github.com/babel/babel |
-| `@browserbasehq/stagehand` | 4.1.0 | MIT | Browserbase | https://github.com/browserbase/stagehand |
-| `@earendil-works/pi-ai` | 1.3.0 | MIT | Mario Zechner | https://github.com/earendil-works/pi |
-| `@earendil-works/pi-coding-agent` | 1.3.0 | MIT | Mario Zechner | https://github.com/earendil-works/pi |
-| `@eslint-community/regexpp` | 4.12.2 | MIT | Toru Nagashima | https://github.com/eslint-community/regexpp |
-| `@joplin/turndown-plugin-gfm` | 1.0.67 | MIT | Dom Christie | https://github.com/laurent22/joplin-turndown-plugin-gfm |
-| `@jridgewell/gen-mapping` | 0.3.13 | MIT | Justin Ridgewell <justin@ridgewell.name> | https://github.com/jridgewell/sourcemaps |
-| `@js-temporal/polyfill` | 0.5.1 | ISC | Philipp Dunkel <pip@pipobscure.com> | https://github.com/js-temporal/temporal-polyfill |
-| `@modelcontextprotocol/client` | 2.2.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
-| `@modelcontextprotocol/sdk` | 1.31.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
-| `@noble/hashes` | 1.4.0 | MIT | Paul Miller (https://paulmillr.com) | https://github.com/paulmillr/noble-hashes |
-| `@octokit/webhooks` | 14.2.0 | MIT | Gregor Martynus (https://twitter.com/gr2m) | github:octokit/webhooks.js |
-| `@openai/codex` | 0.153.4 | Apache-2.0 | 见包内 LICENSE | https://github.com/openai/codex |
-| `@opentelemetry/api` | 1.9.1 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
-| `@opentelemetry/api-logs` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
-| `@opentelemetry/core` | 2.11.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
-| `@opentelemetry/otlp-exporter-base` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
-| `@opentelemetry/otlp-transformer` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
-| `@opentelemetry/resources` | 2.11.0 | Apache-2.0 | OpenTelemetry Authors | open-telemetry/opentelemetry-js |
-| `@opentelemetry/sdk-logs` | 0.222.0 | Apache-2.0 | OpenTelemetry Authors | https://github.com/open-telemetry/opentelemetry-js |
-| `@playwright/mcp` | 0.0.80 | Apache-2.0 | Microsoft Corporation | https://github.com/microsoft/playwright-mcp |
-| `@puppeteer/browsers` | 3.2.2 | Apache-2.0 | The Chromium Authors | https://github.com/puppeteer/puppeteer/tree/main/packages/browsers |
-| `@testing-library/dom` | 10.4.2 | MIT | Kent C. Dodds <me@kentcdodds.com> (https://kentcdodds.com) | https://github.com/testing-library/dom-testing-library |
-| `@testing-library/react` | 16.3.3 | MIT | Kent C. Dodds <me@kentcdodds.com> (https://kentcdodds.com) | https://github.com/testing-library/react-testing-library |
-| `@trycua/cua-driver` | 0.28.0 | MIT | 见包内 LICENSE | https://github.com/trycua/cua |
-| `@vitest/spy` | 4.1.11 | MIT | 见包内 LICENSE | https://github.com/vitest-dev/vitest |
-| `@vscode/ripgrep` | 1.18.0 | MIT | Rob Lourens | https://github.com/microsoft/vscode-ripgrep |
-| `@xterm/addon-serialize` | 0.14.0 | MIT | The xterm.js authors | https://github.com/xtermjs/xterm.js/tree/master/addons/addon-serialize |
-| `@xterm/headless` | 6.0.0 | MIT | 见包内 LICENSE | https://github.com/xtermjs/xterm.js |
-| `@yarnpkg/parsers` | 3.1.0 | BSD-2-Clause | 见包内 LICENSE | https://github.com/yarnpkg/berry |
-| `acorn` | 8.17.0 | MIT | 见包内 LICENSE | https://github.com/acornjs/acorn |
-| `acorn-walk` | 8.3.5 | MIT | 见包内 LICENSE | https://github.com/acornjs/acorn |
-| `ajv` | 6.15.0 | MIT | Evgeny Poberezkin | https://github.com/ajv-validator/ajv |
-| `birpc` | 2.9.0 | MIT | Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/antfu-collective/birpc |
-| `buffer` | 5.7.1 | MIT | Feross Aboukhadijeh | git://github.com/feross/buffer |
-| `chokidar` | 4.0.3 | MIT | Paul Miller (https://paulmillr.com) | https://github.com/paulmillr/chokidar |
-| `chrome-devtools-mcp` | 1.9.0 | Apache-2.0 | Google LLC | ChromeDevTools/chrome-devtools-mcp |
-| `commander` | 15.0.0 | MIT | TJ Holowaychuk <tj@vision-media.ca> | https://github.com/tj/commander.js |
-| `compression` | 1.8.2 | MIT | 见包内 LICENSE | expressjs/compression |
-| `cross-spawn` | 7.0.6 | MIT | André Cruz <andre@moxy.studio> | git@github.com:moxystudio/node-cross-spawn |
-| `diff` | 8.0.4 | BSD-3-Clause | 见包内 LICENSE | https://github.com/kpdecker/jsdiff |
-| `electron-updater` | 6.8.9 | MIT | Vladimir Krivosheev | https://github.com/electron-userland/electron-builder |
-| `eventsource-parser` | 3.1.0 | MIT | Espen Hovlandsdal <espen@hovlandsdal.com> | ssh://git@github.com/rexxars/eventsource-parser |
-| `execa` | 10.0.1 | MIT | Sindre Sorhus | sindresorhus/execa |
-| `fflate` | 0.8.2 | MIT | Arjun Barrett <arjunbarrett@gmail.com> | https://github.com/101arrowz/fflate |
-| `got` | 11.8.6 | MIT | 见包内 LICENSE | sindresorhus/got |
-| `hosted-git-info` | 4.1.0 | ISC | Rebecca Turner <me@re-becca.org> (http://re-becca.org) | https://github.com/npm/hosted-git-info |
-| `ipaddr.js` | 1.9.1 | MIT | whitequark <whitequark@whitequark.org> | git://github.com/whitequark/ipaddr.js |
-| `js-yaml` | 4.3.2 | MIT | Vladimir Zapparov <dervus.grim@gmail.com> | nodeca/js-yaml |
-| `koffi` | 3.1.1 | MIT | Niels Martignène | https://github.com/Koromix/koffi |
-| `mime` | 1.6.0 | MIT | Robert Kieffer | https://github.com/broofa/node-mime |
-| `mime-types` | 2.1.35 | MIT | 见包内 LICENSE | jshttp/mime-types |
-| `minisearch` | 7.2.0 | MIT | Luca Ongaro | https://github.com/lucaong/minisearch |
-| `negotiator` | 0.6.4 | MIT | 见包内 LICENSE | jshttp/negotiator |
-| `node-addon-require-builtin` | 0.1.9 | MIT | 见包内 LICENSE | https://github.com/deepseek-ai/dsh-node-addon-require-builtin |
-| `node-pty` | 1.2.0-beta.15 | MIT | Microsoft Corporation | git://github.com/microsoft/node-pty |
-| `open` | 11.0.4 | MIT | Sindre Sorhus | sindresorhus/open |
-| `p-limit` | 3.1.0 | MIT | Sindre Sorhus | sindresorhus/p-limit |
-| `picomatch` | 4.0.4 | MIT | Jon Schlinkert (https://github.com/jonschlinkert) | micromatch/picomatch |
-| `react` | 18.3.1 | MIT | 见包内 LICENSE | https://github.com/facebook/react |
-| `react-dom` | 18.3.1 | MIT | 见包内 LICENSE | https://github.com/facebook/react |
-| `readable-stream` | 2.3.8 | MIT | 见包内 LICENSE | git://github.com/nodejs/readable-stream |
-| `resolve.exports` | 2.0.3 | MIT | Luke Edwards | lukeed/resolve.exports |
-| `semver` | 5.7.2 | ISC | GitHub Inc. | https://github.com/npm/node-semver |
-| `serve-static` | 2.2.1 | MIT | Douglas Christopher Wilson <doug@somethingdoug.com> | expressjs/serve-static |
-| `sharp` | 0.35.5 | Apache-2.0 | Lovell Fuller <npm@lovell.info> | https://github.com/lovell/sharp |
-| `shell-quote` | 1.12.0 | MIT | James Halliday | http://github.com/ljharb/shell-quote |
-| `sherpa-onnx-node` | 1.13.8 | Apache-2.0 | The next-gen Kaldi team | https://github.com/csukuangfj/sherpa-onnx |
-| `string_decoder` | 1.1.1 | MIT | 见包内 LICENSE | git://github.com/nodejs/string_decoder |
-| `tar` | 7.5.22 | BlueOak-1.0.0 | Isaac Z. Schlueter | https://github.com/isaacs/node-tar |
-| `tsx` | 4.23.13 | MIT | Hiroki Osame | privatenumber/tsx |
-| `turndown` | 7.2.4 | MIT | Dom Christie | https://github.com/mixmark-io/turndown |
-| `typescript` | 6.0.3 | Apache-2.0 | Microsoft Corp. | https://github.com/microsoft/TypeScript |
-| `undici` | 6.28.1 | MIT | 见包内 LICENSE | https://github.com/nodejs/undici |
-| `vitest` | 4.1.11 | MIT | Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/vitest-dev/vitest |
-| `which` | 2.0.2 | ISC | Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me) | git://github.com/isaacs/node-which |
-| `ws` | 8.21.0 | MIT | Einar Otto Stangvik <einaros@gmail.com> (http://2x.io) | https://github.com/websockets/ws |
-| `yaml` | 2.9.0 | ISC | Eemeli Aro <eemeli@gmail.com> | github:eemeli/yaml |
-| `zod` | 4.4.3 | MIT | Colin McDonnell <zod@colinhacks.com> | https://github.com/colinhacks/zod |
-
-============================================================================
-五、开发期依赖（89 项）
-============================================================================
-
-以下依赖仅在 devDependencies 中声明，用于构建、测试、静态检查与打包，
-不随产品分发。开发期依赖不构成分发行为，但仍完整披露。
-
-| 包名 | 版本 | 许可证 | 版权方 | 官方地址 |
-| --- | --- | --- | --- | --- |
-| `@botiverse/oar` | 0.67.0 | Apache-2.0 | 见包内 LICENSE | https://github.com/botiverse/oar |
-| `@braintree/sanitize-url` | 6.0.4 | MIT | 见包内 LICENSE | https://github.com/braintree/sanitize-url |
-| `@electron/get` | 3.1.0 | MIT | Samuel Attard | https://github.com/electron/get |
-| `@electron/notarize` | 2.5.0 | MIT | Samuel Attard | https://github.com/electron/notarize |
-| `@fortune-sheet/core` | 1.0.4 | MIT | 见包内 LICENSE | https://github.com/ruilisi/fortune-sheet |
-| `@fortune-sheet/react` | 1.0.4 | MIT | 见包内 LICENSE | https://github.com/ruilisi/fortune-sheet |
-| `@lexical/headless` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
-| `@lexical/history` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
-| `@lexical/plain-text` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
-| `@lexical/text` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
-| `@lexical/utils` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
-| `@modelcontextprotocol/node` | 2.0.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
-| `@modelcontextprotocol/server` | 2.2.0 | MIT | Anthropic, PBC (https://anthropic.com) | https://github.com/modelcontextprotocol/typescript-sdk |
-| `@modelcontextprotocol/server-everything` | 2026.8.31 | SEE LICENSE IN LICENSE | Model Context Protocol a Series of LF Projects, LLC. | https://github.com/modelcontextprotocol/servers |
-| `@modelcontextprotocol/server-filesystem` | 2026.8.31 | SEE LICENSE IN LICENSE | Model Context Protocol a Series of LF Projects, LLC. | https://github.com/modelcontextprotocol/servers |
-| `@panzoom/panzoom` | 4.6.2 | MIT | Timmy Willison | https://github.com/timmywil/panzoom |
-| `@shikijs/langs` | 2.5.0 | MIT | Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/shikijs/shiki |
-| `@tanstack/react-virtual` | 3.14.10 | MIT | Tanner Linsley | https://github.com/TanStack/virtual |
-| `@types/babel__code-frame` | 7.27.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/big.js` | 6.2.2 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/compression` | 1.8.1 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/hosted-git-info` | 3.0.5 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/js-yaml` | 4.0.9 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/mdast` | 4.0.4 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/mime-types` | 3.0.1 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/negotiator` | 0.6.5 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/node` | 14.18.63 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/papaparse` | 5.5.2 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/picomatch` | 3.0.2 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/readable-stream` | 4.0.24 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/semver` | 7.8.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/serve-static` | 2.2.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/turndown` | 5.0.6 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/use-sync-external-store` | 1.7.0 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/ws` | 8.18.1 | MIT | 见包内 LICENSE | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@vitejs/plugin-react` | 4.7.0 | MIT | Evan You | https://github.com/vitejs/vite-plugin-react |
-| `@xterm/addon-fit` | 0.11.0 | MIT | The xterm.js authors | https://github.com/xtermjs/xterm.js/tree/master/addons/addon-fit |
-| `@xterm/xterm` | 6.0.0 | MIT | 见包内 LICENSE | https://github.com/xtermjs/xterm.js |
-| `anser` | 2.3.5 | MIT | Ionică Bizău <bizauionica@gmail.com> (https://ionicabizau.net) | git://github.com/IonicaBizau/anser |
-| `app-builder-lib` | 26.17.0 | MIT | Vladimir Krivosheev | https://github.com/electron-userland/electron-builder |
-| `big.js` | 7.0.1 | MIT | Michael Mclaughlin | https://github.com/MikeMcl/big.js |
-| `chrome-devtools-frontend` | 1.0.1638082 | BSD-3-Clause | The Chromium Authors | https://github.com/ChromeDevTools/devtools-frontend |
-| `clsx` | 2.1.1 | MIT | Luke Edwards | lukeed/clsx |
-| `cos-nodejs-sdk-v5` | 3.0.0 | ISC | carsonxu | https://github.com/tencentyun/cos-nodejs-sdk-v5 |
-| `cytoscape` | 3.34.0 | MIT | 见包内 LICENSE | https://github.com/cytoscape/cytoscape.js |
-| `cytoscape-cose-bilkent` | 4.1.0 | MIT | 见包内 LICENSE | https://github.com/cytoscape/cytoscape.js-cose-bilkent |
-| `dayjs` | 1.11.21 | MIT | iamkun | https://github.com/iamkun/dayjs |
-| `debug` | 2.6.9 | MIT | TJ Holowaychuk <tj@vision-media.ca> | git://github.com/visionmedia/debug |
-| `dompurify` | 3.4.16 | (MPL-2.0 OR Apache-2.0) | Dr.-Ing. Mario Heiderich, Cure53 <mario@cure53.de> (https://cure53.de/) | git://github.com/cure53/DOMPurify |
-| `electron` | 44.7.0 | MIT | Electron Community | https://github.com/electron/electron |
-| `electron-builder` | 26.17.0 | MIT | Vladimir Krivosheev | https://github.com/electron-userland/electron-builder |
-| `esbuild` | 0.21.5 | MIT | 见包内 LICENSE | https://github.com/evanw/esbuild |
-| `exceljs` | 4.4.0 | MIT | Guyon Roche | https://github.com/exceljs/exceljs |
-| `extract-zip` | 2.0.1 | BSD-2-Clause | max ogden | maxogden/extract-zip |
-| `fast-xml-parser` | 5.11.1 | MIT | Amit Gupta (https://solothought.com) | https://github.com/NaturalIntelligence/fast-xml-parser |
-| `http-server` | 14.1.1 | MIT | 见包内 LICENSE | git://github.com/http-party/http-server |
-| `immer` | 10.2.0 | MIT | Michel Weststrate <info@michel.codes> | https://github.com/immerjs/immer |
-| `katex` | 0.16.47 | MIT | 见包内 LICENSE | https://github.com/KaTeX/KaTeX |
-| `lexical` | 0.49.0 | MIT | 见包内 LICENSE | https://github.com/facebook/lexical |
-| `mdast-util-from-markdown` | 2.0.3 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | syntax-tree/mdast-util-from-markdown |
-| `mdast-util-gfm` | 3.1.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | syntax-tree/mdast-util-gfm |
-| `mdast-util-math` | 3.0.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | syntax-tree/mdast-util-math |
-| `mermaid` | 11.17.2 | MIT | Knut Sveidqvist | https://github.com/mermaid-js/mermaid |
-| `micromark-core-commonmark` | 2.0.3 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark |
-| `micromark-extension-gfm` | 3.0.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | micromark/micromark-extension-gfm |
-| `micromark-extension-math` | 3.1.0 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | micromark/micromark-extension-math |
-| `micromark-factory-space` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space |
-| `micromark-util-character` | 2.1.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-character |
-| `micromark-util-classify-character` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character |
-| `micromark-util-decode-string` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-string |
-| `micromark-util-sanitize-uri` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri |
-| `micromark-util-symbol` | 2.0.1 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol |
-| `micromark-util-types` | 2.0.2 | MIT | Titus Wormer <tituswormer@gmail.com> (https://wooorm.com) | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types |
-| `papaparse` | 5.5.3 | MIT | Matthew Holt | https://github.com/mholt/PapaParse |
-| `pdfjs-dist` | 6.3.289 | Apache-2.0 | 见包内 LICENSE | https://github.com/mozilla/pdf.js |
-| `playwright` | 1.61.1 | Apache-2.0 | Microsoft Corporation | https://github.com/microsoft/playwright |
-| `pnpm` | 11.28.5 | MIT | 见包内 LICENSE | https://github.com/pnpm/pnpm |
-| `selfsigned` | 4.0.1 | MIT | José F. Romaniello <jfromaniello@gmail.com> (http://joseoncode.com) | git://github.com/jfromaniello/selfsigned |
-| `shiki` | 2.5.0 | MIT | Pine Wu <octref@gmail.com>; Anthony Fu <anthonyfu117@hotmail.com> | https://github.com/shikijs/shiki |
-| `simple-icons` | 16.31.0 | CC0-1.0 | Simple Icons Collaborators | ssh://git@github.com/simple-icons/simple-icons |
-| `tencentcloud-sdk-nodejs-teo` | 4.1.330 | Apache-2.0 | tencentcloudapi | https://github.com/tencentcloud/tencentcloud-sdk-nodejs |
-| `typescript-language-server` | 5.3.0 | Apache-2.0 | TypeFox and others | https://github.com/typescript-language-server/typescript-language-server |
-| `use-sync-external-store` | 1.6.0 | MIT | 见包内 LICENSE | https://github.com/facebook/react |
-| `vite` | 5.4.21 | MIT | Evan You | https://github.com/vitejs/vite |
-| `vitepress` | 1.6.4 | MIT | Evan You | github:vuejs/vitepress |
-| `vitepress-plugin-mermaid` | 2.0.17 | MIT | Emerson Bottero | https://github.com/emersonbottero/vitepress-plugin-mermaid |
-| `vue` | 3.5.42 | MIT | Evan You | https://github.com/vuejs/core |
-| `xlsx` | 0.20.3 | Apache-2.0 | sheetjs | https://git.sheetjs.com/SheetJS/sheetjs |
-| `zustand` | 4.5.7 | MIT | Paul Henschel | https://github.com/pmndrs/zustand |
-
-============================================================================
-六、源码内置依赖（desktop/vendor/，9 项）
-============================================================================
-
-以下组件以源码形式内置，不经由 npm 安装。全部为 MIT 许可，各自保留上游
-LICENSE 文件。上游均来自 DeepSeek-Harness 仓库。
-
-| 组件 | 版本 | 许可证 | 用途 |
-| --- | --- | --- | --- |
-| cordis | 4.0.6-alpha.1 | MIT | 插件框架：依赖注入、插件生命周期 |
-| cosmokit | 1.8.7-alpha.1 | MIT | 通用工具函数 |
-| group | 1.0.6-alpha.1 | MIT | 插件分组 |
-| hmr | 1.0.21-alpha.1 | MIT | 热更新 |
-| include | 1.0.11-alpha.1 | MIT | 配置包含与插值 |
-| loader | 1.0.7-alpha.1 | MIT | 配置加载与补丁应用 |
-| logger-console | 1.0.6-alpha.1 | MIT | 控制台日志导出 |
-| schemastery | 3.18.6-alpha.1 | MIT | 配置结构校验 |
-| timer | 1.1.8-alpha.1 | MIT | 定时器与调度 |
-
-上述组件的上游地址：https://github.com/deepseek-ai/deepseek-harness
-
-本项目对内置组件的修改情况：未修改组件源码。仅在项目内以相对路径引用，
-并在构建配置中声明为工作区依赖。如后续需要修改，将在此处逐项登记
-修改位置与修改内容。
-
-各组件 LICENSE 文件随源码保留在对应目录下，可逐项核查。
-
-============================================================================
-七、非 npm 依赖
-============================================================================
-
-1. Electron
-   - 版本：44.7.0
-   - 版权方：OpenJS Foundation and Electron contributors
-   - 许可证：MIT
-   - 项目地址：https://github.com/electron/electron
-   - 用途：桌面应用外壳，提供窗口、菜单、签名与自动更新能力
-   - 是否修改：否。构建流程会复制应用包并修改显示名与图标，
-     修改后的副本仅用于本地开发态，不改变 Electron 本身的代码
-
-2. Node.js
-   - 版本：>= 24.9.0（随应用内置 24.x 运行时）
-   - 版权方：OpenJS Foundation and Node.js contributors
-   - 许可证：MIT
-   - 项目地址：https://nodejs.org/
-   - 用途：应用运行时与内置服务端
-   - 是否修改：否
-
-3. Python 运行时（可选）
-   - 用途：本地语音合成与部分可选能力的子进程
-   - 许可证：PSF License
-   - 项目地址：https://www.python.org/
-   - 是否修改：否
-   - 备注：仅在用户自行启用相关能力时使用，不随主安装包强制分发
-
-============================================================================
-八、品牌与设计素材
-============================================================================
-
-以下素材由 Ntarstudio 创作或委托创作，版权归 Ntarstudio 所有，
-不在 AGPL-3.0 授权范围内。二次分发须另行取得书面许可。
-
-| 文件 | 位置 | 说明 |
-| --- | --- | --- |
-| 应用图标（多尺寸） | assets/icon/ 与打包产物 | 由主标识导出 |
-| 主标识矢量源、主标识位图、品牌背景纸纹、界面预览图 | 不随仓库分发 | 保留在作者本地素材库；二次分发须另行取得书面许可 |
-
-字体说明：本项目未内置任何字体文件，界面使用操作系统自带字体渲染，
-因此不涉及字体授权问题。如后续引入网络字体或内置字体，须在此登记
-字体名称、版权方与许可证。
-
-============================================================================
-九、图标素材（morphicons）
-============================================================================
-
-- 名称：morphicons
-- 版权方：Copyright (c) 2026 Guillermo
-- 许可证：MIT
-- 用途：界面图标与形变动画，44 个注册表图标与 12 组形变配对
-- 引入方式：图标集与提取产物不随本仓库分发；项目内仅保留按需选取的
-  子集，在代码注册表中登记
-  （desktop/packages/client/ui-theme/src/client/morphicons-icons.ts）。
-  需要完整图标集的二次开发者，请从上游仓库获取，并遵守上述 MIT 条款。
-- 是否修改：未修改图标源文件；仅按项目需要选取子集并在注册表中登记
-
-MIT 许可全文：
-
-----------------------------------------------------------------------------
-MIT License
-
-Copyright (c) 2026 Guillermo
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-----------------------------------------------------------------------------
-
-============================================================================
-十、人设包资产与第三方知识产权声明（重要）
-============================================================================
-
-本仓库随附 2 个人设包，位于 content/personas/bundled/：
-
-1. 自有角色（2 个）
-   - `哦鲸鲸.skill.zip`：出厂人设，由 Ntarstudio 创作
-   - `夏柠柒.skill.zip`：示例人设，由 Ntarstudio 创作
-   - 权利归属：Ntarstudio 所有，不在 AGPL-3.0 授权范围内
-
-2. 第三方角色相关（不随仓库分发）
-   - 曾用于内部技术演示的第三方角色人设包（丰川祥子saki、八重神子、申鹤、
-     神里绫华、流萤、小舞、绘梨衣、雪之下雪乃、兰呦呦、林初雪）保留在
-     作者本地素材库，不放入公开仓库。
-
-权利声明：
-
-1. 上述第 2 类角色名称、形象设定及相关世界观元素，其著作权、商标权及
-   其他相关权利归原权利人所有。本项目对这些角色不主张任何权利，也不
-   代表原权利人的立场或授权。
-
-2. 本项目不因曾将这些文件用于内部技术演示而获得任何授权。使用者自行
-   获取并使用时，应确认是否符合原权利人的使用条款与所在司法辖区的法律
-   规定。
-
-3. 本项目不以人设包本身作为付费内容或商业卖点。安装包中默认启用的
-   仅为自有角色「哦鲸鲸」。
-
-4. 若任何权利人认为本仓库中的相关文件侵犯其权利，请通过仓库 Issue
-   或官网联系方式提出，本项目将在核实后立即移除相关文件。
-
-5. 人设包内的文本由本项目依据公开资料与创作约定撰写，不包含对原作
-   文本的逐字复制。如发现疑似复制内容，按第 4 条同样处理。
-
-============================================================================
-十一、算法与机制来源
-============================================================================
-
-本项目实现的部分算法与机制来源于公开发表的论文、教材或社区共识。
-算法与数学方法本身通常不受著作权保护，但其具体实现可能受保护。
-本项目为独立实现，未复制他人源代码；下列条目仅声明思想来源，
-以便使用者溯源与评估。
-
-| 机制 | 来源 | 本项目实现方式 |
-| --- | --- | --- |
-| BM25 检索打分 | Robertson 与 Zaragoza 的 BM25 系列论文 | 自研实现，参数 k1=1.2、b=0.75 |
-| RRF 名次融合 | Cormack 等人 2009 年提出的 Reciprocal Rank Fusion | 自研实现，仅用名次不用分数 |
-| SM-2 间隔复习 | SuperMemo 算法（Piotr Wozniak） | 自研实现，按记忆难度排期 |
-| PAD 情绪模型 | Mehrabian 与 Russell 的情绪维度模型 | 自研实现，三维度加十个固定标签 |
-| 天文历法计算 | Jean Meeus《Astronomical Algorithms》中的低精度公式 | 自研实现；或复用 lunar-javascript、tyme4ts 并交叉校验 |
-| 指数衰减回归 | 通用数学方法（半衰期模型） | 自研实现，惰性补算 |
-| 艾宾浩斯遗忘曲线 | Hermann Ebbinghaus 的记忆实验结论 | 作为衰减档位的参数依据 |
-| 互补学习系统 | 认知科学中的双速记忆理论 | 作为快慢记忆分层的设计依据 |
-| 赫布共现学习 | Hebb 的突触可塑性理论 | 作为图谱建边的设计依据 |
-
-以上来源均为公开发表的理论或方法。若其中某项的具体实现参考了某个
-开源项目，将在对应插件的 README「技术来源」表中逐项登记仓库地址、
-许可证与借鉴内容，并注明是否引入代码。
-
-============================================================================
-十二、非宽松许可证与特殊许可证的处理
-============================================================================
-
-1. MPL-2.0 或 Apache-2.0 双许可（1 项）
-   - 本项目按 Apache-2.0 条款使用，保留其 NOTICE 与版权声明。
-   - 该依赖仅用于构建期，不随产品分发。
-
-2. BlueOak-1.0.0（1 项，tar）
-   - BlueOak 属宽松许可，允许商业使用、修改与再分发，
-     要求保留版权与许可声明。
-   - 该依赖用于构建期打包，不随产品分发。
-
-3. CC0-1.0（1 项）
-   - 公共领域贡献，无附加限制。
-
-4. 自定义许可待确认（3 项）
-   - `@anthropic-ai/claude-agent-sdk`：包声明为
-     "SEE LICENSE IN README.md"，但随包 README 未包含独立的许可条款
-     段落。本项目仅将其作为可选依赖引用，未分发其代码。
-     在许可条款确认前，不将其打包进发行产物。
-   - 其余 2 项同属"SEE LICENSE"类声明，处理方式相同。
-   - 处理原则：未确认前不分发，仅在开发环境引用。
-
-5. 本项目未使用任何 GPL 系列、AGPL 系列或 SSPL 系列的第三方代码。
-   上游 DeepSeek-Harness 为 MIT，与本项目的 AGPL-3.0 兼容。
-
-============================================================================
-十三、传递依赖
-============================================================================
-
-上述 82 项运行时依赖与 89 项开发期依赖各自带有传递依赖。完整闭包记录在
-desktop/pnpm-lock.yaml 中，本版本共 1985 条解析记录。
-
-复核方式：
-
-    cd desktop
-    pnpm licenses list
-
-不在本文件逐条复述传递依赖的原因：锁文件是唯一真源，逐条转写会形成
-两份可能不一致的清单，反而降低可核查性。
-
-传递依赖中如出现非宽松许可，按第十二章的原则处理：能在构建期隔离的
-不打包进产物；无法隔离的替换或移除。
-
-============================================================================
-十四、规划引入但尚未进入代码的第三方能力
-============================================================================
-
-以下条目对应开发手册第 1.8 节"复用 / 薄封装"档位，属规划中确定要复用的
-能力。截至本版本，对应代码与依赖均未引入本仓库，因此不计入第四、五章的
-依赖数量。
-
-引入时必须同步完成三件事：更新本文件、更新 README 第 1.4 节与第 6.4 节、
-保留其许可证与版权原文。
-
-| 能力 | 候选实现 | 许可证 | 状态 |
-| --- | --- | --- | --- |
-| 农历与节气 | lunar-javascript | MIT | 规划 |
-| 农历与节气（交叉校验） | tyme4ts | MIT | 规划 |
-| 界面图标与形变 | morphicons | MIT | 已引入，见第九章 |
-| 语音合成（云端） | Edge TTS | 待确认 | 规划，未分发代码 |
-| 语音合成（本地） | GPT-SoVITS | 待确认 | 规划，不分发权重 |
-| 语音识别 | Whisper / faster-whisper | MIT（权重许可另计） | 规划 |
-| 桌面宠物 | dsh-pet、agentpet | MIT | 规划 |
-| 角色立绘 | airi | MIT | 规划 |
-| Live2D 立绘 | dsh-whale-girl-live2d | 待确认 | 规划 |
-| 组合包市场 | dsh-market | 待确认 | 规划 |
-| 安卓投屏控制 | scrcpy | Apache-2.0 | 规划，外部进程调用 |
-| 个人微信自动化 | wxauto | 待确认 | 规划，高危通道默认关闭 |
-| QQ 协议端 | NapCat | 禁止衍生开发 | 规划，仅外部进程对接，不引入代码 |
-| 记忆底层 | 生态实现选型中 | 各异 | 规划，逐个确认 |
-
-标注"待确认"的条目在许可证原文核对完成前，相关插件只能保留接口与
-降级路径，不得分发对应代码或权重。
-
-============================================================================
-十五、无法确认的事项
-============================================================================
-
-以下事项本项目无法独立确认，如实标注，不做推断：
-
-1. 部分 npm 包的版权方字段为空。处理方式：标注"见包内 LICENSE"，
-   不推测版权主体。
-2. `@anthropic-ai/claude-agent-sdk` 的具体许可条款未在包内找到独立文本。
-   处理方式：不打包进发行产物。
-3. 第三方角色人设包的权利边界（同人创作、二次使用的合法范围）
-   因司法辖区而异，本项目不作判断，仅按第十章声明处理。
-4. 传递依赖中个别包的许可证字段可能存在上游填写错误。
-   处理方式：以包内 LICENSE 文件原文为准；如发现冲突，按第十二章原则处理。
-
-如使用者发现本文件遗漏任何第三方组件或权利声明，请通过仓库 Issue 提出，
-本项目将在核实后补充。
-
-============================================================================
-十六、免责声明
-============================================================================
-
-本软件按"现状"提供，不附带任何明示或暗示的担保，包括但不限于适销性、
-特定用途适用性与不侵权的担保。
-
-作者与贡献者不对因使用本软件而产生的任何直接、间接、偶然、特殊或
-后果性损害承担责任，包括但不限于数据丢失、业务中断、设备损坏或
-第三方索赔。
-
-使用者应自行评估本软件对其场景的适用性，并自行承担使用风险。
-
-本软件是陪伴工具，不是心理治疗、医疗服务或专业建议的替代品。
-对话中出现明显危机信号时，应向现实中的专业机构寻求帮助。
-
-本软件的人格为虚构角色设定，不代表任何真实人物的立场。
-
-============================================================================
-十七、修订记录
-============================================================================
-
-2026-10-31  1.0.1
-  - 依据开发手册重写全文，按实际安装树重新统计依赖：
-    运行时 82 项、开发期 89 项、内置组件 9 项。
-  - 新增第十章"人设包资产与第三方知识产权声明"，明确 10 个第三方
-    角色相关人设包的权利归属与移除机制。
-  - 新增第十一章"算法与机制来源"，登记 BM25、RRF、SM-2、PAD、
-    天文历法、遗忘曲线等来源。
-  - 新增第十二章"非宽松与特殊许可证处理"，逐项说明双许可、
-    BlueOak、CC0 与待确认条目的处理原则。
-  - 将"规划引入"条目与已入库依赖分离，避免虚增依赖数量。
-  - 补充 Electron 44.7.0 与 Node.js >= 24.9.0 的版本信息。
-  - 声明本项目未内置字体文件，不涉及字体授权。
-
-2026-10-30  1.0.0
-  - 首次编制，建立上游声明、依赖清单、素材声明与免责条款的基本结构。
-
-============================================================================
-文件结束
-============================================================================
+本文件逐项披露「空谷 Ondra」使用的全部第三方软件组件，共 529 个，包含名称、
+版本、版权方、许可证、仓库地址、在本项目中的用途与修改说明。
+
+版本号一律取自实际锁文件（`src-tauri/Cargo.lock` 与 `pnpm-lock.yaml`）的解析
+结果。版权方优先取自各组件许可证文本中的 Copyright 行；无该行的取自其仓库
+元数据；两者皆无的按该许可证的惯例注明。重新生成依赖后本文件需同步更新。
+
+--------------------------------------------------------------------------------
+阅读说明
+--------------------------------------------------------------------------------
+
+数量口径
+
+  Rust crate        442 个（直接依赖 6 个 + 传递依赖 436 个）
+  npm 包             87 个（直接依赖 12 个 + 传递依赖 75 个）
+  合计              529 个
+
+  442 与 87 是锁文件的实际条目数。同一 crate 的不同版本分别计数
+  （例如 `syn` 有 3 个版本、`toml_edit` 有 3 个版本），因为它们可能
+  采用不同的许可证。按名称去重后是 416 个 Rust crate、74 个 npm 包。
+
+许可证表达式的读法
+
+  `MIT OR Apache-2.0`      多选一，使用者任选其一即可
+  `MIT AND Apache-2.0`     须同时满足两个许可证的全部条款
+  `MIT/Apache-2.0`         旧式写法，含义与 OR 相同
+  `Apache-2.0 WITH LLVM-exception`
+                            Apache-2.0 附加 LLVM 例外条款
+
+修改状态
+
+  全部 529 个组件均以未修改的发布版本引入。项目内不存在 `vendor/` 目录，
+  `src-tauri/Cargo.toml` 中不存在 `[patch]` 段，`pnpm-workspace.yaml` 中
+  的 overrides 只做包名重定向，不改变任何组件的源码。因此下文的「修改」
+  一栏对每个组件都是「无」，不再逐条重复说明──只在两处例外中单独标注。
+
+--------------------------------------------------------------------------------
+
+==============================================================================
+以下为依赖清单（由脚本从锁文件与 registry 元数据生成）
+==============================================================================
+
+一、本项目
+
+  名称      空谷 Ondra
+  版本      2.0.1
+  版权方    Ntarstudio（星玖工作室）
+  许可证    AGPL-3.0-only
+  仓库      https://github.com/ntars/Ondra
+  官网      https://ai.ntars.cn/
+
+二、Rust 直接依赖（6 个，声明于 src-tauri/Cargo.toml）
+
+  tauri 2.12.5
+    版权方    Tauri Programme within The Commons Conservancy
+    许可证    Apache-2.0 OR MIT
+    仓库      https://github.com/tauri-apps/tauri
+    用途      桌面外壳：窗口、托盘、单实例、WebView 宿主、IPC 命令通道与打包
+    修改      无。以未修改的 crates.io 发布版本引入。
+
+  tauri-build 2.7.4
+    版权方    Tauri Programme within The Commons Conservancy
+    许可证    Apache-2.0 OR MIT
+    仓库      https://github.com/tauri-apps/tauri
+    用途      构建脚本：生成 Tauri 上下文代码、权限 schema 与打包元数据
+    修改      无。以未修改的 crates.io 发布版本引入。
+
+  tauri-plugin-opener 2.7.2
+    版权方    Tauri Programme within The Commons Conservancy
+    许可证    Apache-2.0 OR MIT
+    仓库      https://github.com/tauri-apps/plugins-workspace
+    用途      用系统默认程序打开外部链接，代本项目处理平台差异
+    修改      无。以未修改的 crates.io 发布版本引入。
+
+  serde 1.0.229
+    版权方    Erick Tryzelaar, David Tolnay
+    许可证    MIT OR Apache-2.0
+    仓库      https://github.com/serde-rs/serde
+    用途      宿主上报的 ready / fatal 消息反序列化
+    修改      无。以未修改的 crates.io 发布版本引入。
+
+  serde_json 1.0.154
+    版权方    dtolnay、serde-rs 团队
+    许可证    MIT OR Apache-2.0
+    仓库      https://github.com/serde-rs/json
+    用途      壳与宿主之间行分隔 JSON 的编解码
+    修改      无。以未修改的 crates.io 发布版本引入。
+
+  tokio 1.54.1
+    版权方    Tokio Contributors
+    许可证    MIT
+    仓库      https://github.com/tokio-rs/tokio
+    用途      异步运行时：宿主子进程的启动、stdio 读写、超时与退出等待
+    修改      无。以未修改的 crates.io 发布版本引入。
+
+三、Rust 传递依赖（436 个）
+
+  下表按名称字典序。许可证一栏是该 crate 在 Cargo.toml 中声明的表达式，
+  「OR」表示多选一、「AND」表示须同时满足、「/」是旧式写法，含义与 OR 相同。
+  「引入者」指把它带进依赖图的直接依赖；一个 crate 可能被多个直接依赖共同
+  引用，此处只列第一个。
+
+  名称 | 版本 | 版权方 | 许可证 | 仓库 | 引入者
+  --- | --- | --- | --- | --- | ---
+  adler2 | 2.0.1 | Jonas Schievink, oyvindln | 0BSD OR MIT OR Apache-2.0 | https://github.com/oyvindln/adler2 | tauri
+  aho-corasick | 1.1.5 | Andrew Gallant | Unlicense OR MIT | https://github.com/BurntSushi/aho-corasick | tauri
+  alloc-no-stdlib | 3.0.0 | Daniel Reiter Horn | BSD-3-Clause | https://github.com/dropbox/rust-alloc-no-stdlib | tauri
+  alloc-stdlib | 0.3.0 | Daniel Reiter Horn | BSD-3-Clause | https://github.com/dropbox/rust-alloc-no-stdlib | tauri
+  android_system_properties | 0.1.6 | nical | MIT OR Apache-2.0 | https://github.com/nical/android_system_properties | tauri
+  anyhow | 1.0.104 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/anyhow | tauri
+  async-broadcast | 0.7.2 | smol-rs 团队 | MIT OR Apache-2.0 | https://github.com/smol-rs/async-broadcast | tauri-plugin-opener
+  async-channel | 2.5.0 | smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-channel | tauri-plugin-opener
+  async-executor | 1.14.1 | smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-executor | tauri-plugin-opener
+  async-io | 2.6.0 | smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-io | tauri-plugin-opener
+  async-lock | 3.5.0 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-lock | tauri-plugin-opener
+  async-process | 2.5.0 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-process | tauri-plugin-opener
+  async-recursion | 1.2.0 | dcchut | MIT OR Apache-2.0 | https://github.com/dcchut/async-recursion | tauri-plugin-opener
+  async-signal | 0.2.14 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-signal | tauri-plugin-opener
+  async-task | 4.7.1 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/async-task | tauri-plugin-opener
+  async-trait | 0.1.92 | dtolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/async-trait | tauri-plugin-opener
+  atk | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  atk-sys | 0.18.2 | GuillaumeGomez、gkoz 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  atomic-waker | 1.1.2 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/atomic-waker | tauri
+  autocfg | 1.5.1 | Josh Stone | Apache-2.0 OR MIT | https://github.com/cuviper/autocfg | tauri
+  base64 | 0.21.7 | Alice Maz, Marshall Pierce | MIT OR Apache-2.0 | https://github.com/marshallpierce/rust-base64 | tauri
+  base64 | 0.22.1 | Marshall Pierce | MIT OR Apache-2.0 | https://github.com/marshallpierce/rust-base64 | tauri
+  base64 | 0.23.1 | Marshall Pierce | MIT OR Apache-2.0 | https://github.com/marshallpierce/rust-base64 | tauri
+  bit-set | 0.8.0 | Alexis Beingessner | Apache-2.0 OR MIT | https://github.com/contain-rs/bit-set | tauri
+  bit-vec | 0.8.0 | Alexis Beingessner | Apache-2.0 OR MIT | https://github.com/contain-rs/bit-vec | tauri
+  bitflags | 1.3.2 | KodrAus、rust-lang-owner | MIT/Apache-2.0 | https://github.com/bitflags/bitflags | tauri
+  bitflags | 2.13.2 | The Rust Project Developers | MIT OR Apache-2.0 | https://github.com/bitflags/bitflags | tauri
+  block-buffer | 0.10.4 | RustCrypto Developers | MIT OR Apache-2.0 | https://github.com/RustCrypto/utils | tauri
+  block2 | 0.6.2 | Mads Marquart | MIT | https://github.com/madsmtm/objc2 | tauri
+  blocking | 1.7.0 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/blocking | tauri-plugin-opener
+  brotli | 9.1.1 | Daniel Reiter Horn, The Brotli Authors | BSD-3-Clause AND MIT | https://github.com/dropbox/rust-brotli | tauri
+  brotli-decompressor | 6.2.0 | Daniel Reiter Horn, The Brotli Authors | BSD-3-Clause/MIT | https://github.com/dropbox/rust-brotli-decompressor | tauri
+  bumpalo | 3.20.3 | alexcrichton、fitzgen | MIT OR Apache-2.0 | https://github.com/fitzgen/bumpalo | tauri
+  bytemuck | 1.25.2 | Lokathor | Zlib OR Apache-2.0 OR MIT | https://github.com/Lokathor/bytemuck | tauri
+  byteorder | 1.5.0 | Andrew Gallant | Unlicense OR MIT | https://github.com/BurntSushi/byteorder | tauri
+  byteorder-lite | 0.1.0 | fintelia、image-rs 团队 | Unlicense OR MIT | https://github.com/image-rs/byteorder-lite | tauri
+  bytes | 1.12.1 | Carl Lerche, Sean McArthur | MIT | https://github.com/tokio-rs/bytes | tauri
+  cairo-rs | 0.18.5 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  cairo-sys-rs | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  camino | 1.2.6 | Without Boats, Ashley Williams 等 4 人 | MIT OR Apache-2.0 | https://github.com/camino-rs/camino | tauri
+  cargo_metadata | 0.19.2 | Oliver Schneider | MIT | https://github.com/oli-obk/cargo_metadata | tauri
+  cargo_toml | 1.0.1 | Kornel | Apache-2.0 OR MIT | https://gitlab.com/lib.rs/cargo_toml | tauri
+  cargo-platform | 0.1.9 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/cargo | tauri
+  cc | 1.11.0 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/cc-rs | tauri
+  cesu8 | 1.1.0 | emk | Apache-2.0/MIT | https://github.com/emk/cesu8-rs | tauri
+  cfb | 0.14.0 | Matthew D. Steele | MIT | https://github.com/mdsteele/rust-cfb | tauri
+  cfg-expr | 0.15.8 | embark-studios | MIT OR Apache-2.0 | https://github.com/EmbarkStudios/cfg-expr | tauri
+  cfg-if | 1.0.5 | Alex Crichton | MIT OR Apache-2.0 | https://github.com/rust-lang/cfg-if | tauri
+  chrono | 0.4.45 | lifthrasiir、chronotope 团队 | MIT OR Apache-2.0 | https://github.com/chronotope/chrono | tauri
+  combine | 4.6.9 | Marwes | MIT | https://github.com/Marwes/combine | tauri
+  concurrent-queue | 2.5.0 | taiki-e、crossbeam-rs 团队 等 | Apache-2.0 OR MIT | https://github.com/smol-rs/concurrent-queue | tauri-plugin-opener
+  cookie | 0.18.2 | Sergio Benitez, Alex Crichton | MIT OR Apache-2.0 | https://github.com/SergioBenitez/cookie-rs | tauri
+  core-foundation | 0.10.1 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/core-foundation-rs | tauri
+  core-foundation-sys | 0.8.7 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/core-foundation-rs | tauri
+  core-graphics | 0.25.0 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/core-foundation-rs | tauri
+  core-graphics-types | 0.2.0 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/core-foundation-rs | tauri
+  cpufeatures | 0.2.17 | RustCrypto Developers | MIT OR Apache-2.0 | https://github.com/RustCrypto/utils | tauri
+  crc32fast | 1.5.4 | Sam Rijs, Alex Crichton | MIT OR Apache-2.0 | https://github.com/srijs/rust-crc32fast | tauri
+  crossbeam-channel | 0.5.17 | jeehoonkang、Amanieu 等 | MIT OR Apache-2.0 | https://github.com/crossbeam-rs/crossbeam | tauri
+  crossbeam-utils | 0.8.23 | jeehoonkang、Amanieu 等 | MIT OR Apache-2.0 | https://github.com/crossbeam-rs/crossbeam | tauri
+  crypto-common | 0.1.7 | RustCrypto Developers | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits | tauri
+  cssparser | 0.37.0 | Simon Sapin | MPL-2.0 | https://github.com/servo/rust-cssparser | tauri
+  cssparser-macros | 0.7.1 | Simon Sapin | MPL-2.0 | https://github.com/servo/rust-cssparser | tauri
+  ctor | 1.0.13 | Matt Mastracci | Apache-2.0 OR MIT | https://github.com/mmastrac/linktime | tauri
+  darling | 0.21.3 | Ted Driggs | MIT | https://github.com/TedDriggs/darling | tauri
+  darling_core | 0.21.3 | Ted Driggs | MIT | https://github.com/TedDriggs/darling | tauri
+  darling_macro | 0.21.3 | Ted Driggs | MIT | https://github.com/TedDriggs/darling | tauri
+  dbus | 0.9.12 | diwic | Apache-2.0/MIT | https://github.com/diwic/dbus-rs | tauri
+  deranged | 0.5.9 | Jacob Pratt | MIT OR Apache-2.0 | https://github.com/jhpratt/deranged | tauri
+  derive_more | 2.1.1 | Jelte Fennema | MIT | https://github.com/JelteF/derive_more | tauri
+  derive_more-impl | 2.1.1 | Jelte Fennema | MIT | https://github.com/JelteF/derive_more | tauri
+  digest | 0.10.7 | RustCrypto Developers | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits | tauri
+  dirs | 7.0.0 | Simon Ochsenreither | MIT OR Apache-2.0 | https://codeberg.org/dirs/dirs-rs | tauri
+  dirs-sys | 0.5.0 | Simon Ochsenreither | MIT OR Apache-2.0 | https://github.com/dirs-dev/dirs-sys-rs | tauri
+  dispatch2 | 0.3.1 | Mads Marquart, Mary | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  displaydoc | 0.2.7 | Jane Lusby | MIT OR Apache-2.0 | https://github.com/yaahc/displaydoc | tauri
+  dlopen2 | 0.8.2 | OpenByteDev | MIT | https://github.com/OpenByteDev/dlopen2 | tauri
+  dlopen2_derive | 0.4.3 | OpenByteDev | MIT | https://github.com/OpenByteDev/dlopen2 | tauri
+  dom_query | 0.28.0 | niklak, importcjj | MIT | https://github.com/niklak/dom_query | tauri
+  dpi | 0.1.2 | daxpedda、madsmtm 等 | Apache-2.0 AND MIT | https://github.com/rust-windowing/winit | tauri
+  dtoa | 1.0.11 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/dtoa | tauri
+  dtoa-short | 0.3.5 | Xidorn Quan | MPL-2.0 | https://github.com/upsuper/dtoa-short | tauri
+  dunce | 1.0.5 | Kornel | CC0-1.0 OR MIT-0 OR Apache-2.0 | https://gitlab.com/kornelski/dunce | tauri
+  dyn-clone | 1.0.20 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/dyn-clone | tauri
+  embed_plist | 1.2.2 | Nikolai Vazquez | MIT OR Apache-2.0 | https://github.com/nvzqz/embed-plist-rs | tauri
+  embed-resource | 3.0.12 | наб, Cat Plus Plus 等 31 人 | MIT | https://github.com/nabijaczleweli/rust-embed-resource | tauri
+  endi | 1.1.1 | zeenix | MIT | https://github.com/zeenix/endi | tauri-plugin-opener
+  enumflags2 | 0.7.12 | meithecatte | MIT OR Apache-2.0 | https://github.com/meithecatte/enumflags2 | tauri-plugin-opener
+  enumflags2_derive | 0.7.12 | meithecatte | MIT OR Apache-2.0 | https://github.com/meithecatte/enumflags2 | tauri-plugin-opener
+  equivalent | 1.0.3 | cuviper | Apache-2.0 OR MIT | https://github.com/indexmap-rs/equivalent | tauri
+  erased-serde | 0.4.11 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/erased-serde | tauri
+  errno | 0.3.14 | Chris Wong, Dan Gohman | MIT OR Apache-2.0 | https://github.com/lambda-fairy/rust-errno | tauri
+  event-listener | 5.4.2 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/event-listener | tauri-plugin-opener
+  event-listener-strategy | 0.5.4 | notgull、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/event-listener-strategy | tauri-plugin-opener
+  fastrand | 2.5.0 | Stjepan Glavina | Apache-2.0 OR MIT | https://github.com/smol-rs/fastrand | tauri
+  fdeflate | 0.3.7 | The image-rs Developers | MIT OR Apache-2.0 | https://github.com/image-rs/fdeflate | tauri
+  field-offset | 0.3.6 | Diggsey | MIT OR Apache-2.0 | https://github.com/Diggsey/rust-field-offset | tauri
+  find-msvc-tools | 0.1.15 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/cc-rs | tauri
+  flate2 | 1.1.10 | Alex Crichton, Josh Triplett | MIT OR Apache-2.0 | https://github.com/rust-lang/flate2-rs | tauri
+  fnv | 1.0.7 | Alex Crichton | Apache-2.0 / MIT | https://github.com/servo/rust-fnv | tauri
+  foldhash | 0.2.0 | Orson Peters | Zlib | https://github.com/orlp/foldhash | tauri
+  foreign-types | 0.5.0 | Steven Fackler | MIT/Apache-2.0 | https://github.com/sfackler/foreign-types | tauri
+  foreign-types-macros | 0.2.4 | Steven Fackler | MIT/Apache-2.0 | https://github.com/sfackler/foreign-types | tauri
+  foreign-types-shared | 0.3.1 | Steven Fackler | MIT/Apache-2.0 | https://github.com/sfackler/foreign-types | tauri
+  form_urlencoded | 1.2.2 | The rust-url developers | MIT OR Apache-2.0 | https://github.com/servo/rust-url | tauri
+  futures-channel | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-core | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-executor | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-io | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-lite | 2.6.1 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/futures-lite | tauri-plugin-opener
+  futures-macro | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-sink | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-task | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  futures-util | 0.3.34 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs | tauri
+  gdk | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  gdk-pixbuf | 0.18.5 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  gdk-pixbuf-sys | 0.18.0 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  gdk-sys | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  gdkwayland-sys | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  gdkx11 | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  gdkx11-sys | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  generic-array | 0.14.7 | Bartłomiej Kamiński, Aaron Trent | MIT | https://github.com/fizyk20/generic-array.git | tauri
+  getrandom | 0.3.4 | The Rand Project Developers | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom | tauri
+  getrandom | 0.4.3 | The Rand Project Developers | MIT OR Apache-2.0 | https://github.com/rust-random/getrandom | tauri
+  gio | 0.18.4 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  gio-sys | 0.18.1 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  glib | 0.18.5 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  glib-macros | 0.18.5 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  glib-sys | 0.18.1 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  glob | 0.3.4 | The Rust Project Developers | MIT OR Apache-2.0 | https://github.com/rust-lang/glob | tauri
+  gobject-sys | 0.18.0 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  gtk | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  gtk-sys | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  gtk3-macros | 0.18.2 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk3-rs | tauri
+  hashbrown | 0.12.3 | Amanieu d'Antras | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown | tauri
+  hashbrown | 0.17.1 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown | tauri
+  heck | 0.4.1 | withoutboats、jplatte | MIT OR Apache-2.0 | https://github.com/withoutboats/heck | tauri
+  heck | 0.5.0 | withoutboats、jplatte | MIT OR Apache-2.0 | https://github.com/withoutboats/heck | tauri
+  hermit-abi | 0.5.3 | stlankes、mkroening | MIT OR Apache-2.0 | https://github.com/hermit-os/hermit-rs | tauri-plugin-opener
+  hex | 0.4.3 | KokaKiwi | MIT OR Apache-2.0 | https://github.com/KokaKiwi/rust-hex | tauri
+  html5ever | 0.39.0 | The html5ever Project Developers | MIT OR Apache-2.0 | https://github.com/servo/html5ever | tauri
+  http | 1.5.0 | Alex Crichton, Carl Lerche 等 3 人 | MIT OR Apache-2.0 | https://github.com/hyperium/http | tauri
+  http-body | 1.1.0 | carllerche、seanmonstar 等 | MIT | https://github.com/hyperium/http-body | tauri
+  http-body-util | 0.1.5 | seanmonstar | MIT | https://github.com/hyperium/http-body | tauri
+  httparse | 1.10.1 | seanmonstar | MIT OR Apache-2.0 | https://github.com/seanmonstar/httparse | tauri
+  hyper | 1.12.0 | seanmonstar、hyperium 团队 | MIT | https://github.com/hyperium/hyper | tauri
+  hyper-util | 0.1.21 | seanmonstar | MIT | https://github.com/hyperium/hyper-util | tauri
+  iana-time-zone | 0.1.65 | Andrew Straw, René Kijewski 等 3 人 | MIT OR Apache-2.0 | https://github.com/strawlab/iana-time-zone | tauri
+  iana-time-zone-haiku | 0.1.2 | astraw、Kijewski | MIT OR Apache-2.0 | https://github.com/strawlab/iana-time-zone | tauri
+  ico | 0.6.0 | Matthew D. Steele | MIT | https://github.com/mdsteele/rust-ico | tauri
+  icu_collections | 2.1.1 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  icu_locale_core | 2.1.1 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  icu_normalizer | 2.1.1 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  icu_normalizer_data | 2.1.1 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  icu_properties | 2.1.2 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  icu_properties_data | 2.1.2 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  icu_provider | 2.1.1 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  ident_case | 1.0.1 | Ted Driggs | MIT/Apache-2.0 | https://github.com/TedDriggs/ident_case | tauri
+  idna | 1.1.0 | The rust-url developers | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ | tauri
+  idna_adapter | 1.2.1 | The rust-url developers | Apache-2.0 OR MIT | https://github.com/hsivonen/idna_adapter | tauri
+  image | 0.25.9 | The image-rs Developers | MIT OR Apache-2.0 | https://github.com/image-rs/image | tauri
+  indexmap | 1.9.3 | bluss、cuviper | Apache-2.0 OR MIT | https://github.com/bluss/indexmap | tauri
+  indexmap | 2.14.2 | bluss、cuviper | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap | tauri
+  infer | 0.22.0 | Bojan | MIT | https://github.com/bojand/infer | tauri
+  ipnet | 2.12.2 | krisprice | MIT OR Apache-2.0 | https://github.com/krisprice/ipnet | tauri
+  is-docker | 0.2.0 | TheLarkInn | MIT | https://github.com/TheLarkInn/is-docker | tauri-plugin-opener
+  is-wsl | 0.4.0 | TheLarkInn | MIT | https://github.com/TheLarkInn/is-wsl | tauri-plugin-opener
+  itoa | 1.0.18 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa | serde_json
+  javascriptcore-rs | 1.1.2 | GuillaumeGomez、antoyo 等 | MIT | https://github.com/tauri-apps/javascriptcore-rs | tauri
+  javascriptcore-rs-sys | 1.1.1 | GuillaumeGomez、antoyo 等 | MIT | https://github.com/tauri-apps/javascriptcore-rs | tauri
+  jni | 0.21.1 | jrobsonchase、stanislav-tkach 等 | MIT/Apache-2.0 | https://github.com/jni-rs/jni-rs | tauri
+  jni-sys | 0.3.1 | sfackler、rib | MIT OR Apache-2.0 | https://github.com/jni-rs/jni-sys | tauri
+  jni-sys | 0.4.1 | sfackler、rib | MIT OR Apache-2.0 | https://github.com/jni-rs/jni-sys | tauri
+  jni-sys-macros | 0.4.1 | rib | MIT OR Apache-2.0 | https://github.com/jni-rs/jni-sys | tauri
+  js-sys | 0.3.107 | RReverser、daxpedda 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys | tauri
+  json-patch | 4.2.0 | Ivan Dubrov | MIT/Apache-2.0 | https://github.com/idubrov/json-patch | tauri
+  jsonptr | 0.7.1 | chance dinkins, André Sá de Mello 等 3 人 | MIT OR Apache-2.0 | https://github.com/chanced/jsonptr | tauri
+  keyboard-types | 0.8.3 | Pyfisch | MIT OR Apache-2.0 | https://github.com/rust-windowing/keyboard-types | tauri
+  libappindicator | 0.9.0 | qdot、tauri-bot | Apache-2.0 OR MIT | registry 未登记 | tauri
+  libappindicator-sys | 0.9.0 | qdot、tauri-bot | Apache-2.0 OR MIT | registry 未登记 | tauri
+  libc | 0.2.191 | rust-lang-owner | MIT OR Apache-2.0 | https://github.com/rust-lang/libc | tauri
+  libdbus-sys | 0.2.7 | diwic | Apache-2.0/MIT | https://github.com/diwic/dbus-rs | tauri
+  libloading | 0.7.4 | nagisa | ISC | https://github.com/nagisa/rust_libloading/ | tauri
+  libredox | 0.1.25 | jackpot51、4lDO2 | MIT | https://gitlab.redox-os.org/redox-os/libredox.git | tauri
+  linux-raw-sys | 0.12.1 | sunfishcode | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/sunfishcode/linux-raw-sys | tauri-plugin-opener
+  litemap | 0.8.3 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  lock_api | 0.4.14 | Amanieu d'Antras | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot | tauri
+  log | 0.4.35 | The Rust Project Developers | MIT OR Apache-2.0 | https://github.com/rust-lang/log | tauri
+  markup5ever | 0.39.0 | The html5ever Project Developers | MIT OR Apache-2.0 | https://github.com/servo/html5ever | tauri
+  memchr | 2.8.3 | Andrew Gallant, bluss | Unlicense OR MIT | https://github.com/BurntSushi/memchr | serde_json
+  memoffset | 0.9.1 | Gilnaa、RalfJung | MIT | https://github.com/Gilnaa/memoffset | tauri
+  mime | 0.3.18 | Sean McArthur | MIT OR Apache-2.0 | https://github.com/hyperium/mime | tauri
+  miniz_oxide | 0.8.9 | Frommi, oyvindln 等 3 人 | MIT OR Zlib OR Apache-2.0 | https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide | tauri
+  miniz_oxide | 0.9.1 | Frommi, oyvindln 等 3 人 | MIT OR Zlib OR Apache-2.0 | https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide | tauri
+  mio | 1.2.4 | Carl Lerche, Thomas de Zeeuw 等 3 人 | MIT | https://github.com/tokio-rs/mio | tauri
+  moxcms | 0.7.11 | Radzivon Bartoshyk | BSD-3-Clause OR Apache-2.0 | https://github.com/awxkee/moxcms.git | tauri
+  muda | 0.20.0 | tauri-bot | Apache-2.0 OR MIT | https://github.com/tauri-apps/muda | tauri
+  ndk | 0.9.0 | dvc94ch、MarijnS95 等 | MIT OR Apache-2.0 | https://github.com/rust-mobile/ndk | tauri
+  ndk-context | 0.1.1 | dvc94ch、MarijnS95 等 | MIT OR Apache-2.0 | https://github.com/rust-windowing/android-ndk-rs | tauri
+  ndk-sys | 0.6.0+11769913 | dvc94ch、MarijnS95 等 | MIT OR Apache-2.0 | https://github.com/rust-mobile/ndk | tauri
+  new_debug_unreachable | 1.0.6 | Matt Brubeck, Jonathan Reem | MIT | https://github.com/mbrubeck/rust-debug-unreachable | tauri
+  num_enum | 0.7.6 | illicitonion | BSD-3-Clause OR MIT OR Apache-2.0 | https://github.com/illicitonion/num_enum | tauri
+  num_enum_derive | 0.7.6 | illicitonion | BSD-3-Clause OR MIT OR Apache-2.0 | https://github.com/illicitonion/num_enum | tauri
+  num-conv | 0.1.0 | Jacob Pratt | MIT OR Apache-2.0 | https://github.com/jhpratt/num-conv | tauri
+  num-traits | 0.2.19 | The Rust Project Developers | MIT OR Apache-2.0 | https://github.com/rust-num/num-traits | tauri
+  objc2 | 0.6.5 | Mads Marquart | MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-app-kit | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-cloud-kit | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-core-data | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-core-foundation | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-core-graphics | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-core-image | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-core-location | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-core-text | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-encode | 4.1.0 | Mads Marquart | MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-exception-helper | 0.1.1 | Mads Marquart | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-foundation | 0.3.2 | simlay、madsmtm | MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-io-surface | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-quartz-core | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-ui-kit | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-user-notifications | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  objc2-web-kit | 0.3.2 | simlay、madsmtm | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 | tauri
+  once_cell | 1.21.4 | Aleksey Kladov | MIT OR Apache-2.0 | https://github.com/matklad/once_cell | tauri
+  open | 5.4.5 | Sebastian Thiel | MIT | https://github.com/Byron/open-rs | tauri-plugin-opener
+  option-ext | 0.2.0 | Simon Ochsenreither | MPL-2.0 | https://github.com/soc/option-ext.git | tauri
+  ordered-stream | 0.2.0 | zeenix、danieldg | MIT OR Apache-2.0 | https://github.com/danieldg/ordered-stream | tauri-plugin-opener
+  pango | 0.18.3 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  pango-sys | 0.18.0 | GuillaumeGomez、sdroege 等 | MIT | https://github.com/gtk-rs/gtk-rs-core | tauri
+  parking | 2.2.1 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/parking | tauri-plugin-opener
+  parking_lot | 0.12.5 | Amanieu d'Antras | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot | tauri
+  parking_lot_core | 0.9.12 | Amanieu d'Antras | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot | tauri
+  percent-encoding | 2.3.2 | The rust-url developers | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ | tauri
+  phf | 0.13.1 | Steven Fackler | MIT | https://github.com/rust-phf/rust-phf | tauri
+  phf_codegen | 0.13.1 | Steven Fackler | MIT | https://github.com/rust-phf/rust-phf | tauri
+  phf_generator | 0.13.1 | Steven Fackler | MIT | https://github.com/rust-phf/rust-phf | tauri
+  phf_macros | 0.13.1 | Steven Fackler | MIT | https://github.com/rust-phf/rust-phf | tauri
+  phf_shared | 0.13.1 | Steven Fackler | MIT | https://github.com/rust-phf/rust-phf | tauri
+  pin-project-lite | 0.2.17 | taiki-e | Apache-2.0 OR MIT | https://github.com/taiki-e/pin-project-lite | tauri
+  piper | 0.2.5 | taiki-e、smol-rs 团队 | MIT OR Apache-2.0 | https://github.com/smol-rs/piper | tauri-plugin-opener
+  pkg-config | 0.3.34 | sdroege、joshtriplett 等 | MIT OR Apache-2.0 | https://github.com/rust-lang/pkg-config-rs | tauri
+  plist | 1.8.0 | Ed Barnard | MIT | https://github.com/ebarnard/rust-plist/ | tauri
+  png | 0.18.1 | The image-rs Developers | MIT OR Apache-2.0 | https://github.com/image-rs/image-png | tauri
+  polling | 3.11.0 | taiki-e、smol-rs 团队 | Apache-2.0 OR MIT | https://github.com/smol-rs/polling | tauri-plugin-opener
+  potential_utf | 0.1.6 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  powerfmt | 0.2.1 | Jacob Pratt | MIT OR Apache-2.0 | https://github.com/jhpratt/powerfmt | tauri
+  precomputed-hash | 0.1.1 | Emilio Cobos Álvarez | MIT | https://github.com/emilio/precomputed-hash | tauri
+  proc-macro-crate | 1.3.1 | bkchr | MIT OR Apache-2.0 | https://github.com/bkchr/proc-macro-crate | tauri
+  proc-macro-crate | 2.0.2 | bkchr | MIT OR Apache-2.0 | https://github.com/bkchr/proc-macro-crate | tauri
+  proc-macro-crate | 3.5.0 | bkchr | MIT OR Apache-2.0 | https://github.com/bkchr/proc-macro-crate | tauri
+  proc-macro-error | 1.0.4 | CreepySkeleton | MIT OR Apache-2.0 | https://gitlab.com/CreepySkeleton/proc-macro-error | tauri
+  proc-macro-error-attr | 1.0.4 | CreepySkeleton | MIT OR Apache-2.0 | https://gitlab.com/CreepySkeleton/proc-macro-error | tauri
+  proc-macro2 | 1.0.107 | David Tolnay, Alex Crichton | MIT OR Apache-2.0 | https://github.com/dtolnay/proc-macro2 | serde
+  pxfm | 0.1.30 | Radzivon Bartoshyk | BSD-3-Clause OR Apache-2.0 | https://github.com/awxkee/pxfm | tauri
+  quick-xml | 0.38.4 | tafia、Mingun 等 | MIT | https://github.com/tafia/quick-xml | tauri
+  quote | 1.0.47 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/quote | serde
+  r-efi | 5.3.0 | dvdhrm | MIT OR Apache-2.0 OR LGPL-2.1-or-later | https://github.com/r-efi/r-efi | tauri
+  r-efi | 6.0.0 | dvdhrm | MIT OR Apache-2.0 OR LGPL-2.1-or-later | https://github.com/r-efi/r-efi | tauri
+  raw-window-handle | 0.6.2 | Osspial | MIT OR Apache-2.0 OR Zlib | https://github.com/rust-windowing/raw-window-handle | tauri
+  redox_syscall | 0.5.18 | jackpot51、4lDO2 | MIT | https://gitlab.redox-os.org/redox-os/kernel | tauri
+  redox_users | 0.5.3 | jackpot51、MggMuggins | MIT | https://gitlab.redox-os.org/redox-os/users | tauri
+  ref-cast | 1.0.27 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast | tauri
+  ref-cast-impl | 1.0.27 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast | tauri
+  regex | 1.13.1 | The Rust Project Developers, Andrew Gallant | MIT OR Apache-2.0 | https://github.com/rust-lang/regex | tauri
+  regex-automata | 0.4.18 | The Rust Project Developers, Andrew Gallant | MIT OR Apache-2.0 | https://github.com/rust-lang/regex | tauri
+  regex-syntax | 0.8.11 | The Rust Project Developers, Andrew Gallant | MIT OR Apache-2.0 | https://github.com/rust-lang/regex | tauri
+  reqwest | 0.13.5 | seanmonstar | MIT OR Apache-2.0 | https://github.com/seanmonstar/reqwest | tauri
+  rustc_version | 0.4.1 | Kimundi、djc | MIT OR Apache-2.0 | https://github.com/djc/rustc-version-rs | tauri
+  rustc-hash | 2.1.3 | The Rust Project Developers | Apache-2.0 OR MIT | https://github.com/rust-lang/rustc-hash | tauri
+  rustix | 1.1.6 | sunfishcode | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/rustix | tauri-plugin-opener
+  rustversion | 1.0.23 | dtolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion | tauri
+  same-file | 1.0.6 | Andrew Gallant | Unlicense/MIT | https://github.com/BurntSushi/same-file | tauri
+  schemars | 0.8.22 | Graham Esau | MIT | https://github.com/GREsau/schemars | tauri
+  schemars | 0.9.0 | Graham Esau | MIT | https://github.com/GREsau/schemars | tauri
+  schemars | 1.2.3 | Graham Esau | MIT | https://github.com/GREsau/schemars | tauri
+  schemars_derive | 0.8.22 | Graham Esau | MIT | https://github.com/GREsau/schemars | tauri
+  scopeguard | 1.2.0 | bluss | MIT OR Apache-2.0 | https://github.com/bluss/scopeguard | tauri
+  selectors | 0.38.0 | The Servo Project Developers | MPL-2.0 | https://github.com/servo/stylo | tauri
+  semver | 1.0.28 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/semver | tauri
+  serde_core | 1.0.229 | Erick Tryzelaar, David Tolnay | MIT OR Apache-2.0 | https://github.com/serde-rs/serde | serde
+  serde_derive | 1.0.229 | Erick Tryzelaar, David Tolnay | MIT OR Apache-2.0 | https://github.com/serde-rs/serde | serde
+  serde_derive_internals | 0.29.1 | Erick Tryzelaar, David Tolnay | MIT OR Apache-2.0 | https://github.com/serde-rs/serde | tauri
+  serde_repr | 0.1.21 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/serde-repr | tauri
+  serde_spanned | 0.6.9 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  serde_spanned | 1.1.2 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  serde_with | 3.17.0 | Jonas Bushart, Marcin Kaźmierczak | MIT OR Apache-2.0 | https://github.com/jonasbb/serde_with/ | tauri
+  serde_with_macros | 3.17.0 | Jonas Bushart | MIT OR Apache-2.0 | https://github.com/jonasbb/serde_with/ | tauri
+  serde-untagged | 0.1.9 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/serde-untagged | tauri
+  serialize-to-javascript | 0.1.2 | Chip Reed | MIT OR Apache-2.0 | https://github.com/chippers/serialize-to-javascript | tauri
+  serialize-to-javascript-impl | 0.1.2 | Chip Reed | MIT OR Apache-2.0 | https://github.com/chippers/serialize-to-javascript | tauri
+  servo_arc | 0.4.3 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/stylo | tauri
+  sha2 | 0.10.9 | RustCrypto Developers | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes | tauri
+  shlex | 2.0.1 | comex, Fenhl 等 6 人 | MIT OR Apache-2.0 | https://github.com/comex/rust-shlex | tauri
+  signal-hook-registry | 1.4.8 | Michal 'vorner' Vaner, Masaki Hara | MIT OR Apache-2.0 | https://github.com/vorner/signal-hook | tauri
+  simd-adler32 | 0.3.10 | Marvin Countryman | MIT | https://github.com/mcountryman/simd-adler32 | tauri
+  siphasher | 1.0.4 | Frank Denis | MIT OR Apache-2.0 | https://github.com/jedisct1/rust-siphash | tauri
+  slab | 0.4.12 | carllerche、tokio-rs 团队 | MIT | https://github.com/tokio-rs/slab | tauri
+  smallvec | 1.16.4 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/rust-smallvec | tauri
+  socket2 | 0.6.5 | Alex Crichton, Thomas de Zeeuw | MIT OR Apache-2.0 | https://github.com/rust-lang/socket2 | tauri
+  softbuffer | 0.4.8 | jackpot51、ids1024 等 | MIT OR Apache-2.0 | https://github.com/rust-windowing/softbuffer | tauri
+  soup3 | 0.5.0 | vhdirk、bilelmoussaoui | MIT | https://gitlab.gnome.org/World/Rust/soup3-rs | tauri
+  soup3-sys | 0.5.0 | vhdirk、bilelmoussaoui | MIT | https://gitlab.gnome.org/World/Rust/soup3-rs | tauri
+  stable_deref_trait | 1.2.1 | Robert Grosse | MIT OR Apache-2.0 | https://github.com/storyyeller/stable_deref_trait | tauri
+  static_vcruntime | 3.0.0 | ChrisDenton | MIT OR Apache-2.0 OR Zlib | https://github.com/ChrisDenton/static_vcruntime | tauri
+  string_cache | 0.9.0 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/string-cache | tauri
+  string_cache_codegen | 0.6.1 | The Servo Project Developers | MIT OR Apache-2.0 | https://github.com/servo/string-cache | tauri
+  strsim | 0.11.1 | Danny Guo, maxbachmann | MIT | https://github.com/rapidfuzz/strsim-rs | tauri
+  swift-rs | 1.0.9 | The swift-rs contributors | MIT OR Apache-2.0 | https://github.com/Brendonovich/swift-rs | tauri
+  syn | 1.0.109 | dtolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/syn | serde
+  syn | 2.0.119 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/syn | serde
+  syn | 3.0.9 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/syn | serde
+  sync_wrapper | 1.0.2 | rkuhn、actyx 团队 | Apache-2.0 | https://github.com/Actyx/sync_wrapper | tauri
+  synstructure | 0.14.0 | Nika Layzell | MIT | https://github.com/mystor/synstructure | tauri
+  system-deps | 6.2.2 | sdroege、gdesmott | MIT OR Apache-2.0 | https://github.com/gdesmott/system-deps | tauri
+  tao | 0.37.2 | Tauri Programme within The Commons Conservancy, The winit contributors | Apache-2.0 | https://github.com/tauri-apps/tao | tauri
+  tao-macros | 0.1.4 | tauri-bot | MIT OR Apache-2.0 | https://github.com/tauri-apps/tao | tauri
+  target-lexicon | 0.12.16 | fitzgen、sunfishcode 等 | Apache-2.0 WITH LLVM-exception | https://github.com/bytecodealliance/target-lexicon | tauri
+  tauri-codegen | 2.7.4 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | tauri
+  tauri-macros | 2.7.4 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | tauri
+  tauri-plugin | 2.7.2 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | tauri-plugin-opener
+  tauri-runtime | 2.12.2 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | tauri
+  tauri-runtime-wry | 2.12.3 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | tauri
+  tauri-utils | 2.10.2 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | tauri
+  tauri-winres | 0.3.7 | Tauri Programme within The Commons Conservancy, Max Resch | MIT | https://github.com/tauri-apps/winres | tauri
+  tempfile | 3.27.0 | Stebalien | MIT OR Apache-2.0 | https://github.com/Stebalien/tempfile | tauri-plugin-opener
+  tendril | 0.5.1 | Keegan McAllister, Simon Sapin 等 3 人 | MIT OR Apache-2.0 | https://github.com/servo/html5ever | tauri
+  thiserror | 1.0.69 | dtolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror | tauri
+  thiserror | 2.0.21 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror | tauri
+  thiserror-impl | 1.0.69 | dtolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror | tauri
+  thiserror-impl | 2.0.21 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror | tauri
+  time | 0.3.45 | Jacob Pratt, Time contributors | MIT OR Apache-2.0 | https://github.com/time-rs/time | tauri
+  time-core | 0.1.7 | Jacob Pratt, Time contributors | MIT OR Apache-2.0 | https://github.com/time-rs/time | tauri
+  time-macros | 0.2.25 | Jacob Pratt, Time contributors | MIT OR Apache-2.0 | https://github.com/time-rs/time | tauri
+  tinystr | 0.8.5 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  tokio-macros | 2.7.2 | Tokio Contributors | MIT | https://github.com/tokio-rs/tokio | tauri
+  tokio-util | 0.7.20 | carllerche、Darksonn 等 | MIT | https://github.com/tokio-rs/tokio | tauri
+  toml | 0.8.2 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml | 1.2.0+spec-1.1.0 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_datetime | 0.6.3 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_datetime | 1.1.2+spec-1.1.0 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_edit | 0.19.15 | epage、ordian 等 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_edit | 0.20.2 | epage、ordian 等 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_edit | 0.25.18+spec-1.1.0 | epage、ordian 等 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_parser | 1.1.5+spec-1.1.0 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  toml_writer | 1.2.0+spec-1.1.0 | epage、toml-rs 团队 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml | tauri
+  tower | 0.5.3 | carllerche、seanmonstar 等 | MIT | https://github.com/tower-rs/tower | tauri
+  tower-http | 0.6.11 | carllerche、tower-rs 团队 | MIT | https://github.com/tower-rs/tower-http | tauri
+  tower-layer | 0.3.3 | carllerche、tower-rs 团队 | MIT | https://github.com/tower-rs/tower | tauri
+  tower-service | 0.3.3 | carllerche、seanmonstar 等 | MIT | https://github.com/tower-rs/tower | tauri
+  tracing | 0.1.44 | carllerche、hawkw 等 | MIT | https://github.com/tokio-rs/tracing | tauri
+  tracing-attributes | 0.1.31 | hawkw、tokio-rs 团队 | MIT | https://github.com/tokio-rs/tracing | tauri
+  tracing-core | 0.1.36 | hawkw、tokio-rs 团队 | MIT | https://github.com/tokio-rs/tracing | tauri
+  tray-icon | 0.25.1 | tauri-bot | MIT OR Apache-2.0 | https://github.com/tauri-apps/tray-icon | tauri
+  try-lock | 0.2.5 | seanmonstar | MIT | https://github.com/seanmonstar/try-lock | tauri
+  typeid | 1.0.3 | David Tolnay | MIT OR Apache-2.0 | https://github.com/dtolnay/typeid | tauri
+  typenum | 1.20.1 | paholg | MIT OR Apache-2.0 | https://github.com/paholg/typenum | tauri
+  uds_windows | 1.2.1 | haraldh | MIT | https://github.com/haraldh/rust_uds_windows | tauri-plugin-opener
+  unicode-ident | 1.0.27 | David Tolnay | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/dtolnay/unicode-ident | serde
+  unicode-segmentation | 1.13.3 | huonw、SimonSapin 等 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-segmentation | tauri
+  url | 2.5.8 | The rust-url developers | MIT OR Apache-2.0 | https://github.com/servo/rust-url | tauri
+  urlpattern | 0.6.0 | the Deno authors, crowlKats | MIT | https://github.com/denoland/rust-urlpattern | tauri
+  utf_types | 1.0.0 | Henri Sivonen | Apache-2.0 OR MIT | https://github.com/hsivonen/utf_types | tauri
+  utf8_iter | 1.1.0 | Henri Sivonen | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter | tauri
+  uuid | 1.26.1 | Ashley Mannix, Dylan DPC 等 3 人 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid | tauri
+  version_check | 0.9.5 | Sergio Benitez | MIT/Apache-2.0 | https://github.com/SergioBenitez/version_check | tauri
+  version-compare | 0.2.1 | timvisee | MIT | https://gitlab.com/timvisee/version-compare | tauri
+  vswhom | 0.1.0 | nabijaczleweli | MIT | https://github.com/nabijaczleweli/vswhom.rs | tauri
+  vswhom-sys | 0.1.3 | nabijaczleweli | MIT | https://github.com/nabijaczleweli/vswhom-sys.rs | tauri
+  walkdir | 2.5.0 | Andrew Gallant | Unlicense/MIT | https://github.com/BurntSushi/walkdir | tauri
+  want | 0.3.2 | seanmonstar | MIT | https://github.com/seanmonstar/want | tauri
+  wasi | 0.11.1+wasi-snapshot-preview1 | alexcrichton、sunfishcode | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/wasi-rs | tauri
+  wasip2 | 1.0.1+wasi-0.2.4 | alexcrichton、wasmtime-publish | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/wasi-rs | tauri
+  wasm-bindgen | 0.2.130 | RReverser、daxpedda 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen | tauri
+  wasm-bindgen-futures | 0.4.80 | daxpedda、guybedford 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures | tauri
+  wasm-bindgen-macro | 0.2.130 | RReverser、daxpedda 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro | tauri
+  wasm-bindgen-macro-support | 0.2.130 | RReverser、daxpedda 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support | tauri
+  wasm-bindgen-shared | 0.2.130 | RReverser、daxpedda 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared | tauri
+  wasm-streams | 0.5.0 | MattiasBuelens | MIT OR Apache-2.0 | https://github.com/MattiasBuelens/wasm-streams/ | tauri
+  web_atoms | 0.2.6 | The html5ever Project Developers | MIT OR Apache-2.0 | https://github.com/servo/html5ever | tauri
+  web-sys | 0.3.107 | RReverser、daxpedda 等 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys | tauri
+  web-time | 1.1.0 | daxpedda | MIT OR Apache-2.0 | https://github.com/daxpedda/web-time | tauri
+  webkit2gtk | 2.0.2 | GuillaumeGomez、antoyo 等 | MIT | https://github.com/tauri-apps/webkit2gtk-rs | tauri
+  webkit2gtk-sys | 2.0.2 | GuillaumeGomez、antoyo 等 | MIT | https://github.com/tauri-apps/webkit2gtk-rs | tauri
+  webview2-com | 0.39.1 | wravery | MIT | https://github.com/wravery/webview2-rs | tauri
+  webview2-com-macros | 0.8.1 | wravery | MIT | https://github.com/wravery/webview2-rs | tauri
+  webview2-com-sys | 0.39.1 | wravery | MIT | https://github.com/wravery/webview2-rs | tauri
+  winapi | 0.3.9 | retep998 | MIT/Apache-2.0 | https://github.com/retep998/winapi-rs | tauri
+  winapi-i686-pc-windows-gnu | 0.4.0 | retep998 | MIT/Apache-2.0 | https://github.com/retep998/winapi-rs | tauri
+  winapi-util | 0.1.11 | BurntSushi | Unlicense OR MIT | https://github.com/BurntSushi/winapi-util | tauri
+  winapi-x86_64-pc-windows-gnu | 0.4.0 | retep998 | MIT/Apache-2.0 | https://github.com/retep998/winapi-rs | tauri
+  window-vibrancy | 0.8.1 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri-plugin-vibrancy | tauri
+  windows | 0.62.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_aarch64_gnullvm | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_aarch64_msvc | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_i686_gnu | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_i686_msvc | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_x86_64_gnu | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_x86_64_gnullvm | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows_x86_64_msvc | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-collections | 0.3.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-core | 0.62.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-future | 0.3.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-implement | 0.60.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-interface | 0.59.3 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-link | 0.2.1 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-numerics | 0.3.1 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-result | 0.4.1 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-strings | 0.5.1 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-sys | 0.45.0 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-sys | 0.61.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-targets | 0.42.2 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-threading | 0.2.1 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  windows-version | 0.1.7 | kennykerr | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs | tauri
+  winnow | 0.5.40 | epage | MIT | https://github.com/winnow-rs/winnow | tauri
+  winnow | 0.7.15 | epage | MIT | https://github.com/winnow-rs/winnow | tauri
+  winnow | 1.0.5 | epage | MIT | https://github.com/winnow-rs/winnow | tauri
+  winreg | 0.56.0 | gentoo90 | MIT | https://github.com/gentoo90/winreg-rs | tauri
+  wit-bindgen | 0.46.0 | wasmtime-publish | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/wit-bindgen | tauri
+  writeable | 0.6.4 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  wry | 0.57.1 | Tauri Programme within The Commons Conservancy | Apache-2.0 OR MIT | https://github.com/tauri-apps/wry | tauri
+  x11 | 2.21.0 | ghost_693、erlepereira 等 | MIT | https://github.com/AltF02/x11-rs.git | tauri
+  x11-dl | 2.21.0 | ghost_693、erlepereira 等 | MIT | https://github.com/AltF02/x11-rs.git | tauri
+  yoke | 0.8.4 | Manish Goregaokar | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  yoke-derive | 0.8.4 | Manish Goregaokar | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  zbus | 5.13.2 | zeenix | MIT | https://github.com/z-galaxy/zbus/ | tauri-plugin-opener
+  zbus_macros | 5.13.2 | zeenix | MIT | https://github.com/z-galaxy/zbus/ | tauri-plugin-opener
+  zbus_names | 4.3.1 | zeenix | MIT | https://github.com/z-galaxy/zbus/ | tauri-plugin-opener
+  zerofrom | 0.1.8 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  zerofrom-derive | 0.1.8 | Manish Goregaokar | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  zerotrie | 0.2.5 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  zerovec | 0.11.9 | The ICU4X Project Developers | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  zerovec-derive | 0.11.7 | Manish Goregaokar | Unicode-3.0 | https://github.com/unicode-org/icu4x | tauri
+  zlib-rs | 0.6.8 | rnijveld、folkertdev | Zlib | https://github.com/trifectatechfoundation/zlib-rs | tauri
+  zmij | 1.0.23 | David Tolnay | MIT | https://github.com/dtolnay/zmij | serde_json
+  zvariant | 5.9.2 | zeenix | MIT | https://github.com/z-galaxy/zbus/ | tauri-plugin-opener
+  zvariant_derive | 5.9.2 | zeenix | MIT | https://github.com/z-galaxy/zbus/ | tauri-plugin-opener
+  zvariant_utils | 3.3.0 | zeenix | MIT | https://github.com/z-galaxy/zbus/ | tauri-plugin-opener
+
+四、npm 直接依赖（12 个）
+
+  「阶段」区分运行时与开发期：运行时依赖随应用分发，其许可证义务覆盖到
+  最终用户；开发期依赖不进产物，只在源码树与构建过程中出现。
+
+  @tauri-apps/cli 2.12.4
+    阶段      开发期
+    声明于    根 package.json
+    作者      2017 - Present Tauri Apps Contributors
+    许可证    Apache-2.0 OR MIT
+    仓库      https://github.com/tauri-apps/tauri
+    用途      tauri dev / tauri build 命令行入口
+    修改      无。以未修改的 npm 发布版本引入。
+
+  lucide 1.68.0
+    阶段      运行时
+    声明于    src/package.json
+    作者      2026 Lucide Icons and Contributors；2013-present Cole Bemis
+    许可证    ISC
+    仓库      https://github.com/lucide-icons/lucide
+    用途      界面线性图标
+    修改      无。以未修改的 npm 发布版本引入。
+
+  morphicons 2.0.2
+    阶段      运行时
+    声明于    src/package.json
+    作者      2026 Guillermo
+    许可证    MIT
+    仓库      https://github.com/guillermolg00/morphicons
+    用途      界面变形图标
+    修改      无。以未修改的 npm 发布版本引入。
+
+  react 19.3.1
+    阶段      运行时
+    声明于    src/package.json
+    作者      Meta Platforms, Inc. and affiliates.
+    许可证    MIT
+    仓库      https://github.com/react/react
+    用途      界面渲染层
+    修改      无。以未修改的 npm 发布版本引入。
+
+  react-dom 19.3.1
+    阶段      运行时
+    声明于    src/package.json
+    作者      Meta Platforms, Inc. and affiliates.
+    许可证    MIT
+    仓库      https://github.com/react/react
+    用途      界面渲染层 DOM 绑定
+    修改      无。以未修改的 npm 发布版本引入。
+
+  cordis 4.0.0-rc.12
+    阶段      运行时
+    声明于    cordis-host/package.json
+    作者      Shigma <shigma10826@gmail.com>
+    许可证    MIT
+    仓库      https://github.com/cordiverse/cordis
+    用途      Cordis 插件框架本体（以 @ntars/cordis 的别名引入）
+    修改      无。以未修改的 npm 发布版本引入。
+
+  @types/react 19.3.0
+    阶段      开发期
+    声明于    src/package.json
+    作者      Microsoft Corporation.
+    许可证    MIT
+    仓库      https://github.com/DefinitelyTyped/DefinitelyTyped
+    用途      React 的类型定义
+    修改      无。以未修改的 npm 发布版本引入。
+
+  @types/react-dom 19.3.0
+    阶段      开发期
+    声明于    src/package.json
+    作者      Microsoft Corporation.
+    许可证    MIT
+    仓库      https://github.com/DefinitelyTyped/DefinitelyTyped
+    用途      React DOM 的类型定义
+    修改      无。以未修改的 npm 发布版本引入。
+
+  @vitejs/plugin-react 6.2.1
+    阶段      开发期
+    声明于    src/package.json
+    作者      2019-present, Yuxi (Evan) You and Vite contributors
+    许可证    MIT
+    仓库      https://github.com/vitejs/vite-plugin-react
+    用途      Vite 的 React JSX 转换与热更新
+    修改      无。以未修改的 npm 发布版本引入。
+
+  typescript 7.0.2
+    阶段      开发期
+    声明于    src/package.json 与 cordis-host/package.json
+    作者      Microsoft Corp.
+    许可证    Apache-2.0
+    仓库      https://github.com/microsoft/TypeScript
+    用途      全部 TypeScript 代码的类型检查与编译
+    修改      无。以未修改的 npm 发布版本引入。
+
+  vite 8.3.6
+    阶段      开发期
+    声明于    src/package.json
+    作者      2019-present, VoidZero Inc. and Vite contributors
+    许可证    MIT
+    仓库      https://github.com/vitejs/vite
+    用途      前端开发服务器与生产构建
+    修改      无。以未修改的 npm 发布版本引入。
+
+  @types/node 26.6.6
+    阶段      开发期
+    声明于    cordis-host/package.json 与 dsh-sidecar/package.json
+    作者      Microsoft Corporation.
+    许可证    MIT
+    仓库      https://github.com/DefinitelyTyped/DefinitelyTyped
+    用途      Node.js 内置模块的类型定义
+    修改      无。以未修改的 npm 发布版本引入。
+
+五、npm 传递依赖（75 个）
+
+  版本取自 pnpm-lock.yaml 的解析结果。npm 侧的许可证与作者来自 registry
+  的包元数据，仓库地址优先取 repository 字段，缺失时取 homepage。
+  「引入者」指把它带进依赖图的直接依赖。
+
+  包名 | 版本 | 作者 | 许可证 | 仓库 | 引入者
+  --- | --- | --- | --- | --- | ---
+  @oxc-project/types | 0.156.0 | 2024-present VoidZero Inc. & Contributors；2023 Boshen | MIT | https://github.com/oxc-project/oxc | typescript, vite
+  @rolldown/binding-android-arm-eabi | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-android-arm64 | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-darwin-arm64 | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-darwin-x64 | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-freebsd-x64 | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-arm-gnueabihf | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-arm64-gnu | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-arm64-musl | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-ppc64-gnu | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-s390x-gnu | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-x64-gnu | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-linux-x64-musl | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-openharmony-arm64 | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-win32-arm64-msvc | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/binding-win32-x64-msvc | 1.2.16 | 同 rolldown（2024-present VoidZero Inc. & Contributors） | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  @rolldown/pluginutils | 1.0.1 | 2026-present, rolldown/plugins repository contributors | MIT | https://github.com/rolldown/plugins | typescript, vite
+  @standard-schema/spec | 1.1.0 | 2024 Colin McDonnell | MIT | https://github.com/standard-schema/standard-schema | cordis
+  @tauri-apps/cli-darwin-arm64 | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-darwin-x64 | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-linux-arm-gnueabihf | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-linux-arm64-gnu | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-linux-arm64-musl | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-linux-riscv64-gnu | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-linux-x64-gnu | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-linux-x64-musl | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-win32-arm64-msvc | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-win32-ia32-msvc | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @tauri-apps/cli-win32-x64-msvc | 2.12.4 | 同 @tauri-apps/cli（2017 - Present Tauri Apps Contributors） | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri | @tauri-apps/cli
+  @typescript/typescript-aix-ppc64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-darwin-arm64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-darwin-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-freebsd-arm64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-freebsd-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-arm | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-arm64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-loong64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-mips64el | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-ppc64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-riscv64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-s390x | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-linux-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-netbsd-arm64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-netbsd-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-openbsd-arm64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-openbsd-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-sunos-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-win32-arm64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  @typescript/typescript-win32-x64 | 7.0.2 | Microsoft Corp. | Apache-2.0 | https://github.com/microsoft/TypeScript | typescript
+  cosmokit | 1.8.1 | 2021-present Shigma | MIT | https://github.com/shigma/cosmokit | cordis
+  csstype | 3.2.3 | 2017-2018 Fredrik Nicol | MIT | https://github.com/frenic/csstype | @types/react, @types/react-dom
+  detect-libc | 2.1.2 | Lovell Fuller | Apache-2.0 | git://github.com/lovell/detect-libc | typescript, vite
+  fdir | 6.5.0 | 2023 Abdullah Atta | MIT | https://github.com/thecodrr/fdir | typescript, vite
+  fsevents | 2.3.3 | 2010-2020 by Philipp Dunkel, Ben Noordhuis, Elan Shankar, Paul Miller | MIT | https://github.com/fsevents/fsevents | typescript, vite
+  lightningcss-android-arm64 | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-darwin-arm64 | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-darwin-x64 | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-freebsd-x64 | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-linux-arm-gnueabihf | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-linux-arm64-gnu | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-linux-arm64-musl | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-linux-x64-gnu | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-linux-x64-musl | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-win32-arm64-msvc | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss-win32-x64-msvc | 1.33.0 | 同 lightningcss | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  lightningcss | 1.33.0 | 按文件头逐文件声明 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss | typescript, vite
+  nanoid | 3.3.20 | 2017 Andrey Sitnik <andrey@sitnik.ru>；HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER | MIT | https://github.com/ai/nanoid | typescript, vite
+  picocolors | 1.1.1 | 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov | ISC | https://github.com/alexeyraspopov/picocolors | typescript, vite
+  picomatch | 4.0.7 | 2017-present, Jon Schlinkert. | MIT | https://github.com/micromatch/picomatch | typescript, vite
+  postcss | 8.5.32 | 2013 Andrey Sitnik <andrey@sitnik.es>；HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER | MIT | https://github.com/postcss/postcss | typescript, vite
+  rolldown | 1.2.16 | 2024-present VoidZero Inc. & Contributors | MIT | https://github.com/rolldown/rolldown | typescript, vite
+  scheduler | 0.28.0 | Meta Platforms, Inc. and affiliates. | MIT | https://github.com/react/react | react-dom
+  source-map-js | 1.2.2 | 2009-2011, Mozilla Foundation and contributors | BSD-3-Clause | https://github.com/7rulnik/source-map-js | typescript, vite
+  tinyglobby | 0.2.17 | 2024 Madeline Gurriarán | MIT | https://github.com/SuperchupuDev/tinyglobby | typescript, vite
+  undici-types | 8.9.0 | Matteo Collina and Undici contributors | MIT | https://github.com/nodejs/undici | @types/node, typescript
+
+--------------------------------------------------------------------------------
+六、非依赖类素材与规范
+--------------------------------------------------------------------------------
+
+1. 应用图标（`icon.svg` 及派生的 PNG / ICNS / ICO）
+   版权方    Ntarstudio（星玖工作室）
+   许可证    AGPL-3.0（随本项目整体授权）
+   来源      自有原创设计。`icon.svg` 是唯一真源，各尺寸位图由它导出，
+             不单独维护，避免多份图标渐渐不一致。
+
+2. 字体
+   本项目不打包、不分发任何字体文件。界面一律使用操作系统自带的系统字体
+   （macOS 为 SF Pro 与苹方，Windows 为 Segoe UI 与微软雅黑）。因此不存在
+   字体许可证问题。
+
+3. 图标库
+   界面内使用的图标来自两个 npm 包（`lucide` 与 `morphicons`），已在上文
+   依赖清单中逐条披露。除此之外没有图标字体、没有独立分发的 SVG 素材包。
+
+4. 算法与规范来源
+
+   JSON-RPC 2.0
+     来源      JSON-RPC 2.0 Specification
+     地址      https://www.jsonrpc.org/specification
+     性质      公开规范，不属于可版权客体
+     用途      宿主与 dsh 内核之间的通信协议格式。错误码区间沿用规范定义
+               （-32700 ~ -32603），本项目另在 -32000 ~ -32004 定义内核专属码。
+
+   NDJSON（Newline Delimited JSON）
+     来源      社区约定，无单一标准文件
+     性质      未被任何实体主张版权的分帧约定
+     用途      stdio 上的消息分帧方式：一条消息一行，以 0x0A 分隔。
+
+   Apple Human Interface Guidelines
+     来源      Apple Inc.
+     地址      https://developer.apple.com/design/human-interface-guidelines/
+     性质      设计规范文档，不是可复用的代码或素材
+     用途      界面的配色、间距、控件尺寸与动效节奏以其为参照。本项目只借鉴
+               设计原则，未复制其文档文字、图标或任何受版权保护的素材。
+
+--------------------------------------------------------------------------------
+七、许可证原文的获取方式
+--------------------------------------------------------------------------------
+
+本项目自身以 GNU Affero General Public License v3.0 授权，全文见同目录
+`LICENSE` 文件。
+
+上述 529 个第三方组件的许可证原文可通过以下方式获取：
+
+  - npm 包：安装后位于各包目录内的 LICENSE、LICENSE.md 或
+    LICENSE-MIT / LICENSE-APACHE-2.0 等拆分文件
+  - Rust crate：位于 `~/.cargo/registry/src/*/<crate>-<version>/LICENSE*`，
+    或访问上表所列仓库根目录
+  - 任一组件也可按「名称 + 版本」在其官方 registry 页面上查到完整许可证文本
+
+本文件不复制上述许可证全文。原因：许可证要求保留版权声明与免责声明，而逐条
+复制会带来版本错配风险──组件升级后本文件里的旧全文仍在，反而造成「声明与
+实际不符」。以「名称 + 版本 + 许可证标识 + 仓库地址」指向原始文本，比复制
+一份可能过期的副本更可靠。
+
+--------------------------------------------------------------------------------
+八、合规状态说明
+--------------------------------------------------------------------------------
+
+1. 许可证兼容性
+
+   本项目采用 AGPL-3.0。529 个组件中没有与 AGPL-3.0 冲突的许可证。
+
+   | 许可类型                                   | 组件数 |
+   | ------------------------------------------ | ------ |
+   | MIT / Apache-2.0 及二者组合                | 448    |
+   | Zlib（含与其他许可的多选组合）             | 22     |
+   | Unicode-3.0                                | 19     |
+   | MPL-2.0                                    | 17     |
+   | BSD-3-Clause                               | 10     |
+   | Unlicense / 0BSD / CC0-1.0 / MIT-0         | 8      |
+   | ISC                                        | 3      |
+   | LGPL-2.1-or-later（与其他许可多选）        | 2      |
+   | 合计                                       | 529    |
+
+   MPL-2.0 组件 17 个：Rust 侧 5 个（`cssparser`、`cssparser-macros`、
+   `dtoa-short`、`option-ext`、`selectors`），npm 侧 12 个（`lightningcss`
+   及其 11 个平台专用二进制包）。这 17 个全部以未修改的发布版本引入，
+   不产生 MPL-2.0 第 3 条意义上的衍生作品义务，也没有源码公开义务。
+   若将来修改其中任何一个，被修改的文件须按 MPL-2.0 公开源码。
+
+   `r-efi` 的许可证声明为「MIT OR Apache-2.0 OR LGPL-2.1-or-later」，
+   即三者任选其一。本项目按宽松项使用，不涉及 LGPL 条款。
+
+   Apache-2.0 与 AGPL-3.0 的组合需注意一点：Apache-2.0 含专利授权条款，
+   其专利 retaliation 条款与 AGPL-3.0 第 11 节的专利授权在极端情形下可能
+   产生解释分歧。本项目对 Apache-2.0 组件的使用方式是「以未修改形式作为
+   依赖引入」，不构成衍生作品，此风险不成立。
+
+2. 两处需要单独标注的依赖关系
+
+   其一，Cordis 的包名重定向。
+     空谷自有插件历史上把框架声明为私有 scope `@ntars/cordis`，该 scope
+     从未发布到公共 npm。本项目在 `pnpm-workspace.yaml` 中通过依赖别名
+     把它指向官方包：
+
+         overrides:
+           '@ntars/cordis': 'npm:cordis@4.0.0-rc.12'
+
+     这是依赖解析层面的重定向，不修改 Cordis 源码，也不改变其许可证。
+     官方包是该私有 scope 的唯一上游实现。
+
+   其二，`@tauri-apps/cli` 的平台二进制包。
+     依赖清单中的 11 个 `@tauri-apps/cli-*` 是同一工具的跨平台二进制，
+     安装时按当前平台取其一。它们的版权与许可证随主包 `@tauri-apps/cli`
+     一并给出，故版权方一栏写作「同 @tauri-apps/cli」。
+
+3. 未使用的内容
+
+   本项目未使用任何来源不明、许可证不明或需付费授权的代码、模型权重、
+   数据集、字体、图片或音频素材。
+
+   特别说明：`dsh-sidecar` 是纯代码实现，不包含任何模型权重。推理能力
+   由用户在运行时自行配置的模型服务提供，相关模型的使用条款由用户与
+   模型提供方之间的协议约定，与本项目许可证无关。
+
+4. 商标
+
+   「空谷」「Ondra」「Ntarstudio」「星玖工作室」为本项目使用的名称与标识。
+   AGPL-3.0 授予的是著作权许可，不授予商标许可。基于本项目的衍生作品
+   不得暗示其由 Ntarstudio 出品或获得 Ntarstudio 背书。
+
+5. 无担保
+
+   本程序按「现状」提供，不附带任何明示或暗示的担保，包括但不限于对
+   适销性、特定用途适用性与非侵权性的担保。完整免责条款见 `LICENSE`
+   第十五、十六条。
+
+--------------------------------------------------------------------------------
+九、举报与联系
+--------------------------------------------------------------------------------
+
+若你认为本项目侵犯了你的著作权、商标权或其他权利，或发现本文件存在
+遗漏与错误，请通过以下任一渠道联系：
+
+  - 仓库议题：https://github.com/ntars/Ondra/issues
+  - 官网：https://ai.ntars.cn/
+
+我们会在核实后 7 个工作日内更正本文件或移除相关内容。
+
+--------------------------------------------------------------------------------
+
+本文件最后更新：2026-11-06
+对应版本：2.0.1
+清单来源：src-tauri/Cargo.lock（442 条）、pnpm-lock.yaml（87 条）

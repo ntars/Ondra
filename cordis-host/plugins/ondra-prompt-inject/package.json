@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-prompt-inject",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的注入装箱（手册 §2.6）：八块装配（说好的事 / 不能忘的 / 我认识的人 / 那年今日 / 这会儿想起来的 / 记下的道理 / 顺着话头想起来的 / 今天想起来的），按字符预算装箱——全局按权重逐条试，装不下跳过这条继续试下一条，段标题写「另有 N 条未展开」；到期提醒与钉住两块永不参与装箱。不做去重记账（归 O-142）、不碰人格段（归 O-023/O-033）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

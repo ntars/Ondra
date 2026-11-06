@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-reflex",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的反射弧自写与链路结晶（手册 §8.6，P1）：同工具同因失败三次就自动写一条反射，跨器官的三步以上成功链固化成一条 skill 候选——全程零模型调用。手册原话是「同工具×同因失败 3 次→自动写 R-auto-<cause>-<tool>；跨器官 ≥3 步成功链固化为 skill；全部零模型调用」。本包只做确定性规则，一次模型请求都不发，所以它的成本是零、结论可复现、失败可回溯。四条判定。第一，归因不自己定义：cause 一律取 O-139 的 classify() 返回值，本包不另立一套类目——两套类目最坏的结果是同一次失败在两个账上记成两类。第二，没有归因就不写反射：归因缺席时计数一个 unclassified 然后收手，绝不把「不知道原因」当成第八类 unknown——那会让一条假病因变成长期规则。第三，反射的处方也不自己写：hint 直接引用 O-139 的 prescription()，本包只负责「什么时候该有一条规则」。第四，链路结晶只认成功步，且要求跨器官（至少两个不同工具）：单器官的三步重复只是同一个动作做三遍，固化成 skill 等于教她背口诀。状态的持久化是软要求：有存储就落盘、重启接着数；没有就只在内存，且 stats().persisted 明说。本包不喂器官宿主（那仍是 O-139 的唯一职责），不注册工具、不改对话、不装定时器。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

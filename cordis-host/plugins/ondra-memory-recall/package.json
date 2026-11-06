@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-memory-recall",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的记忆召回：五因子（语义 .18 / 关键词 .46 / 图谱 .11 / 重要 .14 / 新鲜 .11）+ RRF 名次融合 + BM25；召回不按条数砍（dropped 恒为 0），封存永不参与回忆。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

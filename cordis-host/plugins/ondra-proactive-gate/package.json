@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-proactive-gate",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的主动消息门控（手册 §5.3 / §5.5）：一条待投递的消息此刻能不能发。九道闸——总开关与群聊红线、熔断与退避、内容红线、静默时段、每日预算、空闲阈值、会话冷却、重复去重、三层令牌桶。只判定不发送、不排闹钟、不装定时器；状态落盘到 user/proactive-state.json（0600、原子写），因为「重启若清零 = 重启绕过防封」。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

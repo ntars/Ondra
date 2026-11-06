@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-adapter-wechat-official",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的微信公众号通道：宿主路由接回调、sha1 验签、单条 800 切条、5 秒硬限先回降级话术、真回复走客服消息 48 小时窗口。它不自己 listen 端口——路由挂在宿主 webServer 上，卸载即撤。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

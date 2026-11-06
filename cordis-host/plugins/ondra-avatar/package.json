@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-avatar",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的立绘接线层（手册 §1.7 裁定「不必自研」）：把「脸上该是什么」解析成「该显示哪张图 / 哪个模型」，交给渲染方。只做接线与静态降级——不渲染一个像素、不判一次情绪、不造一张图。六态真源在 O-031，正文线索在 O-052，Live2D 运行时由外部注册进来。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

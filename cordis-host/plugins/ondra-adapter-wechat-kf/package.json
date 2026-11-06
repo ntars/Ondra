@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-adapter-wechat-kf",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的微信客服通道：拉取式 sync_msg 每 5 秒一轮 + 游标去重（不需要公网回调）、单条 800 切条、48 小时会话窗口。可选回调只用于事件接收，挂上才需要 sha1 验签。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

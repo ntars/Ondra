@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-memory-vector",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的向量检索分支：确定性哈希嵌入 + 余弦召回 + IVF 分桶，300/1000 阈值自动切字面/混合/向量三模式，RRF 融合。默认关闭。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-absence",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的空窗期礼仪（L9 扩展池）：回答一句话——隔了很久回来，第一句该怎么接。五档分级（今天、昨天、几天、一阵子、很久），每档只给必须做到的事、绝对不许做的事、句数上限、要不要承认隔了一段、允不允许一点温度，**一个数字都不给**：连「多久」也只以五个粗粒度词出现，因为「我们 17 天没说话了」不是关心，是把重逢变成审讯。契约里 askAboutGap 的类型就是字面量 false——做成布尔就一定会有 true 分支，而那个分支一定会某次「关心一下」里被打开。四条通用禁令恒定在每一档：不问去哪了、不报精确间隔、不替空窗期编造情节（我一直在等你）、不把缺席解读成被丢下。读一次不推进，只有真正把话说出去的一方调用 mention 才记「提过了」，外壳随便轮询都不会让同一句「好久不见」说两遍。存档只有三个时刻与两个计数，不存上次聊了什么，也不存离开原因——那是考勤，不是礼仪。不做界面、不装定时器、不主动发消息。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

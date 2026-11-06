@@ -1,8 +1,0 @@
-version: 1
-scenario: subagent-ondra-sdk-diagnostic
-profile: sdk
-composition: sdk-ondra-sdk-diagnostic
-recording: live
-header:
-  class: sdk-ondra-sdk-diagnostic
-  pin: true

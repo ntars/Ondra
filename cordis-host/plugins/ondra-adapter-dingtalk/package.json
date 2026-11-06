@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-adapter-dingtalk",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的钉钉通道：宿主路由接 Outgoing 回调、HmacSHA256 验签、先回空体再由后台异步发话、sessionWebhook 与机器人主动接口两条出口各自独立降级、单条 4000 切条。它不自己 listen 端口——路由挂在宿主 webServer 上，卸载即撤。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-diary",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的日记（手册 §1.7 / §11.8-4）：每天一篇第一人称日记，一天一个 Markdown 文件，写在 user/diary/YYYY-MM-DD.md，0600。四层保底——定时到点写、窗口内退避重试、启动与每次触发都查缺失、模型不可用时按模板兜底写满，保证每一天都不空。不往会话里发消息、不触发主动链路、不改记忆。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-persona-workshop",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的人格包工坊（L9 扩展池）：对既有 .skill.zip 人设包做八项元数据体检（id 与包名、文件登记、SKILL.md 篇幅、六槽位覆盖、触发词、硬红线、档案字段、版权声明），并出派生草案（改哪个文件哪个位置、新包骨架、必须自己定的三件事）。全程只读：不写人设包、不生成 ZIP、不生成文案、不判「像不像」。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

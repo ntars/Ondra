@@ -1,0 +1,35 @@
+{
+  "name": "@ondra/cordis-host",
+  "version": "2.0.1",
+  "private": true,
+  "description": "Cordis 宿主：建立上下文、装配空谷核心与基础插件、提供本地 HTTP 接口，并把就绪状态报告给 Tauri 壳。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "dev": "node --experimental-strip-types index.ts",
+    "start": "node lib/index.js"
+  },
+  "dependencies": {
+    "@ondra/cordis-plugin-desktop-bridge": "workspace:*",
+    "@ondra/cordis-plugin-dsh-client": "workspace:*",
+    "@ondra/cordis-plugin-ondra-core": "workspace:*",
+    "@ntars/cordis": "npm:cordis@4.0.0-rc.12"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}

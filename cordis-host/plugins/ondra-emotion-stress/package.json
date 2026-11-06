@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-emotion-stress",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的应激注意力倍率（手册 §3.8）：皮质醇 ≥80 危机类 ×3 / 日常类 ×0.1；60 时 ×2 / ×0.55；≤40 均为 ×1；三点共线故插值无歧义。只改排序改不了内容（dropped 恒为 0），类别由产出方带进来；皮质醇 ≥80 时按器官 ABI 产出排序键 -900 的行为指令（逐字取手册 §4.3），不含任何数字。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

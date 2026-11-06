@@ -1,46 +1,36 @@
-# 依赖目录
+# 依赖目录。pnpm 的 node_modules 使用符号链接与全局内容寻址存储，
+# 各工作区成员下都会出现，全部不入库。
 node_modules/
 .pnpm-store/
-.pnpm-debug.log*
 
 # 构建产物
-build/
 dist/
-out/
-release/
-.desktop-build/
+target/
 *.tsbuildinfo
-*.asar
-*.dmg
-*.exe
-*.AppImage
-*.snap
 
-# 素材库：本地工作素材，整目录不入库。
-# 随仓库分发的内容（出厂人设、角色素材、品牌图、开发手册）已复制到 content/。
-material/
+# TypeScript 编译输出。137 个插件包与宿主、内核都以 `tsc -b` 输出到各自
+# 的 lib/ 目录（共 3637 个文件、26 MB），源码在 src/，lib/ 由构建重新生成。
+# package.json 的 main 指向 lib/index.js，所以克隆后必须先 `pnpm run build`。
+cordis-host/lib/
+cordis-host/plugins/*/lib/
+dsh-sidecar/lib/
 
-# 例外：上面的 release/ 本意是忽略打包产物，但它无前缀匹配任意层级，
-# 连构建链的源码目录也一并吞了（desktop/scripts/build.ts 直接 import
-# ./release/process.ts）。少了它，云端 checkout 后 pnpm run build 会以
-# ERR_MODULE_NOT_FOUND 失败。故把该目录显式放回版本控制。
-!desktop/scripts/release/
-!desktop/scripts/release/**
+# 发布产物（由 tools/bundle-release.mjs 从 bundle 目录搬运而来，不入库）
+releases/
 
-# 注意：不全局排除 *.zip 与 *.tar.gz
-# cordis/ondra-persona-skills/ 下的人格包与 material/ 下的素材包属于源码资产，必须入库。
+# Tauri 打包输出
+src-tauri/target/
+src-tauri/gen/
 
-# 工具链缓存（体积大，可由安装器重建）
-toolchain/
+# 官网静态输出（由 tools/build-site.mjs 生成）
+.site-dist/
 
-# 备份与本地工作目录
-.backup/
-.workbuddy/
-# 开发过程笔记与技能：非构建依赖，不入库（clone 后不影响安装与构建）
-desktop/.agents/
-.trash/
-tmp/
-.tmp/
+# 本地环境与密钥（绝不入库）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 
 # 系统与编辑器
 .DS_Store
@@ -54,22 +44,27 @@ __MACOSX/
 *.log
 logs/
 *.pid
-.pid
 
-# 环境与密钥（绝不入库）
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-credentials.json
+# MiSans 官方完整字体包（217MB）。
+# 多个原因不该入库：
+# 1. GitHub 单文件上限 100MB，超过直接推送失败；
+# 2. 每次克隆要多拉 217MB，而构建实际只用到 8.3MB 的子集；
+# 3. 字体许可是"随软件分发"，不是"随源码分发"，分包更清晰。
+# 界面用的子集（src/assets/fonts/MiSansVF.woff2）仍入库，克隆后即可构建。
+# 需要完整包时从官方下载即可，见 src/assets/fonts/LICENSE-MiSans.md。
+src/assets/fonts/official/
 
-# 根 .gitignore 补充
+# 用户数据目录（运行时产生，含会话与工作区）
+.ondra/
 
-# 测试与工具链的临时产物：用例每次运行都会重新生成，内容随机
-desktop/apps/desktop/tests/cache-test-*/
-desktop/scripts/staged-lint-probe-*.ts
-desktop/examples/oxlint-contract-*/
+# 打包期组装产物（Node 运行时 + 宿主 + 内核，约 134 MiB）。
+# 由 `pnpm run build:runtime` 现场生成，不需要入库。
+src-tauri/runtime/
 
-# Cordis 插件的编译产物（tsc -b 生成，不入库）
-cordis/*/lib/
+# 协作工具的工作目录（会话日志与本地记忆），属于个人工作状态，
+# 不构成项目内容，不入库。
+.workbuddy/
+
+# 开发期界面截图（`tools/shot.mjs` 的输出，880 KB）。
+# 没有被任何文档引用，随界面改版即过时，不入库。
+.shots/

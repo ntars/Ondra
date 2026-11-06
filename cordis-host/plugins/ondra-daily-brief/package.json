@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-daily-brief",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的晨间简报（〔薄〕，L9 扩展池）：早上第一屏只放三件事——有时限的承诺 / 昨天没说完的事 / 外面（节气、节日、天气），每段只点名一件、逐字引用上游原文，总共最多三件。三条硬口径：不报数字（没有「你还有 7 条待办」，数字会被当成进度条）、空与读不到必须分开（empty 是「今天确实没有」，not-available 是「这段读不到」，合成一档会让人在上游挂掉那天以为一切安好）、只在被调用时生成（不装定时器、不主动推送、不发消息）。只做选择与排序，一个数都不重新定义：承诺取 O-016、记忆取 O-010（仅用于核对承诺背后的记忆是否已被删掉，被遗忘权优先）、节气节日取 O-046、天气取 O-047，缺哪段就在那段明说「这块今天读不到」。不落盘（简报是此刻的投影，ack 只在内存）、不做界面、不生成成稿文案。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

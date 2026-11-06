@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-theater",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的多角色剧场（L9 扩展池，O-112）：只回答一句话——几个角色同场时，下一句该谁说。它给的是场次调度，不是台词：谁在场上、轮到谁、这一句该是什么意图（开场 / 接话 / 过渡 / 收尾）、最多几句、哪些事不许做，仅此而已。四条硬裁决落在类型与常量上：同一角色不许连续两次发言（否则剧场退化成单人独白，故少于两人直接拒绝入场）、角色数硬上限 4（超了当场拒绝，不排队——排队会让多出来的人在若干轮之后突然开口）、每场必须有明确收束条件（轮数上限 + 冷场判据，两条任一命中即收场，不许无限演下去）、离场必须先收束（契约里根本没有 leave 方法，要少一个人只能 close 之后重新 open，中途消失这条路在接口层面不存在）。轮转是确定性的：座位顺序即发言顺序，永远跳过刚说过的那一位，因此不存在随机，也不存在谁声音大谁先说。next() 只读、advance() 才推进，外壳随便轮询都不会把同一个人推上去两次。不装配人格（归 O-021）、不生成台词（归 O-033 对话编排与 O-037 九步过滤链）、不驱动对话（归 O-033）、不做界面、不装定时器、不落盘（场次是一次性的，重启即散场）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

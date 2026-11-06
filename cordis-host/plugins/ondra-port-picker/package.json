@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-port-picker",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的回环端口挑选层：把「要一个号」拆成两种意图——给监听方要一个现在没人绑的号，给界面要一个宿主已经绑着的号。前者可以走系统分配（等价手册 §6.4 的 --port 0，最稳）或台账给的 9060–9079 固定区间，后者只能读宿主 webServer 的既成事实。混用这两种意图，子进程就会拿到宿主自己占着的端口，症状是启动即端口被占而日志里写着「挑到空闲端口」。它探完立刻释放，接口里没有 hold：保留一个端口等于把要交出去的号攥在自己手里，子进程就绑不上了。因此每一次发号都如实标注有没有竞态窗口——只有读宿主已绑端口这一种是零竞态。它只接受回环字面量，0.0.0.0 一律拒绝，与上游拒绝通配地址的口径一致。它不拼 URL：拼地址是引导层的事，那边才知道 token 从哪来，两处各拼一份迟早拼出两种形状。它也不在加载时探测，没人要用的时候去绑端口只是白占一次内核表。所有方法都不抛，挑不到端口是常态，不该让调用方在要不要 try 上做选择。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

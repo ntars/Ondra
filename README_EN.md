@@ -4,7 +4,7 @@
 
 **On No Sound's Depth, Resonance Arises.**
 
-Ondra is a fully plugin-based desktop AI companion application. It splits the three things that make companionship feel real — that she remembers, that she has feelings, that she speaks like a person — into 137 parts that can be installed and removed individually, running inside a desktop program on your own machine.
+Ondra is a fully plugin-based desktop AI companion application. It splits the three things that make companionship feel real — that she remembers, that she has feelings, that she speaks like a person — into 134 plugins that can be installed and removed individually, plus one plugin manifest and two bridge layers, running inside a desktop program on your own machine.
 
 The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps in a silent valley, a metaphor for rare and precious news.
 
@@ -13,7 +13,11 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 | Version | 2.0.1 |
 | Form | Desktop application (Tauri shell + Cordis host + dsh kernel, three process layers) |
 | Platform | macOS 11 and later (Apple Silicon first), Windows 10 and later |
-| Plugin scale | 137 first-party plugins, 1123 configurable settings |
+| Positioning | A companionship app. Not a general assistant, not a model, not a cloud service |
+| Plugin scale | 137 packages = 134 loadable plugins + 1 plugin manifest + 2 bridges; 1168 config fields, of which 1123 are directly settable |
+| Interface | Two states in one window: Home (logo plus composer) and Conversation (48px left rail, timeline column, right spine); baseline 820 × 580 |
+| Data ownership | Everything stays on your machine. No accounts, no community, no sharing, no telemetry |
+| Inference source | Cloud API / local model / free model, switchable at any time |
 | License | [AGPL-3.0](./LICENSE) |
 | Repository | [ntars/Ondra](https://github.com/ntars/Ondra) |
 | Website | <https://ai.ntars.cn/> |
@@ -47,7 +51,7 @@ Ondra takes a different path for each of the two situations. Architecturally it 
 
 ### 2.2 Problems addressed
 
-1. **Change cost grows non-linearly with feature count.** When everything lives in one process, every new capability touches the main entry point and widens the regression surface. Maintaining 137 plugins by hand in a single process makes the impact of any change unpredictable.
+1. **Change cost grows non-linearly with feature count.** When everything lives in one process, every new capability touches the main entry point and widens the regression surface. Maintaining 134 plugins by hand in a single process makes the impact of any change unpredictable.
 2. **A failing optional capability takes down the whole application.** One badly written network adapter can prevent startup. Channel plugins depend on external credentials and external networks, so their failure rate is inherently far higher than that of local features.
 3. **Interface evolution drags the lower layers along.** When interface and business logic are coupled, a single visual change requires a full build and signing cycle.
 4. **Third-party capabilities cannot be isolated.** Plugins share the process and its privileges, so one plugin's problem becomes everyone's problem.
@@ -64,7 +68,7 @@ The first principle is that the process is the boundary:
 
 The test for where code belongs: **if this logic still makes sense in an environment with no window, it does not belong to the shell.**
 
-The second principle governs how capabilities are organised: the service key is the interface. None of the 137 plugins imports another at code level; they discover each other at runtime through Cordis service keys, and when an upstream is absent they skip that step and leave a trace. This is what allows plugins to be added or removed without compile-time ripples.
+The second principle governs how capabilities are organised: the service key is the interface. None of the 134 plugins imports another at code level; they discover each other at runtime through Cordis service keys, and when an upstream is absent they skip that step and leave a trace. This is what allows plugins to be added or removed without compile-time ripples.
 
 ### 2.4 Where it fits
 
@@ -117,7 +121,7 @@ If any one of the three does not hold, the feature is not opened.
 ---
 ## 3. Core Features
 
-This chapter has two parts. Section 3.1 describes the runtime skeleton that carries every capability, covering only the necessary structure and boundaries. From 3.2 onward it describes the 137 plugins one by one, together with their configurable settings, and that is the body of this document.
+This chapter has two parts. Section 3.1 describes the runtime skeleton that carries every capability, covering only the necessary structure and boundaries. From 3.2 onward it describes the 137 packages one by one, together with their configurable settings, and that is the body of this document.
 
 ### 3.1 Runtime skeleton
 
@@ -139,27 +143,41 @@ This chapter has two parts. Section 3.1 describes the runtime skeleton that carr
 ---
 ### 3.2 Plugin Inventory
 
-The 137 plugins fall into 7 top-level menus and 28 second-level groups. Every field follows the declaration in that plugin's `src/settings.ts`, and the default values come from the same declaration, so there is never a second set of values.
+The 137 packages fall into 7 top-level menus and 28 second-level groups. Every field follows the declaration in that plugin's `src/settings.ts`, and the default values come from the same declaration, so there is never a second set of values.
 
 **Reading conventions**: `Switch` is a boolean toggle; `Slider` is a number with bounds; `Segmented` is a fixed set of enumerated choices; `Tag list` is a list of strings that can be added to and removed from entry by entry; `URL` and `Route` are text inputs, the former for an address and the latter for a path relative to the site. **Advanced** fields are collapsed in the interface by default and can be set once expanded; their keys are listed here so they can be searched.
 
-> The table below summarises by domain. The complete field list for each plugin, with default values, ranges and the reason each of the 45 non-settable fields cannot be set, appears entry by entry in chapter 3, all of it sourced from the `src/settings.ts` declaration of each plugin.
+> The full field list can be exported straight from `FIELD_SPECS` in `cordis-host/plugins/*/src/settings.ts`; no separate attachment is needed. Earlier versions of this file pointed at `ondra-settings.csv` and `ondra-panel-model.json`, neither of which exists in this repository, so that reference has been removed — **this document does not cite files the repository does not contain**.
 
-| Top-level menu | Groups | Plugins | Enabled | Off at factory | Settings | Of which advanced | Not directly settable |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Persona Detail | 6 | 24 | 24 | 0 | 196 | 92 | 3 |
-| Voice & Appearance | 2 | 7 | 6 | 1 | 72 | 32 | 2 |
-| Channel Interfaces | 4 | 10 | 0 | 10 | 164 | 62 | 20 |
-| Extended Features | 3 | 7 | 7 | 0 | 45 | 22 | 0 |
-| Developer Features | 11 | 65 | 57 | 8 | 416 | 184 | 20 |
-| Emotion Engine | 1 | 7 | 6 | 1 | 25 | 12 | 0 |
-| Memory System | 1 | 17 | 17 | 0 | 205 | 131 | 0 |
-| **Total** | **28** | **137** | **117** | **20** | **1123** | **535** | **45** |
+| Top-level menu | Groups | Plugins | Enabled | Off at factory | Total fields | Directly settable | Not directly settable | Of which advanced | Of which secret |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Persona Detail | 6 | 24 | 24 | 0 | 199 | 196 | 3 | 93 | 0 |
+| Voice & Appearance | 2 | 7 | 6 | 1 | 74 | 72 | 2 | 33 | 0 |
+| Channel Interfaces | 4 | 10 | 0 | 10 | 184 | 164 | 20 | 82 | 0 |
+| Extended Features | 3 | 7 | 7 | 0 | 45 | 45 | 0 | 22 | 0 |
+| Developer Features | 11 | 65 | 57 | 8 | 436 | 416 | 20 | 188 | 0 |
+| Emotion Engine | 1 | 7 | 6 | 1 | 25 | 25 | 0 | 12 | 0 |
+| Memory System | 1 | 17 | 17 | 0 | 205 | 205 | 0 | 131 | 0 |
+| **Total** | **28** | **137** | **117** | **20** | **1168** | **1123** | **45** | **561** | **0** |
+
+**Every column is counted field by field from `FIELD_SPECS` in each plugin's `src/settings.ts`**, so re-running the same script after any code change reproduces them exactly:
+
+| Column | Definition |
+| --- | --- |
+| Plugins | Packages appearing as entries in this chapter. This includes `ondra-core` and the two bridges, hence 137; the number of independently loadable plugins is 134 |
+| Enabled / Off at factory | `FIELD_SPECS.enable.default`. 8 plugins have no `enable` field and 11 have no `settings.ts` at all; both are permanently enabled and counted under Enabled |
+| Total fields | Number of top-level keys in `FIELD_SPECS`, **including fields the interface gives no editing control for** |
+| Directly settable | Total fields minus "not directly settable". This is the number of entries a user can actually change in the UI, and it is what each plugin entry below calls its "configurable settings" |
+| Not directly settable | Two kinds: (1) **on-disk paths** (key ends in `Dir` / `File` / `Path` and `kind: 'string'`), which the program probes at runtime so the interface only echoes them read-only, and a hand-typed mistake surfaces only at runtime; (2) **structured arrays** (`kind: 'json'` with an array default), which need a per-item form rather than a single input box. Of the 48 path fields in the repository only some sit on a user-editable surface, hence 45 in total |
+| Of which advanced | Fields carrying `advancedOnly: true`, i.e. 48.0% of all fields. Collapsed by default, editable once expanded |
+| Of which secret | Fields carrying `secret: true`. **Measured at 0** — no field anywhere declares itself secret, so the interface needs no password input, see 5.6 |
+
+The figures reconcile in three directions: **row by row**, `Total fields = Directly settable + Not directly settable` holds for all 7 rows; **by column**, `1168 = 1123 + 45`; and `1123` matches the sum of the 137 individual plugin entries in the body text, item by item.
 
 
 ### 3.3 Persona Detail
 
-This menu answers who she is, how she speaks, and in what capacity she keeps you company. It holds 6 groups, 24 plugins and 196 configurable settings, all enabled at the factory default. The persona is split into replaceable parts rather than one hard-coded prompt: Persona Core owns the six-slot structure that defines who she is, Persona Variables & Intensity owns how strong the delivery is, Persona Assembly owns the fixed order of the four segments, and Persona Pack owns swapping the character. World Book & Scenes supplies background knowledge, Speech Expression turns the model's written register into spoken language, Emotion Projection & Injection carries the current mood into this turn's tone, Relationship & Narrative owns forms of address, first meetings and reunions, and Presence owns whether she should pause and whether she should split a message.
+This menu answers who she is, how she speaks, and in what capacity she keeps you company. It holds 6 groups, 24 plugins and 199 configurable fields, of which 196 can be changed directly, all enabled at the factory default. The persona is split into replaceable parts rather than one hard-coded prompt: Persona Core owns the six-slot structure that defines who she is, Persona Variables & Intensity owns how strong the delivery is, Persona Assembly owns the fixed order of the four segments, and Persona Pack owns swapping the character. World Book & Scenes supplies background knowledge, Speech Expression turns the model's written register into spoken language, Emotion Projection & Injection carries the current mood into this turn's tone, Relationship & Narrative owns forms of address, first meetings and reunions, and Presence owns whether she should pause and whether she should split a message.
 
 
 #### Persona Detail · Persona Core
@@ -318,7 +336,7 @@ Advanced (collapsed by default, 10): `min-chars`, `repeat-ngram`, `repeat-thresh
 
 **12. Language Feel** · package `ondra-lexicon` · enabled · 10 settings
 
-Language Feel: computes how the owner speaks from the last three hundred human messages and compresses it into a volatile segment of fifty-six to sixty-two characters carrying a marker. Four rulings are hard-coded. First, only the shape is kept and never the wording: an incoming message is immediately reduced to sentence-length arrays, whether punctuation was present and the count of trailing interjections, while the raw text is discarded that same pass and never appears in the archive, which makes remembering the shape without remembering the words a structural fact rather than a promise. Second, only real people count and she never counts herself: messages from the assistant are rejected outright, since otherwise her own sentences train her to resemble her previous turn and the owner's real changes get diluted. Third, the median rather than the mean, because one pasted block of code can fling the mean away while the median only cares that half the sentences are shorter than it. Fourth, the no-punctuation rate is computed per message rather than per sentence, since per sentence it collapses into the same measure as whether the whole message had punctuation. With fewer than thirty samples it yields an empty segment instead of a placeholder, because a placeholder crowds out real injection and is read by the model as information. The text never says how many recent messages were counted, since that is a tally and the model will repeat it back as a statement about the owner's messages. This plugin changes no persona, writes no system prompt, adds nothing to the eight injection blocks, calls no model, installs no timer and draws no interface.
+Language Feel: computes how the owner speaks from the last 300 human messages and compresses it into a volatile segment of 56 to 62 characters carrying a marker. Four rulings are hard-coded. First, only the shape is kept and never the wording: an incoming message is immediately reduced to sentence-length arrays, whether punctuation was present and the count of trailing interjections, while the raw text is discarded that same pass and never appears in the archive, which makes remembering the shape without remembering the words a structural fact rather than a promise. Second, only real people count and she never counts herself: messages from the assistant are rejected outright, since otherwise her own sentences train her to resemble her previous turn and the owner's real changes get diluted. Third, the median rather than the mean, because one pasted block of code can fling the mean away while the median only cares that half the sentences are shorter than it. Fourth, the no-punctuation rate is computed per message rather than per sentence, since per sentence it collapses into the same measure as whether the whole message had punctuation. With fewer than thirty samples it yields an empty segment instead of a placeholder, because a placeholder crowds out real injection and is read by the model as information. The text never says how many recent messages were counted, since that is a tally and the model will repeat it back as a statement about the owner's messages. This plugin changes no persona, writes no system prompt, adds nothing to the eight injection blocks, calls no model, installs no timer and draws no interface.
 
 | Setting | Control | Default | Range | Description |
 | --- | --- | --- | --- | --- |
@@ -467,7 +485,7 @@ Advanced (collapsed by default, 2): `include-private-backlog`, `verbose`
 
 **22. Message Splitting & Pauses** · package `ondra-rhythm` · enabled · 22 settings
 
-Message Splitting & Pauses as pure functions: at most four messages, forty characters each, six characters per second, three hundred, five hundred and one hundred fifty milliseconds added at punctuation, pauses between three hundred and six thousand milliseconds clamped before and after a late-night multiplier of 1.6, first-character delay between eight hundred and two thousand milliseconds, long pauses at twenty percent probability lasting three to nine seconds and at most once per turn, self-correction at five percent and not inserted by default, and on overflow keeping the first three messages while merging the tail into the fourth. It only computes and never sends: timed execution belongs to the typing layer and text editing belongs to the filter chain.
+Message Splitting & Pauses as pure functions: at most 4 messages, 40 characters each, 6 characters per second, 300, 500 and 150 milliseconds added at punctuation, pauses between 300 and 6000 milliseconds clamped before and after a late-night multiplier of 1.6, first-character delay between 800 and 2000 ms, long pauses at 20% probability lasting 3 to 9 seconds and at most once per turn, self-correction at 5% and not inserted by default, and on overflow keeping the first three messages while merging the tail into the fourth. It only computes and never sends: timed execution belongs to the typing layer and text editing belongs to the filter chain.
 
 | Setting | Control | Default | Range | Description |
 | --- | --- | --- | --- | --- |
@@ -506,7 +524,7 @@ Advanced (collapsed by default, 3): `same-action-once-per-day`, `extra-actions`,
 
 ### 3.4 Voice & Appearance
 
-This menu answers what she looks like and what voice she speaks with. It holds 2 groups, 7 plugins and 72 configurable settings. The Voice group converts text to speech, decides when speaking is appropriate and when it is not, and converts speech back to text; the Appearance group owns the portrait, expressions, stickers and the desktop pet entry point. Six of the seven plugins are enabled at the factory default; the desktop pet entry point is off because it requires the user to pick a desktop pet backend first.
+This menu answers what she looks like and what voice she speaks with. It holds 2 groups, 7 plugins and 74 configurable fields, of which 72 can be changed directly. The Voice group converts text to speech, decides when speaking is appropriate and when it is not, and converts speech back to text; the Appearance group owns the portrait, expressions, stickers and the desktop pet entry point. Six of the seven plugins are enabled at the factory default; the desktop pet entry point is off because it requires the user to pick a desktop pet backend first.
 
 
 #### Voice & Appearance · Voice
@@ -622,7 +640,7 @@ Advanced (collapsed by default, 3): `token-ttl-ms`, `allow-token-in-url`, `verbo
 
 ### 3.5 Channel Interfaces
 
-This menu answers where she talks to you. It holds 4 groups, 10 plugins and 164 configurable settings, all off at the factory default. It is the only top-level menu that is disabled as a whole: every channel needs its own credentials, and enabling one without credentials produces nothing but a run of connection failures. The ten channels cover four WeChat forms (official account, customer service, personal account, WeCom), Feishu and DingTalk, two QQ forms (official bot and NapCat reverse WebSocket), Telegram and Discord. The personal account channel is marked high risk in its own title, because its implementation relies on an unofficial interface and carries account risk.
+This menu answers where she talks to you. It holds 4 groups, 10 plugins and 184 configurable fields, of which 164 can be changed directly, all off at the factory default. It is the only top-level menu that is disabled as a whole: every channel needs its own credentials, and enabling one without credentials produces nothing but a run of connection failures. The ten channels cover four WeChat forms (official account, customer service, personal account, WeCom), Feishu and DingTalk, two QQ forms (official bot and NapCat reverse WebSocket), Telegram and Discord. The personal account channel is marked high risk in its own title, because its implementation relies on an unofficial interface and carries account risk.
 
 
 #### Channel Interfaces · WeChat Family
@@ -851,7 +869,7 @@ Not directly settable (1): `credential-file` (Credential file path, produced by 
 
 ### 3.6 Extended Features
 
-This menu answers what she offers you on her own initiative beyond conversation. It holds 3 groups, 7 plugins and 45 configurable settings, all enabled at the factory default. The Periodic Artifacts group generates text worth keeping on a daily and weekly cadence; the Time Rituals group handles actions that depend only on the date, such as On This Day, Time Capsule and solar terms; the Ambient Information group supplies weather. What the three groups share is that their output is independent of the conversation: even on a day with no messages, this content is still produced, and it stays local.
+This menu answers what she offers you on her own initiative beyond conversation. It holds 3 groups, 7 plugins and 45 configurable fields, all of them directly changeable, all enabled at the factory default. The Periodic Artifacts group generates text worth keeping on a daily and weekly cadence; the Time Rituals group handles actions that depend only on the date, such as On This Day, Time Capsule and solar terms; the Ambient Information group supplies weather. What the three groups share is that their output is independent of the conversation: even on a day with no messages, this content is still produced, and it stays local.
 
 
 #### Extended Features · Periodic Artifacts
@@ -951,7 +969,7 @@ Advanced (collapsed by default, 2): `timeout-ms`, `verbose`
 
 ### 3.7 Developer Features
 
-This menu answers how to find out why she behaves a certain way, how to change it, and how to inspect it. It holds 11 groups, 65 plugins and 416 configurable settings, the largest top-level menu in the project. It contains Foundation & Host (assembly, clock, identity, configuration, paths, logging, model gateway, process supervision, window), Storage & Data, Channel Shared Components, Context Assembly, Gating & Compliance, Tools & Capability Surface, Introspection & Learning, Life & Perception, Installation & Assembly, Panels & Readouts, and Care & Guidance. Eight of its 65 plugins are off at the factory default, and all eight either need an external backend or involve high-risk operations (GUI operation, browser guardrail, desktop read-only, phone read-only, SMS via adb, Minecraft, vision, and the prerequisites for tri-device interop).
+This menu answers how to find out why she behaves a certain way, how to change it, and how to inspect it. It holds 11 groups, 65 plugins and 436 configurable fields, of which 416 can be changed directly, the largest top-level menu in the project. It contains Foundation & Host (assembly, clock, identity, configuration, paths, logging, model gateway, process supervision, window), Storage & Data, Channel Shared Components, Context Assembly, Gating & Compliance, Tools & Capability Surface, Introspection & Learning, Life & Perception, Installation & Assembly, Panels & Readouts, and Care & Guidance. Eight of its 65 plugins are off at the factory default, and all eight either need an external backend or involve high-risk operations (GUI operation, browser guardrail, desktop read-only, phone read-only, SMS via adb, Minecraft, vision, and the prerequisites for tri-device interop).
 
 
 #### Developer Features · Panels & Readouts
@@ -1306,7 +1324,7 @@ Not directly settable (1): `enabled-tools` (Structured array (readonly ToolKey[]
 
 **74. SMS via adb** · package `ondra-adb` · off at factory · 10 settings · 2 not directly settable
 
-SMS via adb, read-only: following evidence on the device side, it only polls the unread inbox content provider, every fifteen seconds, twenty messages per round, with the answered set trimmed from a thousand to five hundred. It does no screenshots, no tapping and no Chinese text input, and it sends no messages, since replies rely on a reply webhook plus a user-supplied intent bridge. Read-only is not a promise in the documentation but a structural allow list in the policy module: apart from that one content query everything is refused, including shell metacharacters that the device side would re-parse. Command execution and reply delivery are both ports, and the timer hangs on the effect disposer so it stops on unload. It ships disabled.
+SMS via adb, read-only: following evidence on the device side, it only polls the unread inbox content provider, every 15 seconds, 20 messages per round, with the answered set trimmed from 1000 to 500. It does no screenshots, no tapping and no Chinese text input, and it sends no messages, since replies rely on a reply webhook plus a user-supplied intent bridge. Read-only is not a promise in the documentation but a structural allow list in the policy module: apart from that one content query everything is refused, including shell metacharacters that the device side would re-parse. Command execution and reply delivery are both ports, and the timer hangs on the effect disposer so it stops on unload. It ships disabled.
 
 | Setting | Control | Default | Range | Description |
 | --- | --- | --- | --- | --- |
@@ -1787,7 +1805,7 @@ Advanced (collapsed by default, 6): `builtin`, `page-size`, `sort`, `max-indexes
 
 ### 3.8 Emotion Engine
 
-This menu answers what state she is in right now. It holds 1 group, 7 plugins and 25 configurable settings. Emotion is not the prompt line you are happy right now; it is a set of state variables that carry inertia, can conflict, can be suppressed and decay on their own. The core maintains the baseline, the relationship stage caps the upper bound of intimacy, the conflict lock prevents two emotions from being maxed out at once, the stress multiplier decides how attention tilts under tension, six-state expression decides which six words describe the state, the hormone dimension provides a finer continuous quantity, and diffusion decides how long an emotion takes to settle. The hormone dimension is off at the factory default because it overlaps with six-state expression, and enabling both makes a single turn carry two descriptions of the same mood.
+This menu answers what state she is in right now. It holds 1 group, 7 plugins and 25 configurable fields, all of them directly changeable. Emotion is not the prompt line you are happy right now; it is a set of state variables that carry inertia, can conflict, can be suppressed and decay on their own. The core maintains the baseline, the relationship stage caps the upper bound of intimacy, the conflict lock prevents two emotions from being maxed out at once, the stress multiplier decides how attention tilts under tension, six-state expression decides which six words describe the state, the hormone dimension provides a finer continuous quantity, and diffusion decides how long an emotion takes to settle. The hormone dimension is off at the factory default because it overlaps with six-state expression, and enabling both makes a single turn carry two descriptions of the same mood.
 
 
 #### Emotion Engine · Emotion Engine
@@ -1871,7 +1889,7 @@ Advanced (collapsed by default, 1): `verbose`
 
 ### 3.9 Memory System
 
-This menu answers what she remembers, what she forgets, and when something comes back to her. It holds 1 group, 17 plugins and 205 configurable settings, the second-largest top-level menu by setting count, all enabled at the factory default. Memory is built as a complete pipeline rather than a vector store: write turns a conversation into both raw text and facts, extraction pulls the facts out, dedupe merges and resolves conflicts, recall retrieves, recognition provides a second retrieval path, the graph holds relations, the eight pools assign tiered lifetimes, decay lets memories fade, dreaming tidies up while idle, promises and todos hold what is unfinished, the forgetting audit answers why she forgot, self-healing repairs inconsistencies, and the right to be forgotten performs real deletion.
+This menu answers what she remembers, what she forgets, and when something comes back to her. It holds 1 group, 17 plugins and 205 configurable fields, all of them directly changeable, the second-largest top-level menu by setting count, all enabled at the factory default. Memory is built as a complete pipeline rather than a vector store: write turns a conversation into both raw text and facts, extraction pulls the facts out, dedupe merges and resolves conflicts, recall retrieves, recognition provides a second retrieval path, the graph holds relations, the eight pools assign tiered lifetimes, decay lets memories fade, dreaming tidies up while idle, promises and todos hold what is unfinished, the forgetting audit answers why she forgot, self-healing repairs inconsistencies, and the right to be forgotten performs real deletion.
 
 
 #### Memory System · Memory System
@@ -1983,7 +2001,7 @@ Advanced (collapsed by default, 11): `rrf-k`, `bm25-k1`, `bm25-b`, `bm25-half`, 
 
 **129. Memory Recognition** · package `ondra-memory-recognition` · enabled · 15 settings
 
-Memory Recognition: the recognition retrieval branch, where a full index of one trigger line per memory enters the prompt, a small model picks the slug and the walk moves through the link neighbourhood. Five hundred entries run about six thousand tokens, and the index block is ordered by sequence so it can serve as a prefix cache.
+Memory Recognition: the recognition retrieval branch, where a full index of one trigger line per memory enters the prompt, a small model picks the slug and the walk moves through the link neighbourhood. 500 entries run about 6000 tokens, and the index block is ordered by sequence so it can serve as a prefix cache.
 
 | Setting | Control | Default | Range | Description |
 | --- | --- | --- | --- | --- |
@@ -2069,7 +2087,7 @@ Advanced (collapsed by default, 2): `scan-limit`, `verbose`
 
 **136. Multimodal Memory** · package `ondra-multimodal-memory` · enabled · 19 settings
 
-Multimodal Memory: stores visual descriptions and speech transcripts as ordinary memories while remembering which file they came from. Four rulings are hard-coded. First, the memory body exists in one copy, written into the memory core's fact table, and this plugin builds no second memory library; since that table has no modality or source path columns, this plugin keeps its own edge table hanging metadata off each fact id, and dropping that table would not affect retrieval or injection of any memory. Second, entries stay short while the full text is archived, because entries are capped at 200 characters while a three-minute transcript runs to thousands, so the truncated entry enters retrieval and the full text stays in the edge table, and the eight hundred characters cut away do not vanish. Third, the fingerprint is recomputed, because the meaning of deduplication is that one piece of content is stored once, and one piece of content must be decided by the content rather than asserted by upstream, so this plugin hashes modality, source path and text again and uses its own value while recording the degradation when they disagree, preferring one visible duplicate over one invisible missing memory. Fourth, the evidence source follows who said it: a transcript is marked as the user speaking and an image description as the tool speaking, since otherwise either the user's words would be recorded as the model's guess or a guess about an image would testify on the user's behalf. This plugin exposes no tools, installs no timer, makes no outbound request and draws no interface; frame sampling belongs to vision, transcription to speech transcription, the evidence gate to its own module, storage to the SQLite backend and the interface to the shell.
+Multimodal Memory: stores visual descriptions and speech transcripts as ordinary memories while remembering which file they came from. Four rulings are hard-coded. First, the memory body exists in one copy, written into the memory core's fact table, and this plugin builds no second memory library; since that table has no modality or source path columns, this plugin keeps its own edge table hanging metadata off each fact id, and dropping that table would not affect retrieval or injection of any memory. Second, entries stay short while the full text is archived, because entries are capped at 200 characters while a three-minute transcript runs to thousands, so the truncated entry enters retrieval and the full text stays in the edge table, and the 800 characters cut away do not vanish. Third, the fingerprint is recomputed, because the meaning of deduplication is that one piece of content is stored once, and one piece of content must be decided by the content rather than asserted by upstream, so this plugin hashes modality, source path and text again and uses its own value while recording the degradation when they disagree, preferring one visible duplicate over one invisible missing memory. Fourth, the evidence source follows who said it: a transcript is marked as the user speaking and an image description as the tool speaking, since otherwise either the user's words would be recorded as the model's guess or a guess about an image would testify on the user's behalf. This plugin exposes no tools, installs no timer, makes no outbound request and draws no interface; frame sampling belongs to vision, transcription to speech transcription, the evidence gate to its own module, storage to the SQLite backend and the interface to the shell.
 
 | Setting | Control | Default | Range | Description |
 | --- | --- | --- | --- | --- |
@@ -2104,7 +2122,7 @@ All six can be reproduced and verified. Each gives the name, the value, the impl
 ### Highlight 1: Discovery through service keys rather than code-level dependencies
 
 - **Name**: the service-key discovery mechanism.
-- **Value**: it solves the problem that change cost grows non-linearly with feature count. With 137 plugins in one codebase, mutual imports would mean any signature change in a shared module breaks compilation across the whole repository, and the regression surface could never converge.
+- **Value**: it solves the problem that change cost grows non-linearly with feature count. With 134 plugins in one codebase, mutual imports would mean any signature change in a shared module breaks compilation across the whole repository, and the regression surface could never converge.
 - **Implementation**: there is not one cross-package import between plugins. Each plugin registers capabilities through `ctx.provide(key, implementation)` inside `apply(ctx, config)` and consumes upstream capabilities through `ctx.get(key)`. When the key is absent it neither throws nor waits; it skips that step and leaves one line in the log noting the missing upstream. Cordis handles service registration and dependency ordering, and a plugin does not know who consumes it.
 - **Difference**: common plugin systems declare dependencies with interfaces or a registry, so a mismatch is caught at compile time at the cost of a full rebuild for any change. This approach defers coupling to runtime, trading zero compile-time impact for graceful degradation. That trade presupposes every plugin has a working degradation path, which makes degradation an admission condition rather than an optional optimisation.
 - **Evidence**: `cordis-host/check-core.mjs` loads all 134 members one by one. Measured result: 134 of 134 succeeded, 0 skipped. Across twelve consecutive runs the load took 194 to 264 milliseconds, median 215 milliseconds; the same batch contained a single 1581 millisecond outlier caused by system load. Zero skips is itself the proof that each plugin can stand up without its upstream — a plugin hard-depending on one would fail at load time when the service could not be obtained.
@@ -2163,7 +2181,7 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 **A missing summary falls back to the body.** When the model returns no summary, the leading characters of the body serve as one, so the summary field is never empty, since an empty summary would show as a blank line in the list view.
 
-**A missing upstream never throws.** Every service lookup is written to handle absence. When an upstream plugin is missing, the service still registers and is merely marked unavailable. This is what lets 137 plugins load in any order and makes debugging a single plugin possible.
+**A missing upstream never throws.** Every service lookup is written to handle absence. When an upstream plugin is missing, the service still registers and is merely marked unavailable. This is what lets 134 plugins load in any order and makes debugging a single plugin possible.
 
 **The meaning of an empty array is written out for each field rather than unified.** An empty open-id allow list means no restriction, because an official account is a public entry point, while an empty contact allow list means refuse everyone, because a personal account is a private entry point. Both are an empty allow list, and the two channels carry opposite meanings because the cost of a wrong admission is one extra reply for the first and sending a private conversation to a stranger for the second. Meanings like these are stated in the field description rather than left to be guessed.
 
@@ -2189,7 +2207,7 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 **Tool schema gating.** The tool gate with 9 settings decides by deterministic rules which tools to expose this turn rather than putting every tool definition into the prompt at once. Tool definitions are the largest single consumer of context, and after gating only the subset the current intent might need is exposed.
 
-**Plugins load serially, never concurrently.** The 134 plugins are awaited one by one; measured over twelve consecutive runs the load took 194 to 264 milliseconds, median 215 milliseconds. Concurrent loading would let a dependent initialise before its dependency has registered its service, producing races that are hard to reproduce. Trading roughly two hundred milliseconds for the elimination of a whole class of intermittent failures is worthwhile.
+**Plugins load serially, never concurrently.** The 134 plugins are awaited one by one; measured over 12 consecutive runs the load took 194 to 264 ms, median 215 ms. Concurrent loading would let a dependent initialise before its dependency has registered its service, producing races that are hard to reproduce. Trading roughly 200 ms for the elimination of a whole class of intermittent failures is worthwhile.
 
 ### 5.4 Concurrency and data consistency
 
@@ -2237,9 +2255,9 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 **Window size is forced back on every start.** The main window's default and minimum size are both 820 by 580, and every start returns to it regardless of how large it was dragged. Reading width in a conversation interface has an optimal range, and a single line becomes hard to read when the window is stretched to 2000 pixels.
 
-**Settings are presented in two tiers.** Of the 1123 configurable settings, 588 appear directly in the interface and 535 are folded into the advanced layer. A single plugin holds at most 31 settings, and flattening all of them would turn the settings page into an unnavigable table. Folding removes no functionality; it moves the rarely changed into a second layer.
+**Settings are presented in two tiers.** Of the 1168 fields, 607 appear directly in the interface and 561 are folded into the advanced layer. A single plugin holds at most 34 fields (`ondra-adapter-qq-napcat`), and flattening all of them would turn the settings page into an unnavigable table. Folding removes no functionality; it moves the rarely changed into a second layer.
 
-**Every setting carries an explanation.** All 1123 fields have a description, averaging 36 characters and running up to 108. The descriptions come from the field declarations in the compiled output and share their source with the code, so the documentation cannot drift into saying on by default while the code says off.
+**Almost every setting carries an explanation.** 1128 of the 1168 fields have a `doc` (96.6%), averaging 36 characters and running up to 108. The remaining 40 are simply not documented yet, not deliberately omitted — the interface shows the field key for those instead of inventing a description. The descriptions come from the field declarations in the compiled output and share their source with the code, so the documentation cannot drift into saying on by default while the code says off.
 
 **Disabled plugins are shown too.** The 20 plugins that ship switched off appear in the plugin list with a grey dot rather than being hidden. A grey dot means installed but not switched on, which is a different thing from not installed, and hiding them would make users believe those capabilities do not exist.
 
@@ -2371,7 +2389,7 @@ cd Ondra
 pnpm install
 ```
 
-`pnpm install` creates workspace links for the 137 plugins under `cordis-host/plugins/`. The first run takes a while; later incremental installs are fast.
+`pnpm install` creates workspace links for the 137 packages under `cordis-host/plugins/`. The first run takes a while; later incremental installs are fast.
 
 ### 7.4 Building
 
@@ -2507,7 +2525,7 @@ Step 3 cannot be skipped. `ondra-core` declares every plugin as a dependency, so
 
 ## 9. Configuration
 
-Settings come in three layers: environment variables control how processes start, workspace configuration controls how dependencies resolve, and plugin declarations control how each feature behaves. The third layer corresponds to the 1123 configurable settings listed one by one in chapter 3.
+Settings come in three layers: environment variables control how processes start, workspace configuration controls how dependencies resolve, and plugin declarations control how each feature behaves. The third layer corresponds to the 1168 fields listed one by one in chapter 3.
 
 ### 9.1 Environment variables
 
@@ -2522,7 +2540,7 @@ Settings come in three layers: environment variables control how processes start
 
 Key settings in `pnpm-workspace.yaml`:
 
-- **`packages`**: `src`, `cordis-host`, `cordis-host/plugins/*` including all 137 plugins, and `dsh-sidecar` are workspace members. `src-tauri` is managed by Cargo and stays outside the pnpm workspace.
+- **`packages`**: `src`, `cordis-host`, `cordis-host/plugins/*` including all 137 packages, and `dsh-sidecar` are workspace members. `src-tauri` is managed by Cargo and stays outside the pnpm workspace.
 - **`overrides`**: the private framework scope is aliased to the official Cordis package version. The older plugins all declare a peer dependency on the private scope, which was never published to the public registry, and the official package is its only upstream implementation.
 
 ### 9.3 Where dependencies live
@@ -2639,7 +2657,7 @@ Each plugin declares its configuration in its own `src/settings.ts`, and that de
 | `secret` | Boolean | Whether the value is sensitive and shown masked in the interface |
 | `doc` | String | User-facing explanation, rendered beside the field |
 
-Because `doc` shares its source with the code, documentation cannot drift from actual behaviour. All 1123 configurable settings in this project carry a `doc`, averaging 36 characters.
+Because `doc` shares its source with the code, documentation cannot drift from actual behaviour. 1128 of the 1168 fields in this project carry a `doc`, averaging 36 characters.
 
 ---
 
@@ -2814,7 +2832,7 @@ The following figures were measured on Apple Silicon macOS with Node 22.22.2.
 5. **The tray icon is not connected.** The tray feature is enabled in the Cargo manifest, but no tray is created yet.
 6. **Single-window form.** Closing the window quits; the application does not stay resident in the tray.
 7. **No automatic updates.** The update flow is not implemented.
-8. **Plugin configuration is not yet connected to the interface.** All 137 plugins are loaded on the host side and can discover each other, but the interface layer does not yet expose their configuration or state. The 1123 settings listed in chapter 3 are the complete plugin-side declaration, and interface integration is the next stage of work.
+8. **Plugin configuration is not yet connected to the interface.** All 134 plugins are loaded on the host side and can discover each other, but the interface layer does not yet expose their configuration or state. The 1168 fields listed in chapter 3 are the complete plugin-side declaration, and interface integration is the next stage of work.
 9. **Two strict type checks do not apply to migrated plugins.** The exact optional properties and unchecked indexed access options are enabled only in the host, the kernel, the front end and three newly written plugins. The 134 migrated plugins have them off, and the reason and the cost are described in 5.8.
 10. **The exact Windows installer size awaits verification.** The default NSIS window size cannot be set to an arbitrary pixel size in configuration, and a custom template is planned as described in 9.4, pending a build on Windows.
 11. **Voice input depends on system capability.** Voice input uses the Web Speech API, which may be unavailable in most desktop web views, in which case the button says the current environment does not support voice input.
@@ -2880,7 +2898,7 @@ The first skeleton version built on the three-layer architecture.
 Ordered by dependency, where each item is a prerequisite for the next.
 
 1. **Connect the shell command channel**, so the desktop bridge actually reaches Tauri. This is the prerequisite for file selection and external links working.
-2. **Plugin configuration panel.** Present the 1123 settings from chapter 3 across 7 top-level menus and 28 second-level groups, including a running-state indicator with the four states of healthy, update available, failed and disabled. This is the largest unfinished item in the project.
+2. **Plugin configuration panel.** Present the 1168 fields from chapter 3 across 7 top-level menus and 28 second-level groups, including a running-state indicator with the four states of healthy, update available, failed and disabled. This is the largest unfinished item in the project.
 3. **Streaming conversation interface.** Subscribe to the inference delta event and implement incremental rendering and interruption.
 4. **Tool registry.** Provide a basic tool set for file access, terminal and network, with argument validation before execution.
 5. **Tray and background residence**, supporting closing the window without quitting.

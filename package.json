@@ -1,8 +1,8 @@
 {
   "name": "ondra",
   "productName": "空谷 Ondra",
-  "description": "空谷 Ondra：基于 Ondra 定制、全插件式的桌面 AI 陪伴体应用",
-  "version": "1.2.0",
+  "description": "空谷 Ondra：全插件式桌面 AI 陪伴体应用",
+  "version": "2.0.1",
   "private": true,
   "license": "AGPL-3.0",
   "author": {
@@ -15,21 +15,33 @@
   },
   "homepage": "https://ai.ntars.cn/",
   "type": "module",
-  "main": "lib/main.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.28.5",
   "scripts": {
-    "icons": "node tools/sync-plugin-icons.mjs",
-    "icons:check": "node tools/sync-plugin-icons.mjs --check",
-    "build:site": "node tools/build-site.mjs"
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "build": "pnpm run build:web && pnpm run build:plugins && pnpm run build:host && pnpm run build:sidecar",
+    "build:web": "pnpm --filter @ondra/web run build",
+    "build:host": "pnpm --filter @ondra/cordis-host run build",
+    "build:sidecar": "pnpm --filter @ondra/dsh-sidecar run build",
+    "build:plugins": "pnpm --filter \"./cordis-host/plugins/*\" --if-present run build",
+    "dev:web": "pnpm --filter @ondra/web run dev",
+    "dev:host": "pnpm --filter @ondra/cordis-host run dev",
+    "dev:sidecar": "pnpm --filter @ondra/dsh-sidecar run dev",
+    "dev:shell": "pnpm exec tauri dev",
+    "tauri": "pnpm exec tauri",
+    "build:app": "pnpm run build && pnpm run build:runtime && node tools/tauri-build.mjs && node tools/make-dmg.mjs && node tools/bundle-release.mjs",
+    "release": "pnpm run build:app && node tools/bundle-release.mjs",
+    "smoke": "node tools/smoke.mjs",
+    "check:core": "node cordis-host/check-core.mjs",
+    "prepare:plugins": "node tools/prepare-plugins.mjs",
+    "site": "node tools/build-site.mjs",
+    "build:runtime": "node tools/collect-runtime.mjs",
+    "build:dmg": "node tools/make-dmg.mjs",
+    "check:cors": "node tools/check-cors.mjs"
   },
-  "dependencies": {
-    "electron-updater": "^6.8.9",
-    "semver": "^7.8.5",
-    "ws": "^8.21.3",
-    "@ntars/ondra-api-gateway": "workspace:*",
-    "@ntars/cordis": "workspace:~"
-  },
-  "ondraDesktopAppId": "com.ntars.ondra",
-  "ondraDesktopUpdateChannel": "nightly",
-  "ondraBuildCommit": "81e326b14f9c92f40ebd4c81c491ce15ec5f4430",
-  "ondraBuildDirty": true
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
 }

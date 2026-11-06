@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-pet",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的桌宠能力入口（骨架）。手册 §6.3 第一条就是「不自研」，所以本包不画窗口、不做立绘、不做 Live2D，只做入口该做的四件事：许可证闸门把「AGPL 只能读思路」变成可执行判定（Coopanion 是 AGPL-3.0，接它就违规，这件事不该靠人记得）；桥接安全把手册 §9.2 的 Origin 校验加一次性 token 落成默认全拒的纯函数（非回环地址、URL 里夹 token、来源清单为空，一律拒）；单实例状态机保证桌面上只有一只（两只的结果不是更热闹，是用户分不清哪只是她）；渲染档降级让 live2d 请求如实被拒而不是黑屏（Cubism Core 专有且不可再分发，手册明确 1.0 阶段不做）。按能力查过 desktop/packages 里 pet 相关 0 命中、本仓也禁装依赖，所以桥做成端口、缺实现时如实回 no-bridge——不会假装她已经在桌面上。一个工具都不注册：召唤是用户动作，模型能开窗口就是越权。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

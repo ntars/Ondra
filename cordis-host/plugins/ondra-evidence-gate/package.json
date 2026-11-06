@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-evidence-gate",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的记忆写入门控：四类引文（USER/TOOL/ACT/SELF）、逐字校验、数字必须有出处、无 USER 引文的归功断言拒绝。确定性代码闸门，零模型调用。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

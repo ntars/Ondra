@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-memory-humanlike",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的记忆拟人化：三通道视图（fact / gist / affect）与三条想起路径——固定回忆骰子（越模糊越容易被想起）、被话头勾起（概率闸 + 命中加固）、漫无目的联想（水波纹）。强度只问记忆内核，扩散只问图谱，勾起的候选由调用方给，不重建检索。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

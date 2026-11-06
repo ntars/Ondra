@@ -1,0 +1,352 @@
+/**
+ * 中栏的第二种读法：运行日志。
+ *
+ * ## 它和「对话」是什么关系
+ *
+ * 对话显示**她说了什么**；日志显示**她为了说出那些话做了什么**。
+ * 收到一条消息、开始思考、调用一个工具、说完了、这一轮结束——
+ * 每一行都是一句白话，唯一的分类是时间戳旁那五个词。
+ *
+ * 两者读的是同一份会话事件，所以永远不会出现"日志里有但对话里没有"
+ * 这种矛盾。这也是为什么它不做成独立页面，而是中栏的一个视图。
+ *
+ * ## 为什么是等宽数字的四列网格
+ *
+ * 四列是：时间 / 类别 / 谁 / 说了什么。前两列的宽度必须固定，
+ * 否则每一行的时间戳与徽章左右错位，整片日志看起来像没对齐的表格。
+ * 时间用等宽字体 + `tabular-nums`，`09:05:03` 与 `11:22:47` 等宽。
+ *
+ * ## 没有的内容
+ *
+ * 不显示模型 id、token 数、请求头。这些只有拿着协议文档的人才看得懂，
+ * 而这一栏的读者是想知道"她刚才在忙什么"的人。要看技术细节，
+ * 那是开发者工具的事，不该挂在陪伴产品的"日志"标签下。
+ */
+
+.log {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--alias-label-primary);
+}
+
+/* 行容器。底部 18px 让最后一行不贴边。 */
+.log__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 20px 18px;
+  box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------------------
+   一、轮次分组
+   --------------------------------------------------------------------------- */
+
+.log__group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/**
+ * 组头：第 N 轮 / 起始时刻 / 条数。
+ *
+ * `align-items: baseline` 而不是 center：三个元素字号不同，
+ * 按基线与按中心对齐看起来差别很大，后者会让小字浮在大字中间。
+ */
+.log__groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 9px 0 2px;
+  color: var(--alias-label-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+/* 第一组不加上边距：它上面就是列表顶端，再留 9px 会显得空。 */
+.log__group:first-child .log__groupHead {
+  margin-top: 0;
+}
+
+.log__groupLabel {
+  color: var(--alias-label-primary);
+}
+
+/* 组的起始时刻。等宽 + tabular-nums，与行内时间同一套数字宽度。 */
+.log__groupTime {
+  color: var(--alias-label-tertiary);
+  font-family: var(--font-family-code);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 条数推到右端。它是组级统计，混在标题里读不顺。 */
+.log__groupCount {
+  margin-left: auto;
+  color: var(--alias-label-tertiary);
+  font-weight: 400;
+}
+
+/* 组之间的分隔线。0.5px 是最细的实线，2x 屏上正好一物理像素。 */
+.log__divider {
+  height: 0.5px;
+  margin: 8px 0 0;
+  background: var(--alias-border-l2);
+}
+
+/* ---------------------------------------------------------------------------
+   二、一行
+   --------------------------------------------------------------------------- */
+
+/**
+ * 四列：时间 auto / 类别 44px / 谁 32px / 内容 minmax(0,1fr)。
+ *
+ * 后两列给固定宽度是因为它们的内容长度可枚举（"通道/模型/工具/节律/异常"
+ * 最多两个字，"你/她/系统"最多两个字），固定宽度能让每一行的内容
+ * 从同一个 x 坐标开始。
+ *
+ * `minmax(0, 1fr)` 而不是 `1fr`：网格项默认 `min-width: auto`，
+ * 长内容会把列撑破；加 0 下限才会正常换行。
+ */
+.log__row {
+  display: grid;
+  grid-template-columns: auto 44px 32px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.log__time {
+  color: var(--alias-label-tertiary);
+  font-family: var(--font-family-code);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/**
+ * 类别徽章。五色对应五类。
+ *
+ * 底色全部取最浅那一档 + 同族深色文字，因为徽章里是字不是图标。
+ * 用实色块（比如纯蓝底白字）会让这五列变成整片日志里最抢眼的东西，
+ * 而它们只是索引，不是内容。
+ */
+.log__badge {
+  justify-self: start;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.log__badge--channel {
+  background: var(--alias-state-business-tertiary);
+  color: var(--alias-label-primary-bluish);
+}
+
+.log__badge--model {
+  background: var(--alias-state-success-tertiary);
+  color: var(--alias-state-success-primary);
+}
+
+.log__badge--tool {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-secondary);
+}
+
+.log__badge--pace {
+  background: var(--alias-state-idle-tertiary);
+  color: var(--alias-label-tertiary);
+}
+
+.log__badge--error {
+  background: var(--alias-state-error-tertiary);
+  color: var(--alias-state-error-primary);
+}
+
+/**
+ * 发送者。三种颜色区分谁在说话。
+ *
+ * 「她」用成功绿：不是为了表示"成功"，而是这一列里需要一个
+ * 与"你"（次要灰）明显不同、又不刺眼的色。绿色在全套界面里
+ * 只用在"在线"与这里，两者的共同点是"有生命在动"。
+ */
+.log__sender {
+  color: var(--alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.log__sender--user {
+  color: var(--alias-label-secondary);
+}
+
+.log__sender--assistant {
+  color: var(--alias-state-success-primary);
+}
+
+/* 内容。允许换行，长路径也要能断开，否则会溢出到列外。 */
+.log__text {
+  min-width: 0;
+  color: var(--alias-label-primary);
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/**
+ * 行内的等宽小标注（工具名、文件路径、命令）。
+ *
+ * 底色用悬停档而不是描边：它嵌在一行正文里，加边框会让这一行
+ * 看起来被切成几段；浅底色只是把这段文字"标出来"，不打断阅读。
+ */
+.log__detail {
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-secondary);
+  font-family: var(--font-family-code);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* 耗时。等宽数字，右对齐是小技巧：它跟在句子末尾，等宽后
+   "1.2 秒"与"12.4 秒"的小数点能大致对齐。 */
+.log__duration {
+  margin-left: 6px;
+  color: var(--alias-label-tertiary);
+  font-family: var(--font-family-code);
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   三、可展开的正文
+   --------------------------------------------------------------------------- */
+
+/**
+ * 一段可折叠的完整内容（你的原话 / 她的思考 / 她的回复）。
+ *
+ * 它跨到第四列（内容列）并对齐，左侧一条 0.5px 竖线把它和
+ * 上方那一行连起来——视觉上表达"这段正文属于上面那条记录"。
+ */
+.log__body {
+  grid-column: 4;
+  margin: 1px 0 2px;
+  padding-left: 8px;
+  border-left: 0.5px solid var(--alias-border-l3);
+}
+
+/**
+ * 折叠时的摘要行。
+ *
+ * 用 `<details>/<summary>` 而不是自己管状态：原生元素自带
+ * 键盘可达性与展开状态语义，自己实现要补一堆 ARIA 才等价。
+ *
+ * `list-style: none` + `::-webkit-details-marker` 去掉系统三角，
+ * 换成自绘的 `›`——系统三角是实心的，在 11px 字号下会显得笨重。
+ */
+.log__bodySummary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--alias-label-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  list-style: none;
+  cursor: default;
+}
+
+.log__bodySummary::-webkit-details-marker {
+  display: none;
+}
+
+.log__bodySummary::before {
+  content: "›";
+  color: var(--alias-label-tertiary);
+  transition: transform var(--motion-duration-fast) ease;
+}
+
+.log__body[open] > .log__bodySummary::before {
+  transform: rotate(90deg);
+}
+
+/* 字数。跟在标题后面，用次要色，不参与"这段是什么"的表达。 */
+.log__bodySize {
+  color: var(--alias-label-tertiary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/**
+ * 展开后的正文。
+ *
+ * max-height 280px + 内部滚动：一段思考可能几千字，全铺开会把
+ * 后面所有轮次推到屏幕外。280px 约 14 行，足够看清"她在想什么"，
+ * 又不至于让人失去当前位置感。
+ */
+.log__bodyText {
+  max-height: 280px;
+  margin: 4px 0 0;
+  overflow-y: auto;
+  color: var(--alias-label-primary);
+  font-size: 12.5px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* ---------------------------------------------------------------------------
+   四、空状态
+   --------------------------------------------------------------------------- */
+
+/**
+ * 还没有任何记录。
+ *
+ * `min-height: 40vh` 让它在矮窗口里也把内容压到视觉中上部，
+ * 而不是紧贴顶端。空状态停在高处容易被误读成"上面还有内容没加载完"。
+ */
+.log__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: auto;
+  min-height: 40vh;
+  padding: 0 20px;
+  text-align: center;
+}
+
+.log__emptyTitle {
+  margin: 0;
+  color: var(--alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+/* 提示语。max-width 34em 是"一行大约 34 个汉字"，
+   超过这个长度眼睛需要回扫。 */
+.log__emptyHint {
+  max-width: 34em;
+  margin: 0;
+  color: var(--alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}

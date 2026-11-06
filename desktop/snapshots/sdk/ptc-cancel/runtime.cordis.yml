@@ -1,5 +1,0 @@
-- insert:
-    - id: ptc-runtime
-      name: '@ntars/ondra-ptc-runtime-node'
-    - id: ptc-cancel-fixture
-      name: './cancel.mjs'

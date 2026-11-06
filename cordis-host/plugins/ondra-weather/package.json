@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-weather",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的天气（手册 §3.7 / §1.8 复用档）：只认显式坐标，取不到就不提。坐标写成一个 lat,lon 字段（避免「只填了纬度」这种半对状态），经 Open-Meteo 取当前实况与今日高低温和降水概率，结果只进内存缓存、默认 10 分钟一换。没有坐标、超时、返回格式变了，一律返回原因码而不是猜一个天气；不存盘、不进会话、不注册工具。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

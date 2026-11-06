@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-persona-assemble",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的人格四段拼装：内核 → 关系微调 → 浓度 → 边界，顺序固定不按 priority 排；按字符预算逐条装箱（装不下跳过继续试），边界层整层豁免裁剪，超预算如实报 overBudget 并把「另有 N 段未展开」写进段标题，绝不切字、绝不静默丢。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

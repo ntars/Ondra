@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-dialogue",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的对话编排（手册 §8.5）：会话内冻结前缀——稳定段（人格 + 世界书常驻）在会话开头拼一次就锁死，易变段（日期/情绪）追加尾部，历史只追加不重拼，压缩只在用户回合边界。每轮重拼 system prompt 会让缓存命中率从 99% 掉到 0（实测成本 ¥879.97 → ¥19.96），这是全仓唯一守住那条线的地方。不建 Session、不写 app_session_log、不改写正文、不做注入装箱。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

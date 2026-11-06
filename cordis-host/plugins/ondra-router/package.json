@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-router",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的通道公共层之一：一条入站消息该不该叫醒她、同时来了好几路该怎么排、这个通道到底能发什么。唤醒身份纪律在这里落地——主动叫醒她时正文只有一个 `...`，绝不替主人说话。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

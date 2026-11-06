@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-adapter-qq-napcat",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的 QQ NapCat（OneBot v11）通道——高危：enable 与 confirmed 双闸门 + 独立确认档案、QQ 号与群号分开的白名单、六道防封闸、反向 WS 升级路由。编解码是端口不是实现：仓内没有 OneBot 帧依据就不写「看起来能跑」的握手。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

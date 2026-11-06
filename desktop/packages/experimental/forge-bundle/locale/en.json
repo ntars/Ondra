@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Change requests & worktrees",
-    "description": "Track each Session's change requests with their checks and reviews, and start new Sessions in a Git worktree; uses the gh CLI for GitHub."
-  }
-}

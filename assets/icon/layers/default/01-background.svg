@@ -1,4 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- 背景层：满幅铺到画布边缘。不画圆角、不加投影——圆角、镜面高光与内阴影全部由系统施加。 -->
-  <rect x="0" y="0" width="1024" height="1024" fill="#FFFFFF"/>
-</svg>

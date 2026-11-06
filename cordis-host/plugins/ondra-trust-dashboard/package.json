@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-trust-dashboard",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的信任读数（L9 扩展池）：把「她有多信你」拆成五项可核对的读数（信任 / 亲密 / 熟悉 / 承诺履约率 / 记忆存量），每一项都标出取自哪个服务的哪个字段，读不到的项显示为「读不到」而不用 0 顶替。只做只读投影：不自算信任分（那会多出三个真源）、不做界面（归应用外壳）、不写任何上游（契约里连 adjust 都不镜像）、不报比例不评价不鼓励（会被当成评分系统）。五项上游全是软依赖，缺哪项就在 missing 里点名。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

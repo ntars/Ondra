@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-crisis",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的危机干预分级（L9 扩展池）：只回答一个问题——「这一句话里，有没有需要我停下来认真对待的信号？」。五类信号（间接表达 / 直接表达 / 计划 / 告别 / 自伤）各自映射到四档之一，再过一遍语境标记，最后给三个布尔建议：要不要暂停人设、要不要给求助资源、要不要直接问一句。刻意不诊断、不打分（「危机风险 72 分」会被当成结论，而它只是正则的命中结果），不承诺保密（那会让对方放弃找真正能到场的人），不落盘不写记忆库（把人的至暗时刻存成可检索记忆，等于让她日后随时可能提起那件事，是二次伤害），不内置热线号码（号码有地区差异且会变更，写死错号在危机时刻是灾难），不因情绪低落判危机（悲伤不是危机；把低落反复当危机，人就会学会隐藏情绪），不返回原文（只回命中下标，命中的那句话本身就是最敏感的内容），不装定时器、不做界面。假设语境只影响措辞、绝不降级；否定与过去时只降一档、不归零（「我不想死，但是今晚可能控制不住」必须被接住）。零上游服务依赖，判定是纯函数，同一段文本重放必然同一结论。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-store-json",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的 JSONL 持久化后端：无 SQLite 或库损坏时的多方案兜底分支，追加日志 + 压缩原子写，失败只降级不阻断。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

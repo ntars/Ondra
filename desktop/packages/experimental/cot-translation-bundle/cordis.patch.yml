@@ -1,8 +1,0 @@
-- insert:
-    - id: translator
-      name: '@ntars/ondra-experimental-translator'
-    - id: cot-translation
-      name: '@ntars/ondra-experimental-client-ui-cot-translation'
-      config:
-        provider: bing
-        targetLanguage: auto

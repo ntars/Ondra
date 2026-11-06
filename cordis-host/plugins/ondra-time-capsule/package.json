@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-time-capsule",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的时间胶囊（L9 扩展池）：写一封给未来某一天的信，封存期内正文结构性不可读（视图里恒为 null），到期由人亲手拆开，拆开时把正文交进记忆库、本地副本立即清空。只做「写、等、开」三件事：不做短期提醒（7 天以内归待办）、不做到期自动开封、不给提前开封的口子、不做第二份正文、不做推送与渲染。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

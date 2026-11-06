@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-memory-git",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的记忆版本线（L9 扩展池）：把「一条记忆从写下到被封存/沉底」的当前阶段、版本链深度与文本差异整理成可读的仓库视图，并支持给人看的检查点标签（真快照由 O-009 打，本插件只记「标签→快照 id」）。只读编排：不复制正文、不建第二套历史、不做自动回滚。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

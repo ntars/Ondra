@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-persona-vars",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的人格变量与说话浓度：把 {{user}} / {{char}} / {{relation}} 换成用户填的值（未知或无值一律原样保留），再按 0–100 滑杆出五档浓度提示段。只改指代与浓淡，不改人设一个字，浓度也永不写进内核。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

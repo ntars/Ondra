@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-desktop-mcp",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的电脑只读能力面：进程 / 前台应用 / 剪贴板元信息 / 文件检索 / 系统状态五个工具，全部只读、单次 5 秒超时（手册 §9.11，比手机侧的 8 秒短）。工具名统一用连字符（desktop-processes 等）——§9.11 的点号写法不匹配 §8.4 的工具名正则，会被模型侧拒绝。隐私做成结构而不是承诺：ProcessItem 类型里没有命令行列、ClipboardMeta 没有内容字段，端口想给也给不出来。设计取舍按手册 §6.6 三条：只读、限频、不做推断；失败一律给 hint 指路而不是只说「禁止」。输出走工具输出沙箱（手册第九部分 §3-1 点名的架构级前置）：按行数/字符双预算裁剪并报「另有 N 条未展开」。现成来源两个且只用标准库：node:os 做系统状态、node:fs 做文件名检索；进程/前台/剪贴板如实报 unsupported 并指路，不返回空数组假装「没有」。另含手册 §14 那条缺口链的产出端：sysinfo 时顺带判电量档位变化并发 battery 事件。不 import @ntars/ondra-tools，注册走 useRegistrar() 注入。默认关闭。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

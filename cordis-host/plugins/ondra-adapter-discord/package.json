@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-adapter-discord",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的 Discord 通道：Gateway WS v10（帧层以 DiscordSocket 端口注入）、Authorization 用 `Bot <token>` 且全程单点脱敏、单条 1900 切条、关闭码 4004 停止重连其余固定 5 秒。手册 §9.11 明写「无去重」——本包据此不建跨时间去重表，只保留「同 message.id 在飞行中即丢」的幂等占位。不注册任何路由、不占端口，连接与定时器全挂在 ctx.effect 的 disposer 上，卸载即停。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-first-meet",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的初见剧本（L9 扩展池）：把第一次见面切成五拍——到场、自我介绍、立边界、邀请、收束，每一拍只给目的、必须做到的事、绝对不许做的事与句数上限，一个字的话术都不给（话术归人格与表达，本插件一旦开始写句子，人格就有了第二份不经过冻结前缀与九步过滤的声音）。边界排在邀请之前：先讲清我不会做什么，再问第一个问题，反过来做第一句就成了索取。读一次不推进水位，只有真正把这一拍说出来的一方调 advance() 才推进，外壳随便轮询都不会把节拍吃掉；用户自己先开口时 interrupt() 直接退到收束拍，不硬按剧本走完。存档只有节拍水位与时刻，绝不存对方说过的任何一句话——初见那天人往往说真名、说处境，那些归记忆系统与遗忘权。不出首条消息（那在 O-045），不主动发消息（那归 O-042），不做界面。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

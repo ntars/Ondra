@@ -4,173 +4,457 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>空谷 Ondra — 全插件式桌面 AI 陪伴体</title>
-<meta name="description" content="空谷 Ondra 是一款基于 Ondra 定制、全插件式的桌面 AI 陪伴体应用。能力以插件形式装载，模型按需接入。">
-<meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+<meta name="description" content="空谷 Ondra 2.0.1 是一款全插件式的桌面 AI 陪伴体应用。Tauri 壳、Cordis 宿主、dsh 内核三层分离，137 个能力插件按十九类场景装载，1168 项配置全部可见可改。">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="空谷 Ondra — 全插件式桌面 AI 陪伴体">
+<meta property="og:description" content="于无声处，听见共鸣。三层进程各司其职，能力以插件装载。">
+<meta property="og:type" content="website">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png">
 <style>
   :root {
-    --bg: #fbfbfd; --panel: #ffffff; --text: #1d1d1f; --sub: #6e6e73;
-    --line: rgba(0,0,0,.10); --accent: #0071e3; --accent-soft: rgba(0,113,227,.08);
-    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.06);
+    --bg: #f5f5f7;
+    --panel: #ffffff;
+    --card: #fcfcfd;
+    --ink: #1d1d1f;
+    --ink2: #5c5c63;
+    --ink3: #6e6e73;
+    --line: #e5e5ea;
+    --line2: #f0f0f3;
+    --blue: #0071e3;
+    --blue-ink: #0058b0;
+    --blue-bg: #eaf3ff;
+    --green: #1d8a4e;
+    --green-bg: #e9f7ef;
+    --orange: #b25000;
+    --orange-bg: #fff3e6;
+    --purple: #5b3fa8;
+    --purple-bg: #f1ecfd;
+    --gray-bg: #f0f0f2;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+    --shadow-lg: 0 2px 4px rgba(0,0,0,.04), 0 16px 48px rgba(0,0,0,.08);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #000000; --panel: #1c1c1e; --text: #f5f5f7; --sub: #98989d;
-      --line: rgba(255,255,255,.14); --accent: #0a84ff; --accent-soft: rgba(10,132,255,.14);
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4);
+      --bg: #000000;
+      --panel: #1c1c1e;
+      --card: #141416;
+      --ink: #f5f5f7;
+      --ink2: #a1a1a6;
+      --ink3: #86868b;
+      --line: rgba(255,255,255,.13);
+      --line2: rgba(255,255,255,.07);
+      --blue: #0a84ff;
+      --blue-ink: #4ea8ff;
+      --blue-bg: rgba(10,132,255,.14);
+      --green: #30d158;
+      --green-bg: rgba(48,209,88,.14);
+      --orange: #ff9f0a;
+      --orange-bg: rgba(255,159,10,.14);
+      --purple: #bf8bff;
+      --purple-bg: rgba(191,139,255,.14);
+      --gray-bg: rgba(255,255,255,.08);
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
+      --shadow-lg: 0 2px 4px rgba(0,0,0,.5), 0 16px 48px rgba(0,0,0,.6);
     }
   }
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 68px; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 400 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
-    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 72px;
   }
-  a { color: var(--accent); text-decoration: none; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
 
-  /* 顶栏：毛玻璃，滚动时保持可读 */
-  header.site {
-    position: sticky; top: 0; z-index: 10;
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    background: color-mix(in srgb, var(--bg) 82%, transparent);
-    border-bottom: 1px solid var(--line);
+  /* ---------- 首屏 ---------- */
+  .hero { padding: 72px 0 44px; text-align: center; }
+  .mark {
+    display: block; width: 84px; height: 84px; margin: 0 auto 26px;
+    border-radius: 19px; box-shadow: var(--shadow-lg);
   }
-  header.site .wrap {
-    height: 52px; display: flex; align-items: center; gap: 10px;
-  }
-  .mark { width: 22px; height: 22px; border-radius: 5px; flex: none; display: block; }
-  .brand { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
-  nav.top { margin-left: auto; display: flex; align-items: center; gap: 22px; }
-  nav.top a { color: var(--sub); font-size: 13px; }
-  nav.top a:hover { color: var(--text); }
-  @media (max-width: 560px) { nav.top { gap: 14px; } nav.top a.opt { display: none; } }
-
-  /* 首屏 */
-  .hero { padding: 96px 0 72px; text-align: center; }
   .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 12px; border-radius: 999px;
-    background: var(--accent-soft); color: var(--accent);
-    font-size: 12px; font-weight: 500; letter-spacing: .01em;
+    font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink3); font-weight: 600; margin-bottom: 12px;
   }
   h1 {
-    margin: 22px 0 16px; font-size: 56px; line-height: 1.08;
-    font-weight: 600; letter-spacing: -.025em;
+    font-size: 42px; line-height: 1.14; letter-spacing: -.022em; font-weight: 650;
+    margin-bottom: 14px;
   }
-  h1 .thin { color: var(--sub); font-weight: 400; display: block; font-size: 40px; letter-spacing: -.02em; margin-top: 6px; }
-  .lede {
-    margin: 0 auto; max-width: 560px; color: var(--sub); font-size: 17px;
+  .tagline { max-width: 620px; margin: 0 auto; font-size: 17px; line-height: 1.58; color: var(--ink2); }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 26px; }
+  .pill {
+    padding: 5px 13px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink2);
   }
-  .actions { margin-top: 34px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center;
-    height: 46px; padding: 0 24px; border-radius: 12px;
-    font-size: 15px; font-weight: 600; transition: opacity .15s ease, transform .15s ease;
-  }
-  .btn:hover { opacity: .9; }
-  .btn:active { transform: scale(.985); }
-  .btn.primary { background: var(--accent); color: #fff; }
-  .btn.ghost { border: 1px solid var(--line); color: var(--text); background: var(--panel); }
-  @media (max-width: 560px) {
-    .hero { padding: 64px 0 48px; }
-    h1 { font-size: 36px; }
-    h1 .thin { font-size: 26px; }
-    .lede { font-size: 15px; }
-  }
+  .pill.accent { background: var(--blue-bg); border-color: transparent; color: var(--blue-ink); font-weight: 600; }
 
-  /* 特性 */
-  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-bottom: 88px; }
-  @media (max-width: 760px) { .features { grid-template-columns: 1fr; } }
+  /* ---------- 数据条 ---------- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0 8px; }
+  .stat { background: var(--panel); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-size: 26px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stat b em { font-style: normal; font-size: 15px; font-weight: 500; color: var(--ink3); margin-left: 2px; }
+  .stat span { display: block; margin-top: 2px; font-size: 12px; color: var(--ink3); }
+
+  /* ---------- 吸顶导航 ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--line);
+    margin: 40px 0 40px;
+  }
+  nav .wrap { display: flex; gap: 4px; padding-top: 10px; padding-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
+  nav .wrap::-webkit-scrollbar { display: none; }
+  nav a {
+    padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500;
+    color: var(--ink2); text-decoration: none; white-space: nowrap; transition: background .15s, color .15s;
+  }
+  nav a:hover { background: var(--gray-bg); color: var(--ink); }
+
+  /* ---------- 通用分区 ---------- */
+  section { margin-bottom: 44px; }
+  h2 { font-size: 25px; line-height: 1.25; letter-spacing: -.018em; font-weight: 650; margin-bottom: 6px; }
+  .lead { color: var(--ink2); font-size: 14.5px; max-width: 720px; margin-bottom: 22px; }
+
+  /* ---------- 三层卡片 ---------- */
+  .stack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px; box-shadow: var(--shadow);
+  }
+  .card-idx {
+    display: grid; place-items: center; width: 26px; height: 26px; margin-bottom: 14px;
+    border-radius: 8px; background: var(--blue-bg); color: var(--blue-ink);
+    font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .card h3 { font-size: 16px; font-weight: 650; letter-spacing: -.008em; margin-bottom: 7px; }
+  .card p { font-size: 13.5px; line-height: 1.62; color: var(--ink2); }
+  .card .meta { display: block; margin-top: 12px; font-size: 11.5px; color: var(--ink3); }
+  .card .meta code { background: var(--gray-bg); padding: 1px 6px; border-radius: 5px; }
+
+  /* ---------- 场景分组 ---------- */
+  .groups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .group {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .gkey {
+    flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+    border-radius: 7px; background: var(--blue-bg); color: var(--blue-ink);
+    font-size: 12px; font-weight: 700; margin-top: 1px;
+  }
+  .gbody { min-width: 0; }
+  .gbody h4 { font-size: 14.5px; font-weight: 650; display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+  .gbody h4 em { font-style: normal; font-size: 11.5px; font-weight: 500; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .gbody p { font-size: 12.5px; line-height: 1.55; color: var(--ink2); }
+  .group.back .gkey { background: var(--gray-bg); color: var(--ink2); }
+
+  .zonerow { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .zone {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    padding: 4px 11px; border-radius: 999px; font-size: 12.5px;
+    background: var(--gray-bg); color: var(--ink2);
+  }
+  .zone b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---------- 设计取向 ---------- */
+  .features { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+  .feature { display: grid; grid-template-columns: 172px 1fr; gap: 28px; padding: 22px 24px; border-bottom: 1px solid var(--line2); }
+  .feature:last-child { border-bottom: none; }
+  .feature h3 { font-size: 14.5px; font-weight: 650; letter-spacing: -.006em; }
+  .feature p { font-size: 13.5px; line-height: 1.65; color: var(--ink2); }
+
+  /* ---------- 调用链 ---------- */
+  .chain { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow); }
+  .chain span.node {
+    padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 600;
+    background: var(--blue-bg); color: var(--blue-ink); white-space: nowrap;
+  }
+  .chain span.node.dim { background: var(--gray-bg); color: var(--ink2); }
+  .chain span.arrow { color: var(--ink3); font-size: 13px; white-space: nowrap; }
+  .chain-note { margin-top: 12px; font-size: 12.5px; color: var(--ink3); }
+
+  /* ---------- 状态清单 ---------- */
+  .checks { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+  .check { display: flex; align-items: center; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--line2); font-size: 13.5px; }
+  .check:last-child { border-bottom: none; }
+  .check .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  .check .name { flex: 1; color: var(--ink); }
+  .check .val { color: var(--ink2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .check .val b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- 下载 ---------- */
+  .download {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
     padding: 24px; box-shadow: var(--shadow);
   }
-  .card h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
-  .card p { margin: 0; color: var(--sub); font-size: 14px; }
-  .glyph {
-    width: 34px; height: 34px; border-radius: 9px; margin-bottom: 14px;
-    background: var(--accent-soft); color: var(--accent);
-    display: grid; place-items: center; font-size: 16px; font-weight: 600;
+  .download h3 { font-size: 16px; font-weight: 650; margin-bottom: 4px; }
+  .download p { font-size: 13px; color: var(--ink2); }
+  .btn {
+    flex: none; display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
+    background: var(--ink); color: var(--bg); text-decoration: none;
+    transition: opacity .15s;
   }
+  .btn:hover { opacity: .82; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn.ghost:hover { background: var(--gray-bg); opacity: 1; }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  /* 合作 API */
-  .api {
-    margin-bottom: 96px; border: 1px solid var(--line); border-radius: 22px;
-    background: var(--panel); box-shadow: var(--shadow);
-    padding: 40px; display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center;
-  }
-  @media (max-width: 720px) { .api { grid-template-columns: 1fr; padding: 28px; text-align: left; } }
-  .api h2 { margin: 0 0 10px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
-  .api p { margin: 0; color: var(--sub); font-size: 15px; max-width: 520px; }
-  .api .hint { margin-top: 14px; font-size: 13px; color: var(--sub); }
+  /* ---------- 页脚 ---------- */
+  footer { border-top: 1px solid var(--line); margin-top: 56px; padding: 32px 0 36px; }
+  .footer-inner { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+  .footer-links { max-width: 100%; }
+  .footer-brand { font-size: 13px; color: var(--ink2); }
+  .footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; }
+  .footer-links a { color: var(--ink2); text-decoration: none; }
+  .footer-links a:hover { color: var(--blue); }
+  .power { margin-top: 22px; font-size: 11.5px; line-height: 1.9; color: var(--ink3); }
+  .power a { color: inherit; text-decoration: none; }
+  .power a:hover { color: var(--blue); }
 
-  footer.site { border-top: 1px solid var(--line); padding: 28px 0 40px; }
-  footer.site .wrap {
-    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
-    color: var(--sub); font-size: 13px;
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 860px) {
+    .stack { grid-template-columns: 1fr; }
+    .groups { grid-template-columns: 1fr; }
+    .feature { grid-template-columns: 1fr; gap: 6px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .download { flex-direction: column; align-items: flex-start; }
   }
-  footer.site a { color: var(--sub); }
-  footer.site a:hover { color: var(--text); }
-  footer.site .spacer { margin-left: auto; }
+  @media (max-width: 560px) {
+    nav a { padding: 7px 10px; font-size: 12.5px; }
+    nav .wrap { gap: 2px; }
+    .footer-inner { flex-direction: column; align-items: flex-start; }
+    .footer-links { row-gap: 10px; }
+    .hero { padding: 48px 0 32px; }
+    h1 { font-size: 30px; }
+    .tagline { font-size: 15.5px; }
+    h2 { font-size: 21px; }
+    .mark { width: 68px; height: 68px; border-radius: 16px; }
+    .stat b { font-size: 22px; }
+    .chain { padding: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 </style>
 </head>
 <body>
 
-<header class="site">
-  <div class="wrap">
-    <img class="mark" src="icon.svg" alt="空谷 Ondra" width="22" height="22">
-    <span class="brand">空谷 Ondra</span>
-    <nav class="top">
-      <a class="opt" href="#features">特性</a>
-      <a href="#api">合作 API</a>
-      <a class="opt" href="https://github.com/ntars/Ondra" target="_blank" rel="noopener noreferrer">GitHub</a>
-    </nav>
+<header class="hero wrap">
+  <img class="mark" src="icon.svg" alt="空谷 Ondra 图标" width="84" height="84">
+  <p class="eyebrow">Ntarstudio · 桌面应用</p>
+  <h1>空谷 Ondra</h1>
+  <p class="tagline">于无声处，听见共鸣。全插件式的桌面 AI 陪伴体——三层进程各司其职，能力以插件装载，配置全部可见。</p>
+  <div class="pills">
+    <span class="pill accent">版本 2.0.1</span>
+    <span class="pill">macOS · Apple Silicon</span>
+    <span class="pill">AGPL-3.0</span>
   </div>
 </header>
 
-<main>
-  <section class="hero wrap">
-    <span class="eyebrow">桌面端 · 全插件架构</span>
-    <h1>空谷 Ondra<span class="thin">安静的桌面 AI 陪伴体</span></h1>
-    <p class="lede">基于 Ondra 定制。能力以插件形式装载，模型按需接入，界面只留下你真正会用的那些。</p>
-    <div class="actions">
-      <a class="btn primary" href="https://github.com/ntars/Ondra/releases" target="_blank" rel="noopener noreferrer">下载客户端</a>
-      <a class="btn ghost" href="#api">了解合作 API</a>
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>3</b><span>进程层</span></div>
+    <div class="stat"><b>137</b><span>能力插件</span></div>
+    <div class="stat"><b>1168</b><span>可配置项</span></div>
+    <div class="stat"><b>134<em>/134</em></b><span>装配成功</span></div>
+  </div>
+</div>
+
+<nav>
+  <div class="wrap">
+    <a href="#layers">三层分离</a>
+    <a href="#plugins">插件体系</a>
+    <a href="#design">设计取向</a>
+    <a href="#runtime">调用链路</a>
+    <a href="#status">当前状态</a>
+    <a href="#get">获取</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="layers">
+    <h2>三层分离</h2>
+    <p class="lead">每一层只做自己那件事，任一层可独立替换、独立升级、独立重启。层与层之间不共享内存，只通过标准输入输出的 JSON 通信。</p>
+    <div class="stack">
+      <div class="card">
+        <span class="card-idx">01</span>
+        <h3>Tauri 壳</h3>
+        <p>Rust 编写，只负责开窗、托盘与本机能力。不含任何业务逻辑，因此界面演进不需要改一行 Rust。</p>
+        <span class="meta">进程边界：<code>ondra</code> 主进程</span>
+      </div>
+      <div class="card">
+        <span class="card-idx">02</span>
+        <h3>Cordis 宿主</h3>
+        <p>Node 进程，插件容器与本地接口。134 个能力插件以显式清单装载在这里，插件之间不互相引用，只通过服务键在运行时彼此发现。</p>
+        <span class="meta">装配方式：<code>cordis-host/plugins</code></span>
+      </div>
+      <div class="card">
+        <span class="card-idx">03</span>
+        <h3>dsh 内核</h3>
+        <p>独立子进程，只跑推理循环、工具调用、会话存储与模型适配。不加载任何界面代码，因此可以被放进任何沙箱。</p>
+        <span class="meta">通信协议：<code>dsh-sidecar</code></span>
+      </div>
     </div>
   </section>
 
-  <section class="features wrap" id="features">
-    <article class="card">
-      <div class="glyph">1</div>
-      <h3>插件式装载</h3>
-      <p>核心只保留对话与工作台，其余能力由插件提供。装什么、开什么，由你决定。</p>
-    </article>
-    <article class="card">
-      <div class="glyph">2</div>
-      <h3>模型自选</h3>
-      <p>支持接入多家模型服务。切换模型只改配置，会话与工具调用不受影响。</p>
-    </article>
-    <article class="card">
-      <div class="glyph">3</div>
-      <h3>本地运行</h3>
-      <p>桌面应用形态，不依赖浏览器标签页。窗口关掉，进程就停。</p>
-    </article>
+  <section id="plugins">
+    <h2>插件体系</h2>
+    <p class="lead">137 个插件包按场景归为十九类：八类前台承担「用户看得见听得见」的产物，十一类幕后只产出判定、数值与存储。所有插件的配置项都由各自声明，单一真源，不重复抄写。</p>
+
+    <div class="groups">
+      <div class="group">
+        <span class="gkey">A</span>
+        <div class="gbody"><h4>话语与人格<em>21</em></h4><p>从人格内核到输出过滤的完整话语链，决定她说什么、怎么说、不说什么。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">B</span>
+        <div class="gbody"><h4>声音<em>3</em></h4><p>文字转语音的通道与闸门，以及反向的语音转写。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">C</span>
+        <div class="gbody"><h4>形象<em>4</em></h4><p>立绘解析、表情判定、贴纸选择与桌面上的存在。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">D</span>
+        <div class="gbody"><h4>在场感<em>3</em></h4><p>分条节奏、「正在输入」与呼吸感——她此刻在不在的可感知信号。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">E</span>
+        <div class="gbody"><h4>对外通道<em>10</em></h4><p>钉钉、飞书、企业微信、微信客服与公众号、个人号、QQ、Telegram、Discord。全部默认关闭。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">F</span>
+        <div class="gbody"><h4>可读产物<em>7</em></h4><p>日记、晨间简报、周报、那年今日、时间胶囊、节气仪式、天气。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">G</span>
+        <div class="gbody"><h4>面板与读数<em>4</em></h4><p>信任读数、记忆版本线、回复理由、养成里程，全部只读投影。</p></div>
+      </div>
+      <div class="group">
+        <span class="gkey">H</span>
+        <div class="gbody"><h4>关怀与引导<em>5</em></h4><p>危机识别分级、开发者陪伴、学伴节奏、久坐提醒、首次启动引导。</p></div>
+      </div>
+    </div>
+
+    <div class="zonerow">
+      <span class="zone">幕后 · 情绪引擎 <b>7</b></span>
+      <span class="zone">记忆系统 <b>17</b></span>
+      <span class="zone">上下文装配 <b>2</b></span>
+      <span class="zone">门控与合规 <b>11</b></span>
+      <span class="zone">工具与能力面 <b>7</b></span>
+      <span class="zone">存储与数据 <b>6</b></span>
+      <span class="zone">基础与宿主 <b>14</b></span>
+      <span class="zone">通道公共件 <b>4</b></span>
+      <span class="zone">自省与学习 <b>3</b></span>
+      <span class="zone">生活与感知 <b>4</b></span>
+      <span class="zone">安装与装配 <b>5</b></span>
+    </div>
   </section>
 
-<footer class="site">
+  <section id="design">
+    <h2>设计取向</h2>
+    <p class="lead">几个贯穿始终的判断。不是功能清单，而是取舍立场——每一条都对应一个具体机制，而不是一句宣言。</p>
+    <div class="features">
+      <div class="feature">
+        <h3>进程即边界</h3>
+        <p>壳与宿主、宿主与内核之间全部走标准输入输出的行分隔 JSON。管道只对父子进程可见，天然免鉴权；父进程退出，子进程立即收到管道关闭并自行收尾，不留孤儿进程。</p>
+      </div>
+      <div class="feature">
+        <h3>显式装配</h3>
+        <p>能力清单用代码逐项装载，而不是靠补丁文件叠加。想知道应用由哪些部分组成，读一份文件即可，不必在基准配置与若干补丁之间脑内求并集。缺一个插件，编译就过不去。</p>
+      </div>
+      <div class="feature">
+        <h3>配置单一真源</h3>
+        <p>每个插件的默认值只声明一次，运行期默认值、界面渲染顺序、四层合并的校验规则全部由那一份声明派生。改默认值只需改一处，不存在「文档写一套、代码跑另一套」。</p>
+      </div>
+      <div class="feature">
+        <h3>凭据不进配置</h3>
+        <p>所有通道的令牌都写成「凭据文件路径」，而不是值本身。配置文件可以随意备份、截图、贴进工单，里面没有一个字段能直接换出登录态。</p>
+      </div>
+      <div class="feature">
+        <h3>权限收敛一处</h3>
+        <p>前端不直接拥有本机能力。选文件、开链接一律经宿主中转，宿主可按会话与工具白名单决定放行与否，界面只看得到被允许的操作。</p>
+      </div>
+      <div class="feature">
+        <h3>失败要可读</h3>
+        <p>内核未就绪、协议版本不符、参数不合法各有独立错误码，界面据此给出可行动的提示，而不是笼统的「出错了」。异常值一律回退默认并计数，绝不静默吞掉。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="runtime">
+    <h2>调用链路</h2>
+    <p class="lead">一次对话从界面发出，到最后一段文字回到界面，只经过三层，不多绕一步。</p>
+    <div class="chain">
+      <span class="node dim">React 界面</span>
+      <span class="arrow">→</span>
+      <span class="node">宿主 14 个本地接口</span>
+      <span class="arrow">→</span>
+      <span class="node">内核 16 个方法</span>
+      <span class="arrow">→</span>
+      <span class="node dim">模型供应商</span>
+    </div>
+    <p class="chain-note">宿主监听回环地址并校验令牌，非回环来源一律拒绝。流式输出逐段回传，中途可随时中止。</p>
+  </section>
+
+  <section id="status">
+    <h2>当前状态</h2>
+    <p class="lead">骨架已可运行：宿主拉起内核，134 个插件全部装载，本地接口全链路连通。以下数字均为本机实测，不是估算。</p>
+    <div class="checks">
+      <div class="check"><span class="dot"></span><span class="name">插件装配</span><span class="val"><b>134 / 134</b> 成功，0 跳过</span></div>
+      <div class="check"><span class="dot"></span><span class="name">装配耗时</span><span class="val"><b>230</b> 毫秒</span></div>
+      <div class="check"><span class="dot"></span><span class="name">三层链路冒烟</span><span class="val"><b>26 / 26</b> 项通过</span></div>
+      <div class="check"><span class="dot"></span><span class="name">内核方法</span><span class="val"><b>16</b> 个 JSON-RPC 方法</span></div>
+      <div class="check"><span class="dot"></span><span class="name">本地接口</span><span class="val"><b>14</b> 条路由，全部需令牌</span></div>
+      <div class="check"><span class="dot"></span><span class="name">可配置项</span><span class="val"><b>1168</b> 项 / 123 个配置段</span></div>
+    </div>
+  </section>
+
+  <section id="get">
+    <h2>获取</h2>
+    <p class="lead">当前构建面向 macOS Apple Silicon。源码、构建说明与已知限制都在仓库里。</p>
+    <div class="download">
+      <div>
+        <h3>空谷 Ondra 2.0.1</h3>
+        <p>安装包约 2.1 MB。首次启动需允许本机应用运行未签名程序。</p>
+      </div>
+      <div class="btnrow">
+        <a class="btn" href="https://github.com/ntars/Ondra/releases">下载</a>
+        <a class="btn ghost" href="https://github.com/ntars/Ondra">源码</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
   <div class="wrap">
-    <span>© 2024–2026 Ntarstudio（星玖工作室）</span>
-    <a href="https://github.com/ntars/Ondra" target="_blank" rel="noopener noreferrer">GitHub</a>
-    <span>AGPL-3.0</span>
-    <span class="spacer"></span>
-    <a href="https://www.ntars.cn/" target="_blank" rel="noopener noreferrer">ntars.cn</a>
+    <div class="footer-inner">
+      <span class="footer-brand">星玖工作室 · Ntarstudio</span>
+      <nav class="footer-links">
+        <a href="https://github.com/ntars/Ondra">GitHub</a>
+        <a href="https://github.com/ntars/Ondra/blob/main/README.md">文档</a>
+        <a href="https://github.com/ntars/Ondra/blob/main/NOTICE">开源合规</a>
+        <a href="https://github.com/ntars/Ondra/blob/main/LICENSE">许可</a>
+      </nav>
+    </div>
+    <p class="power">
+      ©2024-2026 Ntarstudio. All Rights Reserved.<br>
+      Licensed under AGPL-3.0.
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">蜀ICP备2026027050号</a>
+    </p>
   </div>
 </footer>
 

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-climb",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的爬楼补读（手册 §1.5 O-134，P2）：把群里的未读积压压成一份「谁在什么时候说了什么」的清单，只在私聊交出去。四条写死的判定。第一，摘要不是模型写的：去链接、并空白、按句界截到上限，全是确定性截取；真概括归对话链的模型，在插件里调模型会把延迟与费用绑到每一次爬楼。第二，群里不贴清单：plan({chatKind:'group'}) 恒返回空计划，积压是主人没看见的话，不是群里该被复读的话——这就是「唤醒只在私聊」的执行方式。第三，积压正文一个字不落盘，只落游标（读到哪一刻、哪些指纹读过），重启靠通道重推补齐：丢一次补读，好过留一份没人同意的语料。第四，plan() 不改游标，必须 commit() 才推进：发送可能失败，自动推进会让那几条永远没人再提，而且不报错。清单里不写「还有 N 条没看」——那是报数，不是人话，折叠数只进日志与面板。本包不发工具、不装定时器、不出站、不画界面：积压来自通道适配器，发不发归主动门控，界面归应用外壳。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

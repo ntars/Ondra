@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-multimodal-memory",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的多模态记忆（手册 §1.5 O-128 / 语料·第一编 2.3，P1）：把视觉描述与语音转写按普通记忆入库，并记住它来自哪个文件。手册原话是「视觉描述/转写文本入库，带 modality 与 source_path」与「图片→描述；语音→转写；视频→4 帧+音轨」。四条写死的判定。第一，记忆正文只有一份：写进 O-010 的 memory_fact，本包不建第二份记忆库；memory_fact 没有 modality 与 source_path 两列，所以本包自建一张边表按 fact_id 旁挂元数据，删掉边表不影响任何一条记忆的检索与注入。第二，条目短、全文留档：手册 §2.2 要求条目 ≤200 字，一段三分钟语音的转写有上千字，所以进检索的是截断后的条目，全文留在边表的 full_text 里，截掉的那八百字不会凭空消失。第三，指纹重算：去重的语义是「同一份内容只记一次」，而「同一份内容」必须由内容判定，不能由上游声称，所以本包把 modality+sourcePath+text 再哈希一遍，不一致就用重算值并记降级——宁可多一条看得见的重复，不可少一条看不见的记忆。第四，证据来源按「谁说的」定：语音转写标 USER（用户亲口说的），图片描述标 TOOL（模型说的），否则要么把用户的话记成模型的猜测，要么让一张图的猜测替用户作证。本包不发工具、不装定时器、不出站、不画界面：抽帧归 O-126、转写归 O-127、证据闸归 O-140、存储归 O-006、界面归应用外壳。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

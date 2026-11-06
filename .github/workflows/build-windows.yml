@@ -1,19 +1,33 @@
 name: Build Windows Installer
 
 # 在 GitHub 托管的 Windows x64 运行器上构建未签名安装包，并上传为构建工件。
-# 构建步骤与 docs/BUILD_WINDOWS.md 保持一致，差异仅在于环境文件由仓库变量注入。
+#
+# ## 为什么整体重写
+#
+# 旧版工作流按 v1.2.0 的目录写：`desktop/pnpm-lock.yaml`、
+# `desktop/apps/desktop`、`pnpm run package:desktop:win:x64:unsigned`。
+# 这三样在 v2.0.1 中全部不存在——`desktop/` 整棵目录已被 `src-tauri/`、
+# `cordis-host/`、`dsh-sidecar/` 取代。沿用旧文件只会在「安装工作区依赖」
+# 一步报路径不存在，CI 从第一次运行起就是坏的。
+#
+# ## 打包入口
+#
+# 新结构的入口是 `tools/tauri-build.mjs`：它按 `process.platform` 选
+# `--bundles nsis`（Windows）或 `--bundles app`（macOS），并负责把
+# `~/.cargo/bin` 补进 PATH（`tauri build` 从非交互 shell 启动时拿不到它）。
+# 因此这里只调这一个脚本，不自己拼 tauri 参数。
+#
+# ## 关于压缩等级
+#
+# 旧工作流有一个 `compression` 手动输入，写进 `.env.windows` 的
+# `ONDRA_DESKTOP_WINDOWS_COMPRESSION_LEVEL`，由旧版打包脚本读取。
+# 新结构没有任何代码读这个变量（`grep -rn COMPRESSION tools/ src-tauri/`
+# 为空），也没有对应的环境文件机制。**因此这个输入被移除，而不是留一个
+# 点了没反应的开关。** 需要调压缩等级时改 `src-tauri/tauri.conf.json` 的
+# `bundle.windows.nsis`。
 
 on:
   workflow_dispatch:
-    inputs:
-      compression:
-        description: '安装器压缩等级（3 更快，7 更小）'
-        required: false
-        default: '3'
-        type: choice
-        options:
-          - '3'
-          - '7'
 
 permissions:
   contents: read
@@ -27,15 +41,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
 
-    env:
-      ONDRA_CLIENT_COMMIT_HASH: ${{ github.sha }}
-      ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: ${{ vars.ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN || 'https://ai.ntars.cn' }}
-      ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN: ${{ vars.ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN || 'https://ai.ntars.cn' }}
-      # 测试部署（ONDRA_DESKTOP_AUTO_UPDATE_ENV=test）在打包准备阶段强制要求
-      # allowedAuthOrigins 非空，否则 package-target 直接以
-      # "test policy requires nonempty allowedAuthOrigins" 退出。
-      ONDRA_DESKTOP_MANDATORY_UPDATE_CONFIG: '{"allowedAuthOrigins":["https://ai.ntars.cn"]}'
-
     steps:
       - name: 检出源码
         uses: actions/checkout@v4
@@ -48,41 +53,42 @@ jobs:
       - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
+          # 与 `src-tauri/runtime` 收集的 Node 大版本保持一致。
           node-version: '24.9.0'
           cache: pnpm
-          cache-dependency-path: desktop/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: 生成打包环境文件
-        working-directory: desktop/apps/desktop
-        shell: pwsh
-        run: |
-          $lines = @(
-            'ONDRA_DESKTOP_APP_ID=com.ntars.ondra',
-            'ONDRA_DESKTOP_AUTO_UPDATE_ENV=test',
-            "ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN=$env:ONDRA_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN",
-            "ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=$env:ONDRA_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN",
-            "ONDRA_DESKTOP_MANDATORY_UPDATE_CONFIG='$env:ONDRA_DESKTOP_MANDATORY_UPDATE_CONFIG'",
-            "ONDRA_DESKTOP_WINDOWS_COMPRESSION_LEVEL=${{ inputs.compression }}"
-          )
-          $lines | Set-Content -LiteralPath .env.windows -Encoding utf8
-          Get-Content .env.windows
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 cargo 与 tauri 构建产物
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
 
       - name: 安装工作区依赖
-        working-directory: desktop
         run: pnpm install --frozen-lockfile
 
-      - name: 编译并执行质量门禁
-        working-directory: desktop
+      - name: 类型检查
+        run: pnpm run typecheck
+
+      - name: 编译前端、插件、宿主与内核
         run: pnpm run build
 
+      - name: 收集运行时
+        # 把 Node 运行时、宿主与内核拷进 `src-tauri/runtime/`。
+        # 该目录被 `.gitignore` 排除，必须在打包前现场生成，
+        # 否则 `tauri.conf.json` 的 `bundle.resources` 找不到源目录。
+        run: pnpm run build:runtime
+
       - name: 打包 Windows x64 安装程序
-        working-directory: desktop
-        run: pnpm run package:desktop:win:x64:unsigned
+        run: node tools/tauri-build.mjs
 
       - name: 上传安装包
         uses: actions/upload-artifact@v4
         with:
           name: ondra-win-x64-unsigned
-          path: desktop/apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/*.exe
+          # 与 `tools/tauri-build.mjs` 的 `expected` 路径一致。
+          path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 14

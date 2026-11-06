@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-channel-health",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的通道探针：每个通道一个独立实例，只看「已经写下来的痕迹」，从不向被观测方发问。断开、卡住、根本没启动，在别的实现里长得一样；在这里它们分别叫「已经断开」「很久没有动静」「从没上报过」。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

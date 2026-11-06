@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-persona-core",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的人格内核：把 SKILL.md 切成六槽位（身份/说话/驱动力/场景/格式/自检），配五关系变体（女友/妹妹/女儿/朋友/助手）+ 自定义，只改关系不改人格。不裁剪、不加浓度、不加边界。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

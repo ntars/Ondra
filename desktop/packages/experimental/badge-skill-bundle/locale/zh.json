@@ -1,7 +1,0 @@
-{
-  "meta": {
-    "title": "Ondra 徽章技能",
-    "description": "让 Agent 为文档、PR 等产出添加「powered by ondra」徽章。",
-    "detail": "docs/DETAIL.zh.md"
-  }
-}

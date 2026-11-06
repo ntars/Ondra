@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-channel-kit",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的通道公共段：问人格（走对话链）、按平台上限切条、每通道一份对端历史。三件都是纯函数级的东西——不落盘、不限流、插件本体零状态，实例归调用方所有。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

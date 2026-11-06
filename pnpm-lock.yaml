@@ -1,0 +1,3154 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+overrides:
+  '@ntars/cordis': npm:cordis@4.0.0-rc.12
+
+importers:
+
+  .:
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: 2.12.4
+        version: 2.12.4
+
+  cordis-host:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+      '@ondra/cordis-plugin-desktop-bridge':
+        specifier: workspace:*
+        version: link:plugins/desktop-bridge
+      '@ondra/cordis-plugin-dsh-client':
+        specifier: workspace:*
+        version: link:plugins/dsh-client
+      '@ondra/cordis-plugin-ondra-core':
+        specifier: workspace:*
+        version: link:plugins/ondra-core
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/desktop-bridge:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/dsh-client:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+      '@ondra/dsh-sidecar':
+        specifier: workspace:*
+        version: link:../../../dsh-sidecar
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-absence:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-dingtalk:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-discord:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-feishu:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-qq-napcat:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-qq-official:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-telegram:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-wechat-kf:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-wechat-official:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-wechat-personal:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adapter-wecom:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-adb:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-ambient:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-asr:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-avatar:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-beichen-api:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-breath:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-browser:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-browser-pane:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-channel-health:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-channel-kit:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-climb:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-clock:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-cocreate:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-config-schema:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-consistency-bench:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-core:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+      '@ondra/cordis-plugin-ondra-absence':
+        specifier: workspace:*
+        version: link:../ondra-absence
+      '@ondra/cordis-plugin-ondra-adapter-dingtalk':
+        specifier: workspace:*
+        version: link:../ondra-adapter-dingtalk
+      '@ondra/cordis-plugin-ondra-adapter-discord':
+        specifier: workspace:*
+        version: link:../ondra-adapter-discord
+      '@ondra/cordis-plugin-ondra-adapter-feishu':
+        specifier: workspace:*
+        version: link:../ondra-adapter-feishu
+      '@ondra/cordis-plugin-ondra-adapter-qq-napcat':
+        specifier: workspace:*
+        version: link:../ondra-adapter-qq-napcat
+      '@ondra/cordis-plugin-ondra-adapter-qq-official':
+        specifier: workspace:*
+        version: link:../ondra-adapter-qq-official
+      '@ondra/cordis-plugin-ondra-adapter-telegram':
+        specifier: workspace:*
+        version: link:../ondra-adapter-telegram
+      '@ondra/cordis-plugin-ondra-adapter-wechat-kf':
+        specifier: workspace:*
+        version: link:../ondra-adapter-wechat-kf
+      '@ondra/cordis-plugin-ondra-adapter-wechat-official':
+        specifier: workspace:*
+        version: link:../ondra-adapter-wechat-official
+      '@ondra/cordis-plugin-ondra-adapter-wechat-personal':
+        specifier: workspace:*
+        version: link:../ondra-adapter-wechat-personal
+      '@ondra/cordis-plugin-ondra-adapter-wecom':
+        specifier: workspace:*
+        version: link:../ondra-adapter-wecom
+      '@ondra/cordis-plugin-ondra-adb':
+        specifier: workspace:*
+        version: link:../ondra-adb
+      '@ondra/cordis-plugin-ondra-ambient':
+        specifier: workspace:*
+        version: link:../ondra-ambient
+      '@ondra/cordis-plugin-ondra-asr':
+        specifier: workspace:*
+        version: link:../ondra-asr
+      '@ondra/cordis-plugin-ondra-avatar':
+        specifier: workspace:*
+        version: link:../ondra-avatar
+      '@ondra/cordis-plugin-ondra-beichen-api':
+        specifier: workspace:*
+        version: link:../ondra-beichen-api
+      '@ondra/cordis-plugin-ondra-breath':
+        specifier: workspace:*
+        version: link:../ondra-breath
+      '@ondra/cordis-plugin-ondra-browser':
+        specifier: workspace:*
+        version: link:../ondra-browser
+      '@ondra/cordis-plugin-ondra-browser-pane':
+        specifier: workspace:*
+        version: link:../ondra-browser-pane
+      '@ondra/cordis-plugin-ondra-channel-health':
+        specifier: workspace:*
+        version: link:../ondra-channel-health
+      '@ondra/cordis-plugin-ondra-channel-kit':
+        specifier: workspace:*
+        version: link:../ondra-channel-kit
+      '@ondra/cordis-plugin-ondra-climb':
+        specifier: workspace:*
+        version: link:../ondra-climb
+      '@ondra/cordis-plugin-ondra-clock':
+        specifier: workspace:*
+        version: link:../ondra-clock
+      '@ondra/cordis-plugin-ondra-cocreate':
+        specifier: workspace:*
+        version: link:../ondra-cocreate
+      '@ondra/cordis-plugin-ondra-config-schema':
+        specifier: workspace:*
+        version: link:../ondra-config-schema
+      '@ondra/cordis-plugin-ondra-consistency-bench':
+        specifier: workspace:*
+        version: link:../ondra-consistency-bench
+      '@ondra/cordis-plugin-ondra-crisis':
+        specifier: workspace:*
+        version: link:../ondra-crisis
+      '@ondra/cordis-plugin-ondra-daily-brief':
+        specifier: workspace:*
+        version: link:../ondra-daily-brief
+      '@ondra/cordis-plugin-ondra-data-migrate':
+        specifier: workspace:*
+        version: link:../ondra-data-migrate
+      '@ondra/cordis-plugin-ondra-desktop-mcp':
+        specifier: workspace:*
+        version: link:../ondra-desktop-mcp
+      '@ondra/cordis-plugin-ondra-dev-companion':
+        specifier: workspace:*
+        version: link:../ondra-dev-companion
+      '@ondra/cordis-plugin-ondra-dev-rebrand':
+        specifier: workspace:*
+        version: link:../ondra-dev-rebrand
+      '@ondra/cordis-plugin-ondra-device-mcp':
+        specifier: workspace:*
+        version: link:../ondra-device-mcp
+      '@ondra/cordis-plugin-ondra-dialogue':
+        specifier: workspace:*
+        version: link:../ondra-dialogue
+      '@ondra/cordis-plugin-ondra-dialogue-protocol':
+        specifier: workspace:*
+        version: link:../ondra-dialogue-protocol
+      '@ondra/cordis-plugin-ondra-diary':
+        specifier: workspace:*
+        version: link:../ondra-diary
+      '@ondra/cordis-plugin-ondra-digital-health':
+        specifier: workspace:*
+        version: link:../ondra-digital-health
+      '@ondra/cordis-plugin-ondra-drive-gap':
+        specifier: workspace:*
+        version: link:../ondra-drive-gap
+      '@ondra/cordis-plugin-ondra-emotion-conflict':
+        specifier: workspace:*
+        version: link:../ondra-emotion-conflict
+      '@ondra/cordis-plugin-ondra-emotion-core':
+        specifier: workspace:*
+        version: link:../ondra-emotion-core
+      '@ondra/cordis-plugin-ondra-emotion-diffuse':
+        specifier: workspace:*
+        version: link:../ondra-emotion-diffuse
+      '@ondra/cordis-plugin-ondra-emotion-express':
+        specifier: workspace:*
+        version: link:../ondra-emotion-express
+      '@ondra/cordis-plugin-ondra-emotion-hormone':
+        specifier: workspace:*
+        version: link:../ondra-emotion-hormone
+      '@ondra/cordis-plugin-ondra-emotion-project':
+        specifier: workspace:*
+        version: link:../ondra-emotion-project
+      '@ondra/cordis-plugin-ondra-emotion-stage':
+        specifier: workspace:*
+        version: link:../ondra-emotion-stage
+      '@ondra/cordis-plugin-ondra-emotion-stress':
+        specifier: workspace:*
+        version: link:../ondra-emotion-stress
+      '@ondra/cordis-plugin-ondra-evidence-gate':
+        specifier: workspace:*
+        version: link:../ondra-evidence-gate
+      '@ondra/cordis-plugin-ondra-expression-decide':
+        specifier: workspace:*
+        version: link:../ondra-expression-decide
+      '@ondra/cordis-plugin-ondra-failure-attrib':
+        specifier: workspace:*
+        version: link:../ondra-failure-attrib
+      '@ondra/cordis-plugin-ondra-filter-chain':
+        specifier: workspace:*
+        version: link:../ondra-filter-chain
+      '@ondra/cordis-plugin-ondra-first-meet':
+        specifier: workspace:*
+        version: link:../ondra-first-meet
+      '@ondra/cordis-plugin-ondra-forget-right':
+        specifier: workspace:*
+        version: link:../ondra-forget-right
+      '@ondra/cordis-plugin-ondra-grow':
+        specifier: workspace:*
+        version: link:../ondra-grow
+      '@ondra/cordis-plugin-ondra-gui-agent':
+        specifier: workspace:*
+        version: link:../ondra-gui-agent
+      '@ondra/cordis-plugin-ondra-identity':
+        specifier: workspace:*
+        version: link:../ondra-identity
+      '@ondra/cordis-plugin-ondra-inject-dedupe':
+        specifier: workspace:*
+        version: link:../ondra-inject-dedupe
+      '@ondra/cordis-plugin-ondra-install-doctor':
+        specifier: workspace:*
+        version: link:../ondra-install-doctor
+      '@ondra/cordis-plugin-ondra-installer':
+        specifier: workspace:*
+        version: link:../ondra-installer
+      '@ondra/cordis-plugin-ondra-lexicon':
+        specifier: workspace:*
+        version: link:../ondra-lexicon
+      '@ondra/cordis-plugin-ondra-life-rhythm':
+        specifier: workspace:*
+        version: link:../ondra-life-rhythm
+      '@ondra/cordis-plugin-ondra-live':
+        specifier: workspace:*
+        version: link:../ondra-live
+      '@ondra/cordis-plugin-ondra-llm-gateway':
+        specifier: workspace:*
+        version: link:../ondra-llm-gateway
+      '@ondra/cordis-plugin-ondra-log-zh':
+        specifier: workspace:*
+        version: link:../ondra-log-zh
+      '@ondra/cordis-plugin-ondra-market':
+        specifier: workspace:*
+        version: link:../ondra-market
+      '@ondra/cordis-plugin-ondra-memory-audit':
+        specifier: workspace:*
+        version: link:../ondra-memory-audit
+      '@ondra/cordis-plugin-ondra-memory-core':
+        specifier: workspace:*
+        version: link:../ondra-memory-core
+      '@ondra/cordis-plugin-ondra-memory-decay':
+        specifier: workspace:*
+        version: link:../ondra-memory-decay
+      '@ondra/cordis-plugin-ondra-memory-dedupe':
+        specifier: workspace:*
+        version: link:../ondra-memory-dedupe
+      '@ondra/cordis-plugin-ondra-memory-dream':
+        specifier: workspace:*
+        version: link:../ondra-memory-dream
+      '@ondra/cordis-plugin-ondra-memory-extract':
+        specifier: workspace:*
+        version: link:../ondra-memory-extract
+      '@ondra/cordis-plugin-ondra-memory-git':
+        specifier: workspace:*
+        version: link:../ondra-memory-git
+      '@ondra/cordis-plugin-ondra-memory-graph':
+        specifier: workspace:*
+        version: link:../ondra-memory-graph
+      '@ondra/cordis-plugin-ondra-memory-heal':
+        specifier: workspace:*
+        version: link:../ondra-memory-heal
+      '@ondra/cordis-plugin-ondra-memory-humanlike':
+        specifier: workspace:*
+        version: link:../ondra-memory-humanlike
+      '@ondra/cordis-plugin-ondra-memory-intake':
+        specifier: workspace:*
+        version: link:../ondra-memory-intake
+      '@ondra/cordis-plugin-ondra-memory-pool':
+        specifier: workspace:*
+        version: link:../ondra-memory-pool
+      '@ondra/cordis-plugin-ondra-memory-prospective':
+        specifier: workspace:*
+        version: link:../ondra-memory-prospective
+      '@ondra/cordis-plugin-ondra-memory-recall':
+        specifier: workspace:*
+        version: link:../ondra-memory-recall
+      '@ondra/cordis-plugin-ondra-memory-recognition':
+        specifier: workspace:*
+        version: link:../ondra-memory-recognition
+      '@ondra/cordis-plugin-ondra-memory-vector':
+        specifier: workspace:*
+        version: link:../ondra-memory-vector
+      '@ondra/cordis-plugin-ondra-minecraft':
+        specifier: workspace:*
+        version: link:../ondra-minecraft
+      '@ondra/cordis-plugin-ondra-multimodal-memory':
+        specifier: workspace:*
+        version: link:../ondra-multimodal-memory
+      '@ondra/cordis-plugin-ondra-narrative-log':
+        specifier: workspace:*
+        version: link:../ondra-narrative-log
+      '@ondra/cordis-plugin-ondra-onboarding':
+        specifier: workspace:*
+        version: link:../ondra-onboarding
+      '@ondra/cordis-plugin-ondra-onthisday':
+        specifier: workspace:*
+        version: link:../ondra-onthisday
+      '@ondra/cordis-plugin-ondra-oral':
+        specifier: workspace:*
+        version: link:../ondra-oral
+      '@ondra/cordis-plugin-ondra-organ-gate':
+        specifier: workspace:*
+        version: link:../ondra-organ-gate
+      '@ondra/cordis-plugin-ondra-organ-host':
+        specifier: workspace:*
+        version: link:../ondra-organ-host
+      '@ondra/cordis-plugin-ondra-our-free-model':
+        specifier: workspace:*
+        version: link:../ondra-our-free-model
+      '@ondra/cordis-plugin-ondra-path-layout':
+        specifier: workspace:*
+        version: link:../ondra-path-layout
+      '@ondra/cordis-plugin-ondra-persona-assemble':
+        specifier: workspace:*
+        version: link:../ondra-persona-assemble
+      '@ondra/cordis-plugin-ondra-persona-core':
+        specifier: workspace:*
+        version: link:../ondra-persona-core
+      '@ondra/cordis-plugin-ondra-persona-evolve':
+        specifier: workspace:*
+        version: link:../ondra-persona-evolve
+      '@ondra/cordis-plugin-ondra-persona-loader':
+        specifier: workspace:*
+        version: link:../ondra-persona-loader
+      '@ondra/cordis-plugin-ondra-persona-vars':
+        specifier: workspace:*
+        version: link:../ondra-persona-vars
+      '@ondra/cordis-plugin-ondra-persona-workshop':
+        specifier: workspace:*
+        version: link:../ondra-persona-workshop
+      '@ondra/cordis-plugin-ondra-pet':
+        specifier: workspace:*
+        version: link:../ondra-pet
+      '@ondra/cordis-plugin-ondra-pet-mobile':
+        specifier: workspace:*
+        version: link:../ondra-pet-mobile
+      '@ondra/cordis-plugin-ondra-port-picker':
+        specifier: workspace:*
+        version: link:../ondra-port-picker
+      '@ondra/cordis-plugin-ondra-privacy':
+        specifier: workspace:*
+        version: link:../ondra-privacy
+      '@ondra/cordis-plugin-ondra-proactive-gate':
+        specifier: workspace:*
+        version: link:../ondra-proactive-gate
+      '@ondra/cordis-plugin-ondra-proactive-quota':
+        specifier: workspace:*
+        version: link:../ondra-proactive-quota
+      '@ondra/cordis-plugin-ondra-proactive-reason':
+        specifier: workspace:*
+        version: link:../ondra-proactive-reason
+      '@ondra/cordis-plugin-ondra-process-host':
+        specifier: workspace:*
+        version: link:../ondra-process-host
+      '@ondra/cordis-plugin-ondra-prompt-inject':
+        specifier: workspace:*
+        version: link:../ondra-prompt-inject
+      '@ondra/cordis-plugin-ondra-recall-eval':
+        specifier: workspace:*
+        version: link:../ondra-recall-eval
+      '@ondra/cordis-plugin-ondra-redteam':
+        specifier: workspace:*
+        version: link:../ondra-redteam
+      '@ondra/cordis-plugin-ondra-reflex':
+        specifier: workspace:*
+        version: link:../ondra-reflex
+      '@ondra/cordis-plugin-ondra-rhythm':
+        specifier: workspace:*
+        version: link:../ondra-rhythm
+      '@ondra/cordis-plugin-ondra-rhythm-typing':
+        specifier: workspace:*
+        version: link:../ondra-rhythm-typing
+      '@ondra/cordis-plugin-ondra-ritual':
+        specifier: workspace:*
+        version: link:../ondra-ritual
+      '@ondra/cordis-plugin-ondra-router':
+        specifier: workspace:*
+        version: link:../ondra-router
+      '@ondra/cordis-plugin-ondra-sandbox':
+        specifier: workspace:*
+        version: link:../ondra-sandbox
+      '@ondra/cordis-plugin-ondra-screen-sense':
+        specifier: workspace:*
+        version: link:../ondra-screen-sense
+      '@ondra/cordis-plugin-ondra-snapshot':
+        specifier: workspace:*
+        version: link:../ondra-snapshot
+      '@ondra/cordis-plugin-ondra-startup-check':
+        specifier: workspace:*
+        version: link:../ondra-startup-check
+      '@ondra/cordis-plugin-ondra-sticker':
+        specifier: workspace:*
+        version: link:../ondra-sticker
+      '@ondra/cordis-plugin-ondra-store-json':
+        specifier: workspace:*
+        version: link:../ondra-store-json
+      '@ondra/cordis-plugin-ondra-store-memory':
+        specifier: workspace:*
+        version: link:../ondra-store-memory
+      '@ondra/cordis-plugin-ondra-store-sqlite':
+        specifier: workspace:*
+        version: link:../ondra-store-sqlite
+      '@ondra/cordis-plugin-ondra-study':
+        specifier: workspace:*
+        version: link:../ondra-study
+      '@ondra/cordis-plugin-ondra-theater':
+        specifier: workspace:*
+        version: link:../ondra-theater
+      '@ondra/cordis-plugin-ondra-time-capsule':
+        specifier: workspace:*
+        version: link:../ondra-time-capsule
+      '@ondra/cordis-plugin-ondra-trust-dashboard':
+        specifier: workspace:*
+        version: link:../ondra-trust-dashboard
+      '@ondra/cordis-plugin-ondra-tts':
+        specifier: workspace:*
+        version: link:../ondra-tts
+      '@ondra/cordis-plugin-ondra-tts-gate':
+        specifier: workspace:*
+        version: link:../ondra-tts-gate
+      '@ondra/cordis-plugin-ondra-vision':
+        specifier: workspace:*
+        version: link:../ondra-vision
+      '@ondra/cordis-plugin-ondra-weather':
+        specifier: workspace:*
+        version: link:../ondra-weather
+      '@ondra/cordis-plugin-ondra-webhook-inbox':
+        specifier: workspace:*
+        version: link:../ondra-webhook-inbox
+      '@ondra/cordis-plugin-ondra-weekly':
+        specifier: workspace:*
+        version: link:../ondra-weekly
+      '@ondra/cordis-plugin-ondra-window':
+        specifier: workspace:*
+        version: link:../ondra-window
+      '@ondra/cordis-plugin-ondra-worldbook':
+        specifier: workspace:*
+        version: link:../ondra-worldbook
+      '@ondra/cordis-plugin-ondra-worldbook-scenes':
+        specifier: workspace:*
+        version: link:../ondra-worldbook-scenes
+      '@ondra/cordis-plugin-ondra-zero-residence':
+        specifier: workspace:*
+        version: link:../ondra-zero-residence
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-crisis:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-daily-brief:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-data-migrate:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-desktop-mcp:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-dev-companion:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-dev-rebrand:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-device-mcp:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-dialogue:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-dialogue-protocol:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-diary:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-digital-health:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-drive-gap:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-conflict:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-core:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-diffuse:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-express:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-hormone:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-project:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-stage:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-emotion-stress:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-evidence-gate:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-expression-decide:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-failure-attrib:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-filter-chain:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-first-meet:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-forget-right:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-grow:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-gui-agent:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-identity:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-inject-dedupe:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-install-doctor:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-installer:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-lexicon:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-life-rhythm:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-live:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-llm-gateway:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-log-zh:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-market:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-audit:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-core:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-decay:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-dedupe:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-dream:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-extract:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-git:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-graph:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-heal:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-humanlike:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-intake:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-pool:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-prospective:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-recall:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-recognition:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-memory-vector:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-minecraft:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-multimodal-memory:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-narrative-log:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-onboarding:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-onthisday:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-oral:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-organ-gate:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-organ-host:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-our-free-model:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-path-layout:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-persona-assemble:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-persona-core:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-persona-evolve:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-persona-loader:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-persona-vars:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-persona-workshop:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-pet:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-pet-mobile:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-port-picker:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-privacy:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-proactive-gate:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-proactive-quota:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-proactive-reason:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-process-host:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-prompt-inject:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-recall-eval:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-redteam:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-reflex:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-rhythm:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-rhythm-typing:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-ritual:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-router:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-sandbox:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-screen-sense:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-snapshot:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-startup-check:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-sticker:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-store-json:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-store-memory:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-store-sqlite:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-study:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-theater:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-time-capsule:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-trust-dashboard:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-tts:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-tts-gate:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-vision:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-weather:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-webhook-inbox:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-weekly:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-window:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-worldbook:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-worldbook-scenes:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  cordis-host/plugins/ondra-zero-residence:
+    dependencies:
+      '@ntars/cordis':
+        specifier: npm:cordis@4.0.0-rc.12
+        version: cordis@4.0.0-rc.12
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  dsh-sidecar:
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  src:
+    dependencies:
+      lucide:
+        specifier: ^1.68.0
+        version: 1.68.0
+      morphicons:
+        specifier: ^2.0.2
+        version: 2.0.2(react@19.3.1)
+      react:
+        specifier: 19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: 19.3.1
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: 6.2.1
+        version: 6.2.1(vite@8.3.6(@types/node@26.6.6))
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vite:
+        specifier: 8.3.6
+        version: 8.3.6(@types/node@26.6.6)
+
+packages:
+
+  '@oxc-project/types@0.156.0':
+    resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
+
+  '@rolldown/binding-android-arm-eabi@1.2.16':
+    resolution: {integrity: sha512-ia3DwAs0OsMGS7+IConptSiyk9pEXkOx/AbJ2n/lAGxH3QkWQus1t8d7gnAT38FCU2sQu8lUbeR6AiZFv4JxaA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [android]
+
+  '@rolldown/binding-android-arm64@1.2.16':
+    resolution: {integrity: sha512-kx5wBiMB6E7TEvpl2B9gjLU004BkvEm2Dr941BFjx/SontPwSzNuQUIoVKxHHoSjpFIfHMmcguyLOtyn0hObRg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [android]
+
+  '@rolldown/binding-darwin-arm64@1.2.16':
+    resolution: {integrity: sha512-qslZrXnKJU4cUpjoAmtAo/KQM9e2IRMlmpig6Zpwj+8KWxW8v+nkAf9216Bsek9lOC1jvg2yCjygCFo2f83msQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@rolldown/binding-darwin-x64@1.2.16':
+    resolution: {integrity: sha512-FdF+y48ND13eAyM2mQn+85kvAqNlvRWROy2rhgA463X/0Gv4vGtazZtfaF1mRBLscYvtOlh4QnLjOWiFzX69OQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rolldown/binding-freebsd-x64@1.2.16':
+    resolution: {integrity: sha512-ddjqFM5e95AgLbUPtKIS7V1KTVlA0RUgCVr5mn+/IEhsdy3pr+Vuj/HZ7nlMN2FyxIwUktOH1LEPIQXO1v9y1Q==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@rolldown/binding-linux-arm-gnueabihf@1.2.16':
+    resolution: {integrity: sha512-tHdKWbFkFBI687iim3LIyIvyL7j66VvQYkDPss5Stn/qyE2tWkR1YD0dXmXPFKKqT/o5ZEJVsaRsWS2meQwGOA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [linux]
+
+  '@rolldown/binding-linux-arm64-gnu@1.2.16':
+    resolution: {integrity: sha512-FJiLGAblPBMlBEdbOqw6kW6QcXDWAf/oJu7gYs9ZJZwmg+K+/zjFLxPTIY9izJUzxzc24FHvmseyA0IvJSl17w==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rolldown/binding-linux-arm64-musl@1.2.16':
+    resolution: {integrity: sha512-hrJpblMsrQ58U9veWpbXzkhV5zStunds6HWLprqq1qauvgBr1E6P+24kLj6lSLI9vjRn/RYpjprhkHQPKGWpNg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@rolldown/binding-linux-ppc64-gnu@1.2.16':
+    resolution: {integrity: sha512-qJd/dC6j6CwLG9/s/RP2nb1RZ0GIgj7Ioj7x/SYa3RzjVrlzrmH0fhIOpfvqQDeIsdP0loi+kHaMhJzY1PBIaA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rolldown/binding-linux-s390x-gnu@1.2.16':
+    resolution: {integrity: sha512-Vx7Xg5uUJuNcujJjI70OICaH0EYj80BtOLZTSN7uOYg8QOLlyKnaG0IW7Fn/J0IpJsaKzmDKMhOQv1JBM9m9vg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@rolldown/binding-linux-x64-gnu@1.2.16':
+    resolution: {integrity: sha512-TNKhgE3uJTsTzatUSSYt0Kgo+Oa2uSlSjz4r1aEIea7HX6ULBym4fAlYUhG1i6pjNf2njfCUAfKwr6C3E9Xg1w==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rolldown/binding-linux-x64-musl@1.2.16':
+    resolution: {integrity: sha512-7chXdpjXZ8qG0+mIxECN3cT9kvhZ3/oZhMX6Pp876P7CDrIy8nJswva6Mq357JR7eYXfuskwZxMeV1SzoZdHrA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@rolldown/binding-openharmony-arm64@1.2.16':
+    resolution: {integrity: sha512-Kwjt+7uNTJK5/MDkGWGVO2KQPnj8yAV75dMpfwyHZrJSXWHrniOB0aUEWlVYf3H1hOqFLIStLdM5QXq6bnKmOQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [openharmony]
+
+  '@rolldown/binding-win32-arm64-msvc@1.2.16':
+    resolution: {integrity: sha512-/LH6WfjDRXXJz/p5xl4TmU+jpcnwcxbKEQBW/GZE0JHfN0lGIyTtsUEGaQ/q/GikkGJ2yLKe6pwm7AnEWO8pdw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [win32]
+
+  '@rolldown/binding-win32-x64-msvc@1.2.16':
+    resolution: {integrity: sha512-1lv1KvX0Z871zfk7vw+dnXMMnHNyDwMzWG8Kv3HxDXMOhzCX4SHc7HK319fInP0i+0p9D8brkfzL7pJOaGl+tw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [win32]
+
+  '@rolldown/pluginutils@1.0.1':
+    resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@tauri-apps/cli-darwin-arm64@2.12.4':
+    resolution: {integrity: sha512-OxqKSckIkoJ6vX2AjifIJpTasFC0Hbdoo7gEiCmAjauABO3U8m2MRsLWe+QTiBwDx1mIrvgA+rvI7tvDnbnHVg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@tauri-apps/cli-darwin-x64@2.12.4':
+    resolution: {integrity: sha512-fz76/77wMMJOaaUN6n3CybRG0P/MTEjjqYk81mGPyhi9m6Ue5T+LWBnJP/AkPooNatBPI2vtulGqomyMJ44lCQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@tauri-apps/cli-linux-arm-gnueabihf@2.12.4':
+    resolution: {integrity: sha512-K0w8Bof6Lt8QKLAYhRy0yy36ZH5iA/35VuSOvnxyjvCUZ+A3JKsUTlALviH/sVgAlisaPzzmeJSH8XOn4Q2HBA==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@tauri-apps/cli-linux-arm64-gnu@2.12.4':
+    resolution: {integrity: sha512-j5rOnjmRUwWrm1oosf0zBYl4D+fqydgUROFCk0hvKZxvbTT8SOERes0QB7rBV/XWNy+kM6pCKzb3oSm2sRglzg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tauri-apps/cli-linux-arm64-musl@2.12.4':
+    resolution: {integrity: sha512-aOue3Fy6Jb7+oWcfAVUsVHfeTybSCt2CZoU06aO4jv4d2Ks/KnaTPwMAK3CLEduGOvBLY1lbBBrIyomqLLH5Sg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@tauri-apps/cli-linux-riscv64-gnu@2.12.4':
+    resolution: {integrity: sha512-Fx6GShY/RvST+t6LMlTHAwd66+1tEaAAGrnU7cysVfaiRP1BKng5Vl6rVmO6rSLOA1Sp1dRzNYM4f0OWQGb7qA==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tauri-apps/cli-linux-x64-gnu@2.12.4':
+    resolution: {integrity: sha512-tNzZSa79Z1nRpHxEpQ38lsAFpKlFlYvoXzjTV+lRRn/zSf3wrdUC3wnLcq2XEadchPu4ttK0zivhYzr+XGD19Q==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tauri-apps/cli-linux-x64-musl@2.12.4':
+    resolution: {integrity: sha512-jmZ1pr0xEqUhuEusWtt9Yt+GF6lCnGHUmIL+KIknpbjK/XQ2qkhDBhaxK/JMHM2A8dAacVXCxXJk2EXpwhQUfA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@tauri-apps/cli-win32-arm64-msvc@2.12.4':
+    resolution: {integrity: sha512-fGo8pgEHZxdSYgZ/J98m1usJ7NHKmKbq7k6uT0x1rpOq6Bg2YVzzpaAblWk710f5LHYBJIL5QIFS5IrD+4gmTg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@tauri-apps/cli-win32-ia32-msvc@2.12.4':
+    resolution: {integrity: sha512-ezl8sQIcjYsye3TUnTH5VcWmWzccZASlQm7hlZt0dYyj1XD0qpVW47u2xYVrIKui0F8uQv/7QGZixdWiClBsbg==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@tauri-apps/cli-win32-x64-msvc@2.12.4':
+    resolution: {integrity: sha512-DJhDeCqjLDNMWYFy7ZS8cfeAHX2RK0RbQMLiA3bMVVkXRDJ4NBYiHriGqsUhsr9iG41aTb+dJGkFPmPw1gWwVw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@tauri-apps/cli@2.12.4':
+    resolution: {integrity: sha512-JI9bHfudSRJikGOrjbXEm6RjzzvmKuLc+JixB1NE8hNzQkNlCCIC3pTES3uypkR9lxHrsbxzcnSwhI2IxBQphw==}
+    engines: {node: '>= 10'}
+    hasBin: true
+
+  '@types/node@26.6.6':
+    resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
+
+  '@types/react-dom@19.3.0':
+    resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
+    peerDependencies:
+      '@types/react': ^19.3.0
+
+  '@types/react@19.3.0':
+    resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
+
+  '@typescript/typescript-aix-ppc64@7.0.2':
+    resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [ppc64]
+    os: [aix]
+
+  '@typescript/typescript-darwin-arm64@7.0.2':
+    resolution: {integrity: sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typescript/typescript-darwin-x64@7.0.2':
+    resolution: {integrity: sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/typescript-freebsd-arm64@7.0.2':
+    resolution: {integrity: sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [freebsd]
+
+  '@typescript/typescript-freebsd-x64@7.0.2':
+    resolution: {integrity: sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@typescript/typescript-linux-arm64@7.0.2':
+    resolution: {integrity: sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@typescript/typescript-linux-arm@7.0.2':
+    resolution: {integrity: sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/typescript-linux-loong64@7.0.2':
+    resolution: {integrity: sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [loong64]
+    os: [linux]
+
+  '@typescript/typescript-linux-mips64el@7.0.2':
+    resolution: {integrity: sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [mips64el]
+    os: [linux]
+
+  '@typescript/typescript-linux-ppc64@7.0.2':
+    resolution: {integrity: sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [ppc64]
+    os: [linux]
+
+  '@typescript/typescript-linux-riscv64@7.0.2':
+    resolution: {integrity: sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@typescript/typescript-linux-s390x@7.0.2':
+    resolution: {integrity: sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [s390x]
+    os: [linux]
+
+  '@typescript/typescript-linux-x64@7.0.2':
+    resolution: {integrity: sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@typescript/typescript-netbsd-arm64@7.0.2':
+    resolution: {integrity: sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [netbsd]
+
+  '@typescript/typescript-netbsd-x64@7.0.2':
+    resolution: {integrity: sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [netbsd]
+
+  '@typescript/typescript-openbsd-arm64@7.0.2':
+    resolution: {integrity: sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [openbsd]
+
+  '@typescript/typescript-openbsd-x64@7.0.2':
+    resolution: {integrity: sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [openbsd]
+
+  '@typescript/typescript-sunos-x64@7.0.2':
+    resolution: {integrity: sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [sunos]
+
+  '@typescript/typescript-win32-arm64@7.0.2':
+    resolution: {integrity: sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@typescript/typescript-win32-x64@7.0.2':
+    resolution: {integrity: sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@vitejs/plugin-react@6.2.1':
+    resolution: {integrity: sha512-9KyWCij3r0+qLG3Q62vBmv0VyevmYibAtxaCIVK9o0k6CXgaajZRIe8tpfchQcdZArJ5b/7OrIz4W3b2uxVRDA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rolldown/plugin-babel': ^0.1.7 || ^0.2.0 || ^0.3.0
+      babel-plugin-react-compiler: ^1.0.0
+      oxc-transform-react: '>=0.152.0 <0.157.0'
+      vite: ^8.0.0
+    peerDependenciesMeta:
+      '@rolldown/plugin-babel':
+        optional: true
+      babel-plugin-react-compiler:
+        optional: true
+      oxc-transform-react:
+        optional: true
+
+  cordis@4.0.0-rc.12:
+    resolution: {integrity: sha512-/ZtRivYxr5sffTULPewHuX5kEy5sWi8oADHSpnt0KjAd8uKRIj+kv4fh3lxtutIfVlgwJVFVXWOQp/gYa+kIOQ==}
+    hasBin: true
+    peerDependencies:
+      '@cordisjs/plugin-include': ^1.2.0
+      '@cordisjs/plugin-loader': ^1.0.0-rc.9
+    peerDependenciesMeta:
+      '@cordisjs/plugin-include':
+        optional: true
+      '@cordisjs/plugin-loader':
+        optional: true
+
+  cosmokit@1.8.1:
+    resolution: {integrity: sha512-PDBv4l90xZKrUsZ0vtoycgZpO/j4iFsqJXrAxsyBDsnQRI7ZMJXIjgDJsKNjd5L8jnVnnlrDCdhkFbTncgCVjQ==}
+
+  csstype@3.2.3:
+    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  detect-libc@2.1.2:
+    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
+    engines: {node: '>=8'}
+
+  fdir@6.5.0:
+    resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
+    engines: {node: '>=12.0.0'}
+    peerDependencies:
+      picomatch: ^3 || ^4
+    peerDependenciesMeta:
+      picomatch:
+        optional: true
+
+  fsevents@2.3.3:
+    resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
+  lightningcss-android-arm64@1.33.0:
+    resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [arm64]
+    os: [android]
+
+  lightningcss-darwin-arm64@1.33.0:
+    resolution: {integrity: sha512-Sciaz8eenNTKn9b3t7+xr0ipTp9YxKQY4npwQ3mrRuL0BAVHBLyZxofhaKBAVtzmtRZ/zTyo0/to4B1uWG/Djg==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  lightningcss-darwin-x64@1.33.0:
+    resolution: {integrity: sha512-Z5UPAxzrjlWNNyGy6i65cJzzvgJ5D3T6wMvs+gWpY9d7qRhANrxqAp6LhxIgZhWEw18RfJTGcRxjuLIBr+m8XQ==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  lightningcss-freebsd-x64@1.33.0:
+    resolution: {integrity: sha512-QQM/Ti/hQajJwCY+RiWuCZ9sdtI/XQk7nDK5vC8kkdwixezOlDgvDx7+RT+QjK6FcFT4MpsuoBnHIo/O3StRRg==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [x64]
+    os: [freebsd]
+
+  lightningcss-linux-arm-gnueabihf@1.33.0:
+    resolution: {integrity: sha512-N7FVBe6iS24MlM6R/4RBTxGhQheZGs7tiQ9U32UtF75NzP5Q7xWPRqLBCKxlRQRk3rY1jCIPLzx7WzOhuUIRLQ==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [arm]
+    os: [linux]
+
+  lightningcss-linux-arm64-gnu@1.33.0:
+    resolution: {integrity: sha512-j2v/itmy4HlNxlc6voKXYgBqNi0Ng2LShg4z7GufpEgs05P+2suBVyi9I6YHq5uoVFx9ETin3eCEhLVyXGQnKg==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  lightningcss-linux-arm64-musl@1.33.0:
+    resolution: {integrity: sha512-yiO5ROMuYQgXbC60yjZU5CYSFZGKXL0HFATXt9mHJn1+zW55oCtMI9NfcVhYLMFDL7gV7oBPon/EmMMGg2OvtQ==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  lightningcss-linux-x64-gnu@1.33.0:
+    resolution: {integrity: sha512-ar+Ju7LmcN0Jo4FpL4hpFybwNG9/3A/Br5KW2n2jyODg3MEZXaDYADdemoNS+BDNfMgKvylJLj4S5tyRActuAg==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  lightningcss-linux-x64-musl@1.33.0:
+    resolution: {integrity: sha512-RYiYbkokw0trfKqqzfF55lginwEPrD3OJDfTuJzFs1MK6iFnDenaz1fqLLtX4ITG3OktJQXOeTaw1awrBAlZPw==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  lightningcss-win32-arm64-msvc@1.33.0:
+    resolution: {integrity: sha512-1K+MPfLSFVpphzpdbfkhlWk6wBrTObBzS2T6db10PNOZgR9GoVsAWzwNyuhUYYbTp23j+4RrncfujZ4uAzXvwA==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  lightningcss-win32-x64-msvc@1.33.0:
+    resolution: {integrity: sha512-OlEICDx/Xl0FqSp4bry8zFnCvGpig3Gl4gCquvYwHuqJKEC1+n9NgDniFvqHGmMv1ZkqDJrDqKKSykTDX+ehuA==}
+    engines: {node: '>= 12.0.0'}
+    cpu: [x64]
+    os: [win32]
+
+  lightningcss@1.33.0:
+    resolution: {integrity: sha512-WkUDrojuJs0xkgGf2udWxa3yGBRxPtxUkB79i6aCZLRgc7PM8fZe9TosfPDcvEpQZbuFASnHYmRLBLUbmLOIIA==}
+    engines: {node: '>= 12.0.0'}
+
+  lucide@1.68.0:
+    resolution: {integrity: sha512-rs3/CGsK3g8pex8lsN5QDxUsEe3awxhMLsxqeK441WBmOlyF9X1sYIdGxTNV0ubpGu6rYSuj0pxuf189ziUKvw==}
+
+  morphicons@2.0.2:
+    resolution: {integrity: sha512-/GFSrsZDuyZ3a2QK8wXnVpsHzrVIZ8eLhg0QbGxeeOPyOZmtKUC8i0z3QQ3bbIX5DV/LOLYpp/8unJMWQU0Qgw==}
+    peerDependencies:
+      react: '>=18'
+      react-native: '>=0.71'
+      react-native-svg: '>=14'
+      svelte: '>=5'
+      vue: '>=3.3'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-native:
+        optional: true
+      react-native-svg:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+
+  nanoid@3.3.20:
+    resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
+  picocolors@1.1.1:
+    resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
+
+  picomatch@4.0.7:
+    resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
+    engines: {node: '>=12'}
+
+  postcss@8.5.32:
+    resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
+    engines: {node: ^10 || ^12 || >=14}
+
+  react-dom@19.3.1:
+    resolution: {integrity: sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==}
+    peerDependencies:
+      react: ^19.3.1
+
+  react@19.3.1:
+    resolution: {integrity: sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==}
+    engines: {node: '>=0.10.0'}
+
+  rolldown@1.2.16:
+    resolution: {integrity: sha512-bWvlMpFKiTfDKfnK7FC2MPgPeWCf/Kpwsq49ApdW+FQaBZb6O6dZ4MAPbPUjp7hYQrw/RobqCzn64BRrQecGHw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+
+  scheduler@0.28.0:
+    resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
+
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
+    engines: {node: '>=0.10.0'}
+
+  tinyglobby@0.2.17:
+    resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
+    engines: {node: '>=12.0.0'}
+
+  typescript@7.0.2:
+    resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
+    engines: {node: '>=16.20.0'}
+    hasBin: true
+
+  undici-types@8.9.0:
+    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
+
+  vite@8.3.6:
+    resolution: {integrity: sha512-UI7dK29NnS54Fk+mmo7o+jI6U8Fp7hDl+X5Q1k45WH+d4dSlbLVUETGQ+hfkNgvLQGyoElPj837nZyv4MBc0VA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+    peerDependencies:
+      '@types/node': ^20.19.0 || >=22.12.0
+      '@vitejs/devtools': ^0.7.1 || ^0.8.0
+      esbuild: ^0.27.0 || ^0.28.0
+      jiti: '>=1.21.0'
+      less: ^4.0.0
+      sass: ^1.70.0
+      sass-embedded: ^1.70.0
+      stylus: '>=0.54.8'
+      sugarss: ^5.0.0
+      terser: ^5.16.0
+      tsx: ^4.8.1
+      yaml: ^2.4.2
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      '@vitejs/devtools':
+        optional: true
+      esbuild:
+        optional: true
+      jiti:
+        optional: true
+      less:
+        optional: true
+      sass:
+        optional: true
+      sass-embedded:
+        optional: true
+      stylus:
+        optional: true
+      sugarss:
+        optional: true
+      terser:
+        optional: true
+      tsx:
+        optional: true
+      yaml:
+        optional: true
+
+snapshots:
+
+  '@oxc-project/types@0.156.0': {}
+
+  '@rolldown/binding-android-arm-eabi@1.2.16':
+    optional: true
+
+  '@rolldown/binding-android-arm64@1.2.16':
+    optional: true
+
+  '@rolldown/binding-darwin-arm64@1.2.16':
+    optional: true
+
+  '@rolldown/binding-darwin-x64@1.2.16':
+    optional: true
+
+  '@rolldown/binding-freebsd-x64@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-arm-gnueabihf@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-arm64-gnu@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-arm64-musl@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-ppc64-gnu@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-s390x-gnu@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-x64-gnu@1.2.16':
+    optional: true
+
+  '@rolldown/binding-linux-x64-musl@1.2.16':
+    optional: true
+
+  '@rolldown/binding-openharmony-arm64@1.2.16':
+    optional: true
+
+  '@rolldown/binding-win32-arm64-msvc@1.2.16':
+    optional: true
+
+  '@rolldown/binding-win32-x64-msvc@1.2.16':
+    optional: true
+
+  '@rolldown/pluginutils@1.0.1': {}
+
+  '@standard-schema/spec@1.1.0': {}
+
+  '@tauri-apps/cli-darwin-arm64@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-darwin-x64@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-linux-arm-gnueabihf@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-linux-arm64-gnu@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-linux-arm64-musl@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-linux-riscv64-gnu@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-linux-x64-gnu@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-linux-x64-musl@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-win32-arm64-msvc@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-win32-ia32-msvc@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli-win32-x64-msvc@2.12.4':
+    optional: true
+
+  '@tauri-apps/cli@2.12.4':
+    optionalDependencies:
+      '@tauri-apps/cli-darwin-arm64': 2.12.4
+      '@tauri-apps/cli-darwin-x64': 2.12.4
+      '@tauri-apps/cli-linux-arm-gnueabihf': 2.12.4
+      '@tauri-apps/cli-linux-arm64-gnu': 2.12.4
+      '@tauri-apps/cli-linux-arm64-musl': 2.12.4
+      '@tauri-apps/cli-linux-riscv64-gnu': 2.12.4
+      '@tauri-apps/cli-linux-x64-gnu': 2.12.4
+      '@tauri-apps/cli-linux-x64-musl': 2.12.4
+      '@tauri-apps/cli-win32-arm64-msvc': 2.12.4
+      '@tauri-apps/cli-win32-ia32-msvc': 2.12.4
+      '@tauri-apps/cli-win32-x64-msvc': 2.12.4
+
+  '@types/node@26.6.6':
+    dependencies:
+      undici-types: 8.9.0
+
+  '@types/react-dom@19.3.0(@types/react@19.3.0)':
+    dependencies:
+      '@types/react': 19.3.0
+
+  '@types/react@19.3.0':
+    dependencies:
+      csstype: 3.2.3
+
+  '@typescript/typescript-aix-ppc64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-darwin-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-darwin-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-freebsd-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-freebsd-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-arm@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-loong64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-mips64el@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-ppc64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-riscv64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-s390x@7.0.2':
+    optional: true
+
+  '@typescript/typescript-linux-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-netbsd-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-netbsd-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-openbsd-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-openbsd-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-sunos-x64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-win32-arm64@7.0.2':
+    optional: true
+
+  '@typescript/typescript-win32-x64@7.0.2':
+    optional: true
+
+  '@vitejs/plugin-react@6.2.1(vite@8.3.6(@types/node@26.6.6))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.3.6(@types/node@26.6.6)
+
+  cordis@4.0.0-rc.12:
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      cosmokit: 1.8.1
+
+  cosmokit@1.8.1: {}
+
+  csstype@3.2.3: {}
+
+  detect-libc@2.1.2: {}
+
+  fdir@6.5.0(picomatch@4.0.7):
+    optionalDependencies:
+      picomatch: 4.0.7
+
+  fsevents@2.3.3:
+    optional: true
+
+  lightningcss-android-arm64@1.33.0:
+    optional: true
+
+  lightningcss-darwin-arm64@1.33.0:
+    optional: true
+
+  lightningcss-darwin-x64@1.33.0:
+    optional: true
+
+  lightningcss-freebsd-x64@1.33.0:
+    optional: true
+
+  lightningcss-linux-arm-gnueabihf@1.33.0:
+    optional: true
+
+  lightningcss-linux-arm64-gnu@1.33.0:
+    optional: true
+
+  lightningcss-linux-arm64-musl@1.33.0:
+    optional: true
+
+  lightningcss-linux-x64-gnu@1.33.0:
+    optional: true
+
+  lightningcss-linux-x64-musl@1.33.0:
+    optional: true
+
+  lightningcss-win32-arm64-msvc@1.33.0:
+    optional: true
+
+  lightningcss-win32-x64-msvc@1.33.0:
+    optional: true
+
+  lightningcss@1.33.0:
+    dependencies:
+      detect-libc: 2.1.2
+    optionalDependencies:
+      lightningcss-android-arm64: 1.33.0
+      lightningcss-darwin-arm64: 1.33.0
+      lightningcss-darwin-x64: 1.33.0
+      lightningcss-freebsd-x64: 1.33.0
+      lightningcss-linux-arm-gnueabihf: 1.33.0
+      lightningcss-linux-arm64-gnu: 1.33.0
+      lightningcss-linux-arm64-musl: 1.33.0
+      lightningcss-linux-x64-gnu: 1.33.0
+      lightningcss-linux-x64-musl: 1.33.0
+      lightningcss-win32-arm64-msvc: 1.33.0
+      lightningcss-win32-x64-msvc: 1.33.0
+
+  lucide@1.68.0: {}
+
+  morphicons@2.0.2(react@19.3.1):
+    optionalDependencies:
+      react: 19.3.1
+
+  nanoid@3.3.20: {}
+
+  picocolors@1.1.1: {}
+
+  picomatch@4.0.7: {}
+
+  postcss@8.5.32:
+    dependencies:
+      nanoid: 3.3.20
+      picocolors: 1.1.1
+      source-map-js: 1.2.2
+
+  react-dom@19.3.1(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+      scheduler: 0.28.0
+
+  react@19.3.1: {}
+
+  rolldown@1.2.16:
+    dependencies:
+      '@oxc-project/types': 0.156.0
+      '@rolldown/pluginutils': 1.0.1
+    optionalDependencies:
+      '@rolldown/binding-android-arm-eabi': 1.2.16
+      '@rolldown/binding-android-arm64': 1.2.16
+      '@rolldown/binding-darwin-arm64': 1.2.16
+      '@rolldown/binding-darwin-x64': 1.2.16
+      '@rolldown/binding-freebsd-x64': 1.2.16
+      '@rolldown/binding-linux-arm-gnueabihf': 1.2.16
+      '@rolldown/binding-linux-arm64-gnu': 1.2.16
+      '@rolldown/binding-linux-arm64-musl': 1.2.16
+      '@rolldown/binding-linux-ppc64-gnu': 1.2.16
+      '@rolldown/binding-linux-s390x-gnu': 1.2.16
+      '@rolldown/binding-linux-x64-gnu': 1.2.16
+      '@rolldown/binding-linux-x64-musl': 1.2.16
+      '@rolldown/binding-openharmony-arm64': 1.2.16
+      '@rolldown/binding-win32-arm64-msvc': 1.2.16
+      '@rolldown/binding-win32-x64-msvc': 1.2.16
+
+  scheduler@0.28.0: {}
+
+  source-map-js@1.2.2: {}
+
+  tinyglobby@0.2.17:
+    dependencies:
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
+
+  typescript@7.0.2:
+    optionalDependencies:
+      '@typescript/typescript-aix-ppc64': 7.0.2
+      '@typescript/typescript-darwin-arm64': 7.0.2
+      '@typescript/typescript-darwin-x64': 7.0.2
+      '@typescript/typescript-freebsd-arm64': 7.0.2
+      '@typescript/typescript-freebsd-x64': 7.0.2
+      '@typescript/typescript-linux-arm': 7.0.2
+      '@typescript/typescript-linux-arm64': 7.0.2
+      '@typescript/typescript-linux-loong64': 7.0.2
+      '@typescript/typescript-linux-mips64el': 7.0.2
+      '@typescript/typescript-linux-ppc64': 7.0.2
+      '@typescript/typescript-linux-riscv64': 7.0.2
+      '@typescript/typescript-linux-s390x': 7.0.2
+      '@typescript/typescript-linux-x64': 7.0.2
+      '@typescript/typescript-netbsd-arm64': 7.0.2
+      '@typescript/typescript-netbsd-x64': 7.0.2
+      '@typescript/typescript-openbsd-arm64': 7.0.2
+      '@typescript/typescript-openbsd-x64': 7.0.2
+      '@typescript/typescript-sunos-x64': 7.0.2
+      '@typescript/typescript-win32-arm64': 7.0.2
+      '@typescript/typescript-win32-x64': 7.0.2
+
+  undici-types@8.9.0: {}
+
+  vite@8.3.6(@types/node@26.6.6):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.7
+      postcss: 8.5.32
+      rolldown: 1.2.16
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 26.6.6
+      fsevents: 2.3.3

@@ -1,0 +1,208 @@
+/**
+ * 浮层样式：菜单、右键菜单、顶部提示条。
+ *
+ * ## 数值来源
+ *
+ * 全部来自对原版运行时的**实测**（`getComputedStyle` + `getBoundingClientRect`），
+ * 不是目测估计：
+ *
+ * | 部件 | 实测值 |
+ * |---|---|
+ * | 菜单外框圆角 | 16px |
+ * | 菜单外框内边距 | 4px |
+ * | 菜单外框 z-index | 1100 |
+ * | 菜单外框阴影 | `0 0 0 .5px rgba(0,0,0,.04), 0 3px 8px rgba(0,0,0,.04), 0 0 20px rgba(0,0,0,.05)` |
+ * | 账号菜单整体 | 124×128（三项 116×40） |
+ * | 账号菜单项内边距 | `8px 10px`，圆角 12px，字号 14px |
+ * | 工作区菜单整体 | 144×83（两项 136×34） |
+ * | 工作区菜单项内边距 | `6px 8px`，圆角 12px，字号 13px |
+ * | 提示条底色 | 深色不透明（`#2b2b2b` 一档），白字 13px |
+ */
+
+/* --- 菜单 ---------------------------------------------------------------- */
+
+.menu__anchor {
+  display: contents;
+}
+
+.menu {
+  position: fixed;
+  z-index: 1100;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--alias-bg-overlay);
+  /* 三层叠加还原原版：0.5px 描边 + 近距投影 + 远距柔光。
+     单层阴影做不出这种"贴纸浮在纸面"的观感。 */
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.04),
+    0 3px 8px 0 rgba(0, 0, 0, 0.04),
+    0 0 20px 0 rgba(0, 0, 0, 0.05);
+  /* 菜单可能比视口高，给一个上限并允许滚动。 */
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: menu-in 120ms ease-out;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu {
+    animation: none;
+  }
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  /* 圆角要在每一项上，外框那个 16px 只负责整体轮廓。 */
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: start;
+  padding: 8px 10px;
+  cursor: default;
+  /* 默认不接收 tab 聚焦，靠方向键在菜单内移动。 */
+  outline: none;
+}
+
+.menu__item:hover:not(:disabled),
+.menu__item:focus-visible:not(:disabled) {
+  background: var(--alias-interactive-bg-hover-solid);
+}
+
+.menu__item:disabled {
+  color: var(--alias-label-dimmed);
+}
+
+.menu__item--danger {
+  color: var(--alias-state-error-primary);
+}
+
+.menu__item--danger:hover:not(:disabled),
+.menu__item--danger:focus-visible:not(:disabled) {
+  background: var(--alias-state-error-tertiary);
+}
+
+.menu__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--alias-label-secondary);
+}
+
+.menu__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu__item--checked .menu__label {
+  font-weight: 500;
+}
+
+.menu__check {
+  flex: none;
+  color: var(--alias-label-secondary);
+  font-size: 12px;
+}
+
+/* --- 顶部提示条 ---------------------------------------------------------- */
+
+/*
+ * 位置：窗口顶部居中，`top: 56px`。这个值不是随手取的——
+ * 它要落在左栏 topStrip（52px）下方，又不能压住中栏的面包屑行。
+ */
+.toast {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 48px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #2b2b2b;
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  animation: toast-in 160ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+.toast__icon {
+  display: inline-flex;
+  flex: none;
+  /* 图标与首行文字基线对齐，而不是整体垂直居中：
+     多行文案时图标应贴在第一行，居中会漂到段落中间。 */
+  margin-top: 1px;
+  color: #f5c451;
+}
+
+.toast__text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.toast__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: default;
+}
+
+.toast__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}

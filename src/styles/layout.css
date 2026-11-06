@@ -1,0 +1,292 @@
+/**
+ * 三栏布局骨架。
+ *
+ * ## 比例：固定四等分
+ *
+ * 横向按 **1/4 | 2/4 | 1/4** 切分，即左栏 25%、中栏 50%、右栏 25%，
+ * 在任何窗口宽度下都成立。侧栏既不可拖拽也不可折叠。
+ *
+ * 为什么不是可折叠：这个窗口的默认与最小尺寸都是 820×580，
+ * 最小宽度下左栏约 205px，刚好够放会话标题。折叠通常是为了在窄屏
+ * 腾空间，这里不存在那个场景，多一个折叠态只会让用户每次都要确认
+ * "我另一栏去哪了"。
+ *
+ * 为什么不用 `grid-template-columns: 1fr 2fr 1fr`：`fr` 在内容溢出时
+ * 会按内容最小宽度重新分配，比例就不再严格是 1:2:1。这里用百分比，
+ * 并给三栏都加 `min-width: 0`，保证比例恒定、内容自己滚动。
+ *
+ * ## 三栏之间的关系
+ *
+ * 只画一条线而不是两条——两条线相邻会形成 1px 的"双线"，
+ * 在浅底上看起来像脏痕。
+ *
+ * ## 首页例外
+ *
+ * 首页不使用三栏，保持设计稿那张居中的单页。
+ * 判据是"有没有进入会话"，由 App 决定渲染哪一个。
+ */
+
+/* ---------------------------------------------------------------------------
+   外层：可拖拽条 + 内容区
+   --------------------------------------------------------------------------- */
+
+.shell {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--alias-bg-base);
+  overflow: hidden;
+}
+
+/**
+ * 顶部没有独立的拖拽条。
+ *
+ * 旧版的窗口拖拽区就是左栏那条 52px 的工具条与 60px 的身份行——
+ * 它们的高度本来就是为"红绿灯浮在内容上"留的。若在它们之外再加一条
+ * 38px 的全局横条，三栏会整体下移，顶部凭空出现一块空白，
+ * 而那块空白又不能放任何东西。
+ *
+ * 拖拽能力由侧栏自己的 topStrip / logoRow 通过 `data-tauri-drag-region`
+ * 提供，右侧两栏不需要——它们的顶部没有可拖的地方，
+ * 而 macOS 上拖窗口的主要落点就是标题栏那一条。
+ */
+
+/* ---------------------------------------------------------------------------
+   三栏容器
+   --------------------------------------------------------------------------- */
+
+/**
+ * `min-height: 0` 是关键：grid 子项默认 `min-height: auto`，
+ * 会被内容撑高导致滚动条失效。加上它，各栏内部才能各自滚动。
+ */
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 25% 50% 25%;
+  overflow: hidden;
+}
+
+/**
+ * 左栏。底色比中栏浅一档，中栏因此自然"浮"起来。
+ *
+ * ## 右边框为什么不画在这里
+ *
+ * 全局 `box-sizing: border-box`，若在这里画 0.5px 的右边框，
+ * 侧栏内容宽度就变成 204.5px（820 宽下 25% = 205），
+ * 拿 205 去比就永远差 0.5px。
+ *
+ * 原版在 macOS 上正是把这条线挪走了：
+ * `[data-platform="darwin"] .McQuPG_sidebarCol { border-right: none }`
+ * 同时给中栏 `border-left: .5px`。线的位置一模一样，
+ * 但侧栏拿到完整的 205px，栏内所有算术都不必再减半像素。
+ * 这里照此处理：线画在中栏左侧。
+ */
+.workspace__left {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--specific-sidebar-fill);
+}
+
+/**
+ * 中栏。唯一的滚动容器在它内部，不是它自己。
+ *
+ * ## 左边框用 box-shadow 而不是 border
+ *
+ * 全局 `border-box`，`border-left: .5px` 会从内容宽度里扣掉半像素，
+ * 820 宽下中栏就变成 409。虽然只差 1px，但三栏的比例从此不再是
+ * 严格的 1:2:1，右栏也跟着偏。
+ *
+ * `box-shadow: -0.5px 0 0` 把线画在盒子外侧：位置与 border 一样
+ * （都在两栏交界处），但不参与盒模型计算，三栏宽度各拿满整份。
+ */
+.workspace__center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--alias-bg-base);
+  box-shadow: -0.5px 0 0 var(--alias-border-l3);
+}
+
+/* 右栏。分隔线同样用 box-shadow，理由见上。 */
+/**
+ * 右栏。
+ *
+ * ## 为什么底色是纯白而不是侧栏灰
+ *
+ * 直觉上左右两栏该同色（都是"边栏"），但原版不是：左栏
+ * `rgb(249,250,251)`，右栏 `rgb(255,255,255)` 与中栏同为纯白。
+ * 来源是右栏的标签宿主 `_tabHost_lv4un_164` 写了
+ * `background: var(--dsw-alias-bg-base)`，而 bg-base 是纯白。
+ *
+ * 之前这里用了 `--specific-sidebar-fill`，右栏整体比原版暗 6 个色阶，
+ * 并排看就是"右边那块是灰的"。这与卡片的分隔线一起，
+ * 让右栏读起来像另一个区域，而原版是与中栏连成一片。
+ */
+.workspace__right {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--alias-bg-base);
+  box-shadow: -0.5px 0 0 var(--alias-border-l3);
+}
+
+/* ---------------------------------------------------------------------------
+   连接中 / 失败
+   --------------------------------------------------------------------------- */
+
+/**
+ * 连接态不显示转圈：本地宿主启动通常不到一秒，转圈会闪一下反而更干扰。
+ * 用与三栏一致的分隔骨架，让"连上"看起来只是内容浮现。
+ */
+.skeleton {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 25% 50% 25%;
+}
+
+.skeleton > div {
+  background: var(--specific-sidebar-fill);
+  border-right: 0.5px solid var(--alias-border-l3);
+}
+
+.skeleton > div:nth-child(2) {
+  background: var(--alias-bg-base);
+}
+
+.skeleton > div:last-child {
+  border-right: none;
+  border-left: 0.5px solid var(--alias-border-l3);
+}
+
+/* 启动失败的兜底页。 */
+.fatal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+}
+
+.fatal__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--alias-label-primary);
+}
+
+.fatal__detail {
+  margin: 0;
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--alias-label-tertiary);
+  user-select: text;
+}
+
+/* ---------------------------------------------------------------------------
+   首页（空状态）
+   --------------------------------------------------------------------------- */
+
+/**
+ * 首页是设计稿那张居中的单页：logo、标题、输入框、双语 slogan 竖直排列。
+ *
+ * 竖直位置靠 `justify-content: center` 而非固定 padding：窗口高度变化时
+ * 内容应保持视觉居中，写死 padding 会让它在不同窗口高度下偏高或偏低。
+ * 底部多留 6vh，因为视觉重心应该略高于几何中心。
+ */
+.welcome {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px 6vh;
+  overflow-y: auto;
+}
+
+.welcome__logo {
+  width: 62px;
+  height: 62px;
+  flex: none;
+  margin-bottom: 20px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.welcome__title {
+  margin: 0 0 26px;
+  font-size: 29px;
+  font-weight: 600;
+  line-height: 38px;
+  letter-spacing: 0.01em;
+  color: var(--alias-label-primary);
+}
+
+/* 「Ondra」与中文同一基线，间隙靠 margin 而不是空格字符——
+   空格在不同字体下的宽度不可控。 */
+.welcome__title em {
+  font-style: normal;
+  margin-left: 7px;
+  font-weight: 400;
+  color: var(--alias-label-tertiary);
+}
+
+/* 首页输入框宽度。540px 是设计稿的实测值，比对话态的窄：
+   首页只有一件东西，宽度收窄能让视线自然聚焦。 */
+.welcome .composer {
+  width: 100%;
+  max-width: 540px;
+}
+
+.welcome__slogan {
+  margin-top: 22px;
+  text-align: center;
+}
+
+.welcome__slogan p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 19px;
+  color: var(--alias-label-caption);
+}
+
+.welcome__slogan p:first-child {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+/* 首页左下角的设置入口。 */
+.dock {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  display: flex;
+  gap: 4px;
+}
+
+.dock-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--alias-label-tertiary);
+  transition: background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+.dock-button:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}

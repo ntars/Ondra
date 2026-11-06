@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-emotion-hormone",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的激素维度扩展（手册 §3.2 / §14.3，默认关闭）：把皮质醇、多巴胺、催产素读成「压着事 / 轻快 / 挨得近」三档倾向，与核心三维并存但**只读叠加**——不持有任何激素、不写 PAD、不算第二套 mood、不出提示词片段。oxytocin 走 O-026 自己的动态激素通道（inflict + 通用基线 50 / 30 分钟），本插件一个字段都不新增。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

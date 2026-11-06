@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-rhythm",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的分条与停顿纯函数（手册 §9.2 / §3.3）：≤4 条、每条 ≤40 字、6 字每秒、标点附加 300/500/150ms、停顿 300–6000ms（先卡限→深夜 ×1.6→再卡限）、首字延迟 800–2000ms、长停顿 20% × 3000–9000ms（整轮最多一次）、自我修正 5%（默认不插入）、超限保留前 3 条并把尾部合并成第 4 条。只算不发：计时执行归 ondra-rhythm-typing，删改正文归 ondra-filter-chain。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

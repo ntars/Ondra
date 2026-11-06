@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-vision",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的视觉（手册 §9.4 / 语料·第一编 2.3，P1，〔复〕复用档）：图片理解、OCR 取字、物体定位、视频抽帧。手册原话是「图片理解 / OCR / 物体定位 / 视频抽帧，provider 可插拔，默认关」，落点写着「走可插拔 provider（云端 OpenAI 兼容 / 本地 Ollama / 通义千问），默认关闭，与 ondra-privacy 联动（出站前提示）」。所以本包只做三件事：把一张图变成一段中文描述、把图里的字取出来、把「某个东西在哪」变成归一化方框；外加把视频抽成 4 帧。模型推理本身一个字都不自己写——识别能力归 provider，本包只负责请求整形、配置、超时、降级与出站许可。三条写死的判定。第一，默认关：手册 §9.4 逐字要求 vision 默认关闭，因为一张图出站就等于把用户的屏幕发给了别人。第二，出站必须有人替我说「能不能发」：有 ondra-privacy 就按它的裁决走（allow / ask / deny 三态分明），没有 privacy 时云端一律不发，除非显式打开 cloud-without-privacy。第三，失败一律安静地返回原因码，不抛错、不编内容：看不到就说看不到，猜出来的描述会直接变成一条假记忆入库。本包不画界面、不建会话、不写记忆、不装定时器；入库归 O-128，出站合规归 O-076，界面归应用外壳。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

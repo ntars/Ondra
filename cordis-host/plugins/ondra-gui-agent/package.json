@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-gui-agent",
+  "version": "2.0.1",
+  "private": true,
+  "description": "空谷 Ondra 的图形界面单步决策环：一次只判一个动作、只发一张票、票一次即焚。三层安全网全落地——危险区黑名单（归一化矩形，换分辨率不错位）、App 白名单（空 = 一个都不许）、动作确认阈值 + 每日预算 + 限频。表单红线：检测到已填表单立即收手；检测不到时（unknown）只把打字按高危处理并要求确认，因为点错可撤销、在填了一半的表单里再打字不可逆。风险分级真的能返回 readonly（master-plan §9.11 指出旧实现永不返回 readonly，导致「只看也要过闸」，用户很快把整套闸门关掉）。观察与执行走 GuiRunner 端口：本仓没有截屏与合成事件的依据，不写「看起来能跑」的调用。审计只记形状不记内容——没有正文、只有字符数；坐标量化到 10 像素网格。approve 刻意不是工具：模型若能自己批准，三档审批就退化成自问自答。默认关闭，出厂只允许 observe。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

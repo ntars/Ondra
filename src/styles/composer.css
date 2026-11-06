@@ -1,0 +1,569 @@
+/**
+ * 输入框。
+ *
+ * ## 一张卡片而不是一条输入线
+ *
+ * 三个问题叠在一起：写字、切权限、切模型。做成一张卡片是承认它们
+ * 属于同一件事——"这一轮怎么发出去"。分成三行独立控件会让用户
+ * 每次发送前都要在三个地方做决定，而它们其实是一次决定。
+ *
+ * ## 几何（实测值）
+ *
+ * 卡片圆角 `--radius-panel`（28px）。这个值比常见的 16px 大很多，
+ * 是这张卡片的识别特征：28px 让矩形看起来"软"，与整屏的直线形成对比。
+ *
+ * 输入区 `padding: 4px 8px 0 14px`——左侧 14px 比右侧 8px 宽，
+ * 因为中文首字左侧的留白视觉上比英文更窄，需要补偿。
+ *
+ * 加号 28×28、发送键 34×34。发送键更大，因为它是这一屏的主操作。
+ *
+ * ## 底部一行的顺序
+ *
+ * 左：加号 → 权限档位
+ * 右：模型 → 麦克风 → 发送
+ *
+ * 权限在左、模型在右是刻意的：权限是"能做什么"（约束），
+ * 模型是"用谁来想"（选择）。约束放在远离主操作的一侧，
+ * 避免用户在按发送前先被"完全访问"这个红色标签惊到。
+ */
+
+/* ---------------------------------------------------------------------------
+   一、容器
+   --------------------------------------------------------------------------- */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   二、卡片
+   --------------------------------------------------------------------------- */
+
+/**
+ * 输入卡片。
+ *
+ * 白底 + 0.5px 描边阴影（`--elevation-soft`）。不用 border 的原因：
+ * border 参与盒模型，改了 border 宽度整个卡片会位移；
+ * 描边阴影不占位，且圆角处的过渡更平滑。
+ *
+ * ## 高度 76px，发送键在卡片内
+ *
+ * 原版实测：`OQYONa_card` 是 `221,462 378×76`，发送键
+ * `OQYONa_primary` 是 `559,496 34×34` —— 发送键**在卡片内部**右下角，
+ * 而不是在卡片外面另起一行。
+ *
+ * 卡片里只有两样东西：输入文字与发送键。加号、权限、模型、语音
+ * 都在卡片之外那一行（见 `.composer__row`）。把六个控件都塞进卡片，
+ * 卡片会长到 110px，输入区吃掉中栏五分之一的高度。
+ */
+.composer__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 76px;
+  max-width: var(--composer-card-max-width);
+  padding-top: 4px;
+  border: none;
+  border-radius: var(--radius-panel);
+  background: var(--specific-input-major);
+  box-shadow: var(--elevation-soft);
+  font-size: var(--content-font-size);
+  line-height: calc(24px + var(--content-font-delta));
+}
+
+/**
+ * 发送键所在的列。
+ *
+ * 原版 `OQYONa_sendColumn` 是 42×36，右贴卡片内边距、下贴卡片底
+ * （实测 y=496，卡片 y=462 高 76 → 底部对齐 462+76-496-36 = 6px 余量）。
+ * 用绝对定位而不是 flex 行：发送键不该参与文字区的换行计算，
+ * 否则输入内容变长时它会跟着往下跑。
+ */
+.composer__sendColumn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 2px;
+}
+
+/* 聚焦时描边转深一档。只改描边颜色，不移动任何东西。 */
+.composer__card:focus-within {
+  --elevation-stroke-color: var(--alias-border-l4);
+}
+
+/* ---------------------------------------------------------------------------
+   三、文本区
+   --------------------------------------------------------------------------- */
+
+/**
+ * 文本区。`min-height` 28px 是一行的高度；首页 52px（两行）。
+ *
+ * 不用 textarea 而用 contenteditable 的分歧点在旧版实现里，
+ * 这里回到 textarea：它的输入法行为最稳，且能天然支持换行与滚动。
+ * 高度由脚本按 scrollHeight 同步，上限由 `--composer-text-max-height` 控制。
+ */
+.composer__input {
+  display: block;
+  width: 100%;
+  min-height: calc(28px + var(--content-font-delta));
+  max-height: var(--composer-text-max-height);
+  padding: 4px 8px 0 14px;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--alias-label-primary);
+  caret-color: var(--alias-state-business-primary);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  resize: none;
+  overflow-y: auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.composer__input::placeholder {
+  color: var(--alias-label-caption);
+}
+
+/* 首页的输入区更高（两行），placeholder 也允许折两行。 */
+.composer--hero .composer__input {
+  min-height: 52px;
+  padding-top: 6px;
+}
+
+/* 禁用态。 */
+.composer__input:disabled {
+  color: var(--alias-label-tertiary);
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   四、底部工具行
+   --------------------------------------------------------------------------- */
+
+/**
+ * 卡片下方的工具行。
+ *
+ * 原版 `OQYONa_row` 是 `padding: 0 8px 2px`，位于卡片**之外**。
+ * 这里同样放在卡片外——它是"这一轮怎么发出去"的附属设置，
+ * 不属于输入正文那块纸面。
+ *
+ * 左右两端对齐：加号与权限靠左，模型与语音靠右。
+ * 权限在左、模型在右是刻意的：权限是"能做什么"（约束），
+ * 模型是"用谁来想"（选择）。约束放在远离主操作的一侧。
+ */
+.composer__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: var(--composer-card-max-width);
+  min-width: 0;
+  padding: 4px 8px 2px;
+}
+
+.composer__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.composer__right {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   五、加号
+   --------------------------------------------------------------------------- */
+
+/**
+ * 附加文件。28×28 圆形，底色 `--specific-selector`（#f5f6f7）。
+ *
+ * 它有实底色而非透明：这是输入框里唯一"看起来可以按"的次要按钮，
+ * 需要一点实体感把它和纯文字标签区分开。
+ */
+.composer__add {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--specific-selector);
+  color: var(--alias-label-primary);
+  cursor: default;
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+@media (hover: hover) {
+  .composer__add:hover:not(:disabled) {
+    background: var(--alias-interactive-bg-hover-solid);
+  }
+}
+
+.composer__add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.composer__add:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+   六、权限档位
+   --------------------------------------------------------------------------- */
+
+/**
+ * 权限标签。无底色，只有文字 + 图标 + 箭头。
+ *
+ * 为什么不做成胶囊按钮：这一行里已经有加号（实底圆）和发送键（实底圆），
+ * 再加第三个实底元素会让整行显得拥挤。权限只需要"被看到"，不需要"被强调"。
+ *
+ * 非完全访问时文字转红：这是全界面唯一允许的彩色，
+ * 因为"权限被限制"是用户必须立刻知道的事。
+ */
+.permission {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.permission:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+.permission--restricted {
+  color: var(--alias-state-error-primary);
+}
+
+.permission__chevron {
+  color: var(--alias-label-caption);
+  flex: none;
+}
+
+.permission--restricted .permission__chevron {
+  color: var(--alias-state-error-primary);
+  opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------------------
+   七、模型选择
+   --------------------------------------------------------------------------- */
+
+.model-select {
+  position: relative;
+  flex: none;
+}
+
+/**
+ * 模型触发器。高度 28px、字号 13px。
+ *
+ * 不用原生 select：原生 select 的箭头与内边距在各平台不一致，
+ * 而且它无法做到"当前模型名过长时省略号截断"。
+ */
+.model-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.model-select__trigger:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+.model-select__trigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 1px;
+}
+
+.model-select__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 下拉菜单。向上弹出，因为是底部触发的。 */
+.model-select__menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  max-width: 280px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--specific-menu);
+  backdrop-filter: var(--menu-backdrop-filter);
+  box-shadow: var(--shadow-lv3), var(--elevation-stroke);
+  animation: menu-in var(--motion-duration) var(--motion-curve) both;
+}
+
+.model-select__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  cursor: default;
+}
+
+.model-select__item:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/* 当前模型：左侧一个对勾位。用内边距预留而不是插入元素，
+   这样所有条目的文字起点一致。 */
+.model-select__item--current {
+  padding-left: 24px;
+  position: relative;
+  font-weight: 500;
+}
+
+.model-select__item--current::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 8px;
+  height: 4px;
+  border-left: 1.5px solid var(--alias-state-business-primary);
+  border-bottom: 1.5px solid var(--alias-state-business-primary);
+  transform: translateY(-70%) rotate(-45deg);
+}
+
+/* ---------------------------------------------------------------------------
+   八、麦克风与发送
+   --------------------------------------------------------------------------- */
+
+/**
+ * 麦克风。无底色——它与加号不同，它是个"可选功能"，
+ * 不需要用实底吸引注意。
+ */
+.icon-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--alias-label-tertiary);
+  cursor: default;
+  transition: background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+@media (hover: hover) {
+  .icon-button:hover {
+    background: var(--alias-interactive-bg-hover);
+    color: var(--alias-label-primary);
+  }
+}
+
+.icon-button--active {
+  color: var(--alias-state-error-primary);
+}
+
+.icon-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 1px;
+}
+
+/**
+ * 发送键。34×34 实底圆，填充 `--accent-fill`（#171717），
+ * 图标 `--accent-ink`（#f5f5f5）。
+ *
+ * 它是全界面唯一的深色实心圆。这个唯一性是刻意的：
+ * 主操作必须能在整屏留白里被瞬间定位。
+ *
+ * 禁用态降到 0.4 透明度而不是换成灰色——换色会让按钮
+ * 在"可发/不可发"之间跳变大小感，降透明度只改"在场的强度"。
+ */
+.send {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  cursor: default;
+  transition: background-color var(--motion-duration-fast) ease,
+    opacity var(--motion-duration-fast) ease;
+}
+
+.send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.send:disabled {
+  opacity: 0.4;
+}
+
+.send:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+/* 生成中：发送键变成停止键。保持同样的尺寸与底色，
+   只换图标——这样用户不必重新找按钮。 */
+.send--stop {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+}
+
+/* ---------------------------------------------------------------------------
+   九、附件
+   --------------------------------------------------------------------------- */
+
+/* 附件区。在文本区上方，横向排列，超出折行。 */
+.composer__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px 0;
+}
+
+.attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.attachment__name {
+  overflow: hidden;
+  max-width: 140px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.attachment__remove {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--alias-label-caption);
+  font-size: 12px;
+  line-height: 14px;
+  cursor: default;
+}
+
+.attachment__remove:hover {
+  background: var(--alias-interactive-bg-active);
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   十、用量
+   --------------------------------------------------------------------------- */
+
+/**
+ * 用量行。在卡片下方，不占卡片内部空间——
+ * 它是"这一轮的账"，与"要怎么发"是两件事。
+ */
+.composer__usage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: var(--composer-card-max-width);
+  padding: 0 14px;
+  color: var(--alias-label-caption);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.usage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 上下文占用的小环。用 SVG 描边而不是 conic-gradient：
+   后者在小于 14px 时会因抗锯齿糊成一圈。 */
+.usage-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-select__menu {
+    animation: none;
+  }
+}

@@ -1,0 +1,435 @@
+/**
+ * 设计令牌表。
+ *
+ * ## 为什么分成两层名字
+ *
+ * 第一层是**静态色板**（`--static-*`）：一组有明确定值的颜色，
+ * 从最浅到最深排成阶梯。它回答的是"这个颜色具体是多少"。
+ *
+ * 第二层是**语义别名**（`--alias-*`）：回答"这个位置该用什么颜色"。
+ * 例如 `--alias-label-secondary` 不写死色值，而是指向色板里的某一档。
+ *
+ * 分开的价值在于深色模式：一整套界面组件只引用语义别名，
+ * 深色模式下改别名指向哪一档即可，组件样式一个字都不用动。
+ * 如果组件直接写 `#61666b`，深色模式就得逐条覆写。
+ *
+ * ## 与旧版的关系
+ *
+ * 令牌的**命名与取值**来自旧版的设计体系，那些数值是经过实际渲染校准的，
+ * 重新调一遍只会引入无谓偏差。但这里的文件、层级、注释与使用方式
+ * 全部按新架构重新组织——旧版是在运行时由插件注入，这里是一张静态表，
+ * 构建期就能被压缩与校验。
+ *
+ * ## 单位
+ *
+ * 一律 px。这是桌面窗口，尺寸由用户直接拖拽，不存在等比缩放需求。
+ */
+
+:root {
+  /* ==========================================================================
+     一、静态色板
+     ========================================================================== */
+
+  /* 中性偏蓝。界面骨架色，带极轻微的蓝调——
+     纯灰在 macOS 的白底上会显得发闷，偏一点点蓝才"透气"。 */
+  --static-neutral-bluish-00: #ffffff;
+  --static-neutral-bluish-50: #f9fafb;
+  --static-neutral-bluish-55: #f5f7fa;
+  --static-neutral-bluish-60: #f5f6f7;
+  --static-neutral-bluish-75: #f1f3f5;
+  --static-neutral-bluish-90: #edf0f4;
+  --static-neutral-bluish-100: #ebeef2;
+  --static-neutral-bluish-150: #e9ecf2;
+  --static-neutral-bluish-200: #e1e5ee;
+  --static-neutral-bluish-300: #cfd3d6;
+  --static-neutral-bluish-310: #cad2db;
+  --static-neutral-bluish-400: #adb2b8;
+  --static-neutral-bluish-500: #979da6;
+  --static-neutral-bluish-600: #81858c;
+  --static-neutral-bluish-700: #61666b;
+  --static-neutral-bluish-750: #43454a;
+  --static-neutral-bluish-800: #353638;
+  --static-neutral-bluish-850: #2c2c2e;
+  --static-neutral-bluish-875: #232324;
+  --static-neutral-bluish-900: #1b1b1c;
+  --static-neutral-bluish-950: #151517;
+  --static-neutral-bluish-1000: #0f1115;
+
+  /* 纯中性。滚动条与代码块用它，避免和带蓝的骨架色混在一起显脏。 */
+  --static-neutral-00: #ffffff;
+  --static-neutral-50: #fafafa;
+  --static-neutral-100: #f5f5f5;
+  --static-neutral-150: #ededed;
+  --static-neutral-200: #e5e5e5;
+  --static-neutral-250: #dcdcdc;
+  --static-neutral-300: #d4d4d4;
+  --static-neutral-400: #a2a4a6;
+  --static-neutral-500: #7f8287;
+  --static-neutral-550: #65676b;
+  --static-neutral-1000: #000000;
+
+  /* 品牌蓝。只用于"业务状态"（当前标签、焦点环、链接），
+     不用它做大面积填充——整屏铺蓝会让文字对比度全面下降。 */
+  --static-blue-50: #eff6ff;
+  --static-blue-75: #e5f0ff;
+  --static-blue-100: #dbeafe;
+  --static-blue-300: #93c5fd;
+  --static-blue-400: #60a5fa;
+  --static-blue-450: #4d93f8;
+  --static-blue-500: #3b82f6;
+  --static-blue-600: #2563eb;
+  --static-blue-900: #0e3074;
+
+  /* 主色阶。与品牌蓝同族但更深，用于强调与链接文字。 */
+  --static-primary-50: #edf3fe;
+  --static-primary-100: #e4edfd;
+  --static-primary-200: #d3e2ff;
+  --static-primary-450: #5686fe;
+  --static-primary-500: #4176e6;
+  --static-primary-600: #4868b2;
+
+  /* 语义色。绿=成功、红=错误、琥珀=警告。
+     每一档都对着一个可量化的对比度门槛，不凭感觉挑。 */
+  --static-green-100: #e6faed;
+  --static-green-400: #4ed17e;
+  --static-green-500: #22c55e;
+  --static-red-50: #fef2f2;
+  --static-red-100: #fee2e2;
+  --static-red-400: #f25a5a;
+  --static-red-500: #ef4444;
+  --static-red-600: #ec1313;
+  --static-amber-100: #fef5e7;
+  --static-amber-400: #f7ad31;
+  --static-amber-500: #f59e0b;
+  --static-amber-600: #dd8629;
+  --static-violet-400: #a78bfa;
+  --static-violet-600: #7c3aed;
+
+  /* ==========================================================================
+     二、语义别名
+     ========================================================================== */
+
+  /* --- 文字 ---------------------------------------------------------------
+   * 四级。每级都对应一个明确用途，不允许"看着差不多就换一档"：
+   * primary   正文与标题
+   * secondary 次要正文
+   * tertiary  辅助标签
+   * caption   占位符与极小注释（这一档刻意最淡，只用在非关键信息上）
+   */
+  --alias-label-primary: var(--static-neutral-bluish-1000);
+  --alias-label-secondary: var(--static-neutral-bluish-700);
+  --alias-label-tertiary: var(--static-neutral-bluish-600);
+  --alias-label-caption: var(--static-neutral-bluish-400);
+  --alias-label-primary-inverted: var(--static-neutral-bluish-00);
+  --alias-label-primary-foreground: var(--static-neutral-bluish-00);
+
+  /* --- 线条 ---------------------------------------------------------------
+   * 四级透明度。l1 最淡，只在需要极轻分隔时用；
+   * l3 是面板边框的默认档，l4 用于卡片描边。
+   */
+  --alias-border-l1: #0000000a;
+  --alias-border-l2: #0000001a;
+  --alias-border-l3: #0000001f;
+  --alias-border-l4: #00000029;
+
+  /* --- 背景 ---------------------------------------------------------------
+   * base 是内容区底色，sidebar-fill 是左右两栏底色。
+   * 两者相差一档（#fff vs #f9fafb），让中栏自然"浮"起来。
+   */
+  --alias-bg-base: var(--static-neutral-bluish-00);
+  --alias-bg-layer-1: var(--static-neutral-bluish-00);
+  --alias-bg-layer-2: var(--static-neutral-bluish-50);
+  --alias-bg-overlay: var(--static-neutral-bluish-150);
+  /* 分段控件的槽底。比侧栏再深一丝，让"滑动的白块"能浮在它上面。 */
+  --alias-bg-module-platform: #0000000b;
+  /* 已抬起的按钮底（分段控件的滑块、头像底）。纯白，靠描边定形。 */
+  --alias-bg-button-elevated: var(--static-neutral-bluish-00);
+  /* 骨架屏。极淡，只在加载中用。 */
+  --alias-bg-skeleton: #0000000a;
+
+  /* --- 交互态 -------------------------------------------------------------
+   * 悬停用带蓝调的 6% 黑，比纯黑透明更柔和，且与骨架色同源。
+   */
+  --alias-interactive-bg-hover: #2631480f;
+  --alias-interactive-bg-active: #2631481a;
+  --alias-interactive-bg-hover-solid: var(--static-neutral-bluish-75);
+
+  /* --- 状态 ---------------------------------------------------------------
+   * business-primary 是"当前选中"的统一色：标签下划线、焦点环、光标都用它。
+   * 三个 secondary/tertiary 是徽章底色，都取最浅那一档——
+   * 徽章里装的是文字，底色一深就压不住字。
+   */
+  --alias-state-business-primary: var(--static-primary-500);
+  --alias-state-business-tertiary: var(--static-primary-100);
+  --alias-state-success-primary: var(--static-green-500);
+  --alias-state-success-tertiary: var(--static-green-100);
+  --alias-state-warn-primary: var(--static-amber-500);
+  --alias-state-warn-label: var(--static-amber-600);
+  --alias-state-error-primary: var(--static-red-600);
+  --alias-state-error-tertiary: var(--static-red-100);
+  --alias-state-idle-primary: var(--static-neutral-300);
+  --alias-state-idle-tertiary: var(--alias-interactive-bg-hover);
+
+  /* 链接与可点文字。 */
+  --alias-link: var(--static-primary-500);
+  /* 蓝底上的深蓝字。淡蓝徽章里的文字用它，比普通 primary 更贴底色。 */
+  --alias-label-primary-bluish: var(--static-blue-900);
+  /* 不可用态的文字。极淡，只用于 disabled 控件。 */
+  --alias-label-dimmed: var(--static-neutral-bluish-200);
+
+  /* --- 特定区块 ----------------------------------------------------------- */
+  /* 用户消息气泡。淡蓝而非灰：它要和"助手直接铺在纸面上的正文"区分开，
+     但不能深到像引用块。 */
+  --specific-bubble: var(--static-primary-50);
+  /* 输入框底色用纯白，靠描边阴影而非底色与页面区分。 */
+  --specific-input-major: var(--static-neutral-bluish-00);
+  /* 侧栏底色。 */
+  --specific-sidebar-fill: var(--static-neutral-bluish-50);
+  /* 输入框内的小圆形按钮（加号）底色。 */
+  --specific-selector: var(--static-neutral-bluish-60);
+  /* 浮层与菜单。半透明 + 背景模糊，让下层内容隐约透出。 */
+  --specific-menu: #f8f9faf0;
+  --specific-tip: var(--static-neutral-bluish-60);
+
+  /* --- 强调色 -------------------------------------------------------------
+   * 发送按钮与进度条填充。这是全界面唯一的"实心深色块"，
+   * 它的作用是让用户的视线第一时间找到主操作。
+   */
+  --accent-fill: #171717;
+  --accent-hover: #000000;
+  --accent-ink: #f5f5f5;
+  --accent-soft: #0000000d;
+  --accent-track: #0000001a;
+
+  /* --- 滚动条 ------------------------------------------------------------- */
+  --alias-scrollbar-bg-l2: var(--static-neutral-200);
+  --alias-scrollbar-hover-l2: var(--static-neutral-300);
+
+  /* ==========================================================================
+     三、几何
+     ========================================================================== */
+
+  /* 圆角五档，靠重复建立秩序。
+     面板最外层用 panel(28px)，卡片用 lg(16px)，行用 md(12px)，
+     小控件用 sm(8px)，标签用 xs(4px)。 */
+  --radius-panel: 28px;
+  --radius-xl: 20px;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 4px;
+
+  /* ==========================================================================
+     四、字体
+     ========================================================================== */
+
+  --font-family: "MiSans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-family-code: "SF Mono", "JetBrains Mono", "Fira Code", Consolas,
+    "Liberation Mono", Menlo, Courier, monospace;
+
+  /* 内容区字号。其余尺寸都以它和它的 delta 推导，
+     这样"放大正文字号"只需改这一个值，行高与次级字号自动跟着走。
+     14px 是 macOS 正文的常规档（13pt ≈ 17.3px，但界面正文习惯用 13–14px）。 */
+  --content-font-size: 14px;
+  --content-font-size-secondary: 13px;
+  --content-font-delta: 0px;
+  --content-font-delta-secondary: 0px;
+
+  /* ==========================================================================
+     五、阴影与描边
+     ========================================================================== */
+
+  /* 输入框与卡片的描边阴影。用 0 0 0 .5px 而不是 border：
+     border 参与盒模型计算，会改变元素尺寸；描边阴影不占位，
+     圆角处的表现也更平滑。 */
+  --elevation-stroke-color: var(--alias-border-l4);
+  --elevation-stroke: 0 0 0 0.5px var(--elevation-stroke-color);
+  --elevation-soft: var(--elevation-stroke);
+  --elevation-panel: var(--elevation-stroke);
+  --elevation-prominent: var(--elevation-stroke);
+
+  /* 浮层菜单的实阴影。只有真正浮起的元素才用。 */
+  --shadow-lv3: 0 0 1px 0 #0003, 0 0 4px 0 #00000005, 0 12px 32px 0 #00000014;
+
+  --menu-backdrop-filter: blur(40px) saturate(150%);
+
+  /* ==========================================================================
+     六、动效
+     ========================================================================== */
+
+  --motion-duration: 0.18s;
+  --motion-duration-fast: 0.12s;
+  --motion-duration-slow: 0.26s;
+  --motion-curve: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--alias-state-business-primary);
+
+  /* ==========================================================================
+     七、会话区与输入框的几何（旧版实测值）
+     ========================================================================== */
+
+  /* 消息与输入框共用的内容宽度。
+     clamp 的三段含义：最小 680px 保证窄窗口下仍可读；
+     理想值取中栏宽度的 64%（这个比例来自实测，能让行长落在
+     每行 30–40 个汉字的舒适区间）；上限 920px 避免超宽屏上
+     一行拉到需要转头。 */
+  --chat-content-width: clamp(680px, 64%, 920px);
+  /* 输入卡片比正文宽 32px：它的圆角需要两侧各 16px 的呼吸。 */
+  --composer-card-max-width: calc(var(--chat-content-width) + 32px);
+  --composer-side-clearance: 16px;
+  --composer-dock-inset: 8px;
+  --composer-stack-gap: 6px;
+  /* 输入框文本区的最大高度。约 3 行，超过就内部滚动。 */
+  --composer-text-max-height: 64px;
+
+  /* 侧栏几何 */
+  --sidebar-inline-padding: 8px;
+  --sidebar-row-padding: 12px;
+  --sidebar-label-gap: 6px;
+}
+
+/* ==========================================================================
+   深色模式
+   ========================================================================== */
+
+/**
+ * 深色模式只改「静态色板」的指向与少量别名。
+ *
+ * 组件样式全部引用 `--alias-*` / `--specific-*`，因此不需要任何覆写——
+ * 这正是分两层命名的收益。
+ *
+ * 深色不是把浅色反转：色阶要重新对齐亮度。深色下纯黑背景会让
+ * 边缘发虚，所以底色取 #0f1115（带一点蓝，与浅色的骨架同源）；
+ * 文字不用纯白而用 #f9fafb，纯白在深底上会产生光晕。
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --static-neutral-bluish-00: #0f1115;
+    --static-neutral-bluish-50: #151517;
+    --static-neutral-bluish-55: #1a1a1c;
+    --static-neutral-bluish-60: #232324;
+    --static-neutral-bluish-75: #1b1b1c;
+    --static-neutral-bluish-90: #232324;
+    --static-neutral-bluish-100: #2c2c2e;
+    --static-neutral-bluish-150: #2c2c2e;
+    --static-neutral-bluish-200: #353638;
+    --static-neutral-bluish-300: #43454a;
+    --static-neutral-bluish-310: #43454a;
+    --static-neutral-bluish-400: #61666b;
+    --static-neutral-bluish-500: #81858c;
+    --static-neutral-bluish-600: #adb2b8;
+    --static-neutral-bluish-700: #cfd3d6;
+    --static-neutral-bluish-750: #d4d7da;
+    --static-neutral-bluish-800: #e1e5ee;
+    --static-neutral-bluish-850: #e9ecf2;
+    --static-neutral-bluish-875: #edf0f4;
+    --static-neutral-bluish-900: #f1f3f5;
+    --static-neutral-bluish-950: #f5f6f7;
+    --static-neutral-bluish-1000: #f9fafb;
+
+    --static-neutral-50: #1b1b1c;
+    --static-neutral-100: #232324;
+    --static-neutral-150: #2c2c2e;
+    --static-neutral-200: #353638;
+    --static-neutral-250: #3c3c3d;
+    --static-neutral-300: #43454a;
+    --static-neutral-400: #61666b;
+
+    --static-primary-50: #1a2233;
+    --static-primary-100: #1e2a40;
+
+    /* 深色下线条改用白色透明度：黑线在深底上完全不可见。 */
+    --alias-border-l1: #ffffff0f;
+    --alias-border-l2: #ffffff1a;
+    --alias-border-l3: #ffffff1f;
+    --alias-border-l4: #ffffff29;
+
+    --alias-interactive-bg-hover: #ffffff0f;
+    --alias-interactive-bg-active: #ffffff1a;
+
+    --alias-bg-module-platform: #ffffff12;
+    --alias-bg-button-elevated: var(--static-neutral-bluish-100);
+    --alias-bg-skeleton: #ffffff0f;
+    --alias-state-business-tertiary: #1e2a40;
+    --alias-state-success-tertiary: #16301f;
+    --alias-state-error-tertiary: #3a1b1b;
+    --alias-state-idle-tertiary: var(--alias-interactive-bg-hover);
+    --alias-label-primary-bluish: var(--static-blue-100);
+    --alias-label-dimmed: var(--static-neutral-bluish-800);
+
+    --specific-menu: #1b1b1cf0;
+    --accent-fill: #f5f5f5;
+    --accent-hover: #ffffff;
+    --accent-ink: #171717;
+    --accent-track: #ffffff1a;
+    --accent-soft: #ffffff0d;
+
+    --elevation-stroke-color: #ffffff24;
+  }
+}
+
+/* 显式浅色：即便系统为深色也锁定浅色。属性选择器特异性高于媒体查询。 */
+:root[data-theme="light"] {
+  --static-neutral-bluish-00: #ffffff;
+  --static-neutral-bluish-50: #f9fafb;
+  --static-neutral-bluish-55: #f5f7fa;
+  --static-neutral-bluish-60: #f5f6f7;
+  --static-neutral-bluish-75: #f1f3f5;
+  --static-neutral-bluish-90: #edf0f4;
+  --static-neutral-bluish-100: #ebeef2;
+  --static-neutral-bluish-150: #e9ecf2;
+  --static-neutral-bluish-200: #e1e5ee;
+  --static-neutral-bluish-300: #cfd3d6;
+  --static-neutral-bluish-310: #cad2db;
+  --static-neutral-bluish-400: #adb2b8;
+  --static-neutral-bluish-500: #979da6;
+  --static-neutral-bluish-600: #81858c;
+  --static-neutral-bluish-700: #61666b;
+  --static-neutral-bluish-750: #43454a;
+  --static-neutral-bluish-800: #353638;
+  --static-neutral-bluish-850: #2c2c2e;
+  --static-neutral-bluish-875: #232324;
+  --static-neutral-bluish-900: #1b1b1c;
+  --static-neutral-bluish-950: #151517;
+  --static-neutral-bluish-1000: #0f1115;
+
+  --static-neutral-50: #fafafa;
+  --static-neutral-100: #f5f5f5;
+  --static-neutral-150: #ededed;
+  --static-neutral-200: #e5e5e5;
+  --static-neutral-250: #dcdcdc;
+  --static-neutral-300: #d4d4d4;
+  --static-neutral-400: #a2a4a6;
+
+  --static-primary-50: #edf3fe;
+  --static-primary-100: #e4edfd;
+
+  --alias-border-l1: #0000000a;
+  --alias-border-l2: #0000001a;
+  --alias-border-l3: #0000001f;
+  --alias-border-l4: #00000029;
+
+  --alias-interactive-bg-hover: #2631480f;
+  --alias-interactive-bg-active: #2631481a;
+
+  --alias-bg-module-platform: #0000000b;
+  --alias-bg-button-elevated: #ffffff;
+  --alias-bg-skeleton: #0000000a;
+  --alias-state-business-tertiary: #e4edfd;
+  --alias-state-success-tertiary: #e6faed;
+  --alias-state-error-tertiary: #fee2e2;
+  --alias-state-idle-tertiary: #2631480f;
+  --alias-label-primary-bluish: #0e3074;
+  --alias-label-dimmed: #e1e5ee;
+
+  --specific-menu: #f8f9faf0;
+  --accent-fill: #171717;
+  --accent-hover: #000000;
+  --accent-ink: #f5f5f5;
+  --accent-track: #0000001a;
+  --accent-soft: #0000000d;
+
+  --elevation-stroke-color: #00000029;
+}
