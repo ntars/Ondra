@@ -1,0 +1,344 @@
+/**
+ * 偏好设置窗口样式（§5.13：560 × 480，左侧 160px 导航）。
+ *
+ * ## 尺寸为什么这样分
+ *
+ * 560 − 160 = 400 给内容区。这个数不是凑出来的：一行 16px 正文在 400 宽里
+ * 约放 24 个汉字，正好是「一段说明写三行」的长度；再宽会让说明显得浮，
+ * 再窄会把「不限制 **能读到整台机器**」这类两段式选项挤成三行。
+ *
+ * ## 为什么导航用底色分层而不是分隔线
+ *
+ * 侧栏与内容之间画一条 0.5px 竖线是 Windows 的做法。这里用
+ * `--alias-bg-module-platform`（比纸底深一档）区分，因为整站只有一种
+ * 描边语言（1.5px 边框 + 0.5px 线宽），侧栏那种「一直到底的细竖线」
+ * 既不是边框也不是线宽，混进来会破坏这条规矩。
+ */
+
+.pref {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* 独立窗口里没有主窗口的 `.shell`，底色要自己给。 */
+  background: var(--alias-bg-base);
+  color: var(--alias-label-primary);
+  font-family: var(--font-family);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+/* ---------------------------------------------------------------------------
+   标题栏
+   --------------------------------------------------------------------------- */
+
+.pref__titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  padding: 0 8px 0 160px;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+/*
+ * macOS 的红绿灯浮在窗口左上（trafficLightPosition 18,16），
+ * 三颗灯占到 x ≈ 76。标题从 160 起，本来就让开了；这里只是把
+ * 「标题起点」与「导航宽度」对齐，让两列上的文字共用一条左边线。
+ */
+[data-platform='darwin'] .pref__titlebar {
+  padding-left: 160px;
+}
+
+.pref__title {
+  flex: 1;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-title);
+  color: var(--alias-label-secondary);
+}
+
+.pref__close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  color: var(--alias-label-tertiary);
+  /* 可点区域不能被拖拽区吃掉。 */
+  -webkit-app-region: no-drag;
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.pref__close:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   两列
+   --------------------------------------------------------------------------- */
+
+.pref__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  /* 顶部与标题栏之间留 4px：标题字重与导航首项字重相同，紧贴会连成一块。 */
+  padding-top: var(--space-1);
+}
+
+.pref__nav {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 160px;
+  width: 160px;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.pref__nav-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-body);
+  line-height: var(--leading-label);
+  color: var(--alias-label-secondary);
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.pref__nav-item:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/*
+ * 当前页。用沙色文字 + 浅底两件事一起标，不只换底色。
+ *
+ * 只换底色在深色主题下几乎没有区别（`paper-2` 与 `paper-0` 只差两档灰），
+ * 用户会看不出自己在哪一页。
+ */
+.pref__nav-item[aria-current='page'] {
+  background: var(--alias-interactive-bg-active);
+  color: var(--alias-label-primary);
+  font-weight: var(--weight-medium);
+}
+
+.pref__content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-6) var(--space-6) 0;
+  overflow-y: auto;
+  /* overlay 滚动条不占布局，内容必须自己让出 12px（§12.1 定稿说明二）。 */
+  padding-right: calc(var(--space-6) + 12px);
+}
+
+/* ---------------------------------------------------------------------------
+   内容
+   --------------------------------------------------------------------------- */
+
+.pref__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pref__heading {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+.pref__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pref__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-sm);
+  /* 描边用 box-shadow 而不是 border：border 参与盒模型，选中时若加粗
+     会让整行高度跳一下。 */
+  box-shadow: 0 0 0 var(--line-width) var(--alias-border-l1);
+  text-align: left;
+  transition:
+    box-shadow var(--motion-fast) var(--ease-fluid),
+    background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.pref__choice:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/*
+ * 选中态：描边转 teal 并加粗到 1.5px。
+ *
+ * `box-shadow` 的扩散半径不占布局，所以加粗不会让相邻项位移——
+ * 这是选中态用阴影而不用 border 的唯一理由，与 `settings.css` 同一条规矩。
+ */
+.pref__choice[aria-checked='true'] {
+  background: var(--alias-state-business-tertiary);
+  box-shadow: 0 0 0 calc(var(--line-width) * 3) var(--alias-state-business-primary);
+}
+
+.pref__choice-label {
+  font-size: var(--text-body);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+}
+
+.pref__choice-hint {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+.pref__note {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+}
+
+.pref__error {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-state-error-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   预演与事实表
+   --------------------------------------------------------------------------- */
+
+/*
+ * 字号预演（§6.5）。
+ *
+ * 示例句**用正文字号令牌**，不是缩放整块。用 `transform: scale()` 会让
+ * 字模糊，且行高不变——那正是"看起来变了但排版没变"的假预演。
+ */
+.pref__sample {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--alias-bg-layer-2);
+}
+
+.pref__sample-text {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--alias-label-primary);
+}
+
+.pref__sample-meta {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+/*
+ * 键值表。两列定宽而不是 `auto`：`dt` 长短不一时标签会左右晃，
+ * 七页里只有这一种表，定宽让所有页面的冒号落在同一条线上。
+ */
+.pref__facts {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--leading-label);
+}
+
+.pref__facts dt {
+  color: var(--alias-label-tertiary);
+}
+
+.pref__facts dd {
+  margin: 0;
+  color: var(--alias-label-primary);
+  /* 链接按钮在 dd 里，行长要能被 normal 处理。 */
+  word-break: break-all;
+}
+
+.pref__action {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 var(--line-width) var(--alias-border-l2);
+  font-size: var(--text-caption);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    box-shadow var(--motion-fast) var(--ease-fluid);
+}
+
+.pref__action:hover:not([aria-disabled='true']) {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/*
+ * 禁用态用 `aria-disabled` 而不是原生 `disabled`（§13）。
+ * 原生 disabled 会把按钮从 Tab 顺序与可访问性树里一起摘掉，
+ * 键盘用户既碰不到、也听不到原因。
+ */
+.pref__action[aria-disabled='true'] {
+  color: var(--alias-label-dimmed);
+  cursor: default;
+}
+
+.pref__link {
+  padding: 0;
+  font-size: inherit;
+  color: var(--alias-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: var(--line-width);
+}
+
+.pref__link:hover {
+  text-decoration-thickness: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+   关于页的品牌块
+   --------------------------------------------------------------------------- */
+
+.pref__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pref__brand-name {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+}
+
+.pref__brand-slogan {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+}

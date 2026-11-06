@@ -317,6 +317,42 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 打开偏好设置窗口（§5.13）。
+///
+/// # 为什么由前端发起而不是壳自己弹
+///
+/// 三个入口里有两条在前端：`Cmd/Ctrl + ,` 与 Rail 底部齿轮。
+/// 壳自己弹会让「按 Cmd+, 打开的是什么」变成两处判断——
+/// 一处在前端的快捷键表，一处在这里。
+#[tauri::command]
+pub async fn open_preferences(app: tauri::AppHandle) -> Result<(), String> {
+    crate::preferences::open(&app);
+    Ok(())
+}
+
+/// 关掉偏好设置窗口。
+#[tauri::command]
+pub async fn close_preferences(app: tauri::AppHandle) -> Result<(), String> {
+    crate::preferences::close(&app);
+    Ok(())
+}
+
+/// 把偏好广播到其他窗口。
+///
+/// `from` 由前端传窗口自己的 label。不在这里自己查：Tauri 2 的
+/// 命令签名里取「发起调用的窗口」要额外一个 `WebviewWindow` 参数，
+/// 而那个参数的 label 在 `WebviewUrl::App` 带 hash 时不一定等于
+/// 我们在 builder 里设的那个——传进来是唯一确定的做法。
+#[tauri::command]
+pub async fn broadcast_preferences(
+    app: tauri::AppHandle,
+    from: String,
+    prefs: String,
+) -> Result<(), String> {
+    crate::preferences::broadcast(&app, &from, &prefs);
+    Ok(())
+}
+
 /// 宿主日志目录。
 ///
 /// 故障页的「查看日志」要能打开一个真实存在的位置。宿主把 stderr 转发到

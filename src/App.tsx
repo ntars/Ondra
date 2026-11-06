@@ -36,6 +36,8 @@ import { Composer } from './components/Composer.tsx'
 import { ShortcutSheet } from './components/ShortcutSheet.tsx'
 import { Mark } from './components/Mark.tsx'
 import { Settings } from './components/Settings.tsx'
+import { requestPreferences } from './components/Preferences.tsx'
+import { usePreferences } from './lib/preferences.ts'
 import { Dialog } from './components/Dialog.tsx'
 import { ToastProvider, useToast } from './components/Toast.tsx'
 import { invokeShell, isDesktopShell, listenShell } from './lib/shell.ts'
@@ -119,12 +121,37 @@ function Shell(): React.JSX.Element {
     setSettings(false)
   }, [])
 
-  /** 打开设置：三个覆盖层互斥，任何时刻最多一个。 */
-  const openSettings = useCallback((): void => {
-    setSettings((previous) => !previous)
-    setDrawer(undefined)
-    setInspector(false)
+  /*
+   * 检查器设置的打开动作没有单独的函数。
+   *
+   * 它只有一个入口（检查器底部「全部设置」），那条路径在 `Inspector`
+   * 的 `onOpenSettings` 里一并处理，把「先关检查器再开面板」写成两步。
+   * 曾经这里有一个 `openSettings` 供 `Cmd+,` 复用，现在那条键改指
+   * 偏好窗口，这个函数就没有调用者了——留着会让下一个人以为
+   * 哪里还能进到三层面板。
+   */
+
+  /**
+   * 打开偏好设置窗口（§5.13）。
+   *
+   * ## 为什么它不再复用 `openSettings`
+   *
+   * 上一版把 `Cmd/Ctrl + ,` 接到 `openSettings`，而那是检查器设置的
+   * 三层面板（123 段 / 1168 项插件参数）。用户按 `Cmd+,` 期待换深浅色，
+   * 得到的是一千多项插件参数——**两个入口指向了同一件事，其中一件还
+   * 没做**。现在按 §5.13 分开：
+   *
+   * | 入口 | 打开什么 |
+   * | --- | --- |
+   * | `Cmd/Ctrl + ,`、Rail 齿轮 | 偏好设置独立窗口 |
+   * | 检查器底部「全部设置」 | 三层面板（1168 项） |
+   */
+  const openPreferences = useCallback((): void => {
+    requestPreferences()
   }, [])
+
+  /** 偏好层。发送方式与主题都要读它。 */
+  const preferences = usePreferences()
 
   /**
    * 把「右侧有没有浮层」反映到根节点（供 Toast 避让，§5.10）。
@@ -242,7 +269,7 @@ function Shell(): React.JSX.Element {
       }
       if (matches(context, 'preferences')) {
         event.preventDefault()
-        openSettings()
+        openPreferences()
         return
       }
       if (matches(context, 'searchMemory')) {
@@ -302,7 +329,7 @@ function Shell(): React.JSX.Element {
     return () => { globalThis.removeEventListener('keydown', onKeyDown) }
   }, [
     closing, sheetOpen, state, drawer, inspector, settings,
-    toggleInspector, openSettings, toast,
+    toggleInspector, openPreferences, toast,
   ])
 
   /**
@@ -550,15 +577,7 @@ function Shell(): React.JSX.Element {
           <Rail
             active={drawer}
             onToggle={toggleDrawer}
-            onOpenSettings={() => {
-              /*
-               * Rail 的齿轮开偏好设置（主题、语言、字号），那是独立窗口。
-               * 这里不弹任何东西——比弹一个空壳诚实。
-               * 1168 项插件参数不在这里，它们从检查器底部的「全部设置」进。
-               */
-              setDrawer(undefined)
-              toast('偏好设置窗口还没做好')
-            }}
+            onOpenSettings={openPreferences}
           />
 
           <main className="column">
@@ -586,6 +605,7 @@ function Shell(): React.JSX.Element {
               models={state.models}
               modelId={state.modelId}
               onSelectModel={state.setModel}
+              interrupt={preferences.sendMode}
               onInputRef={(node) => { composerRef.current = node }}
             />
           </main>

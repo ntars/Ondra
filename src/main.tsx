@@ -1,12 +1,24 @@
 /**
  * 前端入口。
  *
- * 只做三件事：挂载根组件、引入全局样式、注册连接监听。
+ * ## 一份产物，两个窗口
+ *
+ * 壳用 `index.html#preferences` 打开偏好设置窗口（`src-tauri/src/preferences.rs`），
+ * 这里按 hash 决定渲染哪一棵树。**不建第二个 HTML 入口**：那会让
+ * `vite` 多一个 `rollupOptions.input`、Tauri 多一处 `frontendDist` 配置，
+ * 而两个入口各自引一遍样式——令牌就成了两份，深色模式必然不同步。
+ *
+ * ## 初始化顺序
+ *
+ * 令牌最先（其余全部 `var()` 依赖它）→ 平台标记（它控制网格列宽与边框，
+ * 晚一帧会先按另一套规则排一遍版）→ 偏好层（要在首帧前写好 `data-theme`
+ * 与字号）→ 挂载。
  */
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
+import { Preferences } from './components/Preferences.tsx'
 /**
  * 样式顺序在这里定。
  *
@@ -31,13 +43,24 @@ import './styles/dropzone.css'
 import './styles/settings.css'
 import './styles/dialog.css'
 import './styles/sheet.css'
+import './styles/preferences.css'
 import { listenShell, markPlatform } from './lib/shell.ts'
 import type { HostReadyPayload } from './lib/shell.ts'
 import { adoptDevConnection, setConnection, setConnectionFailure } from './lib/host.ts'
+import { startPreferences } from './lib/preferences.ts'
 
 // 平台标记必须在首个样式计算之前写好：它控制的规则里有网格列宽与边框，
 // 晚一帧设置就会先按另一套规则排一遍版，肉眼能看到跳一下。
 markPlatform()
+
+/*
+ * 偏好层（主题与字号）也要在挂载前落地。
+ *
+ * `index.html` 的内联脚本只处理主题：它必须早于样式表，只能内联一小段。
+ * 字号与「跨窗口同步」两条只能在模块里接——把内联脚本撑大到能读三份
+ * 存储、还要注册广播监听，会变成一段没人愿意维护的第二实现。
+ */
+startPreferences()
 
 // 在 React 挂载之前就开始监听：壳可能在页面脚本执行后立刻发出 ready，
 // 若等到组件挂载才注册，就会错过这条消息，界面永远停在"正在连接"。
@@ -54,10 +77,43 @@ if (container === null) {
   throw new Error('找不到 #root 挂载点，index.html 可能被改动')
 }
 
-createRoot(container).render(
-  // StrictMode 在开发态会双调用 effect，用于暴露副作用清理缺失。
-  // 生产构建自动失效，不影响运行。
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+/**
+ * 当前窗口是不是偏好设置窗口。
+ *
+ * 用 hash 判而不是查窗口 label：后者要等壳注入 `__TAURI__` 才有，
+ * 而首帧就该决定渲染哪棵树。hash 在解析 HTML 时就已确定。
+ *
+ * ## 为什么要订阅 `hashchange`
+ *
+ * 壳内的偏好窗口是**独立的 WebView 文档**，hash 从一开始就是
+ * `#preferences`，永远不变。但在浏览器里（`pnpm dev:web`）只有一个
+ * 文档，「开偏好设置」只能靠改 hash。若不监听，按 `Cmd/Ctrl + ,`
+ * 会得到「什么都没发生」——比报错更让人困惑。
+ *
+ * 订阅之后，浏览器里的表现与壳内一致：同一份组件、同一套样式，
+ * 只是从第二窗口搬到了整页。`check:ui` 也靠这条路径验它。
+ */
+let isPreferences = globalThis.location.hash === '#preferences'
+
+/** 挂载点。两棵树共用，切换时整棵替换。 */
+const root = createRoot(container)
+
+/** 按当前 hash 渲染对应的树。 */
+function renderRoot(): void {
+  root.render(
+    // StrictMode 在开发态会双调用 effect，用于暴露副作用清理缺失。
+    // 生产构建自动失效，不影响运行。
+    <StrictMode>
+      {isPreferences ? <Preferences /> : <App />}
+    </StrictMode>,
+  )
+}
+
+globalThis.addEventListener('hashchange', () => {
+  const next = globalThis.location.hash === '#preferences'
+  if (next === isPreferences) return
+  isPreferences = next
+  renderRoot()
+})
+
+renderRoot()

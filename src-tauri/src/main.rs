@@ -14,6 +14,7 @@
 
 mod commands;
 mod host;
+mod preferences;
 mod tray;
 mod window;
 
@@ -86,6 +87,9 @@ fn main() {
             commands::resolve_close,
             commands::show_main_window,
             commands::open_log_dir,
+            commands::open_preferences,
+            commands::close_preferences,
+            commands::broadcast_preferences,
         ])
         .on_window_event(|window, event| {
             /*

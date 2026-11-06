@@ -195,8 +195,15 @@ function serve(settings) {
  *
  * 这两份记录挂在 `window.__ondraListeners` 与 `window.__ondraCalls` 上，
  * 不污染产品代码——它们只在这个假壳里存在。
+ *
+ * ## `autoReady` 为什么必须能关掉
+ *
+ * 偏好窗口是**后来才创建的文档**，壳在启动宿主成功时早把 `host-ready`
+ * 发过了。假壳若一律在建文档时立刻补发一条，就把这个真实的时间差抹平了，
+ * 「偏好窗口永远等不到连接」这个缺陷会被测成绿。所以偏好页那一份
+ * 明确传 `false`。
  */
-const fakeShell = (port) => `
+const fakeShell = (port, autoReady = true) => `
 (() => {
   const url = 'http://127.0.0.1:${String(port)}'
   const listeners = []
@@ -213,7 +220,7 @@ const fakeShell = (port) => `
     } },
     event: { listen: async (name, handler) => {
       listeners.push([name, handler])
-      if (name === 'host-ready') handler({ payload: { url, token: 'dev', port: ${String(port)} } })
+      if (${autoReady ? 'true' : 'false'} && name === 'host-ready') handler({ payload: { url, token: 'dev', port: ${String(port)} } })
       return () => {}
     } },
   }
@@ -927,12 +934,32 @@ async function run() {
   truthy('Esc 关掉总表', sheetClosed.sheet === true)
   truthy('Esc 关总表不切换会话', sheetClosed.stillInSession === true)
 
-  // 5. `Cmd/Ctrl + Shift + L` 切主题：三态循环。
-  const themeBefore = await page.evaluate(() => document.documentElement.dataset.theme ?? 'system')
+  /*
+   * 5. `Cmd/Ctrl + Shift + L` 切主题：三态循环。
+   *
+   * ## 断言的是「存下来的模式」，不是 `data-theme`
+   *
+   * 上一版断言 `data-theme` 前后不同。改成偏好层之后这条必然报红——
+   * 而且报红得**对**：`data-theme` 里存的是**解析结果**，只有 light / dark
+   * 两个值。系统是浅色时「跟随系统」解析出来就是 light，按一下切到
+   * 「浅色」也还是 light，界面上本来就不该有任何变化。
+   *
+   * 真正的契约在存储里：system → light → dark → system 三态循环。
+   * 断言这一点，同时验解析结果始终是合法值（绝不能出现 `system`
+   * 这样一条 CSS 规则都不命中的字面量）。
+   */
+  const themeBefore = await page.evaluate(() => localStorage.getItem('ondra.theme') ?? 'system')
   await page.keyboard.press(`${MOD}+Shift+L`)
   await page.waitForTimeout(300)
-  const themeAfter = await page.evaluate(() => document.documentElement.dataset.theme ?? 'system')
-  truthy('Cmd+Shift+L 改变了主题', themeBefore !== themeAfter)
+  const themeAfter = await page.evaluate(() => ({
+    mode: localStorage.getItem('ondra.theme') ?? 'system',
+    resolved: document.documentElement.dataset.theme ?? '',
+  }))
+  truthy('Cmd+Shift+L 切了主题模式', themeBefore !== themeAfter.mode)
+  truthy(
+    `主题解析结果合法（${themeAfter.resolved}）`,
+    themeAfter.resolved === 'light' || themeAfter.resolved === 'dark',
+  )
 
   /*
    * 切主题的 Toast 留着不动，下一步专门验它会避让设置面板。
@@ -942,10 +969,28 @@ async function run() {
    * 文字在 DOM 里，只是看不见。现在改成先验避让，再截图。
    */
 
-  // 6. `Cmd/Ctrl + ,` 打开设置。
-  await page.keyboard.press(`${MOD}+,`)
+  /** 触发一次提示条，供下一步验「提示条不压右侧面板」。 */
+  const raiseToast = async () => {
+    await page.keyboard.press(`${MOD}+Shift+L`)
+    await page.waitForTimeout(250)
+  }
+
+  /*
+   * 6. 从检查器底部「全部设置」进三层面板（§5.13 第二层）。
+   *
+   * ## 这个入口现在只剩一条路
+   *
+   * 上一版 `Cmd/Ctrl + ,` 接到这里，而 §5.13 明写那条键开的是**偏好设置
+   * 独立窗口**。改指的后果是：1168 项插件参数只剩这一个入口。
+   * 它若断了，界面上不会报任何错，只是再也进不去——所以必须单独验。
+   */
+  await raiseToast()
+  await page.locator('.spine').click()
+  await page.waitForTimeout(400)
+  await page.locator('.inspector__all').click()
   await page.waitForTimeout(500)
-  truthy('Cmd+, 打开设置', await page.evaluate(() => document.querySelector('.settings') !== null))
+  truthy('检查器底部「全部设置」打开三层面板', await page.evaluate(() => document.querySelector('.settings') !== null))
+  truthy('三层面板打开时检查器已收起', await page.evaluate(() => document.querySelector('.inspector') === null))
 
   /*
    * 提示条不得与右侧面板相交（§5.10）。
@@ -1450,6 +1495,223 @@ async function run() {
   truthy('Esc 不退出应用', afterEsc.quitCalled === false)
 
   await page.screenshot({ path: join(OUT, 'composer-v5.png') })
+
+  /*
+   * 偏好设置窗口（§5.13 第一层）单独开一页验。
+   *
+   * ## 为什么不接着主界面验
+   *
+   * 壳内它是**独立 WebView 文档**，浏览器里退化成同一个文档换 hash。
+   * 在主流程里做会丢掉主界面状态（会话、抽屉、滚动位置），
+   * 后半段的断言全部要重来。开一页直达 `#preferences` 更接近真实：
+   * 新文档、干净状态、与壳内一样从零渲染。
+   *
+   * ## 为什么 `Cmd+,` 本身不在这一页验
+   *
+   * 那一页没有主界面，也没有对应的快捷键上下文。`Cmd+,` 的契约是
+   * 「发出 `open_preferences` 命令」，由主流程验；这一页验的是
+   * 「命令打开的那个界面长什么样」。
+   */
+  const prefPage = await browser.newPage({ viewport: { width: 560, height: 480 }, deviceScaleFactor: 2 })
+  const prefErrors = []
+  prefPage.on('console', (message) => {
+    if (message.type() === 'error') prefErrors.push(message.text())
+  })
+  prefPage.on('pageerror', (error) => { prefErrors.push(String(error)) })
+  await prefPage.addInitScript(fakeShell(port, false))
+  await prefPage.goto(`http://127.0.0.1:${String(port)}/#preferences`, { waitUntil: 'networkidle' })
+  await prefPage.waitForTimeout(500)
+
+  const pref = await prefPage.evaluate(() => {
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    const navBox = document.querySelector('.pref__nav')?.getBoundingClientRect()
+    const choices = [...document.querySelectorAll('.pref__choice')]
+    const checked = choices.filter((node) => node.getAttribute('aria-checked') === 'true')
+    return {
+      navLabels: nav.map((node) => node.textContent ?? '').join('/'),
+      navWidth: navBox === undefined ? 0 : Math.round(navBox.width),
+      current: document.querySelector('.pref__nav-item[aria-current="page"]')?.textContent ?? '',
+      role: document.querySelector('.pref__choices')?.getAttribute('role') ?? '',
+      choiceCount: choices.length,
+      checkedCount: checked.length,
+      checkedLabel: checked[0]?.textContent ?? '',
+      // 主界面那棵树不该在这一页出现。
+      appGone: document.querySelector('.workspace') === null && document.querySelector('.welcome') === null,
+    }
+  })
+  // §5.13 的七页，顺序即规范列举顺序。
+  same('偏好设置七页齐全且有序', '主题/语言/字号/发送方式/默认权限/更新/关于', pref.navLabels)
+  eq('偏好设置左导航宽 160', 160, pref.navWidth)
+  same('偏好设置默认停在主题页', '主题', pref.current)
+  same('偏好设置的选择组是 radiogroup', 'radiogroup', pref.role)
+  truthy('偏好设置只渲染自己那棵树', pref.appGone === true)
+  /*
+   * 单选语义必须成立：三项里**恰好一项**选中。
+   *
+   * 全不选，界面看起来"没选中"；多选，读屏会念出两个选中项。
+   * 这两种都不会报错，只在用的时候觉得别扭。
+   */
+  eq('偏好设置·选择组恰有一项选中', 1, pref.checkedCount)
+  truthy('偏好设置·默认选中「跟随系统」', pref.checkedLabel.includes('跟随系统'))
+
+  /*
+   * 字号必须真的改 `html` 的百分比。
+   *
+   * §9.9：界面字号一律 rem、基准 `html { font-size: 100% }`，系统放大时
+   * 跟着放大。这里点「大」再量根字号——若实现写死 px，量到的值不变。
+   * 量的是 `computedStyle`，浏览器会把 `112.5%` 归一成 px，所以比数值。
+   */
+  const fontBefore = await prefPage.evaluate(() => Number.parseFloat(getComputedStyle(document.documentElement).fontSize))
+  await prefPage.evaluate(() => {
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    const target = nav.find((node) => node.textContent === '字号')
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(250)
+  await prefPage.evaluate(() => {
+    const choices = [...document.querySelectorAll('.pref__choice')]
+    const target = choices.find((node) => node.textContent?.includes('大'))
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(300)
+  const fontAfter = await prefPage.evaluate(() => ({
+    size: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+    stored: localStorage.getItem('ondra.fontScale'),
+    // 预演句必须跟着变大：它用 `--text-body`，而令牌是 rem。
+    sample: Number.parseFloat(
+      getComputedStyle(document.querySelector('.pref__sample-text') ?? document.body).fontSize,
+    ),
+  }))
+  truthy(`偏好设置·字号真的放大（${String(fontBefore)} → ${String(fontAfter.size)}px）`, fontAfter.size > fontBefore)
+  same('偏好设置·字号已持久化', 'large', fontAfter.stored)
+  truthy(`偏好设置·预演句跟着放大（${String(fontAfter.sample)}px）`, fontAfter.sample > 14)
+
+  // 改回标准，并切到「关于」页截图（品牌块只在那一页出现）。
+  await prefPage.evaluate(() => {
+    const choices = [...document.querySelectorAll('.pref__choice')]
+    const target = choices.find((node) => node.textContent?.includes('标准'))
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(250)
+  await prefPage.evaluate(() => {
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    const target = nav.find((node) => node.textContent === '关于')
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(300)
+  const about = await prefPage.evaluate(() => ({
+    brand: document.querySelector('.pref__brand-name')?.textContent ?? '',
+    version: [...document.querySelectorAll('.pref__facts dd')].map((node) => node.textContent ?? '').join('|'),
+    // §5.9：禁用项保留、灰显、`title` 写原因，而不是删掉。
+    guide: (() => {
+      const button = [...document.querySelectorAll('.pref__action')].find(
+        (node) => node.textContent?.includes('重新观看引导'),
+      )
+      return button === undefined
+        ? 'missing'
+        : `${button.getAttribute('aria-disabled') ?? 'none'}:${button.getAttribute('title') ?? ''}`
+    })(),
+  }))
+  same('偏好设置·关于页有品牌名', '空谷 Ondra', about.brand)
+  truthy('偏好设置·关于页显示版本号', /v\d+\.\d+\.\d+/.test(about.version))
+  truthy(
+    `偏好设置·未实现的项保留为禁用并说明原因（${about.guide}）`,
+    about.guide.startsWith('true:') && about.guide.length > 8,
+  )
+  await prefPage.screenshot({ path: join(OUT, 'preferences-about.png') })
+
+  /*
+   * 权限页必须真的读到宿主的值。
+   *
+   * ## 这一条守的是一个真实缺陷
+   *
+   * 连接信息是壳在**宿主启动成功后**通过 `host-ready` 推给页面的。
+   * 主窗口那一刻已经加载完、收得到；偏好窗口是用户后来才打开的——
+   * **那条事件早发过了**，它永远等不到。
+   *
+   * 不补主动拉取的话，主题与字号照样能改（不依赖宿主），只有这一页
+   * 永远停在「正在读取…」。而这种缺陷不报错、不弹提示，看起来像
+   * 后台服务挂了。这里用「假壳不补发 ready」复现真实时序：
+   * 若实现改回只靠事件，这一条会立刻报红。
+   */
+  await prefPage.evaluate(() => {
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    const target = nav.find((node) => node.textContent === '默认权限')
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(600)
+  const permission = await prefPage.evaluate(() => {
+    const labels = [...document.querySelectorAll('.pref__choice-label')].map((node) => node.textContent ?? '')
+    const checked = [...document.querySelectorAll('.pref__choice[aria-checked="true"] .pref__choice-label')]
+      .map((node) => node.textContent ?? '')
+    return {
+      options: labels.join('/'),
+      checked: checked.join('/'),
+      note: document.querySelector('.pref__note')?.textContent ?? '',
+    }
+  })
+  same('偏好设置·权限页三档齐全', '只在对话内/限于工作区/不限制', permission.options)
+  truthy(`偏好设置·权限页读到宿主当前值（${permission.checked}）`, permission.checked === '限于工作区')
+  truthy('偏好设置·权限页不是「正在读取」', !permission.note.includes('正在读取'))
+
+  /*
+   * 内容不得越出右边界（与设置面板同一条规矩）。
+   *
+   * 560 − 160 = 400 给内容区，而「不限制 · 能读到整台机器」这类两段式
+   * 选项在 400 里刚好放得下。一旦某个文案变长，整块会顶出去，
+   * 而 overlay 滚动条几乎看不见，用户只看到右边少了一块。
+   */
+  const prefOverflow = await prefPage.evaluate(() => {
+    const content = document.querySelector('.pref__content')
+    if (content === null) return -1
+    const limit = content.getBoundingClientRect().right
+    let worst = 0
+    for (const node of content.querySelectorAll('*')) {
+      const box = node.getBoundingClientRect()
+      if (box.width === 0) continue
+      worst = Math.max(worst, box.right - limit)
+    }
+    return Math.round(worst)
+  })
+  truthy(`偏好设置·内容不越出右边界（实测 ${String(prefOverflow)}px）`, prefOverflow <= 0)
+
+  await prefPage.evaluate(() => {
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    const target = nav.find((node) => node.textContent === '主题')
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(300)
+  await prefPage.screenshot({ path: join(OUT, 'preferences-theme.png') })
+
+  // 深色下同样要看一眼：偏好窗口是独立文档，令牌要能自己解析出深色。
+  /*
+   * 选择器只认**标签文字**，不认整个按钮的 `textContent`。
+   *
+   * 「跟随系统」那项的说明是「系统换深色时她也换」，整块文本里同样含
+   * 「深色」二字——按 `textContent.includes('深色')` 找，先命中的是它，
+   * 于是点回了「跟随系统」，而界面表现得像深色没生效。
+   */
+  await prefPage.evaluate(() => {
+    const labels = [...document.querySelectorAll('.pref__choice-label')]
+    const target = labels.find((node) => node.textContent === '深色')
+    target?.closest('.pref__choice')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(400)
+  const prefDark = await prefPage.evaluate(() => ({
+    theme: document.documentElement.dataset.theme,
+    scheme: getComputedStyle(document.documentElement).colorScheme,
+    bg: getComputedStyle(document.querySelector('.pref') ?? document.body).backgroundColor,
+  }))
+  same('偏好设置·深色写进 data-theme', 'dark', prefDark.theme)
+  same('偏好设置·同步 color-scheme', 'dark', prefDark.scheme)
+  truthy(`偏好设置·深色底已生效（${prefDark.bg}）`, prefDark.bg !== 'rgb(255, 253, 249)')
+  await prefPage.screenshot({ path: join(OUT, 'preferences-dark.png') })
+
+  if (prefErrors.length > 0) {
+    console.log('\n偏好设置页的控制台错误：')
+    for (const error of prefErrors) console.log(`  ${error}`)
+    process.exitCode = 1
+  }
 
   // --- 深色 ---
   await page.evaluate(() => {

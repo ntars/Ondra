@@ -37,6 +37,7 @@ import {
   selectModel,
 } from './api.ts'
 import type { ModelDescriptor, PermissionLevel, SessionMessage, SessionMeta, ThemeMode } from './api.ts'
+import { setPreferences, usePreferences } from './preferences.ts'
 import type { Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState } from './types.ts'
 
 /**
@@ -244,15 +245,21 @@ export function useAppState(): AppState {
   const [companionUpdatedAt, setCompanionUpdatedAt] = useState(() => Date.now())
   /** 是否已进入对话。进入后不再回首页，三栏常驻。 */
   const [entered, setEntered] = useState(false)
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    // 启动时读取已保存的主题；没有则默认跟随系统。
-    // localStorage 可能在隐私模式下不可用，用 try 兜住。
-    try {
-      const stored = globalThis.localStorage?.getItem('ondra.theme')
-      if (stored === 'light' || stored === 'dark') return stored
-    } catch { /* 忽略 */ }
-    return 'system'
-  })
+  /*
+   * 主题不再是本文件的状态。
+   *
+   * ## 为什么让出去
+   *
+   * 偏好设置是独立窗口。主题、字号、发送方式三件事现在由
+   * `lib/preferences.ts` 统一持有并跨窗口同步。若这里再存一份，
+   * 用户在偏好窗口点「深色」时主窗口这份不会变——`data-theme` 会被
+   * 两个来源来回写，谁后写谁赢，表现为「按了但有时不生效」。
+   *
+   * `setTheme` 保留同名，是因为调用点（快捷键、Composer）不该关心
+   * 数据存在哪；它只是转发。
+   */
+  const preferences = usePreferences()
+  const theme = preferences.theme
 
   /** 当前流式请求的取消器。 */
   const controller = useRef<AbortController | undefined>(undefined)
@@ -770,21 +777,16 @@ export function useAppState(): AppState {
 
   const dismissChatError = useCallback((): void => { setChatError(undefined) }, [])
 
-  /** 切换主题：更新本地并持久化。'system' 会清除显式锁定。 */
+  /**
+   * 切换主题。转发给偏好层。
+   *
+   * 这里不写 `data-theme`，也不写 localStorage——两件事都在
+   * `preferences.ts` 里做，且那次写入会广播到偏好窗口。
+   * 若这里也写一遍，就成了第二个真源。
+   */
   const setTheme = useCallback((next: ThemeMode): void => {
-    setThemeState(next)
-    try {
-      globalThis.localStorage?.setItem('ondra.theme', next)
-    } catch { /* 隐私模式下忽略 */ }
+    setPreferences({ theme: next })
   }, [])
-
-  // 把主题模式反映到根节点。'system' 不写 data-theme，交给 CSS 媒体查询；
-  // 显式的 light/dark 则覆盖媒体查询，实现"锁定"。
-  useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'system') root.removeAttribute('data-theme')
-    else root.setAttribute('data-theme', theme)
-  }, [theme])
 
   const retry = useCallback((): void => {
     setPhase('connecting')
