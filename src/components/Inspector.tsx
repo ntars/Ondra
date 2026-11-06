@@ -59,6 +59,8 @@ export interface InspectorProps {
   hasData: boolean
   /** 关闭。 */
   onClose(): void
+  /** 打开设置（1168 项插件参数的三层面板）。 */
+  onOpenSettings(): void
 }
 
 /**
@@ -77,6 +79,7 @@ export function Inspector({
   tension,
   hasData,
   onClose,
+  onOpenSettings,
 }: InspectorProps): React.JSX.Element {
   /**
    * 双极轨道。心情与张力都是 −1..1 的对称量，精力是 0..1 的单极量。
@@ -185,6 +188,19 @@ export function Inspector({
           <p className="inspector__activity">{activity === '' ? '安静待着' : activity}</p>
         </section>
       </div>
+
+      {/*
+       * 底部「全部设置」入口（§5.13：检查器设置从检查器底部进入）。
+       *
+       * 与 Rail 底部齿轮不是同一件事：齿轮开偏好设置（主题、语言、模型），
+       * 这里开 1168 项插件参数。两者分成两个入口，是因为用户找它们时
+       * 想的是两件不同的事——"改这个应用"与"改她"。
+       */}
+      <footer className="inspector__foot">
+        <button type="button" className="inspector__all" onClick={onOpenSettings}>
+          全部设置
+        </button>
+      </footer>
     </aside>
   )
 }

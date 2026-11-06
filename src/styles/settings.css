@@ -1,0 +1,1004 @@
+/**
+ * 设置面板（三层）的样式。
+ *
+ * ## 尺寸来自哪
+ *
+ * §5.13：检查器设置是「抽屉，宽 300 可扩至 420」。落地取 360——
+ * 300 宽下「当前 30 · 默认 30 · memory-core · 已改」这一行会折行，
+ * 而这一行的价值就是一眼看完。360 下 12px 字刚好放下，同时仍在
+ * §5.13 允许的 300–420 区间内。
+ *
+ * ## 为什么所有控件都不用 outline 而用 box-shadow 画焦点环
+ *
+ * 描边是 0.5px 一条线（`--line-width`），焦点环要 1.5px。用 `border`
+ * 参与盒模型会让控件在获得焦点时尺寸变一下（除非预留 3px），而
+ * `box-shadow` 不占位。全项目线宽只有 1.5px 与 0.5px 两档，这里统一走
+ * `box-shadow: 0 0 0 var(--focus-ring-w) ...` 一条规则表达。
+ */
+
+/* ---------------------------------------------------------------------------
+   容器
+   --------------------------------------------------------------------------- */
+
+.settings {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 右贴，与检查器同一位置。两者互斥，不会同时出现。 */
+  right: var(--spine-w);
+  z-index: var(--z-drawer);
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  background: var(--alias-bg-base);
+  border-radius: 0 var(--radius-panel) var(--radius-panel) 0;
+  /* 线画在覆盖区与主列的交界上，不占布局（同 drawer.css 的理由）。 */
+  box-shadow: calc(var(--line-width) * -1) 0 0 0 var(--static-line);
+  animation: settings-in var(--motion-base) var(--ease-fluid) both;
+}
+
+@keyframes settings-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.settings__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  padding: 0 8px 0 16px;
+}
+
+.settings__title {
+  flex: 1;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+.settings__close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.settings__close:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   三层切换
+   --------------------------------------------------------------------------- */
+
+.settings__tabs {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 32px;
+  padding: 0 16px;
+  /* 分段控件整体是一颗浅底药丸，选中项是纸底。 */
+  margin-bottom: 8px;
+}
+
+.settings__tab {
+  flex: 1;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.settings__tab:hover {
+  color: var(--alias-label-primary);
+}
+
+.settings__tab[aria-selected='true'] {
+  background: var(--alias-interactive-bg-active);
+  color: var(--alias-label-primary);
+}
+
+.settings__tab:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------
+   主体
+   --------------------------------------------------------------------------- */
+
+.settings__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /*
+   * 底部只留常规留白。
+   *
+   * 让开输入卡的 88px 由 `.settings__foot` 的 `margin-bottom` 负责——它在滚动区
+   * 之外，让一次就够。这里再留 88px 就成了双份：滚到底时最后一行停在半空，
+   * 上方却被改动条压着，看起来像内容被切断了。
+   */
+  padding: 0 16px 16px;
+}
+
+.settings__count {
+  margin: 0 0 8px;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+/* 计数行里的补充说明：与主数字同一行，但要弱一档，避免读成第二个统计数。 */
+.settings__count-note {
+  margin-left: 8px;
+  color: var(--alias-label-dimmed);
+}
+
+.settings__empty,
+.settings__note {
+  margin: 16px 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+}
+
+.settings__search {
+  width: 100%;
+  height: 28px;
+  margin-bottom: 12px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-bg-module-platform);
+  font-size: var(--text-caption);
+  color: var(--alias-label-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.settings__search::placeholder {
+  color: var(--alias-label-tertiary);
+}
+
+.settings__search:focus-visible {
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line), 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* 骨架：三条等宽灰条，不做流光（§8.5 不用 shimmer）。 */
+.settings__skeleton {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.settings__skeleton > div {
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-bg-skeleton);
+}
+
+.settings__failed {
+  display: grid;
+  gap: 8px;
+  padding-top: 24px;
+}
+
+.settings__failed-title {
+  font-size: var(--text-body);
+  color: var(--alias-label-primary);
+}
+
+.settings__failed-detail {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+  word-break: break-word;
+}
+
+.settings__foot {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 0 0 40px;
+  height: 40px;
+  /* 同检查器底部条：让开输入卡的 88px，否则统计条被压在输入卡下面。 */
+  margin-bottom: 88px;
+  padding: 0 16px;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  box-shadow: inset 0 var(--line-width) 0 0 var(--static-line);
+}
+
+/* ---------------------------------------------------------------------------
+   场景层
+   --------------------------------------------------------------------------- */
+
+.scene__list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scene__item {
+  padding: 12px 0;
+  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--static-line);
+}
+
+.scene__item:last-child {
+  box-shadow: none;
+}
+
+.scene__item[data-missing] {
+  /* 插件没装时整项降透明度，并保留名字——让人知道"本来有这个设置"。 */
+  opacity: 0.55;
+}
+
+.scene__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.scene__name {
+  flex: 1;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--alias-label-primary);
+}
+
+.scene__control {
+  margin-top: 8px;
+}
+
+/* --- 锚点 --- */
+
+.scene__anchors {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.scene__anchor {
+  flex: 1;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.scene__anchor:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+.scene__anchor[aria-pressed='true'] {
+  background: var(--alias-interactive-bg-active);
+  color: var(--alias-label-primary);
+  font-weight: var(--weight-medium);
+}
+
+.scene__anchor:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* --- 滑杆 --- */
+
+.scene__range {
+  width: 100%;
+  height: 16px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 轨道 4px 高、圆角 2，色用 state-idle-tertiary（最浅一档的交互底）。 */
+.scene__range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-state-idle-tertiary);
+}
+
+.scene__range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-state-idle-tertiary);
+}
+
+/* 滑块 12px 圆点，玄青实心——全界面唯一实心色只给主操作，
+   这里是"正在调的那个值"，属同一语义。 */
+.scene__range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  transition: transform var(--motion-fast) var(--ease-fluid);
+}
+
+.scene__range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+.scene__range:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.scene__range:focus-visible {
+  outline: none;
+}
+
+.scene__range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+}
+
+.scene__readout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.scene__scale {
+  flex: 1;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+/* 读数右对齐、等宽数字：一列读数的小数位与位宽对不齐会一顿一顿（同 §5.8）。 */
+.scene__number {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--alias-label-secondary);
+}
+
+/* --- 分段 --- */
+
+.scene__segments,
+.field__segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-bg-module-platform);
+}
+
+.scene__segment,
+.field__segment {
+  flex: 1;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.scene__segment:hover,
+.field__segment:hover {
+  color: var(--alias-label-primary);
+}
+
+.scene__segment[aria-pressed='true'],
+.field__segment[aria-pressed='true'] {
+  background: var(--alias-bg-base);
+  color: var(--alias-label-primary);
+  font-weight: var(--weight-medium);
+}
+
+.scene__segment:focus-visible,
+.field__segment:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* --- 开关 --- */
+
+.scene__switch {
+  position: relative;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--alias-state-idle-tertiary);
+  transition: background-color var(--motion-base) var(--ease-fluid);
+}
+
+.scene__switch[aria-checked='true'] {
+  background: var(--accent-fill);
+}
+
+.scene__switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--static-paper-0);
+  /* 位移走 base 档：与底色变化同时长，两者不同步会显得旋钮"滑了一下"。 */
+  transition: transform var(--motion-base) var(--ease-fluid);
+}
+
+.scene__switch[aria-checked='true'] .scene__switch-knob {
+  transform: translateX(12px);
+}
+
+.scene__switch:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* --- 24 小时横轴 --- */
+
+.scene__clock {
+  position: relative;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-module-platform);
+  overflow: hidden;
+}
+
+/* 休息时段用沙色低透明填充：它是"不活动"的区段，不该比轨道本身更显眼。 */
+.scene__clock-rest {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--alias-state-warn-primary);
+  opacity: 0.35;
+}
+
+.scene__clock-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--line-width);
+  background: var(--static-line);
+}
+
+.scene__times {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.scene__time {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+}
+
+.scene__time-label {
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+.scene__time-input {
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-module-platform);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--alias-label-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.scene__time-input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line), 0 0 0 1.5px var(--alias-state-business-primary);
+}
+
+.scene__time-dash {
+  padding-bottom: 6px;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+.scene__note {
+  margin: 6px 0 0;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+/* --- 提示与元数据 --- */
+
+.scene__hint {
+  margin: 6px 0 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+.scene__hint--warn {
+  color: var(--alias-state-warn-label);
+}
+
+.scene__meta {
+  margin: 4px 0 0;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 预演 --- */
+
+.scene__preview {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-bg-module-platform);
+  /* 进场从 0 高展开：只在动过控件后出现，出现时不该"啪"地占位。 */
+  animation: preview-in var(--motion-base) var(--ease-fluid) both;
+}
+
+@keyframes preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scene__preview-text {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+}
+
+/* 免责声明固定一行 11px：它是"预演 ≠ 承诺"的唯一提示，不能省。 */
+.scene__preview-note {
+  margin-top: 4px;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+/* --- 底部固定条 --- */
+
+/*
+ * 改动条。
+ *
+ * 它是面板的直系子元素，位于滚动区之外——不是 sticky。
+ * 第一版用 `position: sticky; bottom: 0` 挂在场景层内部：sticky 保留文档流占位
+ * 的同时把视觉位置推到底部，于是每次滚动都会压住下一行的分段控件
+ * （实测「她多主动」三段按钮被整条盖住，看得见摸不着）。
+ */
+.settings__bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--alias-bg-base);
+  box-shadow: inset 0 var(--line-width) 0 0 var(--static-line);
+}
+
+.settings__bar-text {
+  flex: 1;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+}
+
+.settings__bar-undo {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--alias-link);
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.settings__bar-undo:hover:not(:disabled) {
+  background: var(--alias-interactive-bg-hover);
+}
+
+.settings__bar-undo:disabled {
+  color: var(--alias-label-dimmed);
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------------
+   模块层
+   --------------------------------------------------------------------------- */
+
+.module {
+  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--static-line);
+}
+
+.module[data-inactive] .module__title {
+  color: var(--alias-label-tertiary);
+}
+
+.module__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  text-align: left;
+}
+
+.module__title {
+  flex: 1;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--alias-label-primary);
+}
+
+.module__meta {
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.module__head:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+.module__off {
+  margin: 0 0 8px;
+  font-size: var(--text-label);
+  color: var(--alias-state-warn-label);
+}
+
+.module__body {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+
+.module__advance {
+  justify-self: start;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.module__advance:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* --- 字段 --- */
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.field__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.field__key {
+  flex: 1;
+  font-family: var(--font-family-code);
+  font-size: var(--text-label);
+  color: var(--alias-label-secondary);
+  word-break: break-all;
+}
+
+.field[data-changed] .field__key {
+  color: var(--alias-label-primary);
+}
+
+.field__meta {
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.field__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field__control--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.field__range {
+  flex: 1;
+  height: 16px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.field__range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-state-idle-tertiary);
+}
+
+.field__range::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+.field__range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-state-idle-tertiary);
+}
+
+.field__range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+.field__number {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-module-platform);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--alias-label-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.field__text,
+.field__select {
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-module-platform);
+  font-size: var(--text-caption);
+  color: var(--alias-label-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.field__json {
+  width: 100%;
+  padding: 6px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-module-platform);
+  font-family: var(--font-family-code);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  color: var(--alias-label-primary);
+  resize: vertical;
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.field__number:focus-visible,
+.field__text:focus-visible,
+.field__select:focus-visible,
+.field__json:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line), 0 0 0 1.5px var(--alias-state-business-primary);
+}
+
+.field__invalid {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-state-error-primary);
+  word-break: break-all;
+}
+
+.field__doc {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+.field__restart {
+  font-size: var(--text-label);
+  color: var(--alias-state-warn-label);
+}
+
+.field__reset {
+  justify-self: start;
+  font-size: var(--text-label);
+  color: var(--alias-link);
+}
+
+.field__reset:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------------------
+   原始层
+   --------------------------------------------------------------------------- */
+
+.raw__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-label);
+}
+
+.raw__table th {
+  padding: 4px 0;
+  text-align: left;
+  font-weight: var(--weight-medium);
+  color: var(--alias-label-tertiary);
+  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--static-line);
+}
+
+.raw__table td {
+  padding: 4px 0;
+  vertical-align: top;
+  color: var(--alias-label-secondary);
+}
+
+.raw__table tr[data-changed] td {
+  color: var(--alias-label-primary);
+}
+
+.raw__key {
+  font-family: var(--font-family-code);
+  word-break: break-all;
+}
+
+.raw__tag {
+  margin-left: 4px;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-size: 10px;
+  background: var(--alias-bg-module-platform);
+  color: var(--alias-label-tertiary);
+}
+
+.raw__kind {
+  font-family: var(--font-family-code);
+  color: var(--alias-label-tertiary);
+}
+
+/* 值列限宽 + 省略号：json 长值会把表格撑出横向滚动（§12.4 不允许整块横向滚）。 */
+.raw__value {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.raw__value--muted {
+  color: var(--alias-label-tertiary);
+}
+
+.raw__section {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-code);
+  color: var(--alias-label-tertiary);
+}
+
+.raw__pager {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+   检查器底部的「全部设置」入口
+   --------------------------------------------------------------------------- */
+
+/**
+ * 入口固定在检查器底部（§5.13「检查器设置从检查器底部进入」）。
+ *
+ * ## 为什么要抬 88px
+ *
+ * 输入卡（`.composer-slot`）的层级是 `--z-menu`（40），高于覆盖层的
+ * `--z-drawer`（30）——这是上一轮为了"打完字点得到发送键"做的裁决
+ * （§1.3 可达性压过视觉）。
+ *
+ * 直接把入口贴在面板底部，它正好落在输入卡遮挡的 88px 里：按钮看得见、
+ * 点不到。实测 Playwright 报 `composer-slot intercepts pointer events`。
+ *
+ * 所以底部留 88px（12 + 76 的输入卡高度 + 12 边距之外再算上安全余量），
+ * 入口停在输入卡上方。面板底部那片空白被输入卡盖住，用户看不到。
+ */
+.inspector__foot {
+  flex: 0 0 40px;
+  height: 40px;
+  margin-bottom: 88px;
+  padding: 0 16px;
+  /* 与正文之间一条 0.5px 线：底部条属于"另一个区域"，需要一道边界。 */
+  box-shadow: inset 0 var(--line-width) 0 0 var(--static-line);
+}
+
+/* 底部条已自己让出 88px，正文不必再留——否则中间夹一段双倍空白。 */
+.inspector .inspector__body {
+  padding-bottom: 0;
+}
+
+.inspector__all {
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  font-size: var(--text-caption);
+  color: var(--alias-label-tertiary);
+  transition: color var(--motion-fast) var(--ease-fluid);
+}
+
+.inspector__all:hover {
+  color: var(--alias-label-primary);
+}
+
+.inspector__all:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  border-radius: var(--radius-xs);
+}
+
+/* ---------------------------------------------------------------------------
+   减少动态效果
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .settings,
+  .scene__preview {
+    animation: none;
+  }
+
+  .scene__switch,
+  .scene__switch-knob,
+  .scene__anchor,
+  .scene__segment,
+  .field__segment,
+  .settings__tab {
+    transition-duration: 0s;
+  }
+}

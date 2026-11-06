@@ -54,6 +54,7 @@ import * as dshClientPlugin from '@ondra/cordis-plugin-dsh-client'
 import { startWebServer, type RouteHandler, type RouteRequest, type StreamEmitter } from './src/server.js'
 import { ConfigStore, resolveDataDir, type PermissionLevel, type StoredProfile } from './src/config.js'
 import { ensureWorkspace, resolveWorkspaceRoot } from './src/workspace.js'
+import { SettingsStore, scanSections, type SettingsSection, type SettingsSnapshot } from './src/settings.js'
 
 /** 宿主与壳之间的消息形态。 */
 type ShellMessage =
@@ -163,8 +164,31 @@ async function main(): Promise<void> {
   // 配置推送失败时内核仍有本地演示模型可用，界面不会完全不能用。
   await syncConfigToKernel(ctx, config.read())
 
+  // --- 4.5 插件设置段 -------------------------------------------------------
+  // 用户层单独一个文件（`settings.json`），不与模型密钥混存：前者是偏好、
+  // 后者是凭据，混在一起会让「只带走偏好」或「只重置密钥」都做不到。
+  const settings = await SettingsStore.open(join(dataDir, 'settings.json'))
+  // 已装载名单：只用于在界面上标「插件已停用」（§6.7 的灰显义务）。
+  // 默认全禁时 122 段全部灰显，这是真实状态，不该在界面上假装它们可用。
+  const enabledPlugins = new Set(enableList)
+
+  /*
+   * 扫描一次，全程复用。
+   *
+   * 137 个包逐个 `import()` 实测 842ms。若每个请求都扫一遍，设置页每拖一次
+   * 滑杆都要等近一秒——而插件的 `settings.js` 是一份静态常量，进程活着的
+   * 期间不会变。装新插件本来就要求重启，所以缓存不存在"读到旧数据"的风险。
+   */
+  const settingsSections = await scanSections(resolvePluginsRoot(), enabledPlugins)
+  logInfo(
+    ctx,
+    `插件设置段 ${String(settingsSections.length)} 个`
+    + `（已注册 ${String(settingsSections.filter((item) => item.registered).length)}），`
+    + `字段 ${String(settingsSections.reduce((sum, item) => sum + item.fields.length, 0))} 个`,
+  )
+
   // --- 5. HTTP 服务 ----------------------------------------------------------
-  const routes = buildRoutes(ctx, config)
+  const routes = buildRoutes(ctx, config, settings, settingsSections)
   // 端口策略：默认 9060 起，被占用则逐个顺延（见 src/server.ts 的 listenWithFallback）。
   // 允许用 ONDRA_PORT 覆盖，方便调试时指定别的起点；传 0 则退回系统随机分配。
   //
@@ -209,7 +233,12 @@ function logInfo(ctx: Context, message: string): void {
 }
 
 /** 组装 HTTP 路由表。 */
-function buildRoutes(ctx: Context, config: ConfigStore): ReadonlyMap<string, RouteHandler> {
+function buildRoutes(
+  ctx: Context,
+  config: ConfigStore,
+  settings: SettingsStore,
+  sections: readonly SettingsSection[],
+): ReadonlyMap<string, RouteHandler> {
   const routes = new Map<string, RouteHandler>()
 
   /** 健康检查。壳用它确认宿主仍在响应。 */
@@ -462,6 +491,69 @@ function buildRoutes(ctx: Context, config: ConfigStore): ReadonlyMap<string, Rou
     return { body: await client.call('tool.list', {}) }
   })
 
+  /**
+   * 设置全景：全部段 + 用户层。
+   *
+   * ## 为什么一次全给
+   *
+   * 1168 个字段的来源是 137 个包里的静态常量，不是数据库查询。
+   * 一次返回约 500 KB，比让界面按层、按段发起 122 次请求快得多，
+   * 也让「场景层的 13 项」与「原始层的 1168 条」读的是同一份数据——
+   * 分两次取就会出现「场景层显示 30、原始层显示 90」的撕裂。
+   *
+   * ## 为什么带 `active`
+   *
+   * §6.7 明确：插件停用后，它的设置段必须灰显并注明。宿主是唯一知道
+   * 「这一轮到底装了哪些插件」的地方，界面无从推断。
+   */
+  routes.set('GET /api/settings', () => {
+    const snapshot: SettingsSnapshot = {
+      sections: [...sections],
+      user: settings.read(),
+      totals: {
+        sections: sections.filter((section) => section.registered).length,
+        fields: sections.reduce((sum, section) => sum + section.fields.length, 0),
+        unregistered: sections.filter((section) => !section.registered).length,
+      },
+    }
+    return { body: snapshot }
+  })
+
+  /**
+   * 写一个字段。
+   *
+   * ## 为什么值是 `undefined` 就删键
+   *
+   * 请求体里 `value` 缺省 = 删掉用户层对这个键的设置，让它回落到插件默认值。
+   * 这是界面「恢复默认」的实现，与「写入 null」不是同一件事：
+   * `null` 是显式置空、会覆盖下层（见 O-005 `LayerSet` 的注释）。
+   *
+   * ## 为什么不在这里校验范围
+   *
+   * 校验的真源是插件 `FIELD_SPECS` 的 `min/max/pattern`，插件自己在读取时
+   * 还要再夹一次（例如 `completeConfig`）。宿主再写一份校验，就出现
+   * 第二处真源——插件改了范围而宿主没改时，界面会拒绝一个合法的值。
+   * 所以这里只做「键是否存在」的存在性检查，防止把拼错的键写进文件。
+   */
+  routes.set('POST /api/settings', async (request: RouteRequest) => {
+    const body = (request.body ?? {}) as Record<string, unknown>
+    const section = typeof body.section === 'string' ? body.section : ''
+    const key = typeof body.key === 'string' ? body.key : ''
+    if (section === '' || key === '') {
+      return { status: 400, body: { error: '缺少 section 或 key' } }
+    }
+
+    const target = sections.find((item) => item.id === section)
+    if (target === undefined) return { status: 404, body: { error: `没有这个配置段：${section}` } }
+    if (!target.fields.some((field) => field.key === key)) {
+      return { status: 404, body: { error: `段 ${section} 里没有字段 ${key}` } }
+    }
+
+    const hasValue = Object.hasOwn(body, 'value')
+    await settings.set(section, key, hasValue ? body['value'] : undefined)
+    return { body: { ok: true } }
+  })
+
   return routes
 }
 
@@ -524,6 +616,31 @@ function resolveSidecarEntry(): string {
   }
   // 找不到时仍返回首选路径：让启动失败的报错指向预期位置，便于定位打包问题。
   return candidates[0] ?? join(import.meta.dirname, 'dsh-sidecar', 'lib', 'index.js')
+}
+
+/**
+ * 解析 `plugins/` 目录的绝对路径。
+ *
+ * ## 为什么要试两个位置
+ *
+ * 宿主有两种运行形态：源码态（`node --experimental-strip-types index.ts`，
+ * `import.meta.dirname` 是 `cordis-host/`）与构建态（`node lib/index.js`，
+ * 是 `cordis-host/lib/`）。两者的 `plugins/` 都在上一层的同名字目录下。
+ *
+ * 不读环境变量：这个目录与宿主同属一个包，位置由包结构决定，
+ * 不像 sidecar 那样会被壳搬到别处。多一个环境变量就多一处可能配错。
+ */
+function resolvePluginsRoot(): string {
+  const candidates = [
+    join(import.meta.dirname, 'plugins'),
+    join(import.meta.dirname, '..', 'plugins'),
+  ]
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+  // 找不到也返回首选路径：扫描会得到空列表，界面显示「没有配置段」，
+  // 比让宿主拒绝启动诚实——设置页空着不影响说话。
+  return candidates[0] ?? join(import.meta.dirname, 'plugins')
 }
 
 /**

@@ -14,9 +14,10 @@
  *
  * ## 本批范围
  *
- * 第 3 批：Rail / Spine / Inspector / Drawer / Timeline 五个组件接入。
- * Composer 与设置三层分别在第 4、5 批，因此现在输入区仍是一个占位块——
- * 它能发消息（复用 `state.draft` 与 `state.send`），但外观是临时的。
+ * 第 4 批：设置三层（场景 / 模块 / 原始）接入，入口在检查器底部。
+ * Composer 与 §12 的十四项细节分别在第 4 批之后与第 5 批，因此现在输入区
+ * 仍是一个占位块——它能发消息（复用 `state.draft` 与 `state.send`），
+ * 但外观是临时的。
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -29,6 +30,8 @@ import { Inspector } from './components/Inspector.tsx'
 import { Drawer } from './components/Drawer.tsx'
 import { Timeline } from './components/Timeline.tsx'
 import { Mark } from './components/Mark.tsx'
+import { Settings } from './components/Settings.tsx'
+import { isMac } from './lib/platform.ts'
 
 /** 渲染应用。 */
 export function App(): React.JSX.Element {
@@ -38,6 +41,17 @@ export function App(): React.JSX.Element {
   const [drawer, setDrawer] = useState<DrawerKey | undefined>(undefined)
   /** 检查器是否展开。 */
   const [inspector, setInspector] = useState(false)
+  /**
+   * 设置面板是否展开。
+   *
+   * ## 为什么设置也是 workspace 里的一个覆盖层而不是独立窗口
+   *
+   * §5.13 把设置分成两层：偏好设置是独立窗口（主题、语言、字号），
+   * 检查器设置是「抽屉，宽 300 可扩至 420」。后者管 1168 项插件参数，
+   * 用户改它时往往正在看会话——独立窗口会让"改一下、回来看"变成反复切窗。
+   * 独立窗口留给下一批的偏好设置。
+   */
+  const [settings, setSettings] = useState(false)
 
   /**
    * 点击 Rail 入口。
@@ -61,12 +75,21 @@ export function App(): React.JSX.Element {
   const toggleDrawer = useCallback((key: DrawerKey): void => {
     setDrawer((previous) => (previous === key ? undefined : key))
     setInspector(false)
+    setSettings(false)
   }, [])
 
-  /** 展开检查器同理：收起抽屉。 */
+  /** 展开检查器同理：收起抽屉与设置。 */
   const toggleInspector = useCallback((): void => {
     setInspector((previous) => !previous)
     setDrawer(undefined)
+    setSettings(false)
+  }, [])
+
+  /** 打开设置：三个覆盖层互斥，任何时刻最多一个。 */
+  const openSettings = useCallback((): void => {
+    setSettings((previous) => !previous)
+    setDrawer(undefined)
+    setInspector(false)
   }, [])
 
   /**
@@ -90,6 +113,10 @@ export function App(): React.JSX.Element {
         setDrawer(undefined)
         return
       }
+      if (settings) {
+        setSettings(false)
+        return
+      }
       if (inspector) {
         setInspector(false)
         return
@@ -99,7 +126,7 @@ export function App(): React.JSX.Element {
 
     globalThis.addEventListener('keydown', onKeyDown)
     return () => { globalThis.removeEventListener('keydown', onKeyDown) }
-  }, [state.busy, state.stop, drawer, inspector])
+  }, [state.busy, state.stop, drawer, inspector, settings])
 
   /** `Cmd/Ctrl + Shift + I` 开关检查器（§9.1）。 */
   useEffect(() => {
@@ -114,6 +141,19 @@ export function App(): React.JSX.Element {
     globalThis.addEventListener('keydown', onKeyDown)
     return () => { globalThis.removeEventListener('keydown', onKeyDown) }
   }, [toggleInspector])
+
+  /** `Cmd/Ctrl + ,` 开关设置（§9.1）。 */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== ',') return
+      const modifier = isMac() ? event.metaKey : event.ctrlKey
+      if (!modifier) return
+      event.preventDefault()
+      openSettings()
+    }
+    globalThis.addEventListener('keydown', onKeyDown)
+    return () => { globalThis.removeEventListener('keydown', onKeyDown) }
+  }, [openSettings])
 
   if (state.phase === 'failed') {
     return (
@@ -155,8 +195,9 @@ export function App(): React.JSX.Element {
             onToggle={toggleDrawer}
             onOpenSettings={() => {
               /*
-               * 偏好设置是独立窗口（§5.13），本批还没做，先收起抽屉并
-               * 不弹任何东西——比弹一个空壳诚实。第 4 批接入。
+               * Rail 的齿轮开偏好设置（主题、语言、字号），那是独立窗口，
+               * 第 5 批做。这里不弹任何东西——比弹一个空壳诚实。
+               * 1168 项插件参数不在这里，它们从检查器底部的「全部设置」进。
                */
               setDrawer(undefined)
             }}
@@ -230,8 +271,15 @@ export function App(): React.JSX.Element {
               tension={undefined}
               hasData={state.mood.label !== undefined && state.mood.label !== ''}
               onClose={() => { setInspector(false) }}
+              onOpenSettings={() => {
+                setInspector(false)
+                setSettings(true)
+              }}
             />
           ) : null}
+
+          {/* 设置与检查器、抽屉三者互斥，任何时刻最多一个覆盖层。 */}
+          {settings ? <Settings onClose={() => { setSettings(false) }} /> : null}
         </div>
       ) : (
         <div className="welcome">
