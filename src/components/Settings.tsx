@@ -26,6 +26,7 @@ import { SceneLayer } from './SceneLayer.tsx'
 import { ModuleLayer } from './ModuleLayer.tsx'
 import { RawLayer } from './RawLayer.tsx'
 import { getSettings, saveSetting } from '../lib/settings.ts'
+import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 import type { SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
 
@@ -44,6 +45,15 @@ export interface SettingsProps {
 
 /** 渲染设置面板。 */
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
+  /*
+   * 关闭时把焦点还给触发它的元素（§9.5）。
+   *
+   * 条件渲染，恒传 `true`。设置有三个入口：`Cmd/Ctrl + ,`（此时焦点在
+   * 文档某处）、检查器底部的「全部设置」（焦点在那个按钮上）、
+   * 将来的偏好窗口。三者都由钩子统一处理，不各写一遍。
+   */
+  useRestoreFocus(true)
+
   const [tab, setTab] = useState<TabKey>('scene')
   const [sections, setSections] = useState<SettingsSection[]>([])
   const [user, setUser] = useState<SceneValues>({})

@@ -146,12 +146,12 @@
  * 白都是唯一可读的。
  */
 .titlebar__control--close:hover {
-  background: var(--static-danger);
+  background: var(--alias-state-error-primary);
   color: #fffdf9;
 }
 
 .titlebar__control--close:active {
-  background: var(--static-danger);
+  background: var(--alias-state-error-primary);
   color: #fffdf9;
   /* 按下时压暗一档，用 filter 而不是换色值——换色值要再定义一个令牌。 */
   filter: brightness(0.92);

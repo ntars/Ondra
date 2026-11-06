@@ -19,8 +19,9 @@
   inset: 0;
   z-index: var(--z-dialog);
   /* 无遮罩：§9.4 明确「查阅不是决策，不该阻断」。用极淡的一层压暗
-     背后的内容，让视线落在表上，但背后仍看得清、仍可读。 */
-  background: rgba(28, 31, 29, 0.06);
+     背后的内容，让视线落在表上，但背后仍看得清、仍可读。
+     `--scrim-sheet` 是 0.06 不透明，比 Dialog 淡三倍。 */
+  background: var(--scrim-sheet);
 }
 
 /**

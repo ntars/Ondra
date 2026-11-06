@@ -79,7 +79,7 @@
 .timeline__day-rule {
   flex: 1;
   height: 0;
-  border-top: var(--line-width) solid var(--static-line);
+  border-top: var(--line-width) solid var(--alias-border-l1);
 }
 
 /* 日期文字。11px / ink-3。 */
@@ -161,7 +161,7 @@
   padding: 2px;
   border-radius: var(--radius-xs);
   background: var(--alias-bg-base);
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
   opacity: 0;
   visibility: hidden;
   transition:

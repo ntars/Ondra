@@ -29,11 +29,18 @@
   z-index: var(--z-drawer);
   display: flex;
   flex-direction: column;
-  width: 360px;
+  /*
+   * 宽度走令牌（`--settings-w`）。
+   *
+   * 这里原先写死 360。写死本身不算错，但当 Toast 需要知道"右侧浮层
+   * 占多宽"以避免压住面板标题时，第二处就得再写一个 360——两处各存
+   * 一份，改一处忘一处，提示条就会正好骑在面板边缘上。
+   */
+  width: var(--settings-w);
   background: var(--alias-bg-base);
   border-radius: 0 var(--radius-panel) var(--radius-panel) 0;
   /* 线画在覆盖区与主列的交界上，不占布局（同 drawer.css 的理由）。 */
-  box-shadow: calc(var(--line-width) * -1) 0 0 0 var(--static-line);
+  box-shadow: calc(var(--line-width) * -1) 0 0 0 var(--alias-border-l1);
   animation: settings-in var(--motion-base) var(--ease-fluid) both;
 }
 
@@ -171,7 +178,7 @@
   background: var(--alias-bg-module-platform);
   font-size: var(--text-caption);
   color: var(--alias-label-primary);
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .settings__search::placeholder {
@@ -179,7 +186,7 @@
 }
 
 .settings__search:focus-visible {
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line), 0 0 0 1.5px var(--alias-state-business-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1), 0 0 0 1.5px var(--alias-state-business-primary);
   outline: none;
 }
 
@@ -225,7 +232,7 @@
   padding: 0 16px;
   font-size: var(--text-label);
   color: var(--alias-label-tertiary);
-  box-shadow: inset 0 var(--line-width) 0 0 var(--static-line);
+  box-shadow: inset 0 var(--line-width) 0 0 var(--alias-border-l1);
 }
 
 /* ---------------------------------------------------------------------------
@@ -242,7 +249,7 @@
 
 .scene__item {
   padding: 12px 0;
-  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--static-line);
+  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--alias-border-l1);
 }
 
 .scene__item:last-child {
@@ -446,7 +453,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--static-paper-0);
+  background: var(--alias-bg-base);
   /* 位移走 base 档：与底色变化同时长，两者不同步会显得旋钮"滑了一下"。 */
   transition: transform var(--motion-base) var(--ease-fluid);
 }
@@ -484,7 +491,7 @@
   top: 0;
   bottom: 0;
   width: var(--line-width);
-  background: var(--static-line);
+  background: var(--alias-border-l1);
 }
 
 .scene__times {
@@ -514,12 +521,12 @@
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   color: var(--alias-label-primary);
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .scene__time-input:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line), 0 0 0 1.5px var(--alias-state-business-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1), 0 0 0 1.5px var(--alias-state-business-primary);
 }
 
 .scene__time-dash {
@@ -607,7 +614,7 @@
   gap: 8px;
   padding: 8px 16px;
   background: var(--alias-bg-base);
-  box-shadow: inset 0 var(--line-width) 0 0 var(--static-line);
+  box-shadow: inset 0 var(--line-width) 0 0 var(--alias-border-l1);
 }
 
 .settings__bar-text {
@@ -640,7 +647,7 @@
    --------------------------------------------------------------------------- */
 
 .module {
-  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--static-line);
+  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--alias-border-l1);
 }
 
 .module[data-inactive] .module__title {
@@ -693,7 +700,7 @@
   border-radius: var(--radius-xs);
   font-size: var(--text-label);
   color: var(--alias-label-tertiary);
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .module__advance:hover {
@@ -791,7 +798,7 @@
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   color: var(--alias-label-primary);
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .field__text,
@@ -803,7 +810,7 @@
   background: var(--alias-bg-module-platform);
   font-size: var(--text-caption);
   color: var(--alias-label-primary);
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .field__json {
@@ -816,7 +823,7 @@
   line-height: var(--leading-code);
   color: var(--alias-label-primary);
   resize: vertical;
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .field__number:focus-visible,
@@ -824,7 +831,7 @@
 .field__select:focus-visible,
 .field__json:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line), 0 0 0 1.5px var(--alias-state-business-primary);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1), 0 0 0 1.5px var(--alias-state-business-primary);
 }
 
 .field__invalid {
@@ -871,7 +878,7 @@
   text-align: left;
   font-weight: var(--weight-medium);
   color: var(--alias-label-tertiary);
-  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--static-line);
+  box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--alias-border-l1);
 }
 
 .raw__table td {
@@ -893,7 +900,10 @@
   margin-left: 4px;
   padding: 0 3px;
   border-radius: 2px;
-  font-size: 10px;
+  /* 0.625rem = 10px，比 label 档（11px）再小一档——标签是徽章，
+     不该与键名争视线。**用 rem 而不是写 10px**：系统字号调到 200% 时，
+     写死的 px 不会缩放，徽章会在放大的键名旁边变成一粒看不清的碎块。 */
+  font-size: 0.625rem;
   background: var(--alias-bg-module-platform);
   color: var(--alias-label-tertiary);
 }
@@ -956,7 +966,7 @@
   margin-bottom: 88px;
   padding: 0 16px;
   /* 与正文之间一条 0.5px 线：底部条属于"另一个区域"，需要一道边界。 */
-  box-shadow: inset 0 var(--line-width) 0 0 var(--static-line);
+  box-shadow: inset 0 var(--line-width) 0 0 var(--alias-border-l1);
 }
 
 /* 底部条已自己让出 88px，正文不必再留——否则中间夹一段双倍空白。 */

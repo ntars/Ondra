@@ -44,6 +44,20 @@ const STICK_THRESHOLD = 80
 const DAY = 24 * 60 * 60 * 1000
 
 /**
+ * 焦点是否落在可编辑内容里。
+ *
+ * 翻页键在输入框里有原生含义（某些编辑器用它移动光标），抢过来会让
+ * 长文本编辑没法用。这里只判输入类元素，不判整条消息——消息本身
+ * 是要能翻页的。
+ */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
+
+/**
  * 把一个时间戳归到当天 0 点。
  *
  * 用本地时区而不是 UTC：用户说「今天」指的是他自己那天，
@@ -73,8 +87,7 @@ function dayLabel(ts: number, now: number): string {
     : `${String(date.getFullYear())} 年 ${base}`
 }
 
-/** 时间轴里的一段：一条消息，或一条日期分隔。 */
-type Row =
+/** 时间轴里的一段：一条消息，或一条日期分隔。 */type Row =
   | { kind: 'day'; key: string; at: number; label: string; dayIndex: number | undefined }
   | { kind: 'message'; key: string; message: ChatMessage; last: boolean }
 
@@ -205,6 +218,39 @@ export function Timeline({
   }, [messages.length])
 
   /**
+   * 键盘滚屏（§9.6）。
+   *
+   * ## 为什么需要它
+   *
+   * 一条消息是一个 Tab 停靠点。40 条消息就要按 40 次 Tab 才能走到输入框——
+   * 规范把这一条列为「唯一的例外」，要求消息区里 `PageUp` / `PageDown`
+   * 按屏跳，不必逐条走。
+   *
+   * ## 为什么要减掉 3 行
+   *
+   * 「按屏跳」不等于滚一整个 `clientHeight`：留下三行重叠，读者才能接上
+   * 刚才读到的那句。整屏正好翻过去，视觉上没有任何锚点，会瞬间失去方位。
+   * 这个做法与终端分页（`less`）一致，用户不需要重新学习。
+   *
+   * ## 为什么不自己写滚动
+   *
+   * 用 `scrollBy` 而不是算 `scrollTop`：滚到底部时浏览器会自动夹住
+   * 目标值，自己算会溢出然后被拉回，出现一次回弹。
+   */
+  const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'PageUp' && event.key !== 'PageDown') return
+    const node = scrollRef.current
+    if (node === null) return
+    // 焦点在消息内部的可编辑区时（目前没有，但将来会有）不抢翻页键。
+    if (isEditable(event.target)) return
+    event.preventDefault()
+    const line = Number.parseFloat(getComputedStyle(node).lineHeight)
+    const overlap = Number.isFinite(line) ? line * 3 : 60
+    const step = Math.max(120, node.clientHeight - overlap)
+    node.scrollBy({ top: event.key === 'PageDown' ? step : -step, behavior: 'smooth' })
+  }, [])
+
+  /**
    * 新消息或生成中变化时决定是否跟随。
    *
    * 依赖里放 `messages.length` 与 `busy`：前者管「来了新的一条」，
@@ -250,6 +296,32 @@ export function Timeline({
         viewportRef={scrollRef}
         className="timeline__scroll"
         onScroll={onScroll}
+        onKeyDown={onKeyDown}
+        viewportProps={{
+          /*
+           * `role="log"` + `aria-live="polite"`（§9.7）。
+           *
+           * 用 `log` 而不是 `list`：这串东西是**按时间追加**的，
+           * 读屏需要知道新内容是从末尾加进来的。`polite` 而非
+           * `assertive`——生成中的正文是逐字落下来的，`assertive`
+           * 会把用户正在读的东西反复打断。
+           *
+           * `aria-busy` 挂在视口上而不是整页：语义是「这个区域正在更新」，
+           * 挂整页会让读屏阻塞所有播报。
+           */
+          role: 'log',
+          'aria-live': 'polite',
+          'aria-busy': busy,
+          'aria-label': '对话',
+          /*
+           * 视口自己进 Tab 顺序。
+           *
+           * 这是 `PageUp` / `PageDown` 能被收到的前提——没有焦点就没有
+           * 键盘事件。`tabIndex={0}` 写在视口而不是外层容器：外层是
+           * `.scrollarea`（纯布局壳），它不该成为停靠点。
+           */
+          tabIndex: 0,
+        }}
         remeasureKey={messages.length}
       >
         <div className="timeline__measure">

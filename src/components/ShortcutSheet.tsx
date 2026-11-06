@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { ScrollArea } from './ScrollArea.tsx'
 import { SHORTCUTS, keycaps } from '../lib/shortcuts.ts'
 import { isMac } from '../lib/platform.ts'
+import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 
 export interface ShortcutSheetProps {
   /** 关闭。Esc、点空白、点关闭键都走这里。 */
@@ -47,6 +48,14 @@ const GROUPS: readonly { title: string; ids: readonly string[] }[] = [
  */
 export function ShortcutSheet({ onClose }: ShortcutSheetProps): React.JSX.Element {
   const panelRef = useRef<HTMLDivElement | null>(null)
+
+  /*
+   * 关闭时把焦点还给触发它的元素（§9.5）。
+   *
+   * 必须先于下面那个「把焦点移进面板」的 effect 执行——React 按声明顺序
+   * 跑 effect，顺序反了记到的就是面板本身。
+   */
+  useRestoreFocus(true)
 
   /**
    * Esc 关闭 + 焦点移进面板。

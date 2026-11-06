@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconClose } from './icons.ts'
+import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 import type { DrawerKey } from './Rail.tsx'
 import type { SessionMeta } from '../lib/api.ts'
 import type { MemoryItem } from '../lib/types.ts'
@@ -98,6 +99,14 @@ export function Drawer({
   const open = view !== undefined
   /** 搜索词。故意只在本地：它不是会话状态，切抽屉即弃。 */
   const [query, setQuery] = useState('')
+
+  /*
+   * 关闭时把焦点还给触发它的图标（§9.5）。
+   *
+   * 必须写在下面那个「把焦点移进来」的 effect **之前**：先记住来处，
+   * 再把焦点搬进抽屉。顺序反了记到的就是抽屉内部元素，关闭时焦点原地不动。
+   */
+  useRestoreFocus(open)
 
   /**
    * 打开时把焦点移进来。

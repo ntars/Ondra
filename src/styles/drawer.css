@@ -65,7 +65,7 @@
   /* 靠窗一侧（左侧）16px 圆角，靠主列一侧直角。 */
   border-radius: var(--radius-panel) 0 0 var(--radius-panel);
   /* 描边不占布局，线精确落在边界上。 */
-  box-shadow: var(--line-width) 0 0 0 var(--static-line);
+  box-shadow: var(--line-width) 0 0 0 var(--alias-border-l1);
   opacity: 0;
   transform: translateX(-16px);
   transition:
@@ -235,7 +235,7 @@
   width: var(--inspector-w);
   background: var(--alias-bg-base);
   border-radius: 0 var(--radius-panel) var(--radius-panel) 0;
-  box-shadow: calc(var(--line-width) * -1) 0 0 0 var(--static-line);
+  box-shadow: calc(var(--line-width) * -1) 0 0 0 var(--alias-border-l1);
   /* 进场与抽屉同一条曲线、同一时长。 */
   animation: inspector-in var(--motion-base) var(--ease-fluid) both;
 }

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
+import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 /**
@@ -15,6 +16,55 @@ const { version } = JSON.parse(
 ) as { version: string }
 
 /**
+ * 把仓库根的 `icon.svg` 送成页面图标。
+ *
+ * ## 为什么需要一个插件
+ *
+ * `index.html` 在 `src/` 下，图标在仓库根——两者不在同一个 root 里，
+ * 没法用普通的 `<link href="../icon.svg">`：vite 会把 root 外的引用
+ * 当成错误，就算侥幸解析成功，产物里也没有那个文件。
+ *
+ * 而**复制一份到 `src/` 是另一个坑**：那会造出第二个真源，下次有人改
+ * 了 `icon.svg`，`src/` 里那份不会跟着变（`gen-brand.mjs` 校验的是
+ * `src/brand/mark.ts`，管不到它）。所以这里在构建期读根目录那一份，
+ * 直接 emit 进产物。
+ *
+ * ## 为什么连开发态也要挂
+ *
+ * 不挂的话，`index.html` 里声明了 `./icon.svg` 而开发服务器没有这个路由，
+ * 浏览器控制台每次都会多一条 404。混在真正的错误里，久了就没人看控制台了。
+ */
+function faviconFromBrand(): Plugin {
+  /** 缓存读过的内容：一次构建里可能被 build 与 serve 各读一次。 */
+  let cached: Buffer | null = null
+  const read = (): Buffer => {
+    cached ??= readFileSync(new URL('../icon.svg', import.meta.url))
+    return cached
+  }
+
+  return {
+    name: 'ondra-favicon',
+    transformIndexHtml() {
+      return [{
+        tag: 'link',
+        attrs: { rel: 'icon', type: 'image/svg+xml', href: './icon.svg' },
+        // 放在 head 最前：图标早一步开始加载，标签页不会先空一下。
+        injectTo: 'head-prepend',
+      }]
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'icon.svg', source: read() })
+    },
+    configureServer(server) {
+      server.middlewares.use('/icon.svg', (_request, response) => {
+        response.setHeader('content-type', 'image/svg+xml')
+        response.end(read())
+      })
+    },
+  }
+}
+
+/**
  * 前端构建配置。
  *
  * `base: './'` 是必需的：Tauri 在生产态用 `tauri://localhost` 加载本地文件，
@@ -22,7 +72,7 @@ const { version } = JSON.parse(
  * 加载方式（开发态 HTTP、生产态自定义协议）下都成立。
  */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), faviconFromBrand()],
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(`v${version}`),

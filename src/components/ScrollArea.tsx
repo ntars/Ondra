@@ -48,6 +48,22 @@ export interface ScrollAreaProps {
   className?: string
   /** 内容变化时用于重算滑块高度。传入任意会改变内容高度的值即可。 */
   remeasureKey?: unknown
+  /**
+   * 视口的键盘事件。
+   *
+   * 单开一个 prop 而不是让使用方自己在 viewport 上挂 `onKeyDown`：
+   * viewport 的 ref 虽然交出去了，但挂事件还得再写一遍 `addEventListener`，
+   * 而滚动区本来就是「滚」这件事的归属地，键盘滚屏放这里最自然。
+   */
+  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void
+  /**
+   * 视口的无障碍属性。
+   *
+   * `role` 不属 `React.AriaAttributes`（它在 `HTMLAttributes` 里），
+   * 所以单独补一个字段，而不是让调用方传整个 `HTMLAttributes`——
+   * 那会把 `className` / `onScroll` 也放进来，与本组件的同名字段打架。
+   */
+  viewportProps?: React.AriaAttributes & { role?: React.AriaRole; tabIndex?: number }
   children: React.ReactNode
 }
 
@@ -68,6 +84,8 @@ export function ScrollArea({
   onScroll,
   className,
   remeasureKey,
+  onKeyDown,
+  viewportProps,
   children,
 }: ScrollAreaProps): React.JSX.Element {
   const localRef = useRef<HTMLDivElement | null>(null)
@@ -180,6 +198,8 @@ export function ScrollArea({
         ref={node}
         className={className === undefined ? 'scrollarea__viewport' : `scrollarea__viewport ${className}`}
         onScroll={handleScroll}
+        onKeyDown={onKeyDown}
+        {...viewportProps}
       >
         {children}
       </div>

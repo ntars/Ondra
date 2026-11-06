@@ -127,6 +127,32 @@ function Shell(): React.JSX.Element {
   }, [])
 
   /**
+   * 把「右侧有没有浮层」反映到根节点（供 Toast 避让，§5.10）。
+   *
+   * ## 为什么必须写在根节点上
+   *
+   * Toast 挂在 `ToastProvider` 里，而 Provider 包着整个 `<Shell/>`——
+   * 提示条容器是 `.shell` 的**兄弟节点**，`.shell` 上的属性级联不到它。
+   * 根节点是两者唯一的公共祖先，`toast.css` 用
+   * `[data-right-overlay] .toast` 就能读到。
+   *
+   * 沿的是本项目已有的做法：`platform`、`input`、`theme` 都写在
+   * `documentElement.dataset` 上（见 `lib/platform.ts`）。
+   *
+   * ## 三个浮层互斥，只判"有没有"
+   *
+   * 抽屉 300、检查器 300、设置 360，同时最多出现一个。所以只需一个
+   * 布尔量，不需要记录"是哪一个"——后者会让 CSS 出现三条几乎相同的
+   * 规则，改一处容易漏两处。
+   */
+  const rightOverlay = drawer !== undefined || inspector || settings
+  useEffect(() => {
+    const root = document.documentElement
+    if (rightOverlay) root.setAttribute('data-right-overlay', '')
+    else root.removeAttribute('data-right-overlay')
+  }, [rightOverlay])
+
+  /**
    * 全部快捷键的单一入口。
    *
    * ## 为什么收成一个 effect

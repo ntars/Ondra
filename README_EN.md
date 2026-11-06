@@ -2857,6 +2857,21 @@ One real obstacle remains: `src-tauri/Cargo.toml` currently declares no `[lib]`,
 
 These limitations are explicit trade-offs at the current stage and do not represent the final form.
 
+### 15.1 Unverified list (what cannot be checked on macOS)
+
+These items are **implemented and reviewable in code, but have never actually run on the target platform**. They are listed separately because "it ran" and "it is written correctly" are two different things, and folding them into "done" would mislead whoever picks this up next.
+
+| Item | What is done | What is missing | Risk |
+| --- | --- | --- | --- |
+| Windows installer (NSIS, 410×290, 3 pages) | Template, page sequence, variable declarations, DPI maths | A real install on Windows | Shortcut target, uninstall leftovers, high-DPI centring |
+| Windows tray icon | Tray feature enabled in the Cargo manifest | Multi-size set (16/32/48/256) not bundled; only 32×32 was produced | Blurry icon in the taskbar and Alt+Tab |
+| `cargo build` (release) | `cargo check` passes | A full release build | Problems that only surface at link or packaging time |
+| Linux desktop integration | Code shared with the other platforms | A build on any distribution | deb/rpm dependencies, tray fallback when StatusNotifier is absent |
+| 0.5px lines at 125% / 150% scaling | CSS declares a fallback to 1px | Never checked on real hardware | Lines may vanish or look fuzzy |
+| Touch / iPadOS | Specification in `docs/UI-DESIGN.md` §10.6 | Implementation not started | — |
+
+The bar is simple: **once any row above has been walked through manually on its platform with results matching §13 of `docs/UI-DESIGN.md`, it can move off this table.**
+
 ---
 
 ## 16. Changelog

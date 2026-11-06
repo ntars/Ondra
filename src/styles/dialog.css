@@ -27,10 +27,12 @@
 /**
  * 遮罩。
  *
- * `rgba(28,31,29,0.18)` 是 §5.12 写定的值。很浅——比常见的 0.5 浅得多。
- * 理由：这个应用的主色是纸白，遮罩一重就打断了「纸」的质感，
- * 变成一个通用的模态框。0.18 刚好能让背后的内容退后一层，
+ * 色值走 `--scrim-dialog`（`#1c1f1d2e`，即 0.18 不透明），§5.12 写定。很浅——
+ * 比常见的 0.5 浅得多。理由：这个应用的主色是纸白，遮罩一重就打断了
+ * 「纸」的质感，变成一个通用的模态框。0.18 刚好能让背后的内容退后一层，
  * 又不至于看不见它在哪。
+ *
+ * 收成令牌而不是写死：`prefers-reduced-transparency` 要能改它的指向。
  */
 .dialog {
   position: fixed;
@@ -39,7 +41,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(28, 31, 29, 0.18);
+  background: var(--scrim-dialog);
   /* 进场只做遮罩淡入，面板另有位移——两层错开 60ms 会有「弹」的感觉。 */
   animation: dialog-scrim var(--motion-base) var(--ease-fluid);
 }
@@ -116,7 +118,7 @@
  * 下都是唯一可读的选择（与 `titlebar.css` 的关闭键同一判断）。
  */
 .button--danger {
-  background: var(--static-danger);
+  background: var(--alias-state-error-primary);
   color: #fffdf9;
 }
 

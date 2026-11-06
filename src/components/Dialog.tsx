@@ -15,12 +15,14 @@
  * 1. **焦点必须锁在框内**。`Tab` 到最后一个按钮后再按一次要回到第一个。
  *    不锁的话焦点会跑到背后界面上，用户看不见自己按在哪。
  * 2. **关闭后焦点要还原**。打开前记下 `activeElement`，关闭时还回去。
- *    不还原的话键盘用户的焦点会掉到 `body`，得从头 Tab。
+ *    不还原的话键盘用户的焦点会掉到 `body`，得从头 Tab。这件事已收进
+ *    `useRestoreFocus`，与抽屉 / 检查器 / 设置 / 总表共用一份实现。
  * 3. **Esc 只关自己这一层**。父组件通过 `onCancel` 决定关什么，
  *    组件内部不去翻别人的状态。
  */
 
 import { useCallback, useEffect, useRef } from 'react'
+import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 
 export interface DialogProps {
   /** 标题。一句话，不带句号。 */
@@ -83,8 +85,17 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement | null>(null)
   /** 主按钮。初始焦点落在这里。 */
   const confirmRef = useRef<HTMLButtonElement | null>(null)
-  /** 打开前的焦点。关闭时还回去。 */
-  const restoreTo = useRef<Element | null>(null)
+
+  /*
+   * 关闭时把焦点还给触发它的元素（§9.5）。
+   *
+   * 原先这里自己记 `restoreTo` 并在清理函数里还——四处浮层各写一遍，
+   * 迟早有一处漏掉 `isConnected` 判断。收进 `useRestoreFocus` 之后
+   * 抽屉 / 检查器 / 设置 / 总表 / 对话框共用同一份实现。
+   *
+   * 必须写在下面那个聚焦 effect 之前：先记来处，再搬焦点。
+   */
+  useRestoreFocus(true)
 
   /** 退出本层：优先用 `onDismiss`，没给就退回 `onCancel`。 */
   const dismiss = useCallback((): void => {
@@ -99,8 +110,6 @@ export function Dialog({
    * 也挂在 `window` 上，不抢在它们前面，随便按一下 Esc 会连带关掉两层。
    */
   useEffect(() => {
-    restoreTo.current = document.activeElement
-
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.stopPropagation()
@@ -141,10 +150,6 @@ export function Dialog({
 
     return () => {
       globalThis.removeEventListener('keydown', onKeyDown, true)
-      // 还原焦点。只在原元素还挂在文档上时还——否则会把焦点丢给一个
-      // 已经被卸载的节点，浏览器会把焦点重置到 body。
-      const target = restoreTo.current
-      if (target instanceof HTMLElement && target.isConnected) target.focus()
     }
   }, [dismiss])
 

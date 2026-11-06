@@ -21,6 +21,7 @@
 
 import { Icon } from './Icon.tsx'
 import { IconClose } from './icons.ts'
+import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 import type { BondStats, MemoryItem, MoodState } from '../lib/types.ts'
 
 /** 一条双极轨道的读数，`value` 落 −1..1。 */
@@ -81,6 +82,15 @@ export function Inspector({
   onClose,
   onOpenSettings,
 }: InspectorProps): React.JSX.Element {
+  /*
+   * 关闭时把焦点还给触发它的 Spine 按钮（§9.5「关闭浮层 → 回到触发元素」）。
+   *
+   * 检查器是条件渲染的（`App` 里 `inspector ? <Inspector/> : null`），
+   * 所以这里恒传 `true`：挂载即打开，卸载即关闭，钩子的清理函数
+   * 正好在卸载时跑。
+   */
+  useRestoreFocus(true)
+
   /**
    * 双极轨道。心情与张力都是 −1..1 的对称量，精力是 0..1 的单极量。
    *

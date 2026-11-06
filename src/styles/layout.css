@@ -120,7 +120,7 @@
   color: var(--alias-label-primary);
   /* 用 inset 描边而不是 border：border 会把按钮撑大 1px，
      与实心按钮并排放时高度差一像素，肉眼能看出来。 */
-  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .button--ghost:hover {
@@ -176,8 +176,8 @@
   overflow: hidden;
   background: var(--alias-bg-base);
   box-shadow:
-    calc(var(--line-width) * -1) 0 0 0 var(--static-line),
-    var(--line-width) 0 0 0 var(--static-line);
+    calc(var(--line-width) * -1) 0 0 0 var(--alias-border-l1),
+    var(--line-width) 0 0 0 var(--alias-border-l1);
 }
 
 /* 主列的内容滚动区。 */

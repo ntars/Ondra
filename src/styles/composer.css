@@ -216,7 +216,7 @@
   background: var(--specific-menu);
   box-shadow:
     var(--shadow-lv3),
-    inset 0 0 0 var(--line-width) var(--static-line);
+    inset 0 0 0 var(--line-width) var(--alias-border-l1);
 }
 
 .composer__model-item {
