@@ -92,6 +92,24 @@ export interface TimelineProps {
    * 给个空实现会让「点了引用没反应」变成静默失败。
    */
   onQuote(text: string): void
+  /**
+   * 本轮的内联错误（§12.13 第二级）。
+   *
+   * 渲染在消息流末尾，而不是浮在输入框上方：它说的是「上一句没发成」，
+   * 属于这条流水线的一部分。挂在输入框上方会挤掉垂直预算里的 12px 间距，
+   * 而且用户读到它的时候视线正在消息区。
+   */
+  error?: InlineErrorSpec
+}
+
+/** 一条内联错误。 */
+export interface InlineErrorSpec {
+  /** 原因。一句话，不带句号。 */
+  text: string
+  /** 重试。 */
+  onRetry(): void
+  /** 关掉。 */
+  onDismiss(): void
 }
 
 /**
@@ -108,6 +126,7 @@ export function Timeline({
   busy,
   empty,
   onQuote,
+  error,
 }: TimelineProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   /** 是否贴底。用 ref 而不是 state：`onScroll` 每帧都可能触发，不该引起重渲染。 */
@@ -283,6 +302,27 @@ export function Timeline({
                 </div>
               </article>
             ),
+          )}
+
+          {/*
+            内联错误条。放在消息流末尾——它是这一轮的结果，
+            位置就在那条本该回复的消息下面，用户视线不用跳。
+          */}
+          {error === undefined ? null : (
+            <div className="inline-error" role="alert">
+              <span className="inline-error__text">{error.text}</span>
+              <button type="button" className="inline-error__action" onClick={error.onRetry}>
+                重试
+              </button>
+              <button
+                type="button"
+                className="inline-error__action"
+                onClick={error.onDismiss}
+                aria-label="关闭提示"
+              >
+                关闭
+              </button>
+            </div>
           )}
         </div>
       </ScrollArea>

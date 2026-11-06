@@ -83,6 +83,22 @@ function getSpeechRecognition(): SpeechRecognitionCtor | undefined {
 /** 连接阶段。 */
 export type ConnectionPhase = 'connecting' | 'ready' | 'failed'
 
+/**
+ * 连接超时阈值：8 秒（§12.13）。
+ *
+ * ## 为什么是 8 而不是更大或更小
+ *
+ * 本地宿主冷启动实测 1–3 秒（Node 起来 + 加载插件 + 绑端口）。
+ * 8 秒留了两倍余量，够慢机器用；再长用户会开始怀疑应用坏了，
+ * 而那段时间界面只有骨架，没有任何进度可看。
+ *
+ * ## 这个数只用于「判定失败」，不用于「显示进度」
+ *
+ * 超时之前**不显示任何「正在连接」文字**（§12.13 明文）。本地启动
+ * 通常不到一秒，一行会闪一下就没的提示比没有更让人焦虑。
+ */
+const CONNECT_TIMEOUT_MS = 8_000
+
 /** 一条待渲染的消息。 */
 export interface ChatMessage {
   id: string
@@ -323,7 +339,7 @@ export function useAppState(): AppState {
     // 不在壳内（浏览器开发态）时没有事件可听，直接尝试连一次宿主：
     // 开发者可能已经手动启动了宿主，此时不该让界面一直停在连接中。
     if (getConnection() === undefined && getConnectionError() === undefined) {
-      void waitForHost(3_000).then(
+      void waitForHost(CONNECT_TIMEOUT_MS).then(
         () => { setPhase('ready') },
         (caught: unknown) => {
           setPhase('failed')
@@ -773,7 +789,8 @@ export function useAppState(): AppState {
   const retry = useCallback((): void => {
     setPhase('connecting')
     setError(undefined)
-    void waitForHost(20_000).then(
+    // 重试用同一个阈值：手动重试的用户耐心更少，不该比首次等得更久。
+    void waitForHost(CONNECT_TIMEOUT_MS).then(
       () => { setPhase('ready') },
       (caught: unknown) => {
         setPhase('failed')

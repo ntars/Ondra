@@ -109,13 +109,35 @@ function serve() {
   })
 }
 
+/**
+ * 假壳。
+ *
+ * ## 为什么要把监听器与命令调用记在全局
+ *
+ * 有两件事只能靠壳触发：`close-requested`（点窗口 ×）与 `resolve_close`
+ * （确认框的选择）。无头环境没有窗口按钮，所以测试里直接**取回**注册过的
+ * 回调手动调用，再**读回**命令调用记录断言「有没有真的去退出」。
+ *
+ * 这两份记录挂在 `window.__ondraListeners` 与 `window.__ondraCalls` 上，
+ * 不污染产品代码——它们只在这个假壳里存在。
+ */
 const fakeShell = (port) => `
 (() => {
   const url = 'http://127.0.0.1:${String(port)}'
+  const listeners = []
+  const calls = []
+  window.__ondraListeners = listeners
+  window.__ondraCalls = calls
   window.__TAURI__ = {
-    core: { invoke: async (c) => c === 'get_host_state'
-      ? { state: 'ready', url, token: 'dev', port: ${String(port)} } : null },
+    core: { invoke: async (command, args) => {
+      calls.push({ command, args })
+      if (command === 'get_host_state') {
+        return { state: 'ready', url, token: 'dev', port: ${String(port)} }
+      }
+      return null
+    } },
     event: { listen: async (name, handler) => {
+      listeners.push([name, handler])
       if (name === 'host-ready') handler({ payload: { url, token: 'dev', port: ${String(port)} } })
       return () => {}
     } },
@@ -386,6 +408,100 @@ async function run() {
   truthy('复制后出现提示条', toastOk.toast === true)
   eq('提示条距顶 56', 56, toastOk.top)
   truthy('提示条水平居中', toastOk.centered === true)
+
+  // --- 内联错误（§12.13 第二级）---
+  /*
+   * 触发方式：让推理接口返回失败。`/api/` 的兜底路由回 200 `{ok:true}`，
+   * 这里用一条 route 覆写成 500，比改动 serve 的默认行为影响面小。
+   *
+   * 为什么这条必须验：内联错误曾经根本不渲染——`chatError` 在状态里
+   * 有值，界面却一个字都不显示，「发送失败后毫无反应」是这么来的。
+   */
+  await page.route('**/api/inference', (route) => {
+    void route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: '上游超时' }) })
+  })
+  await page.locator('.composer__input').fill('这一条会失败')
+  await page.locator('.composer__input').press('Enter')
+  await page.waitForTimeout(700)
+
+  const inline = await page.evaluate(() => {
+    const bar = document.querySelector('.inline-error')
+    if (bar === null) return { found: false }
+    const inTimeline = bar.closest('.timeline') !== null
+    const rect = bar.getBoundingClientRect()
+    const style = getComputedStyle(bar)
+    return {
+      found: true,
+      inTimeline,
+      text: (bar.textContent ?? '').trim(),
+      // 在可视区内：贴着消息流末尾，不该跑到视口外。
+      visible: rect.top > 0 && rect.top < window.innerHeight,
+      fontSize: style.fontSize,
+      hasRetry: bar.querySelector('.inline-error__action') !== null,
+    }
+  })
+  truthy('失败后出现内联错误条', inline.found === true)
+  truthy('内联错误在消息流内而非浮层', inline.inTimeline === true)
+  same('内联错误字号 12', '12px', inline.fontSize)
+  truthy('内联错误带重试', inline.hasRetry === true)
+  truthy('内联错误可见', inline.visible === true)
+  await page.unroute('**/api/inference')
+  await page.screenshot({ path: join(OUT, 'inline-error-v5.png') })
+
+  // --- 关闭确认框（§2.7 §12.10）---
+  /*
+   * 壳拦截到关闭请求后会发 `close-requested`。测试里直接派发同名事件
+   * 复现那条路径——不必真的去点窗口的 ×（无头环境没有窗口按钮）。
+   *
+   * 关键断言是「宽 400」与「Esc 不退出应用」：前者是 §5.12 的规格，
+   * 后者是这一版修掉的真实风险——把 Esc 接到 onCancel 上，
+   * 用户想「先别关」却把应用退掉了。
+   */
+  await page.evaluate(() => {
+    // 页面的监听是壳通过 `__TAURI__.event.listen` 注册的，测试的假壳
+    // 记下了这些回调，这里取出来直接调。
+    for (const [name, handler] of (window.__ondraListeners ?? [])) {
+      if (name === 'close-requested') handler({ payload: null })
+    }
+  })
+  await page.waitForTimeout(400)
+
+  const dialog = await page.evaluate(() => {
+    const panel = document.querySelector('.dialog__panel')
+    if (panel === null) return { found: false }
+    const rect = panel.getBoundingClientRect()
+    const scrim = document.querySelector('.dialog')
+    return {
+      found: true,
+      w: Math.round(rect.width),
+      centered: Math.abs((rect.left + rect.right) / 2 - window.innerWidth / 2) <= 1,
+      radius: getComputedStyle(panel).borderRadius,
+      modal: panel.getAttribute('aria-modal'),
+      scrimBg: scrim === null ? '' : getComputedStyle(scrim).backgroundColor,
+      hasRemember: panel.querySelector('.dialog__check input') !== null,
+      // 初始焦点必须落在主按钮上，不是勾选框。
+      focusedText: (document.activeElement?.textContent ?? '').trim(),
+    }
+  })
+  truthy('关闭时弹出确认框', dialog.found === true)
+  eq('确认框宽 400', 400, dialog.w)
+  truthy('确认框水平居中', dialog.centered === true)
+  same('确认框圆角 16', '16px', dialog.radius)
+  truthy('确认框是 aria-modal', dialog.modal === 'true')
+  truthy('确认框有「记住选择」', dialog.hasRemember === true)
+  same('初始焦点在主按钮', '隐藏到托盘', dialog.focusedText)
+  await page.screenshot({ path: join(OUT, 'close-dialog-v5.png') })
+
+  // Esc 关掉确认框，且必须**不**触发退出。
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  const afterEsc = await page.evaluate(() => ({
+    dialogGone: document.querySelector('.dialog__panel') === null,
+    // 退出走的是 `resolve_close` 命令。假壳把调用记在 __ondraCalls 里。
+    quitCalled: (window.__ondraCalls ?? []).some((call) => call.command === 'resolve_close'),
+  }))
+  truthy('Esc 关掉确认框', afterEsc.dialogGone === true)
+  truthy('Esc 不退出应用', afterEsc.quitCalled === false)
 
   await page.screenshot({ path: join(OUT, 'composer-v5.png') })
 

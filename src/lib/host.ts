@@ -215,18 +215,49 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 /** 从错误响应体里提取可读消息。 */
+/**
+ * 从错误响应体里取一句人话。
+ *
+ * ## 为什么不能「取不到就把原文返回」
+ *
+ * 曾经的实现是：JSON 里没有 `error` 键就返回原文前 200 字。于是宿主
+ * 返回 `{"message":"上游超时"}` 时，界面上那条红色错误条显示的就是
+ * 一整个 JSON 字面量——用户不知道该怎么读。这不是测试环境的特例，
+ * 任何返回标准 `{message}` 结构的上游都会这样。
+ *
+ * 现在的规则：只认几个常见的消息键（`error` / `message` / `detail`），
+ * 认不出就返回 `undefined`，由调用方退到「请求失败（状态码）」。
+ * **宁可不给细节，也不把机器格式甩给用户。**
+ *
+ * 非 JSON 的响应（宿主崩了返回 HTML 错误页）仍然返回原文截断：
+ * 那种情况原文本来就是一段话，且极短。
+ */
 function extractErrorMessage(text: string): string | undefined {
-  if (text.trim() === '') return undefined
+  const trimmed = text.trim()
+  if (trimmed === '') return undefined
+
   try {
-    const parsed: unknown = JSON.parse(text)
-    if (typeof parsed === 'object' && parsed !== null && 'error' in parsed) {
-      const message = (parsed as Record<string, unknown>).error
-      if (typeof message === 'string') return message
+    const parsed: unknown = JSON.parse(trimmed)
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as Record<string, unknown>
+      for (const key of ['error', 'message', 'detail'] as const) {
+        const value = record[key]
+        if (typeof value === 'string' && value.trim() !== '') return value.trim()
+        // `{ error: { message: '…' } }` 这种嵌套也见过，取一层。
+        if (typeof value === 'object' && value !== null) {
+          const inner = (value as Record<string, unknown>).message
+          if (typeof inner === 'string' && inner.trim() !== '') return inner.trim()
+        }
+      }
+      // 认得出是 JSON 但没有可读消息：交给调用方给状态码。
+      return undefined
     }
+    // JSON 但不是对象（字符串 / 数字）：它可能本来就是一句话。
+    return typeof parsed === 'string' ? parsed : undefined
   } catch {
-    // 不是 JSON 就退回原文。宿主异常时可能返回 HTML 错误页。
+    // 不是 JSON。宿主异常的 HTML 页面也走这里，截断即可。
+    return text.slice(0, 200)
   }
-  return text.slice(0, 200)
 }
 
 /** 流式响应的一帧。 */

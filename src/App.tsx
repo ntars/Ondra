@@ -12,11 +12,14 @@
  * 而不是 column。挂在 column 里会被 column 的 `overflow: hidden` 裁掉，
  * 挂在 shell 里则会让「top: 0」跑到标题栏下面去。
  *
- * ## 本批范围（第 5 批前半）
+ * ## 本批范围（第 5 批）
  *
- * 完整 Composer（§5.6）、overlay 滚动条（§12.1）、Toast（§5.10）、
+ * 前半：完整 Composer（§5.6）、overlay 滚动条（§12.1）、Toast（§5.10）、
  * 消息悬停操作（§5.7 §12.7）、拖拽提示（§12.14）、窗口失焦暂停呼吸（§12.9）。
- * 托盘与 Windows 安装器属同一批的后半，下一轮做。
+ *
+ * 后半：关闭确认（§2.7 §12.10）、托盘联动（§12.10）、
+ * 错误四级分级（§12.13）与 8 秒连接超时。
+ * Windows 安装器在 Rust 产物侧，不在这个文件。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -31,7 +34,9 @@ import { Timeline } from './components/Timeline.tsx'
 import { Composer } from './components/Composer.tsx'
 import { Mark } from './components/Mark.tsx'
 import { Settings } from './components/Settings.tsx'
+import { Dialog } from './components/Dialog.tsx'
 import { ToastProvider, useToast } from './components/Toast.tsx'
+import { invokeShell, isDesktopShell, listenShell } from './lib/shell.ts'
 import { isMac } from './lib/platform.ts'
 
 /** 渲染应用。外层只包一个 Toast 提供者。 */
@@ -68,6 +73,16 @@ function Shell(): React.JSX.Element {
   const [dragging, setDragging] = useState(false)
   /** 拖动是否停在窗口内。`dragleave` 在子元素之间移动时也会触发，需要计数。 */
   const dragDepth = useRef(0)
+  /**
+   * 是否要弹「关闭窗口 = 隐藏到托盘」的确认框。
+   *
+   * 由壳在拦截到关闭请求时通过 `close-requested` 事件触发（§2.7）。
+   * 首次关闭必须解释——Windows 用户按 × 时认为程序结束了，
+   * 默默把它藏到托盘等于骗他。
+   */
+  const [closing, setClosing] = useState(false)
+  /** 确认框里「以后直接退出」的勾选状态。 */
+  const [rememberClose, setRememberClose] = useState(false)
 
   /**
    * 点击 Rail 入口。
@@ -112,6 +127,10 @@ function Shell(): React.JSX.Element {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
 
+      // 关闭确认框打开时不处理：那一层自己接管 Esc（它用 capture 阶段
+      // 并且会 stopPropagation，这里是第二道防线）。
+      if (closing) return
+
       // 生成中优先停生成，此时不关任何层。
       if (state.busy) {
         void state.stop()
@@ -134,7 +153,71 @@ function Shell(): React.JSX.Element {
 
     globalThis.addEventListener('keydown', onKeyDown)
     return () => { globalThis.removeEventListener('keydown', onKeyDown) }
-  }, [state.busy, state.stop, drawer, inspector, settings])
+  }, [state.busy, state.stop, drawer, inspector, settings, closing])
+
+  /**
+   * 壳发来的窗口级事件。
+   *
+   * 三条，各对应一个「界面看得见、但决定权在壳手里」的动作：
+   *
+   * - `close-requested`：首次点关闭。壳拦下了，问用户想隐藏还是退出。
+   * - `close-degraded`：托盘不可用（Linux 无 StatusNotifier），
+   *   关闭降级为最小化。得告诉用户原因，否则他以为窗口丢了。
+   * - `open-drawer` / `toggle-mute`：托盘菜单里的两项。
+   *
+   * 这个 effect 只注册在桌面壳里。浏览器开发态没有这些事件，
+   * 注册了也永远不会触发，白占一个监听。
+   */
+  useEffect(() => {
+    if (!isDesktopShell()) return
+
+    const offClose = listenShell<null>('close-requested', () => {
+      setRememberClose(false)
+      setClosing(true)
+    })
+    const offDegraded = listenShell<null>('close-degraded', () => {
+      toast({ text: '这台机器没有托盘，关闭改为最小化', tone: 'error' })
+    })
+    const offDrawer = listenShell<string>('open-drawer', (key) => {
+      if (key === 'today' || key === 'week' || key === 'memory' || key === 'theater') {
+        setDrawer(key)
+        setInspector(false)
+        setSettings(false)
+      }
+    })
+    /*
+     * 静音 1 小时（§12.12）。
+     *
+     * 真正的静音状态机还没接（声音模块整体待做），这里只给反馈。
+     * 假装已经静音而不改任何东西，比明确说「还没接」更糟——
+     * 用户会以为按了没反应。
+     */
+    const offMute = listenShell<null>('toggle-mute', () => {
+      toast('声音还没接上，暂时没有可静音的')
+    })
+
+    return () => {
+      offClose()
+      offDegraded()
+      offDrawer()
+      offMute()
+    }
+  }, [toast])
+
+  /**
+   * 在关闭确认框里做出选择。
+   *
+   * 两个动作都要交给壳执行：隐藏窗口与退出进程都不是前端能做的事。
+   * 调用失败时退回「什么都不做」——窗口留在原地，用户能再点一次，
+   * 比一个卡住的确认框好。
+   */
+  const resolveClose = useCallback((action: 'hide' | 'quit'): void => {
+    setClosing(false)
+    void invokeShell<null>('resolve_close', { action, remember: rememberClose }).catch((caught: unknown) => {
+      console.error('关闭方式未能生效', caught)
+      toast({ text: '没能关掉窗口，再试一次', tone: 'error' })
+    })
+  }, [rememberClose, toast])
 
   /** `Cmd/Ctrl + Shift + I` 开关检查器（§9.1）。 */
   useEffect(() => {
@@ -254,21 +337,55 @@ function Shell(): React.JSX.Element {
   }, [state])
 
   if (state.phase === 'failed') {
+    /*
+     * 第四级：故障页（§12.13）。
+     *
+     * 替换主列内容、保留双脊——但此刻还没有会话，双脊无从谈起，
+     * 所以只留标题栏。判据是「连不上宿主」，此时用户什么都做不了，
+     * 唯一有用的信息是「什么没连上」与三个出口：重试、看日志、退出。
+     *
+     * 不给「转圈 + 重试」：转圈在故障态是骗人的，它暗示还在努力。
+     */
     return (
       <div className="shell">
         <TitleBar title="" />
         <div className="fatal">
           <p className="fatal__title">没能连接上后台服务</p>
           <p className="fatal__detail">{state.error ?? '未知原因'}</p>
-          <button type="button" className="button button--ghost" onClick={state.retry}>
-            重试
-          </button>
+          <div className="fatal__actions">
+            <button type="button" className="button button--primary" onClick={state.retry}>
+              重试
+            </button>
+            {/*
+              「查看日志」：壳会把日志目录在文件管理器里打开。
+              不在壳内（浏览器开发态）时这个命令会抛，静默降级为提示——
+              开发者在浏览器里也看不到应用日志，给他一个假按钮更糟。
+            */}
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => {
+                void invokeShell<string>('open_log_dir').catch(() => {
+                  toast('不在桌面壳里，看不到应用日志')
+                })
+              }}
+            >
+              查看日志
+            </button>
+          </div>
         </div>
       </div>
     )
   }
 
   if (state.phase === 'connecting') {
+    /*
+     * 第一级：骨架（§12.13）。
+     *
+     * 三块纯色矩形，**不写任何「正在连接」文字**。本地宿主启动通常不到
+     * 一秒，一行会闪一下就没的提示比没有更让人焦虑——用户会读到一半
+     * 被抽走。8 秒超时前一律只有骨架（阈值见 `CONNECT_TIMEOUT_MS`）。
+     */
     return (
       <div className="shell">
         <TitleBar title="" />
@@ -282,6 +399,24 @@ function Shell(): React.JSX.Element {
   }
 
   const title = state.inConversation ? (state.title === '' ? '新对话' : state.title) : ''
+
+  /**
+   * 第二级：内联错误（§12.13）。
+   *
+   * 发送失败、模型报错归这一级——用户还在这个对话里，他要的是
+   * 「这一条怎么了」加一个重试，不是整屏的道歉。
+   *
+   * `chatError` 与 `phase.error` 是两件事：后者是通道断了（第四级），
+   * 前者是这一轮没说成（第二级）。混用会让「模型超时」看起来像
+   * 「应用崩了」。
+   */
+  const inlineError = state.chatError === undefined
+    ? undefined
+    : {
+      text: state.chatError,
+      onRetry: (): void => { void state.send() },
+      onDismiss: state.dismissChatError,
+    }
 
   return (
     <div className="shell" data-window-blurred={blurred ? '' : undefined}>
@@ -309,6 +444,11 @@ function Shell(): React.JSX.Element {
               busy={state.busy}
               empty={state.messages.length === 0 && !state.busy}
               onQuote={quote}
+              /*
+                条件展开而不是 `error={inlineError}`：项目开了
+                `exactOptionalPropertyTypes`，可选属性不接受显式 undefined。
+              */
+              {...(inlineError === undefined ? {} : { error: inlineError })}
             />
             <Composer
               value={state.draft}
@@ -322,8 +462,7 @@ function Shell(): React.JSX.Element {
               models={state.models}
               modelId={state.modelId}
               onSelectModel={state.setModel}
-            />
-          </main>
+            />          </main>
 
           <Spine
             mood={state.mood.mood}
@@ -400,6 +539,35 @@ function Shell(): React.JSX.Element {
           <div className="dropzone__frame" />
           <span className="dropzone__hint">松手添加附件</span>
         </div>
+      ) : null}
+
+      {/*
+        首次关闭的解释框（§2.7）。
+        §12.10 要求「关闭 = 隐藏到托盘」，而 Windows 用户默认认为关闭
+        即退出——两个预期冲突，只能当场解释一次，并让他记住选择。
+      */}
+      {closing ? (
+        <Dialog
+          title="关掉窗口，她还在"
+          confirmLabel="隐藏到托盘"
+          cancelLabel="退出应用"
+          onConfirm={() => { resolveClose('hide') }}
+          onCancel={() => { resolveClose('quit') }}
+          /* Esc 与点遮罩 = 「先别关」，不是「退出应用」。 */
+          onDismiss={() => { setClosing(false) }}
+          extra={
+            <label className="dialog__check">
+              <input
+                type="checkbox"
+                checked={rememberClose}
+                onChange={(event) => { setRememberClose(event.target.checked) }}
+              />
+              记住我的选择，以后不再问
+            </label>
+          }
+        >
+          空谷会继续在托盘里待着，点一下图标就能回来。想在托盘菜单里彻底退出，选「退出」。
+        </Dialog>
       ) : null}
     </div>
   )

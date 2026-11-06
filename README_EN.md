@@ -2636,9 +2636,14 @@ The kernel's 13 methods are called over JSON-RPC 2.0 framed as newline-delimited
 | `tools/prepare-plugins.mjs` | Generates the shared build configuration for migrated plugins |
 | `tools/build-site.mjs` | Collects website static files and strips macOS metadata |
 | `tools/smoke.mjs` | Three-layer smoke test |
+| `tools/check-ui.mjs` | UI spec assertions: dimensions, layering, token definitions, the close dialog and the error tiers |
+| `tools/check-installer.mjs` | Windows installer script syntax: renders the placeholders, then compiles once with makensis |
 | `src-tauri/src/main.rs` | Shell entry: window, events, cleanup on exit |
 | `src-tauri/src/host.rs` | Host process management: start, wait, stop |
 | `src-tauri/src/commands.rs` | Native capability commands |
+| `src-tauri/src/tray.rs` | Tray icon and menu: open, today, mute, quit |
+| `src-tauri/src/window.rs` | Close interception: hide to tray or quit, preference persisted, falls back to minimise when no tray exists |
+| `src-tauri/installer/installer.nsi` | Windows installer script: three pages, 410 × 290, DPI aware |
 | `src/lib/host.ts` | The single entry for front-end to host communication |
 | `src/lib/shell.ts` | Thin wrapper for front-end to shell communication |
 | `src/lib/api.ts` | Business interface wrappers |
@@ -2934,13 +2939,15 @@ Ordered by dependency, where each item is a prerequisite for the next.
 ### 18.2 Checks before committing
 
 ```bash
-pnpm run typecheck   # type check across the workspace
-pnpm run build       # build front end, host and kernel
-pnpm run smoke       # three-layer smoke test
-pnpm run check:core  # plugin assembly check
+pnpm run typecheck        # type check across the workspace
+pnpm run build            # build front end, host and kernel
+pnpm run smoke            # three-layer smoke test
+pnpm run check:core       # plugin assembly check
+pnpm run check:ui         # UI spec assertions and token check
+pnpm run check:installer  # Windows installer script syntax (needs makensis)
 ```
 
-All four must pass before a commit. The assembly check exits non-zero when anything is skipped, so it serves directly as a gate.
+All six must pass before a commit. The assembly check exits non-zero when anything is skipped, so it serves directly as a gate. `check:installer` exits with code 2 (a skip, not a failure) where `makensis` is absent; where it is present the script compiles the installer for real. The installer script is over a thousand lines and is only ever consumed by the Tauri bundler on Windows — this check is the only way to surface its problems on the development machine.
 
 ### 18.3 Reporting problems
 

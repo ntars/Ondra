@@ -14,6 +14,8 @@
 
 mod commands;
 mod host;
+mod tray;
+mod window;
 
 use std::sync::Arc;
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
@@ -62,6 +64,16 @@ fn main() {
                 }
             });
 
+            // 托盘。失败不致命：主窗口还能用，只是关闭语义降级为最小化
+            // （Linux 上 GNOME 没装 StatusNotifier 扩展时会发生）。
+            match tray::create(&handle) {
+                Ok(_) => window::set_tray_available(true),
+                Err(error) => {
+                    eprintln!("[shell] 托盘创建失败，关闭行为降级为最小化：{error}");
+                    window::set_tray_available(false);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -71,12 +83,26 @@ fn main() {
             commands::reveal_in_folder,
             commands::get_theme,
             commands::set_window_title,
+            commands::resolve_close,
+            commands::show_main_window,
+            commands::open_log_dir,
         ])
         .on_window_event(|window, event| {
-            // 关窗即退出：这个应用是单窗口形态，留在托盘里继续跑
-            // 会让用户以为已经关掉，实际仍在占资源。
-            if let WindowEvent::CloseRequested { .. } = event {
-                let _ = window.app_handle().exit(0);
+            /*
+             * 关闭不是退出（§2.1、§2.7）。
+             *
+             * 这里不直接 `exit`：交给 `window::intercept_close` 判断
+             * 该隐藏、该最小化、还是该问一次用户。它返回 true 表示
+             * 已经自己处理完了，我们只要把窗口留在原地即可。
+             *
+             * `api.prevent_close()` 必须无条件调用——它阻止的是这一次
+             * 系统级的销毁，之后的去留由我们决定。不调它，窗口在
+             * 判断完成前就已经没了。
+             */
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window::intercept_close(window.app_handle()) {
+                    api.prevent_close();
+                }
             }
         })
         .build(tauri::generate_context!())

@@ -2613,9 +2613,14 @@ pnpm 生成的 `node_modules` 分两层，理解这一点能解释「为什么�
 | `tools/prepare-plugins.mjs` | 为迁入插件生成统一的 `package.json` 与 `tsconfig.json` |
 | `tools/build-site.mjs` | 官网静态文件收集与 macOS 元数据剔除 |
 | `tools/smoke.mjs` | 三层链路冒烟测试 |
+| `tools/check-ui.mjs` | UI 规范断言：尺寸、层级、令牌定义、关闭框与错误分级 |
+| `tools/check-installer.mjs` | Windows 安装脚本语法检查：渲染占位符后用 makensis 真编译一遍 |
 | `src-tauri/src/main.rs` | 壳入口：窗口、事件、退出清理 |
 | `src-tauri/src/host.rs` | 宿主进程管理：启动、等待、停止 |
 | `src-tauri/src/commands.rs` | 本机能力命令 |
+| `src-tauri/src/tray.rs` | 托盘图标与菜单：打开、今天、静音、退出 |
+| `src-tauri/src/window.rs` | 关闭拦截：隐藏到托盘 / 退出，偏好落盘，无托盘时降级最小化 |
+| `src-tauri/installer/installer.nsi` | Windows 安装器脚本：三页流程、410 × 290、DPI 自适应 |
 | `src/lib/host.ts` | 前端与宿主通信的唯一入口 |
 | `src/lib/shell.ts` | 前端与壳通信的薄封装 |
 | `src/lib/api.ts` | 业务接口封装 |
@@ -2911,13 +2916,15 @@ Ondra/
 ### 18.2 提交前检查
 
 ```bash
-pnpm run typecheck   # 全部工作区类型检查
-pnpm run build       # 构建前端、宿主、内核
-pnpm run smoke       # 三层链路冒烟测试
-pnpm run check:core  # 插件装配核对
+pnpm run typecheck        # 全部工作区类型检查
+pnpm run build            # 构建前端、宿主、内核
+pnpm run smoke            # 三层链路冒烟测试
+pnpm run check:core       # 插件装配核对
+pnpm run check:ui         # UI 规范断言与令牌核对
+pnpm run check:installer  # Windows 安装脚本语法（需要 makensis）
 ```
 
-四项全部通过方可提交。`check:core` 有跳过项时会以非零退出码结束，可直接用作判据。
+六项全部通过方可提交。`check:core` 有跳过项时会以非零退出码结束，可直接用作判据。`check:installer` 在没装 `makensis` 的环境退出码为 2（跳过而非失败），装了则真编译一遍安装器——安装脚本一千多行，只有 Windows 才能被 Tauri 打包器吃进去，这个检查是把它的问题提前到本机暴露的唯一手段。
 
 ### 18.3 报告问题
 

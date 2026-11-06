@@ -289,3 +289,50 @@ pub async fn get_theme(window: tauri::Window) -> Result<String, String> {
 pub async fn set_window_title(window: tauri::Window, title: String) -> Result<(), String> {
     window.set_title(&title).map_err(|error| format!("设置标题失败：{error}"))
 }
+
+/// 关闭 Dialog 里做出的选择。
+///
+/// `action` 取 `"hide"` 或 `"quit"`；`remember` 为真时写盘，此后不再询问。
+///
+/// # 为什么这个命令要暴露给前端
+///
+/// 首次关闭的对话框是前端画的（要遵守 §5.12 的 Dialog 规格：宽 400、
+/// 遮罩 0.18、Esc 关闭、焦点锁定）。Rust 侧画不了这种框，
+/// 它只负责在拦截时发一条事件，等前端把选择传回来。
+#[tauri::command]
+pub async fn resolve_close(app: tauri::AppHandle, action: String, remember: bool) -> Result<(), String> {
+    let choice = match action.as_str() {
+        "hide" => crate::window::CloseAction::Hide,
+        "quit" => crate::window::CloseAction::Quit,
+        other => return Err(format!("未知的关闭方式：{other}")),
+    };
+    crate::window::apply_close_choice(&app, choice, remember);
+    Ok(())
+}
+
+/// 从托盘唤回窗口。前端也用它做「从设置里回到主界面」。
+#[tauri::command]
+pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    crate::window::reveal(&app);
+    Ok(())
+}
+
+/// 宿主日志目录。
+///
+/// 故障页的「查看日志」要能打开一个真实存在的位置。宿主把 stderr 转发到
+/// 壳的日志通道，落盘位置在这里统一给出，避免前端拼路径。
+///
+/// 取不到日志目录时退回配置目录——总比给一个不存在的路径好。
+#[tauri::command]
+pub async fn open_log_dir(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_log_dir()
+        .or_else(|_| app.path().app_config_dir())
+        .map_err(|error| format!("取不到日志目录：{error}"))?;
+    std::fs::create_dir_all(&dir).map_err(|error| format!("创建日志目录失败：{error}"))?;
+    let target = dir.to_string_lossy().to_string();
+    reveal_in_folder(target.clone()).await?;
+    Ok(target)
+}

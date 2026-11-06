@@ -1,0 +1,296 @@
+/**
+ * 对话框与错误分级。
+ *
+ * ## 为什么单独一个文件
+ *
+ * Dialog 是 §5.12 的独立规格（宽 400、遮罩 0.18、圆角 16），
+ * 错误分级是 §12.13 的四级。两者都不属于任何已有组件文件——
+ * 放进 `layout.css` 会让那个文件继续膨胀，它已经有一千多行。
+ *
+ * ## 四级为什么必须分开写
+ *
+ * §12.13 的表格里每一级都对应一个不同的**用户处境**：
+ *
+ *   骨架   她在启动，通常 < 1s，用户只是等
+ *   内联   一句话没发出去，用户还在这个对话里
+ *   提示条 用户主动做的事失败了，他知道自己按了什么
+ *   故障页 整条通道断了，用户什么都做不了
+ *
+ * 用同一种样式表达这四件事，用户就得每次重新判断「这是多严重」。
+ * 严重的那个必须看起来更严重。
+ */
+
+/* ---------------------------------------------------------------------------
+   Dialog（§5.12）
+   --------------------------------------------------------------------------- */
+
+/**
+ * 遮罩。
+ *
+ * `rgba(28,31,29,0.18)` 是 §5.12 写定的值。很浅——比常见的 0.5 浅得多。
+ * 理由：这个应用的主色是纸白，遮罩一重就打断了「纸」的质感，
+ * 变成一个通用的模态框。0.18 刚好能让背后的内容退后一层，
+ * 又不至于看不见它在哪。
+ */
+.dialog {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28, 31, 29, 0.18);
+  /* 进场只做遮罩淡入，面板另有位移——两层错开 60ms 会有「弹」的感觉。 */
+  animation: dialog-scrim var(--motion-base) var(--ease-fluid);
+}
+
+@keyframes dialog-scrim {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/**
+ * 面板本体。
+ *
+ * 宽 400 固定而不是 `max-width`：这个框里永远是一两句话加两个按钮，
+ * 内容不会多到需要自适应。写死让它在不同文案下宽度一致，
+ * 连续弹两次时不会一大一小。
+ */
+.dialog__panel {
+  width: 400px;
+  max-width: calc(100% - 48px);
+  padding: 24px;
+  border-radius: var(--radius-panel);
+  background: var(--alias-bg-overlay);
+  box-shadow: var(--shadow-lv3);
+  animation: dialog-panel var(--motion-base) var(--ease-fluid);
+}
+
+@keyframes dialog-panel {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+.dialog__body {
+  margin-top: 8px;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--alias-label-secondary);
+}
+
+/* 勾选框那类附加内容。与正文拉开距离，但不用分割线。 */
+.dialog__extra {
+  margin-top: 16px;
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/**
+ * 危险动作的主按钮：红底。
+ *
+ * 形状与主按钮完全一致，只换色——危险是**语气**，不该让按钮看起来
+ * 像另一种控件。
+ *
+ * 字色直接写 `#fffdf9` 而不是引 `--specific-toast-ink`：那个令牌属于
+ * 提示条，跨语义引用会让它的名字变成谎言，日后改提示条会连带改到这里。
+ * 这里的依据是「红底上白字」，浅色 `#C12819`、深色 `#FF6B5E` 两种底板
+ * 下都是唯一可读的选择（与 `titlebar.css` 的关闭键同一判断）。
+ */
+.button--danger {
+  background: var(--static-danger);
+  color: #fffdf9;
+}
+
+.button--danger:hover {
+  /* 悬停压暗而不是提亮：红底提亮会往粉走，看起来像警告降级了。 */
+  filter: brightness(0.92);
+}
+
+/**
+ * 勾选框行。
+ *
+ * 原生 `input[type=checkbox]` 在各平台的渲染差异极大（macOS 是圆角小方块、
+ * Windows 是方角），与界面其余部分不搭。但自绘一个要处理键盘、读屏、
+ * 高对比度三件事。折中：保留原生控件，只统一尺寸与间距，
+ * 用 `accent-color` 把选中色改成玄青——这是 2023 年后各内核都支持的做法。
+ */
+.dialog__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+  user-select: none;
+  cursor: pointer;
+}
+
+.dialog__check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent-fill);
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   错误分级（§12.13）
+   --------------------------------------------------------------------------- */
+
+/**
+ * 第二级：内联错误条。
+ *
+ * 贴在消息流内、12px 红字、右侧一个「重试」。它不占满整块宽度——
+ * 一眼就能看出这是「这一条出了问题」，不是「整个应用出问题了」。
+ *
+ * 左边那条 2px 竖线用 `::before` 而不是 `border-left`：
+ * border 会把文字推右 2px，正常态与错误态起点不同，切换时文字会横向跳。
+ */
+.inline-error {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-state-error-primary);
+}
+
+.inline-error::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--alias-state-error-primary);
+}
+
+.inline-error__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inline-error__action {
+  flex: none;
+  font-size: var(--text-caption);
+  color: var(--alias-state-error-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.inline-error__action:hover {
+  /* 悬停不换色，只加深——红线已经是这一级的最高音量，
+     再往上加就没有余地了。 */
+  opacity: 0.75;
+}
+
+/* ---------------------------------------------------------------------------
+   故障页（第四级）
+   --------------------------------------------------------------------------- */
+
+/**
+ * 故障页替换**主列内容**，保留双脊（§12.13）。
+ *
+ * 「保留双脊」是有意的：Rail 还能点、Spine 还在显示她的状态，
+ * 说明这个应用只是连不上后台，不是整个坏了。整屏白底大字反而像崩溃。
+ */
+.fatal {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 64px;
+  text-align: center;
+}
+
+/**
+ * 故障页的标题。
+ *
+ * 用 `--text-title` 而不是 display 级大字：故障状态下不该有「隆重感」。
+ * 用户此刻需要的是信息与一个按钮，不是一块海报。
+ */
+.fatal__title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+/**
+ * 原因。
+ *
+ * 可选中复制：这类文本常含路径、端口、堆栈，用户要拿它去搜索或发给别人。
+ * `break-all` 而不是 `break-word`——堆栈里常有超长的连续路径段，
+ * 只断词的话会把容器撑破。
+ */
+.fatal__detail {
+  max-width: 420px;
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+  user-select: text;
+  word-break: break-all;
+}
+
+.fatal__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/**
+ * 骨架（第一级）。
+ *
+ * 三块纯色矩形，不做闪光（§12.13 明文「不做闪光」）。
+ * 闪光骨架屏是内容型应用的形状——它在说「马上就有很多内容」。
+ * 这里的等待通常不到一秒，闪一下反而显得慢。
+ */
+.skeleton {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 64px;
+}
+
+.skeleton > div {
+  height: 14px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-skeleton);
+}
+
+.skeleton > div:nth-child(2) {
+  width: 72%;
+}
+
+.skeleton > div:last-child {
+  width: 48%;
+}
