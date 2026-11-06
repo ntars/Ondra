@@ -40,7 +40,7 @@ import type { IconInput } from 'morphicons/react'
 export type IconSize = 16 | 20
 
 export interface IconProps {
-  /** 图标数据，来自 `icons.tsx`。 */
+  /** 图标数据，来自 `icons.ts`。 */
   icon: IconInput
   /** 尺寸。默认 16；触屏环境的发送键与关闭叉用 20。 */
   size?: IconSize

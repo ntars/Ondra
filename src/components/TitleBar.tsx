@@ -30,7 +30,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Icon } from './Icon.tsx'
-import { IconChevronDown } from './icons.tsx'
+import { IconChevronDown } from './icons.ts'
 import { invokeShell } from '../lib/shell.ts'
 import { isWindows } from '../lib/platform.ts'
 
@@ -57,9 +57,9 @@ function windowCommand(command: string): void {
 /**
  * 三个窗口键的图标。
  *
- * 用 path 直接画而不是复用 `icons.tsx`：这三个是**平台约定图形**，
+ * 用 path 直接画而不是复用 `icons.ts`：这三个是**平台约定图形**，
  * 与界面图标不是一套语言（10px 网格、1px 线宽，比界面图标细）。
- * 混进 `icons.tsx` 会诱导后续有人在别处用它们。
+ * 混进 `icons.ts` 会诱导后续有人在别处用它们。
  */
 function MinimizeGlyph(): React.JSX.Element {
   return (

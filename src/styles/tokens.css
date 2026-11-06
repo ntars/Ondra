@@ -126,6 +126,17 @@
      在 paper-3 上为 4.61:1（原 `#c42b1c` 只有 4.46，差 0.04 不达标）。 */
   --static-danger: #c12819;
 
+  /* --- 水位（心情）--------------------------------------------------------
+   * §5.7 给了两个定值：心情 ≤ 0 用冷青 `#5B7A73`，≥ 0 用暖砂 `#B08A5A`，
+   * 中间按线性插值。它们**不是** teal / sand 的别名——水位表达的是心情
+   * 连续谱，两端之间要能插出中间色，直接指向某个不透明色档会失去这个能力。
+   *
+   * 冷青比 `teal-600` 浅、暖砂就是 `sand-500`：浅色下两者在纸底上都够清楚，
+   * 且都不是蓝色。深色下两者都要提亮，否则水位贴在 `paper-1` 上看不见。
+   */
+  --static-water-cold: #5b7a73;
+  --static-water-warm: #b08a5a;
+
   /* --- 旧名兼容 -----------------------------------------------------------
    * 旧版用 `--static-neutral-bluish-*` 阶梯。它们仍有引用，不能删，
    * 但也不能留着旧色值——留着会让"换了配色却没换干净"变成长期状态。
@@ -238,6 +249,15 @@
   --alias-state-error-tertiary: var(--static-red-100);
   --alias-state-idle-primary: var(--static-ink-4);
   --alias-state-idle-tertiary: var(--alias-interactive-bg-hover);
+
+  /* --- 水位 ---------------------------------------------------------------
+   * 水位填充色由 JS 按心情值在两端之间插值后写进 `--specific-water`，
+   * 组件只读 `--specific-water`，不自己算色。这里给两个端点做兜底，
+   * 保证 JS 还没跑起来时水位也不是透明。
+   */
+  --specific-water: var(--static-water-warm);
+  --specific-water-cold: var(--static-water-cold);
+  --specific-water-warm: var(--static-water-warm);
 
   /* 链接与可点文字。与主操作同色，不另设一档。 */
   --alias-link: var(--static-teal-600);
@@ -429,7 +449,20 @@
   --text-w: 588px;
   --composer-w: 620px;
   --drawer-w: 300px;
-  --inspector-w: 224px;
+  /**
+   * 检查器宽 300，与抽屉同宽。
+   *
+   * 曾经写成 224——那是 §5.8 表格里「元素 x 坐标 464」倒推出来的错觉
+   * （764 − 300 = 464，464 不是宽度）。§5.8 明写「宽度 300px」，
+   * 按 300 落地，覆盖主列右侧时左边界正好落在 x = 464。
+   */
+  --inspector-w: 300px;
+
+  /**
+   * 呼吸周期。由 `ondra-rhythm` 写入，`3–7s` 是**完整一轮**（不是单程）。
+   * 没接上心跳时给 5s 的中间值：只是让呼吸不停，不代表真实频率。
+   */
+  --breath-period: 5s;
 
   /**
    * 旧名兼容。`--chat-content-width` 原为 `clamp(680px, 64%, 920px)`，
@@ -544,6 +577,11 @@
 
   --static-sand-500: #c9a578;
   --static-sand-700: #ad9777;
+
+  /* 水位两端在深底上都要提亮：`#5b7a73` 贴 `paper-1` 几乎融进去，
+     `#b08a5a` 也偏暗。提亮后两端仍彼此可分，插值区间才看得见。 */
+  --static-water-cold: #8fb0a6;
+  --static-water-warm: #d4b285;
 
   --static-green-500: #7fbf9a;
   --static-green-100: #1e2a24;

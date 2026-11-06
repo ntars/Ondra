@@ -1,0 +1,221 @@
+/**
+ * 右侧脊（Spine）样式。
+ *
+ * ## 坐标换算
+ *
+ * `docs/UI-DESIGN.md` §5.7 给的是**全局** y 值（含 44px 标题栏）。脊本身
+ * 从 y = 44 起算，因此每条都要减 44：
+ *
+ *   顶部标签 y = 64  → 局部 20
+ *   水位起点 y = 80  → 局部 36
+ *   水位终点 y = 230 → 局部 186（36 + 150 − 6？不，是 36 + 150 = 186 已含在轨道内）
+ *   读数    y = 248 → 局部 204
+ *   心情词  y = 266 → 局部 222
+ *   记忆数  y = 284 → 局部 240
+ *
+ * 落成流式布局后这些数变成：padding-top 20 + 标签高 16 + 轨道 150 +
+ * 上间距 18 + 读数行。逐段可核对，不用绝对定位——绝对定位在窗口变高时
+ * 会与底部脱节。
+ *
+ * ## 整条脊是一个按钮
+ *
+ * `base.css` 把 button 重置成「字体继承、无底无边」。这里要补回
+ * `text-align: center` 与 `appearance: none` 之后剩下来的默认宽度行为：
+ * 按钮默认 `width: auto`，在 grid 列里会被内容撑开，必须写 `width: 100%`。
+ */
+
+.spine {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  /* §5.7：内容起点 y = 64，减标题栏 44 得 20。 */
+  padding: 20px 0 16px;
+  background: var(--alias-bg-layer-2);
+  color: var(--alias-label-secondary);
+  overflow: hidden;
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+/* 整条可点，所以悬停反馈给在整条上而不是某个子块。 */
+.spine:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/* 顶部「此刻」。11px / ink-2，居中，高 16 让轨道精确落在局部 36。 */
+.spine__caption {
+  height: 16px;
+  font-size: var(--text-label);
+  line-height: 16px;
+  letter-spacing: var(--tracking-label);
+  color: var(--alias-label-secondary);
+  user-select: none;
+}
+
+/**
+ * 水位轨道。6 × 150，圆角 3。
+ *
+ * 槽底用 `paper-3` 而不是透明：轨道需要一条可见的「量程」，
+ * 否则填充从哪长出来无从判断。透明槽会让水位看起来是凭空浮着的。
+ */
+.spine__track {
+  position: relative;
+  display: block;
+  width: 6px;
+  height: 150px;
+  margin-top: 0;
+  border-radius: 3px;
+  background: var(--alias-interactive-bg-active);
+  overflow: hidden;
+}
+
+/**
+ * 水位填充。
+ *
+ * `transform: scaleY()` 由 TSX 写入，`transform-origin: bottom` 让缩放
+ * 从底部向上生长。**不动画 height**：改 height 每帧触发重排，
+ * 在水位随呼吸连续变化时会把滚动帧率拖下去（§8.3 A7）。
+ *
+ * 颜色由 TSX 写入 `--specific-water`，这里只消费。写变量而不是
+ * 内联 background，是为了让「悬停提亮」这条规则仍能覆盖不透明度。
+ */
+.spine__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: var(--specific-water);
+  transform-origin: bottom center;
+  /* 数据突变超过 0.3 时 TSX 会不写过渡；常态下 240ms 平滑（§8.3）。 */
+  transition: transform var(--motion-slow) var(--ease-fluid);
+}
+
+/**
+ * 呼吸。
+ *
+ * 只改 `opacity`（0.85 ↔ 1），周期取自 `--breath-period`（3–7s，
+ * **完整一轮**而不是单程）。`alternate` 让动画自己往返，
+ * 不必在关键帧里再写一次 1。
+ */
+.spine__fill[data-breathe] {
+  animation: spine-breathe var(--breath-period) var(--ease-breathe) infinite alternate;
+}
+
+@keyframes spine-breathe {
+  from {
+    opacity: 0.85;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 悬停时提到满不透明度，覆盖呼吸值（§5.7）。 */
+.spine:hover .spine__fill {
+  opacity: 1;
+  animation: none;
+}
+
+/* 窗口失焦时降到 60%（§12.9）。用 `:focus-within` 判断不了窗口失焦，
+   由 TSX 在根节点写 `data-window-blurred` 更可靠；这里先给容器级钩子。 */
+[data-window-blurred] .spine__fill {
+  opacity: 0.6;
+}
+
+/**
+ * 读数区。
+ *
+ * 局部 204 起：轨道结束在 186，上间距 18。
+ * 三行分别对应 §5.7 的 248 / 266 / 284。
+ */
+.spine__readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 18px;
+  user-select: none;
+}
+
+/* 精力读数。11px / 500。 */
+.spine__energy {
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 心情词。11px / ink-3。它把水位颜色再说一遍，颜色不单独承载信息。 */
+.spine__mood {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+/* 记忆计数。11px / ink-4。 */
+.spine__memory {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * 无数据 / 休息态的占位。
+ *
+ * 高度与读数区一致，避免从「没有数字」切到「有数字」时整条脊跳一下。
+ * 文案为空时不占视觉空间但仍占位。
+ */
+.spine__empty {
+  display: block;
+  min-height: 34px;
+  margin-top: 18px;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-dimmed);
+  user-select: none;
+}
+
+/**
+ * 休息态。
+ *
+ * 水位降到 15%（由 TSX 写 scaleY），颜色转灰、文字改「休息中」。
+ * 灰不是新令牌：用 `ink-4` 覆盖 `--specific-water`，语义上就是「不承载信息」。
+ */
+.spine[data-resting] {
+  color: var(--alias-label-dimmed);
+}
+
+.spine[data-resting] .spine__fill {
+  background: var(--alias-state-idle-primary);
+  animation: none;
+}
+
+/**
+ * 悬停提示「查看侧写」。
+ *
+ * 竖排写在脊的右侧外沿（`writing-mode: vertical-rl`）：脊只有 56px 宽，
+ * 横排会挤掉水位。竖排在中文里也读得通，不需要额外学习。
+ *
+ * 用绝对定位且 `pointer-events: none`，不拦点击。
+ */
+.spine__hint {
+  position: absolute;
+  top: 200px;
+  right: 2px;
+  writing-mode: vertical-rl;
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  color: var(--alias-label-tertiary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-fluid);
+}
+
+.spine:hover .spine__hint {
+  opacity: 1;
+}

@@ -1,0 +1,438 @@
+/**
+ * 抽屉与检查器的共用样式。
+ *
+ * ## 两者为什么放一个文件
+ *
+ * 它们**是同一个东西的两个方向**：都宽 300、都以 `paper-0` 为底、
+ * 都靠窗一侧 16px 圆角、都覆盖主列而不挤压、都是 180ms 进场 /
+ * 240ms 退场。分成两个文件会让这六条共同规格各写一遍，改一处漏一处。
+ *
+ * 方向差异（左贴 / 右贴、圆角在哪侧、位移往哪边）用 `[data-side]` 分支，
+ * 分支里只写差异项，不重复共同项。
+ *
+ * ## 为什么不用 box-shadow 画左边框
+ *
+ * 抽屉是**覆盖**层，边框要落在覆盖区与主列的交界上。用 `border-left`
+ * 会从 300 里扣掉 0.5，内容宽度变成 299.5，内边距算出来的坐标全偏半像素。
+ * 用 `box-shadow` 不占布局，线的位置精确落在边界。
+ */
+
+/* ---------------------------------------------------------------------------
+   容器
+   --------------------------------------------------------------------------- */
+
+/**
+ * 抽屉容器。
+ *
+ * `position: absolute` 相对 `.workspace`（已 `position: relative`）。
+ * 收起时 `visibility: hidden` + `pointer-events: none`：
+ * 不用 `display: none`，否则退场动画会被立刻裁断（元素先消失，再没有位移）。
+ *
+ * `visibility` 有离散过渡，`transition-delay` 让它在退场动画跑完之后才生效。
+ */
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 左贴：x 从 Rail 右沿起算，宽 300 覆盖主列左半（§5.2）。 */
+  left: var(--rail-w);
+  z-index: var(--z-drawer);
+  width: var(--drawer-w);
+  pointer-events: none;
+  visibility: hidden;
+  transition: visibility 0s linear var(--motion-slow);
+}
+
+.drawer[data-open] {
+  pointer-events: auto;
+  visibility: visible;
+  /* 进场时立刻可见，不等延迟。 */
+  transition-delay: 0s;
+}
+
+/**
+ * 抽屉面板。
+ *
+ * 进场 `translateX(-16px)` + `opacity 0` → 原位，180ms fluid；
+ * 退场 240ms fluid-reverse（§5.9、§8.3 B1）。两个方向的曲线不同：
+ * 进场慢收尾让视线跟上，退场快起步免得拖沓。
+ */
+.drawer__panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--alias-bg-base);
+  /* 靠窗一侧（左侧）16px 圆角，靠主列一侧直角。 */
+  border-radius: var(--radius-panel) 0 0 var(--radius-panel);
+  /* 描边不占布局，线精确落在边界上。 */
+  box-shadow: var(--line-width) 0 0 0 var(--static-line);
+  opacity: 0;
+  transform: translateX(-16px);
+  transition:
+    opacity var(--motion-slow) var(--ease-fluid-reverse),
+    transform var(--motion-slow) var(--ease-fluid-reverse);
+}
+
+.drawer[data-open] .drawer__panel {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity var(--motion-base) var(--ease-fluid),
+    transform var(--motion-base) var(--ease-fluid);
+}
+
+/* ---------------------------------------------------------------------------
+   抽屉内部
+   --------------------------------------------------------------------------- */
+
+/**
+ * 头部：标题 + 关闭。
+ *
+ * 高 44 与标题栏对齐——抽屉从窗口顶开始铺，若头部比 44 矮或高，
+ * 里面的标题与窗口标题就不在同一水平线上，看起来像没对齐。
+ */
+.drawer__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  padding: 0 8px 0 16px;
+}
+
+.drawer__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+/* 关闭叉：视觉 12，热区 24（§5.0.7）。 */
+.drawer__close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.drawer__close:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* 内容区。独立滚动，头部固定。 */
+.drawer__body {
+  flex: 1;
+  min-height: 0;
+  /* 底部 88 = 输入卡高 76 + 上间距 12。输入区浮在覆盖层之上（见
+     layout.css 的说明），不给这段留白，抽屉最后一行会被卡片永久挡住。 */
+  padding: 4px 8px 88px;
+  overflow-y: auto;
+}
+
+/* 空状态。引导句，不用「暂无数据」（§12.5）。 */
+.drawer__empty {
+  padding: 24px 8px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+  text-align: center;
+}
+
+.drawer__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/**
+ * 一行会话。
+ *
+ * 悬停底 `paper-2` 圆角 8。行高由内容决定（标题 14 / 时间 11 两行），
+ * 不写死——写死会让长标题被裁掉。
+ */
+.drawer__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.drawer__row:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/* 当前会话：底色常驻，不靠悬停区分——用户不开鼠标也该看见自己在哪。 */
+.drawer__row[aria-current='true'] {
+  background: var(--alias-state-business-tertiary);
+}
+
+.drawer__row-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-body);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-primary);
+}
+
+.drawer__row-time {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 记忆条目：与会话行同构，但没有点击行为，所以不是 button。 */
+.drawer__memory {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.drawer__memory-text {
+  font-size: var(--text-body);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   检查器
+   --------------------------------------------------------------------------- */
+
+/**
+ * 检查器。右贴、宽 300、覆盖主列右侧，Spine 保持可见（§5.8）。
+ *
+ * 与抽屉的差别只有五处：方向、圆角侧、位移方向、描边侧、层级。
+ * 其余（宽、底、动效时长与曲线）完全相同，故不重复写。
+ */
+.inspector {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 右贴：x ∈ [464, 764]，即 820 − 56 − 300（§5.8 的坐标说明）。 */
+  right: var(--spine-w);
+  z-index: var(--z-drawer);
+  display: flex;
+  flex-direction: column;
+  width: var(--inspector-w);
+  background: var(--alias-bg-base);
+  border-radius: 0 var(--radius-panel) var(--radius-panel) 0;
+  box-shadow: calc(var(--line-width) * -1) 0 0 0 var(--static-line);
+  /* 进场与抽屉同一条曲线、同一时长。 */
+  animation: inspector-in var(--motion-base) var(--ease-fluid) both;
+}
+
+@keyframes inspector-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 头部与抽屉头部同规格：44 高、16 左内边距、右侧 8。 */
+.inspector__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  padding: 0 8px 0 16px;
+}
+
+.inspector__title {
+  flex: 1;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+}
+
+.inspector__close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.inspector__close:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* 内容区。内边距 16（§5.8 坐标表按左 480 = 464 + 16 算）。 */
+.inspector__body {
+  flex: 1;
+  min-height: 0;
+  /* 同抽屉：底部留出输入卡的位置。 */
+  padding: 0 16px 88px;
+  overflow-y: auto;
+}
+
+/* 分组之间 12px（§5.8「上下各 12px 间距」）。 */
+.inspector__group + .inspector__group {
+  margin-top: 12px;
+}
+
+/* 分组标题：11px / ink-3。 */
+.inspector__caption {
+  padding: 12px 0 6px;
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+/**
+ * 一行读数：标签 + 轨道 + 数值。
+ *
+ * 三列用 flex：标签吃剩余空间、轨道定宽 100、数值定宽 52（容纳 `+0.30`，
+ * §5.8 的「最小宽 52」）。数值用 `tabular-nums` 让所有行的小数点对齐。
+ */
+.inspector__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+}
+
+.inspector__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+}
+
+/* 轨道：宽 100、高 4、圆角 2。槽底 paper-2。 */
+.inspector__track {
+  position: relative;
+  flex: 0 0 100px;
+  width: 100px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-interactive-bg-hover);
+}
+
+/* 填充。`transform-origin` 由 TSX 按正负值切换。 */
+.inspector__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: var(--specific-water);
+  transform-origin: left center;
+  transition: transform var(--motion-slow) var(--ease-fluid);
+}
+
+/**
+ * 双极填充。
+ *
+ * 心情与张力是 −1..1 的对称量，负值向左、正值向右，中点 50%。
+ * 左/右与 transform-origin 由 TSX 按符号写入，这里只定颜色。
+ * 双极用 `sand`：它表达「暖度、主动」，正好是这些读数的语义。
+ */
+.inspector__fill--bipolar {
+  background: var(--alias-state-warn-primary);
+}
+
+/* 数值：右对齐、定宽 52、等宽数字。 */
+.inspector__value {
+  flex: 0 0 52px;
+  width: 52px;
+  text-align: right;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+  font-variant-numeric: tabular-nums;
+  /* 读数不可选：它们会被频繁扫视，误选会打断阅读（§12.2）。 */
+  user-select: none;
+}
+
+/* 空状态。与抽屉空态同规格。 */
+.inspector__empty {
+  padding: 4px 0 8px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+}
+
+/* 关系阶段。一行文字，与读数的视觉重量区分开。 */
+.inspector__stage {
+  padding: 4px 0 8px;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-primary);
+}
+
+/* 记得的事：最多三条，每条两行（正文 + 时间）。 */
+.inspector__memories {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.inspector__memory {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inspector__memory-text {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+  /* 摘要最多两行，超出省略——三条记忆不该把检查器撑到要滚动。 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inspector__memory-time {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}
+
+/* 她此刻在做什么。一行状态，弱化到 caption。 */
+.inspector__activity {
+  padding: 4px 0 8px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+}

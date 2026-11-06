@@ -1,0 +1,303 @@
+/**
+ * 时间轴样式。
+ *
+ * ## 数值出处
+ *
+ * `docs/UI-DESIGN.md` §5.3 / §5.4：
+ * - 背景 `paper-0`，左右内边距 64，正文封顶 588
+ * - 消息间距：同条之内 4，不同条之间 20
+ * - 跨天分隔上下各 32
+ * - 用户消息右对齐、右侧 2 × 36 玄青竖线、距文字 6
+ * - 助手消息左对齐
+ * - 无气泡、无头像、无时间戳
+ *
+ * ## 竖线为什么固定 36 高
+ *
+ * 它是「我说的」标记，不是装饰。若随消息长度增长，一条长消息会拖出
+ * 一条 300px 的线，看起来像引用块而不是标记。36 约等于两行正文。
+ *
+ * ## 为什么自己不画滚动条
+ *
+ * `base.css` 已全局隐藏原生滚动条，自绘 overlay 的完整实现（8px 常态 /
+ * 12px 悬停 / 滚动后 800ms 淡出）属于 §12.1，列在第 5 批。
+ * 本批先把原生条隐藏、内容可滚，第 5 批再补 overlay 滑块——
+ * 半套实现（画了滑块但不会淡出）比没有更糟。
+ */
+
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--alias-bg-base);
+}
+
+/**
+ * 滚动区。
+ *
+ * `overscroll-behavior: contain` 阻止滚动到边界后把滚动传给外层——
+ * 桌面应用里外层没有东西可滚，传上去只会让整页晃一下。
+ */
+.timeline__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  /* §5.3：左右内边距 64。正文封顶 588 后居中，窗口变宽时留白吸收增量。 */
+  padding: 0 64px;
+}
+
+/**
+ * 正文量度。
+ *
+ * 封顶 588 而不是撑满：14px 中文一行超过约 42 字后，视线从行尾回到
+ * 行首会丢行（§3.2 的核心理由）。窗口再宽也不加宽。
+ */
+.timeline__measure {
+  width: 100%;
+  max-width: var(--text-w);
+  margin: 0 auto;
+  /* 首条上方留 20，让「今天」分隔行不贴顶。 */
+  padding: 20px 0 12px;
+}
+
+/**
+ * 日期分隔行。
+ *
+ * 左右各一条 0.5px 线（用 `::before` / `::after` 之外的独立 span，
+ * 因为中间还要插「第 N 天」标注，三个元素用 flex 排更直白）。
+ * 上下各 32（§5.3）。
+ */
+.timeline__day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 上下各 32，但首条上方已由 measure 给 20，这里补足到合计 32。 */
+  padding: 32px 0;
+}
+
+/* 首条分隔行不再重复上间距。 */
+.timeline__measure > .timeline__day:first-child {
+  padding-top: 12px;
+}
+
+/* 分隔线。0.5px 用 border 而非背景：背景的高度最小是 1 物理像素，
+   在 2x 屏上会显得比 0.5px 的边框粗一档。 */
+.timeline__day-rule {
+  flex: 1;
+  height: 0;
+  border-top: var(--line-width) solid var(--static-line);
+}
+
+/* 日期文字。11px / ink-3。 */
+.timeline__day-label {
+  flex: 0 0 auto;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/**
+ * 「第 N 天」。
+ *
+ * ink-4：它是辅助标注，不承载信息（§4.1 对 ink-4 的定义）。因此它不读屏——
+ * `aria-hidden` 在 TSX 侧不写，这里只控视觉；读屏仍能读到是因为它在
+ * 文档流里。若要完全不念，需 TSX 加 aria-hidden，但那会丢掉「相处第几天」
+ * 这条语义。保留可读，只用颜色弱化。
+ */
+.timeline__day-index {
+  flex: 0 0 auto;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-dimmed);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/**
+ * 一条消息。
+ *
+ * 不同条之间 20px。同条之内 4px 由消息内部元素间距（薄片、异常行）表达。
+ * 用 `+` 相邻选择器而不是 `gap`：日期行也在同一容器里，
+ * 统一 gap 会让「分隔行与首条消息」之间也吃 20，与 §5.3 的 32 冲突。
+ */
+.message + .message {
+  margin-top: 20px;
+}
+
+/* 助手消息之后若紧跟日期行，由日期行自己的 padding 处理间距。 */
+
+/**
+ * 消息正文容器。
+ *
+ * 不进气泡、不加边框。正文 `user-select: text`——消息必须可选中复制，
+ * 这是阅读类界面的底线。
+ */
+.message {
+  position: relative;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-body);
+  color: var(--alias-label-primary);
+  /* 长英文与 URL 必须断行，否则会撑破 588 的正文宽。 */
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+/**
+ * 助手消息：左对齐。宽度上限就是正文宽，让它自然换行。
+ *
+ * 留出右侧 24 给未来的悬停操作区（复制 / 引用 / 重答，第 5 批），
+ * 现在留空不影响观感。
+ */
+.message[data-role='assistant'] .message__body {
+  padding-right: 24px;
+  font-weight: var(--weight-regular);
+}
+
+/**
+ * 用户消息：右对齐。
+ *
+ * 右边界 x = 700（§5.4），即正文宽 588 从 112 起算到 700。
+ * 实现上用 `margin-left: auto` + `max-width`：靠右但不贴边，
+ * 且右侧要留 6px 给竖线。
+ */
+.message[data-role='user'] {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  /* 竖线在右侧 6px 外，故内容右侧留 8（6 间距 + 2 线宽）。 */
+  padding-right: 8px;
+  font-weight: var(--weight-medium);
+}
+
+/**
+ * 用户消息的竖线。
+ *
+ * 2 × 36，玄青，距文字 6。`top: 0` 让它与正文首行对齐——正文行高 1.75 ×
+ * 14 ≈ 24.5，36 高约覆盖一行半，视觉上正好是「开头两行」的标记范围。
+ *
+ * 移动端与触屏同样保留：它不依附悬停，是常驻标记。
+ */
+.message[data-role='user']::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 36px;
+  border-radius: 1px;
+  background: var(--alias-state-business-primary);
+}
+
+/**
+ * 生成中的三点。
+ *
+ * 三个 3px 圆点、`ink-3`、间隔 160ms 依次 `opacity .3 → 1`（§5.0.4）。
+ * 用 `inline-flex` 而不是绝对定位：它跟在正文末尾，正文流式增长时
+ * 三点自动被推着走，不需要 JS 计算位置。
+ *
+ * 行内对齐用 `vertical-align: middle` + 2px 下移：与 14px 正文的
+ * 基线大致齐平，不写会略微偏上。
+ */
+.message__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: 1px;
+}
+
+.message__dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--alias-label-tertiary);
+  opacity: 0.3;
+  animation: message-dot 1.2s var(--ease-breathe) infinite;
+}
+
+/* 三点的相位差。用 nth-child 而不是给每个写 inline-delay：
+   动画节奏属于样式，不该散进 TSX。 */
+.message__dots i:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.message__dots i:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+@keyframes message-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/**
+ * 发送中的占位：整条 60% 不透明度（§5.0.2）。
+ *
+ * 用户消息发出后先以 60% 出现，服务端确认后转满。这样「有没有发出去」
+ * 在 100ms 内就有反馈，不用等网络往返。
+ */
+.message[data-pending] {
+  opacity: 0.6;
+}
+
+/**
+ * 「从哪儿说起都行」。
+ *
+ * 有会话但没消息时的空态（§12.5）。居中一行 12px ink-3。
+ */
+.timeline__empty {
+  padding: 40px 0;
+  text-align: center;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+  user-select: none;
+}
+
+/**
+ * 「有新消息」浮标。
+ *
+ * 浮在主列底部居中、输入区上方 12px（输入区在 column 层，不在 timeline 内，
+ * 所以这里只需要保证不压住最后一条消息——`bottom: 12` 加上 timeline 自身
+ * 的底部留白就够了）。
+ *
+ * 反色底：它浮在正文上，与纸底同色会看不清边界。
+ */
+.timeline__jump {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--specific-tip);
+  color: var(--alias-label-primary-foreground);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  box-shadow: var(--shadow-lv3);
+  transform: translateX(-50%);
+  transition:
+    opacity var(--motion-fast) var(--ease-fluid),
+    background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.timeline__jump:hover {
+  filter: brightness(1.12);
+}

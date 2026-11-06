@@ -1,0 +1,154 @@
+/**
+ * 左侧脊（Rail）样式。
+ *
+ * ## 数值出处
+ *
+ * 全部来自 `docs/UI-DESIGN.md` §5.2：宽 48、图标 32 × 32 点击区 /
+ * 16 × 16 图形、间距 8（首图标 y = 64 = 标题栏 44 + 20）、
+ * 底图标固定贴底、选中态左侧 2px 竖条、悬停底 `paper-2` 圆角 8。
+ *
+ * ## 为什么竖条用伪元素而不是 border-left
+ *
+ * `border-left: 2px` 会从 32px 点击区里吃掉 2px，图标中心跟着右移 1px。
+ * 伪元素绝对定位不参与布局，竖条画在哪都不影响图标居中。
+ */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 与 §5.2 的 8px 间距一致；底部的设置键靠 margin-top: auto 推开。 */
+  gap: 8px;
+  min-height: 0;
+  /* 首图标 y = 64：标题栏 44 + 20。这里 20 = padding-top 8 + 上方留白 12。 */
+  padding: 20px 0 16px;
+  background: var(--alias-bg-layer-2);
+  overflow: hidden;
+}
+
+/**
+ * 入口组。
+ *
+ * 单独包一层是为了让「四个入口」与「设置」在 flex 里分成两组：
+ * 组内按 8px 排，两组之间自动留白。
+ */
+.rail__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/**
+ * 一个入口。
+ *
+ * 32 × 32 点击区，图标 16 × 16。§5.0.7 的指针热区舒适值是 32，这里正好。
+ * `position: relative` 给选中竖条与悬停标签做定位参照。
+ */
+.rail__item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--alias-label-secondary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+/**
+ * 悬停。
+ *
+ * `color` 转 `ink-1` 与底色浮现同时做（§5.2 补充交互）。**不做 scale 反馈**：
+ * 图标形变已经被选中态占用，同一元素上两种动画会互相干扰。
+ */
+.rail__item:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+.rail__item:active {
+  background: var(--alias-interactive-bg-active);
+}
+
+/**
+ * 选中。
+ *
+ * 图形转 `teal-600`，左侧 2px 竖条（x = 0，高 16，垂直居中）。
+ * 竖条用 `::before` 定位在图标按钮左侧，不占点击区。
+ */
+.rail__item[aria-pressed='true'] {
+  color: var(--alias-state-business-primary);
+}
+
+.rail__item[aria-pressed='true']::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 1px;
+  background: var(--alias-state-business-primary);
+}
+
+/**
+ * 悬停标签。
+ *
+ * §5.2 要求「800ms 后右侧出现 12px 文字标签，延迟出现，避免扫过时闪一片」。
+ * 用 `transition-delay` 而不是 JS 定时器：指针移出时延迟也随之撤销，
+ * 不会留下一个「移出了才弹出来」的残影。
+ *
+ * 标签用反色（深墨底 + 纸白字）：它浮在脊外面，若与脊同色底会融在一起。
+ */
+.rail__label {
+  position: absolute;
+  left: 40px;
+  top: 50%;
+  z-index: var(--z-menu);
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--specific-tip);
+  color: var(--alias-label-primary-foreground);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(-4px);
+  transition:
+    opacity var(--motion-fast) var(--ease-fluid),
+    transform var(--motion-fast) var(--ease-fluid);
+  transition-delay: 800ms, 800ms;
+}
+
+.rail__item:hover .rail__label {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* 指针移出时立刻消失，不保留 800ms 延迟——延迟只服务于「出现」。 */
+.rail__item:not(:hover) .rail__label {
+  transition-delay: 0ms, 0ms;
+}
+
+/* 触屏没有悬停，标签永远不出现。 */
+@media (hover: none) {
+  .rail__label {
+    display: none;
+  }
+}
+
+/**
+ * 设置键贴底。
+ *
+ * `margin-top: auto` 在 flex 列里把它推到容器底部，等效于
+ * y = 532（580 − 16 − 32 − 标题栏 44 = 488 的内容高度里贴底）。
+ * 窗口变高时它跟着往下走，这是对的：它属于「底」而不是「第 532 像素」。
+ */
+.rail__item--settings {
+  margin-top: auto;
+}
