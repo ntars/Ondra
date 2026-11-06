@@ -12,7 +12,7 @@
 | --- | --- |
 | 版本 | 2.0.1 |
 | 形态 | 桌面应用（Tauri 壳 + Cordis 宿主 + dsh 内核，三层进程） |
-| 平台 | macOS 11 及以上（Apple Silicon 优先）、Windows 10 及以上 |
+| 平台 | 九端：① macOS 11+（Apple Silicon 优先）② Windows 10+ ③ Linux（deb/rpm/AppImage）④ iPad（iPadOS 15+）⑤ iPhone（iOS 15+）⑥ Android 8+ ⑦ 鸿蒙 NEXT ⑧ 命令行与 Web ⑨ dsh 内核。**本版先适配 ① macOS 与 ② Windows**，其余端按 `docs/UI-DESIGN.md` §10 的排期推进 |
 | 定位 | 陪伴型桌面应用。不是通用助手、不是模型、不是云服务 |
 | 插件规模 | 137 个包 = 134 个可装载插件 + 1 份插件清单 + 2 个桥接层；配置字段 1168 项，其中 1123 项可直接设置 |
 | 界面形态 | 双形态单窗：首页（logo + 输入框）与会话（48px 左脊 + 时间轴主列 + 右脊），基准 820 × 580 |
@@ -2787,10 +2787,20 @@ Ondra/
 
 | 平台 | 状态 | 说明 |
 | --- | --- | --- |
-| macOS 11+（Apple Silicon） | 主要目标 | 完整功能，构建与打包均在此平台验证 |
-| macOS 11+（Intel） | 支持 | 完整功能 |
-| Windows 10+ | 支持 | 安装包可构建；文件选择对话框尚未实现 |
-| Linux | 未验证 | 系统集成部分需适配 |
+| ① macOS 11+（Apple Silicon） | 主要目标 | 完整功能，构建与打包均在此平台验证 |
+| ① macOS 11+（Intel） | 支持 | 完整功能 |
+| ② Windows 10+ | 支持 | 安装包可构建；文件选择对话框尚未实现 |
+| ③ Linux（deb/rpm/AppImage） | 未验证 | 代码同源，需补系统集成配置 |
+| ④ iPad（iPadOS 15+） | 未开始 | 需新增 iOS 构建 |
+| ⑤ iPhone（iOS 15+） | 未开始 | 需新增 iOS 构建 |
+| ⑥ Android 8+ | 未开始 | 需新增 Android 构建 |
+| ⑦ 鸿蒙 NEXT | 未开始 | **无现成方案**，见 `docs/UI-DESIGN.md` §10.7.3 |
+| ⑧ 命令行与 Web | 部分可用 | 有壳时可远程连接宿主；需补一项能力标记 |
+| ⑨ dsh 内核 | 已存在 | 内核进程端，见 `docs/UI-DESIGN.md` §10.10 |
+
+**为什么移动端不是「加个配置」**。宿主是 Node 进程（约 108 MB），由壳以子进程拉起，通过 stdio 与本地 HTTP 通信。iOS 沙盒禁止应用创建子进程，也禁止 JIT；Android 虽允许子进程，但把 108 MB 运行时随包分发与「安装即用」的预期冲突。因此移动端必须是**远程宿主**——连你自己电脑上跑的那一个，或一个托管实例。好在这一点在代码里已经成立：`src/lib/host.ts` 的 `HostConnection { url, token, port }` 由壳注入，前端不关心宿主在哪，移动端只需换掉注入来源。
+
+还有一处真实阻力：`src-tauri/Cargo.toml` 目前不声明 `[lib]`，入口只留在 `main.rs`。而 Tauri 的移动端**必须**有 `lib.rs` + `cdylib`，因为 iOS/Android 要把 Rust 编成被原生工程链接的动态库。所以移动端需要恢复 `lib` 结构并拆分入口。
 
 **浏览器开发态**（`pnpm run dev:web`）下没有壳，本机能力调用会明确报错而非静默失败。
 

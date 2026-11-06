@@ -12,7 +12,7 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 | --- | --- |
 | Version | 2.0.1 |
 | Form | Desktop application (Tauri shell + Cordis host + dsh kernel, three process layers) |
-| Platform | macOS 11 and later (Apple Silicon first), Windows 10 and later |
+| Platform | Nine targets: (1) macOS 11+ (Apple Silicon first) (2) Windows 10+ (3) Linux (deb/rpm/AppImage) (4) iPad (iPadOS 15+) (5) iPhone (iOS 15+) (6) Android 8+ (7) HarmonyOS NEXT (8) CLI and Web (9) dsh kernel. **This release targets (1) macOS and (2) Windows first**; the rest follow the schedule in `docs/UI-DESIGN.md` §10 |
 | Positioning | A companionship app. Not a general assistant, not a model, not a cloud service |
 | Plugin scale | 137 packages = 134 loadable plugins + 1 plugin manifest + 2 bridges; 1168 config fields, of which 1123 are directly settable |
 | Interface | Two states in one window: Home (logo plus composer) and Conversation (48px left rail, timeline column, right spine); baseline 820 × 580 |
@@ -2810,10 +2810,20 @@ The following figures were measured on Apple Silicon macOS with Node 22.22.2.
 
 | Platform | Status | Notes |
 | --- | --- | --- |
-| macOS 11+ (Apple Silicon) | Primary target | Full functionality; build and packaging verified on this platform |
-| macOS 11+ (Intel) | Supported | Full functionality |
-| Windows 10+ | Supported | The installer builds; the file picker dialog is not yet implemented |
-| Linux | Unverified | The system integration needs adaptation |
+| (1) macOS 11+ (Apple Silicon) | Primary target | Full functionality; build and packaging verified on this platform |
+| (1) macOS 11+ (Intel) | Supported | Full functionality |
+| (2) Windows 10+ | Supported | The installer builds; the file picker dialog is not yet implemented |
+| (3) Linux (deb/rpm/AppImage) | Unverified | Same code, needs system integration configuration |
+| (4) iPad (iPadOS 15+) | Not started | Requires a new iOS build |
+| (5) iPhone (iOS 15+) | Not started | Requires a new iOS build |
+| (6) Android 8+ | Not started | Requires a new Android build |
+| (7) HarmonyOS NEXT | Not started | **No existing solution**, see `docs/UI-DESIGN.md` §10.7.3 |
+| (8) CLI and Web | Partially available | Can reach a host remotely when a shell is present; needs one capability flag |
+| (9) dsh kernel | Exists | The kernel process target, see `docs/UI-DESIGN.md` §10.10 |
+
+**Why mobile is not just a configuration change.** The host is a Node process (about 108 MB) launched as a child process by the shell and spoken to over stdio plus local HTTP. The iOS sandbox forbids an app from creating child processes and forbids JIT; Android allows child processes but shipping a 108 MB runtime conflicts with the "install and go" expectation. Mobile therefore has to use a **remote host** — either the one running on your own computer or a hosted instance. Fortunately this already holds in the code: `HostConnection { url, token, port }` in `src/lib/host.ts` is injected by the shell, and the front end does not care where the host lives, so mobile only needs to change the injection source.
+
+One real obstacle remains: `src-tauri/Cargo.toml` currently declares no `[lib]`, keeping the entry point in `main.rs`. Tauri's mobile targets **require** `lib.rs` plus `cdylib`, because iOS and Android link the Rust code as a dynamic library into a native project. Mobile therefore needs the `lib` structure restored and the entry point split.
 
 **Browser development mode**, used by the front-end development script, has no shell, so native capability calls report an explicit error rather than failing silently.
 
