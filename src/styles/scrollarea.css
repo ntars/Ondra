@@ -1,0 +1,78 @@
+/**
+ * 自绘滚动区样式（§12.1）。
+ *
+ * ## 不占布局是这一层的全部意义
+ *
+ * 滑块用绝对定位浮在视口之上，右侧不预留任何宽度。原生条在 Windows 上
+ * 会吃掉 17px，主列从 716 掉到 699，正文居中跟着偏——两端的正文位置
+ * 就对不上了（§13 要求「两端滚动条均为 overlay，主列恒为 716px」）。
+ *
+ * ## 8 → 12 的两态
+ *
+ * 常态 8px，悬停与拖动时 12px。宽度变化用 `width` 而不是 `transform: scaleX`：
+ * 滑块是一个圆角矩形，横向缩放会把 4px 圆角拉成椭圆，视觉上像被压扁。
+ * 这里宽度只有 4px 的差，重排代价可以忽略。
+ *
+ * ## 淡出用 slow 档
+ *
+ * 240ms。比 fast 慢是有意的：用户停止滚动后视线还在内容上，
+ * 滑块「刷」地消失会抢一下注意力。慢一点退场，等于没出现过。
+ */
+
+.scrollarea {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.scrollarea__viewport {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/**
+ * 滑块。
+ *
+ * `pointer-events: none` 在未显形时生效：它浮在内容右侧 8px 处，
+ * 若一直可点，用户点击靠近右边缘的文字时会误触到滑块而不是选中文字。
+ */
+.scrollarea__thumb {
+  position: absolute;
+  right: 2px;
+  width: 8px;
+  border-radius: 4px;
+  background: var(--alias-scrollbar-bg-l2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--motion-slow) var(--ease-fluid-reverse),
+    width var(--motion-fast) var(--ease-fluid),
+    background-color var(--motion-fast) var(--ease-fluid);
+}
+
+/* 显形。fast 淡入：滚动是一种「立刻要有回应」的操作。 */
+.scrollarea__thumb[data-visible] {
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    opacity var(--motion-fast) var(--ease-fluid),
+    width var(--motion-fast) var(--ease-fluid),
+    background-color var(--motion-fast) var(--ease-fluid);
+}
+
+/* 悬停与拖动：加宽到 12，颜色加深一档，让「我正在拖它」有明确反馈。 */
+.scrollarea[data-hover] .scrollarea__thumb {
+  width: 12px;
+  background: var(--alias-scrollbar-hover-l2);
+}
+
+/* 减少动态效果下常显：不加这条，偏好减少动效的用户永远看不到滚动条位置。 */
+@media (prefers-reduced-motion: reduce) {
+  .scrollarea__thumb {
+    opacity: 1;
+  }
+}

@@ -119,10 +119,12 @@
   animation: none;
 }
 
-/* 窗口失焦时降到 60%（§12.9）。用 `:focus-within` 判断不了窗口失焦，
-   由 TSX 在根节点写 `data-window-blurred` 更可靠；这里先给容器级钩子。 */
+/* 窗口失焦时降到 60% 并且停止呼吸（§12.9）。
+   必须同时写 `animation: none`：CSS 动画的优先级高于普通声明，
+   只写 opacity 会被动画帧覆盖，看起来「没生效」。 */
 [data-window-blurred] .spine__fill {
   opacity: 0.6;
+  animation: none;
 }
 
 /**

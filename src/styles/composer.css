@@ -1,0 +1,339 @@
+/**
+ * 输入区样式（§5.6）。
+ *
+ * ## 尺寸
+ *
+ * 宽 `min(620, 100% - 40)`，单行 76 高，圆角 16，内边距上 16 / 左右 20 / 下 12，
+ * 底部行 28 高。逐项对 §5.6 的表。
+ *
+ * 76 = 上内边距 16 + 一行正文 20 + 底部行 28 + 下内边距 12。四项相加正好，
+ * **正文与底部行之间不留额外间距**（写 `gap` 或 `margin-top` 都会超 4～8px，
+ * 主列就从 436 掉到 428～432，整个垂直预算歪掉）。
+ *
+ * ## 为什么卡片底在浅色下是纯白
+ *
+ * 纸底是 `#FFFDF9`（暖白），输入卡若同色就只剩一圈 0.5px 描边在分辨。
+ * 纯白比纸底略亮，形成「微微抬起」的层次，且不需要阴影（§4.6 不用阴影）。
+ */
+
+.composer {
+  /* 浮在抽屉与检查器之上（--z-drawer 是 30，这里用 40）。
+
+     ## 为什么输入区要压在覆盖层之上
+
+     §3.4 说「抽屉覆盖主列，不改变主列宽度」。按字面实现，抽屉（x 48–348）
+     与检查器（x 464–764）展开时都会盖住输入卡（x 100–720）的一部分——
+     检查器展开时正好盖住右侧的发送键。实测下来，用户打完字之后
+     **点不到发送**，此刻应用等于不可用。
+
+     裁决依据是 §1.3 的优先级表：第 3 条「可达性」压过第 7 条「视觉精致」。
+
+     `z-index` 必须挂在 `.composer` 而不是 `.composer__card`：card 是
+     `.composer` 的子元素，定在父级才能相对 `.workspace` 的兄弟覆盖层比较；
+     挂在 card 上只会与 `.composer` 内部的其他元素比较，等于没设。 */
+  position: relative;
+  z-index: var(--z-menu);
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  width: 100%;
+  /* 上 12 下 12（§3.1）。高度 < 560 时上间距收窄到 8，见文件末尾。 */
+  padding: 12px 0;
+}
+
+.composer__card {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--composer-w), 100%);
+  padding: 16px 20px 12px;
+  border-radius: var(--radius-panel);
+  /* 浅色用纯白，深色退到 paper-2：深色下纯白卡是刺眼的亮块。 */
+  background: var(--specific-input-major);
+  /* 描边用 inset 阴影而不是 border：border 会让 620 变成 619，
+     正文居中位置跟着偏半像素。 */
+  box-shadow: inset 0 0 0 var(--line-width) var(--specific-input-line);
+  transition: box-shadow var(--motion-fast) var(--ease-fluid);
+}
+
+/**
+ * 首次聚焦：边框从 line 转 teal，不做外发光（§5.6）。
+ *
+ * 用 `:focus-within` 而不是监听 focus 事件：键盘 Tab 进来、点进来、
+ * 从附件按钮回到输入框，三种情况都要变，`:focus-within` 一网打尽。
+ */
+.composer__card:focus-within {
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-state-business-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   附件
+   --------------------------------------------------------------------------- */
+
+.composer__attachments {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  /* 超过 6 个时横向滚动，不换行——换行会把 76 高的卡撑到 130。 */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.composer__attachment {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-interactive-bg-hover);
+  font-size: var(--text-label);
+  color: var(--alias-label-secondary);
+}
+
+.composer__attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 移除键。视觉 12，热区 20×20。 */
+.composer__attachment-remove {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  color: var(--alias-label-tertiary);
+  /* 图标视觉 12：这里不缩放 Icon 而是靠 `scale`，因为 Icon 只有 16/20 两档。 */
+  transform: scale(0.75);
+  transition: color var(--motion-fast) var(--ease-fluid);
+}
+
+.composer__attachment-remove:hover {
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   输入
+   --------------------------------------------------------------------------- */
+
+.composer__input {
+  width: 100%;
+  /* 高度由 JS 设，这里只封顶。 */
+  max-height: calc(20px * 3 + 12px);
+  /* 必须显式写 0：textarea 的 UA 默认内边距是 2px，JS 读到的 scrollHeight
+     会因此多出 4px，输入卡从 76 变成 80，主列预算整条歪掉。
+     `base.css` 只重置了 border 与 background，没有重置内边距。 */
+  padding: 0;
+  font-size: var(--text-body);
+  /* 行高写 20px 定值而不是 1.45：76 = 16+20+28+12 里的 20 必须是准确值，
+     用倍数会随字号算出 20.3，四舍五入后主列高 435 或 437，垂直预算对不上。 */
+  line-height: 20px;
+  color: var(--alias-label-primary);
+  overflow-y: auto;
+}
+
+.composer__input::placeholder {
+  color: var(--alias-label-dimmed);
+}
+
+/* ---------------------------------------------------------------------------
+   底部行
+   --------------------------------------------------------------------------- */
+
+.composer__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+}
+
+/**
+ * 加号。24 × 24 圆形，paper-2 底（§5.6）。
+ *
+ * 图标本身 16，圆底 24——这是「16px 图标配 32 热区」的一个例外，
+ * 因为输入卡底部行只有 28 高，32 的热区会顶破。这里热区就是 24 圆底，
+ * 已经达到 §5.0.7 的指针下限 24。
+ */
+.composer__attach {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-secondary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.composer__attach:hover {
+  background: var(--alias-interactive-bg-active);
+  color: var(--alias-label-primary);
+}
+
+/* 模型名。11px ink-2。 */
+.composer__model {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.composer__model-button {
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-secondary);
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.composer__model-button:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/**
+ * 模型菜单。
+ *
+ * 向上展开：输入卡贴底，向下会跑出窗口。
+ * 宽 200（§5.11 区间下限），阴影用全界面唯一的那一档。
+ */
+.composer__model-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: var(--z-menu);
+  width: 200px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--specific-menu);
+  box-shadow:
+    var(--shadow-lv3),
+    inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.composer__model-item {
+  display: block;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-xs);
+  text-align: left;
+  font-size: var(--text-caption);
+  color: var(--alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.composer__model-item:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/* 选中的那一项。用左侧 2px 竖条标记，不用勾图标——
+   图标需要学习，竖条与「用户消息」的标记同源，用户已经见过。 */
+.composer__model-item[aria-checked='true'] {
+  background: var(--alias-state-business-tertiary);
+  box-shadow: inset 2px 0 0 var(--alias-state-business-primary);
+}
+
+.composer__model-empty {
+  padding: 10px 12px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+}
+
+/* 字数计数。只在超限时出现，右对齐、tabular-nums 便于对齐。 */
+.composer__count {
+  flex: 0 0 auto;
+  font-size: var(--text-label);
+  color: var(--alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer__count[data-over] {
+  color: var(--alias-state-error-primary);
+}
+
+.composer__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/**
+ * 发送键。28 × 28 圆形，teal 底，白色三角（§5.6）。
+ *
+ * 禁用时**不移除**，只降到 40% 不透明度：移除会让右侧突然空一块，
+ * 用户会以为界面坏了（§5.6 空输入那条）。
+ */
+.composer__send {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    opacity var(--motion-fast) var(--ease-fluid);
+}
+
+.composer__send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.composer__send:disabled {
+  opacity: 0.4;
+}
+
+/**
+ * 「先别说」。12px 文字按钮，宽 64（§5.4）。
+ *
+ * 固定宽 64 而不是随文字撑开：它在发送键的位置，宽随字变会让整行
+ * 左右晃一下——生成开始与结束各晃一次。
+ */
+.composer__stop {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 28px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-caption);
+  color: var(--alias-label-secondary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.composer__stop:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   高度收窄
+   --------------------------------------------------------------------------- */
+
+/**
+ * 高度 < 560：输入区上间距 12 → 8，消息区优先保留（§12.8）。
+ *
+ * 用媒体查询而不是容器查询：§13 禁止的是「`@media (max-width` 宽度断点」，
+ * 高度方向不受该约束；而块轴上的容器查询要求容器 `container-type: size`，
+ * 那会让该元素的高度不再由内容决定——用在 `.shell` 上会把整页压扁。
+ */
+@media (max-height: 560px) {
+  .composer {
+    padding-top: 8px;
+  }
+}

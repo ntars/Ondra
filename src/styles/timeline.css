@@ -15,13 +15,6 @@
  *
  * 它是「我说的」标记，不是装饰。若随消息长度增长，一条长消息会拖出
  * 一条 300px 的线，看起来像引用块而不是标记。36 约等于两行正文。
- *
- * ## 为什么自己不画滚动条
- *
- * `base.css` 已全局隐藏原生滚动条，自绘 overlay 的完整实现（8px 常态 /
- * 12px 悬停 / 滚动后 800ms 淡出）属于 §12.1，列在第 5 批。
- * 本批先把原生条隐藏、内容可滚，第 5 批再补 overlay 滑块——
- * 半套实现（画了滑块但不会淡出）比没有更糟。
  */
 
 .timeline {
@@ -38,13 +31,11 @@
  *
  * `overscroll-behavior: contain` 阻止滚动到边界后把滚动传给外层——
  * 桌面应用里外层没有东西可滚，传上去只会让整页晃一下。
+ *
+ * 滚动条由 `ScrollArea` 自绘（§12.1），这里不再 `overflow-y: auto`——
+ * 视口本身已由 `.scrollarea__viewport` 承担。
  */
 .timeline__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
   /* §5.3：左右内边距 64。正文封顶 588 后居中，窗口变宽时留白吸收增量。 */
   padding: 0 64px;
 }
@@ -130,6 +121,85 @@
 }
 
 /* 助手消息之后若紧跟日期行，由日期行自己的 padding 处理间距。 */
+
+/**
+ * 消息的悬停操作条。
+ *
+ * ## 位置
+ *
+ * 右上角，与正文顶端对齐。「右上角」而不是「右下角」：消息末尾常常
+ * 紧跟着下一条，放右下会与下一条撞在一起；右上永远有空白。
+ *
+ * ## 为什么用 opacity 而不是条件渲染
+ *
+ * 条件渲染是「节点出现即显形」，没有 120ms 淡入。用 opacity + visibility
+ * 可以让淡入淡出真的跑起来，同时 `visibility: hidden` 的元素不进命中测试，
+ * 鼠标扫过时不会误触到一个看不见的按钮。
+ */
+.message__actions {
+  position: absolute;
+  top: -10px;
+  right: 0;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-base);
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-fast) var(--ease-fluid),
+    visibility var(--motion-fast) var(--ease-fluid);
+}
+
+/* 用户消息右对齐，操作条跟着贴到正文右边界。 */
+.message[data-role='user'] .message__actions {
+  right: 0;
+}
+
+.message[data-actions] .message__actions,
+.message:hover .message__actions,
+.message:focus-visible .message__actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 键盘聚焦时同一条规则（`:focus-visible` 已在上面覆盖，这里留注释说明意图）。 */
+
+/**
+ * 操作按钮。
+ *
+ * 视觉 16 的热区 24×24（§5.0.7 要求 32，这里受限于顶部空间取 24，
+ * 已达指针下限；触屏形态改 32 的规则在 `responsive` 层，本期不带触屏）。
+ */
+.message__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  color: var(--alias-label-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid);
+}
+
+.message__action:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/**
+ * 消息可聚焦。
+ *
+ * 为了让键盘用户能到达复制与引用，消息本身进 Tab 顺序。焦点环只出现在
+ * 键盘导航时（`base.css` 的 `:focus-visible`），鼠标点击不会闪一个环。
+ */
+.message:focus-visible {
+  outline-offset: 4px;
+}
 
 /**
  * 消息正文容器。

@@ -34,6 +34,7 @@
     "build:app": "pnpm run build && pnpm run build:runtime && node tools/tauri-build.mjs && node tools/make-dmg.mjs && node tools/bundle-release.mjs",
     "release": "pnpm run build:app && node tools/bundle-release.mjs",
     "smoke": "node tools/smoke.mjs",
+    "check:ui": "node tools/check-ui.mjs",
     "check:core": "node cordis-host/check-core.mjs",
     "prepare:plugins": "node tools/prepare-plugins.mjs",
     "site": "node tools/build-site.mjs",

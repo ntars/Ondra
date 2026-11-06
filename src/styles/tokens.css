@@ -268,12 +268,30 @@
    * 后续实现"顺手加个气泡"，所以连名字一起删掉。
    */
   --specific-input-major: var(--static-paper-0);
+  /* 输入卡的描边。§5.6 给了浅色定值 `#DDD7C9`，比全界面线色略深一档：
+     输入区是唯一「需要被看见边界」的区域，与分隔线不是同一种线。
+     深色下退到 `--static-line`，因为深底上线色本身已经够清楚。 */
+  --specific-input-line: #ddd7c9;
   --specific-sidebar-fill: var(--static-paper-1);
   --specific-selector: var(--static-paper-2);
   /* 浮层菜单：实色纸底 + --shadow-lv3，不用毛玻璃（§4.6）。 */
   --specific-menu: var(--static-paper-0);
   /* 提示气泡走反色：深墨底 + 纸白字，在两种主题下都成立。 */
   --specific-tip: var(--static-ink-1);
+  /**
+   * 提示条的字色与底板。
+   *
+   * **这两个令牌不参与主题切换**，两种模式下都是同一个值。原因：
+   * 提示条底板是深墨（浅色 `#16211f`、深色 `#0e1614`），字必须始终浅色。
+   * 若字色用 `--alias-label-primary-foreground`（指向 `--static-paper-0`），
+   * 深色下 paper-0 变成 `#141715`，于是「深底深字」——实测深色模式下
+   * 提示条内容完全不可见，只剩一块黑。
+   *
+   * 这是「反色」这个词容易误导的地方：反的是**底板与字的关系**，
+   * 不是「前景用背景色」。底板恒深，字就恒浅，与主题无关。
+   */
+  --specific-toast-fill: var(--static-teal-900);
+  --specific-toast-ink: #fffdf9;
 
   /* --- 强调色 -------------------------------------------------------------
    * accent-fill 是发送键与进度条的实心块，全界面唯一的"实心深色块"，
@@ -613,4 +631,15 @@
 
   /* 提示气泡：深色下反色方向要倒过来（浅底深字）。 */
   --specific-tip: var(--static-paper-3);
+
+  /* 提示条底板在深色下**反而要提亮**：浅色用 `#16211f`，深色若继续用它，
+     与 `paper-0`（#141715）几乎同色，提示条就沉进背景看不出是个浮层。
+     取 `#39423f`：比 paper-3 亮两档，与正文底有明确分离。
+     字色仍不改，见上方 `--specific-toast-ink`。 */
+  --specific-toast-fill: #39423f;
+
+  /* 输入卡：深色下纯白卡是刺眼的亮块，退到纸深两档；
+     描边退回统一线色（深底上线色本身已足够清楚）。 */
+  --specific-input-major: var(--static-paper-2);
+  --specific-input-line: var(--static-line);
 }

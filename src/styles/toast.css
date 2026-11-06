@@ -1,0 +1,121 @@
+/**
+ * 提示条样式（§5.10）。
+ *
+ * ## 位置
+ *
+ * 顶部居中，y = 56（标题栏 44 + 12）。进 `--z-toast`（50），高于抽屉与菜单，
+ * 低于 Dialog（60）——提示条不该盖住一个正在等用户确认的危险操作。
+ *
+ * ## 为什么用深墨底而不是纸底
+ *
+ * 它浮在正文之上，同色底会与纸面糊在一起，只能靠描边区分；
+ * 而描边在这个尺寸（40 高、420 宽）上太弱。深底反白是唯一在两种主题下
+ * 都成立的做法，也顺带保证了 4.5:1 的对比度。
+ *
+ * ## 进场 translateY(-8) → 0
+ *
+ * 从上往下落 8px。这段位移很小，目的是让「出现」有一个方向感，
+ * 不是表演。位移过大会让提示条看起来像从窗口外飞进来。
+ */
+
+.toast {
+  position: fixed;
+  top: calc(var(--titlebar-h) + 12px);
+  left: 50%;
+  z-index: var(--z-toast);
+  display: flex;
+  justify-content: center;
+  width: min(420px, calc(100% - 32px));
+  /* 容器本身不吃点击：它横跨顶部，挡住标题栏就点不到拖拽区了。 */
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.toast__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 8px 8px 8px 16px;
+  border-radius: var(--radius-sm);
+  /* 底板与字色都**不随主题变**：底板恒深、字恒浅。
+     用 `--alias-label-primary-foreground` 会在深色下拿到 paper-0
+     （#141715），与深墨底同色，整条提示条变成一块黑 —— 实测过。 */
+  background: var(--specific-toast-fill);
+  color: var(--specific-toast-ink);
+  box-shadow: var(--shadow-lv3);
+  /* 只有提示条本体接收点击（它有悬停暂停与关闭键）。 */
+  pointer-events: auto;
+  transform: translateY(-8px);
+  opacity: 0;
+  transition:
+    transform var(--motion-base) var(--ease-fluid),
+    opacity var(--motion-base) var(--ease-fluid);
+}
+
+.toast[data-open] .toast__body {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/**
+ * 错误态：左侧 2px 红竖条。
+ *
+ * 用 `::before` 而不是 `border-left`：border 会让内容右移 2px，
+ * 正确态与错误态的文字起点不同，切换时会跳一下。
+ */
+.toast__body[data-tone='error']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--static-danger);
+}
+
+.toast__body[data-tone='error'] {
+  position: relative;
+}
+
+.toast__text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-code);
+  line-height: var(--leading-caption);
+  /* 提示条是「读一句就完」的东西，不该被选中。 */
+  user-select: none;
+}
+
+/**
+ * 关闭键。
+ *
+ * 视觉 12px 的叉，热区 28×28（§5.0.7 要求 16px 图标的视觉热区 32，
+ * 这里受限于 40 高的提示条，取 28 —— 上下各留 6，不超过条高）。
+ * 用 `padding` 撑热区而不是 `::before`：它四周都是空白，不会与其他
+ * 可点元素重叠。
+ */
+.toast__close {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-xs);
+  color: inherit;
+  /* 深底上图标只需 70% 不透明度就显得足够，100% 会过于抢眼。 */
+  opacity: 0.7;
+  transition:
+    opacity var(--motion-fast) var(--ease-fluid),
+    background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.toast__close:hover {
+  opacity: 1;
+  /* 深底上的悬停底要用浅色叠加，用纸色 12% 而不是纸深两档——
+     深底上「再深一档」是看不出变化的。 */
+  background: color-mix(in srgb, var(--static-paper-0) 12%, transparent);
+}
