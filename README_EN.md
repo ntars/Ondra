@@ -2643,6 +2643,7 @@ The kernel's 13 methods are called over JSON-RPC 2.0 framed as newline-delimited
 | `src-tauri/src/commands.rs` | Native capability commands |
 | `src-tauri/src/tray.rs` | Tray icon and menu: open, today, mute, quit |
 | `src-tauri/src/window.rs` | Close interception: hide to tray or quit, preference persisted, falls back to minimise when no tray exists |
+| `src-tauri/src/preferences.rs` | Preferences window: created once at 560 × 480, then only shown or hidden; broadcasts preference changes to the other window |
 | `src-tauri/installer/installer.nsi` | Windows installer script: three pages, 410 × 290, DPI aware |
 | `src/lib/host.ts` | The single entry for front-end to host communication |
 | `src/lib/shell.ts` | Thin wrapper for front-end to shell communication |
@@ -2690,22 +2691,52 @@ Ondra/
 │   ├── bundle-release.mjs        Moves installation packages into releases/
 │   └── smoke.mjs                 Three-layer smoke test
 ├── src/                          Front-end UI (React 19 + Vite 8)
-│   ├── main.tsx                  React mounting and connection listening
-│   ├── App.tsx                   Root component
+│   ├── index.html                Single entry, hash selects main UI or preferences
+│   ├── main.tsx                  Mounts and routes on hash: no hash renders App, `#preferences` renders Preferences
+│   ├── App.tsx                   Main window root: wires the interface regions and global shortcuts
 │   ├── components/               Interface components
-│   │   ├── Welcome.tsx           Empty-state home
-│   │   ├── Thread.tsx            Conversation reading flow
-│   │   ├── Composer.tsx          Input box
-│   │   ├── Settings.tsx          Settings slide-over panel
-│   │   ├── Onboarding.tsx        First-run guide
-│   │   ├── Sidebar.tsx           Recent conversations
-│   │   └── icons.tsx             Icon wrappers
+│   │   ├── TitleBar.tsx          Custom title bar: collapse, theme, window buttons
+│   │   ├── Rail.tsx              Leftmost icon rail: today, week, memory and theatre entries plus the gear at the bottom
+│   │   ├── Spine.tsx             Right spine: a 6 × 150 level gauge plus three readings, height is energy and colour is mood
+│   │   ├── Inspector.tsx         Profile inspector: right now, how she sees you, what she remembers, what she is doing
+│   │   ├── Drawer.tsx            Drawer container shared by today, week, memory and theatre, swapping content in place
+│   │   ├── Timeline.tsx          Conversation reading flow: messages, quotes, copy
+│   │   ├── Composer.tsx          Input box: attachments, drag and drop, send mode
+│   │   ├── Settings.tsx          Inspector settings drawer: scene, module and raw layers
+│   │   ├── SceneLayer.tsx        First layer: fill parameters by scene, preview the writes
+│   │   ├── ModuleLayer.tsx       Second layer: field forms grouped by module
+│   │   ├── RawLayer.tsx          Third layer: flat key-value table, fully searchable
+│   │   ├── Preferences.tsx       Standalone preferences window: theme, language, font size, send mode, default permission, updates, about
+│   │   ├── ShortcutSheet.tsx     Shortcut reference sheet
+│   │   ├── Dialog.tsx            Confirmation dialog with focus trapping and restore
+│   │   ├── Toast.tsx             Toasts in three tiers: success, warning, error
+│   │   ├── ScrollArea.tsx        Custom scroll container with a consistent overlay scrollbar
+│   │   ├── Icon.tsx              The only icon exit (morphicons); components refer to icons by name
+│   │   ├── icons.ts              Named icon re-exports, tree-shakeable; rendering still goes through Icon.tsx
+│   │   └── Mark.tsx              Brand mark component, geometry taken from brand/mark.ts
 │   ├── lib/
-│   │   ├── host.ts               Communication with the host
-│   │   ├── shell.ts              Communication with the shell
-│   │   ├── api.ts                Business interfaces
-│   │   └── useAppState.ts        Application state
+│   │   ├── api.ts                Business interfaces and shared types
+│   │   ├── host.ts               The single entry for front-end to host communication
+│   │   ├── shell.ts              Thin wrapper for front-end to shell communication
+│   │   ├── useAppState.ts        Main window state
+│   │   ├── preferences.ts        Single source for preferences: load, apply, broadcast across windows
+│   │   ├── settings.ts           Settings read and write
+│   │   ├── settingTypes.ts       Types for settings fields and sections
+│   │   ├── scenes.ts             Scene definitions and write derivation
+│   │   ├── shortcuts.ts          Shortcut table and key context checks
+│   │   ├── platform.ts           Platform detection
+│   │   ├── types.ts              Memory, bond and mood domain types
+│   │   ├── useRestoreFocus.ts    Focus restore: returns focus to the trigger after an overlay closes
+│   │   └── useResolvedTheme.ts   Resolves a theme mode into light or dark
+│   ├── styles/                   Site-wide styles
+│   │   ├── tokens.css            The single source for design tokens (112 of them)
+│   │   ├── global.css            Style order manifest; the real imports live in main.tsx
+│   │   ├── base.css              Global base styles: reset and invisible rules
+│   │   └── *.css                 One file per component, named after it
+│   ├── assets/fonts/             Interface typeface MiSans VF with its licence
+│   ├── brand/mark.ts             Brand mark geometry, generated from icon.svg
 │   ├── package.json
+│   ├── tsconfig.json
 │   └── vite.config.ts
 ├── cordis-host/                  Cordis host (Node 22 + TypeScript)
 │   ├── index.ts                  Startup entry
@@ -2743,12 +2774,17 @@ Ondra/
     ├── build.rs                  Build script
     ├── tauri.conf.json           Application configuration
     ├── capabilities/
-    │   └── default.json          Window capability permissions
+    │   └── default.json          Default capability set for both windows
     ├── icons/                    Application icons at each size
+    ├── installer/
+    │   └── installer.nsi         Windows installer script
     └── src/
-        ├── main.rs               Entry
-        ├── host.rs               Host process management
-        └── commands.rs           Native capability commands
+        ├── main.rs               Entry: window, events, cleanup on exit
+        ├── host.rs               Host process management: start, wait, stop
+        ├── commands.rs           Native capability commands
+        ├── preferences.rs        Preferences window: create, show and hide, broadcast across windows
+        ├── tray.rs               Tray icon and menu
+        └── window.rs             Close interception: hide to tray or quit
 ```
 
 ---

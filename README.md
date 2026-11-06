@@ -2620,6 +2620,7 @@ pnpm 生成的 `node_modules` 分两层，理解这一点能解释「为什么�
 | `src-tauri/src/commands.rs` | 本机能力命令 |
 | `src-tauri/src/tray.rs` | 托盘图标与菜单：打开、今天、静音、退出 |
 | `src-tauri/src/window.rs` | 关闭拦截：隐藏到托盘 / 退出，偏好落盘，无托盘时降级最小化 |
+| `src-tauri/src/preferences.rs` | 偏好设置窗口：建一次 560 × 480，之后只显隐；广播偏好变更到其他窗口 |
 | `src-tauri/installer/installer.nsi` | Windows 安装器脚本：三页流程、410 × 290、DPI 自适应 |
 | `src/lib/host.ts` | 前端与宿主通信的唯一入口 |
 | `src/lib/shell.ts` | 前端与壳通信的薄封装 |
@@ -2667,22 +2668,52 @@ Ondra/
 │   ├── bundle-release.mjs        把安装包搬运到 releases/
 │   └── smoke.mjs                 三层链路冒烟测试
 ├── src/                          前端 UI（React 19 + Vite 8）
-│   ├── main.tsx                  React 挂载与连接监听
-│   ├── App.tsx                   根组件
+│   ├── index.html                单份入口，hash 区分主界面与偏好设置
+│   ├── main.tsx                  挂载与 hash 路由：无 hash 走 App，`#preferences` 走 Preferences
+│   ├── App.tsx                   主界面根组件：装配界面区块与全局快捷键
 │   ├── components/               界面组件
-│   │   ├── Welcome.tsx           空状态首页
-│   │   ├── Thread.tsx            对话态阅读流
-│   │   ├── Composer.tsx          输入框
-│   │   ├── Settings.tsx          设置侧滑面板
-│   │   ├── Onboarding.tsx        首启引导
-│   │   ├── Sidebar.tsx           最近对话
-│   │   └── icons.tsx             图标封装
+│   │   ├── TitleBar.tsx          自绘标题栏：折叠、主题、窗口按钮
+│   │   ├── Rail.tsx              最左侧图标栏：今天 / 本周 / 记忆 / 剧场四个入口与底部齿轮
+│   │   ├── Spine.tsx             右侧脊：一条 6 × 150 水位加三个读数，高度是精力、颜色是心情
+│   │   ├── Inspector.tsx         侧写检查器：此刻 → 她对你 → 记得的事 → 她此刻在做什么
+│   │   ├── Drawer.tsx            抽屉容器：今天 / 本周 / 记忆 / 剧场四种内容共用，原地替换
+│   │   ├── Timeline.tsx          对话阅读流：消息、引用、复制
+│   │   ├── Composer.tsx          输入框：附件、拖放、发送方式
+│   │   ├── Settings.tsx          检查器设置抽屉：场面 / 模块 / 原始三层
+│   │   ├── SceneLayer.tsx        第一层：按场面填参数，预演写入
+│   │   ├── ModuleLayer.tsx       第二层：按模块分组的字段表单
+│   │   ├── RawLayer.tsx          第三层：扁平键值表，全量可搜
+│   │   ├── Preferences.tsx       偏好设置独立窗口：主题 / 语言 / 字号 / 发送方式 / 默认权限 / 更新 / 关于
+│   │   ├── ShortcutSheet.tsx     快捷键速查表
+│   │   ├── Dialog.tsx            确认对话框，焦点收束与还原
+│   │   ├── Toast.tsx             提示条：成功 / 警告 / 错误三级
+│   │   ├── ScrollArea.tsx        自绘滚动容器，统一 overlay 滚动条
+│   │   ├── Icon.tsx              图标唯一出口（morphicons），组件只认名字
+│   │   ├── icons.ts              命名图标的重导出，数据可摇树，渲染仍归 Icon.tsx
+│   │   └── Mark.tsx              品牌标记组件，图形取自 brand/mark.ts
 │   ├── lib/
-│   │   ├── host.ts               与宿主通信
-│   │   ├── shell.ts              与壳通信
-│   │   ├── api.ts                业务接口
-│   │   └── useAppState.ts        应用状态
+│   │   ├── api.ts                业务接口与共享类型
+│   │   ├── host.ts               与宿主通信的唯一入口
+│   │   ├── shell.ts              与壳通信的薄封装
+│   │   ├── useAppState.ts        主界面状态
+│   │   ├── preferences.ts        偏好真源：读盘、应用、跨窗口广播
+│   │   ├── settings.ts           设置读写
+│   │   ├── settingTypes.ts       设置字段与分段的类型
+│   │   ├── scenes.ts             场面定义与写入推导
+│   │   ├── shortcuts.ts          快捷键表与按键上下文判断
+│   │   ├── platform.ts           平台判断
+│   │   ├── types.ts              记忆、羁绊、心情等业务类型
+│   │   ├── useRestoreFocus.ts    焦点还原：关闭浮层后回到触发元素
+│   │   └── useResolvedTheme.ts   把主题模式解析成 light / dark
+│   ├── styles/                   全站样式
+│   │   ├── tokens.css            设计令牌唯一真源（112 个）
+│   │   ├── global.css            样式顺序清单，真正的 import 在 main.tsx
+│   │   ├── base.css              全局基础样式：重置与不可见规则
+│   │   └── *.css                 每个组件一份，与组件同名
+│   ├── assets/fonts/             界面字体 MiSans VF（含许可证）
+│   ├── brand/mark.ts             品牌标记图形数据，由 icon.svg 自动生成
 │   ├── package.json
+│   ├── tsconfig.json
 │   └── vite.config.ts
 ├── cordis-host/                  Cordis 宿主（Node 22 + TypeScript）
 │   ├── index.ts                  启动入口
@@ -2720,12 +2751,17 @@ Ondra/
     ├── build.rs                  构建脚本
     ├── tauri.conf.json           应用配置
     ├── capabilities/
-    │   └── default.json          窗口能力权限
+    │   └── default.json          两个窗口的默认能力集
     ├── icons/                    应用图标各尺寸
+    ├── installer/
+    │   └── installer.nsi         Windows 安装器脚本
     └── src/
-        ├── main.rs               入口
-        ├── host.rs               宿主进程管理
-        └── commands.rs           本机能力命令
+        ├── main.rs               入口：窗口、事件、退出清理
+        ├── host.rs               宿主进程管理：启动、等待、停止
+        ├── commands.rs           本机能力命令
+        ├── preferences.rs        偏好设置窗口：建立、显隐、跨窗口广播
+        ├── tray.rs               托盘图标与菜单
+        └── window.rs             关闭拦截：隐藏到托盘 / 退出
 ```
 
 ---
