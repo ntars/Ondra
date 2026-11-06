@@ -7,20 +7,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
-// 顺序有依赖：令牌必须先于所有引用它的样式加载，
-// 否则首帧会出现"变量未定义"导致的样式回退。
+/**
+ * 样式顺序在这里定。
+ *
+ * 不用 `global.css` 里的 `@import` 是因为本项目的 postcss 会把相对
+ * 路径当成从项目根解析，报 ENOENT。ES import 的求值顺序由书写次序
+ * 决定，语义明确，产物同样只有一个 CSS 文件。
+ *
+ * 令牌必须最先——其余全部 `var()` 依赖它，晚一步就会有首帧回落。
+ */
 import './styles/tokens.css'
-import './styles/global.css'
+import './styles/base.css'
 import './styles/layout.css'
-import './styles/sidebar.css'
-import './styles/thread.css'
-import './styles/runlog.css'
-import './styles/composer.css'
-import './styles/companion.css'
-import './styles/overlay.css'
-// 浮层样式放在最后：菜单与提示条的 z-index 最高，
-// 让它们覆盖在其余样式表之后加载，避免被同优先级的规则改写。
-import './styles/overlay-menu.css'
+import './styles/titlebar.css'
 import { listenShell, markPlatform } from './lib/shell.ts'
 import type { HostReadyPayload } from './lib/shell.ts'
 import { adoptDevConnection, setConnection, setConnectionFailure } from './lib/host.ts'

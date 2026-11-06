@@ -1,189 +1,30 @@
 /**
- * 全局重置与基础排版。
+ * 样式顺序清单。
  *
- * ## 职责边界
+ * ## 真正的 import 在 `main.tsx`
  *
- * 这个文件只做三件事：字体声明、元素级重置、滚动条。
- * 任何带类名的样式都不放在这里——按界面区域分文件（sidebar / thread /
- * composer / companion / overlay），改哪一块就开哪个文件。
+ * 最初这里用 `@import './tokens.css'`，但本项目的 Vite 构建会报
+ * `ENOENT: no such file or directory, open './tokens.css'` ——
+ * `postcss-import` 在解析这个相对路径时是从项目根开始的，
+ * 而不是从当前文件所在目录，加不加 `./` 都一样。
  *
- * ## 单位
+ * 所以改成在 `main.tsx` 里用 ES import 排列顺序：ES import 的求值
+ * 顺序由书写次序决定，语义明确，Vite 也会把全部 CSS 内联进同一个
+ * 产物，不产生额外请求。
  *
- * 一律 px。这是桌面窗口，尺寸由用户直接拖拽，不存在等比缩放需求。
+ * ## 这个文件现在的作用
  *
- * ## 字体
+ * 作为**顺序清单**存在，让「有哪些样式、谁先谁后」有一个不依赖
+ * 翻组件文件的地方。改顺序时两处都要改（这里与 `main.tsx`），
+ * 因此清单下方注明哪一处才是真的。
  *
- * 界面统一使用 MiSans（小米官方免费商用字体，授权见
- * `src/assets/fonts/LICENSE-MiSans.md`）。
+ * 顺序（自上而下即加载次序）：
  *
- * 内置的是**可变字体**子集：一个文件覆盖 wght 150–700，
- * 相当于把 10 个独立字重压成一个。10 个独立 woff2 合计约 46MB，
- * 可变字体子集化后只有 8.3MB，且字重可以取连续值（如 590），
- * 不必在 300/400/500 之间跳档。
+ *   1. `tokens.css`    设计令牌。必须最先，其余全部依赖它
+ *   2. `base.css`      重置、焦点、选中、滚动条、降级块
+ *   3. `layout.css`    骨架尺寸：外壳、标题栏、双脊、主列、首页
+ *   4. `titlebar.css`  标题栏细节与 Windows 三键
+ *
+ * 组件样式文件随批次追加，一律排在 `layout.css` 之后：
+ * 骨架定盒子，组件只画内容，后者依赖前者算出的宽度。
  */
-
-@font-face {
-  font-family: "MiSans";
-  src: url("../assets/fonts/MiSansVF.woff2") format("woff2-variations");
-  font-weight: 150 700;
-  font-style: normal;
-  /* swap：字体加载期间先用系统字体渲染，避免空白文字闪烁。
-     字体是本地文件，加载通常在首帧内完成，几乎看不到切换。 */
-  font-display: swap;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
-
-body {
-  background: var(--alias-bg-base);
-  color: var(--alias-label-primary);
-  font-family: var(--font-family);
-  font-size: var(--content-font-size);
-  line-height: 1.55;
-  /* 桌面应用不该有网页那种点击高亮与拖影。 */
-  -webkit-tap-highlight-color: transparent;
-  -webkit-font-smoothing: antialiased;
-  /* 界面文字不许选中，但对话内容与输入框可以——见下方例外。
-     这是原生应用与网页最直观的体感差异之一。 */
-  user-select: none;
-  cursor: default;
-  /* 窗口边缘不可滚动：滚动只发生在各栏内部。 */
-  overflow: hidden;
-}
-
-input,
-textarea,
-.selectable {
-  user-select: text;
-  cursor: auto;
-  font-family: inherit;
-}
-
-button {
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: default;
-}
-
-/* 键盘用户必须看得见焦点，鼠标用户不该看到。 */
-:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
-/* 去掉默认的 focus 轮廓：只在 :focus-visible 时给。 */
-:focus:not(:focus-visible) {
-  outline: none;
-}
-
-::selection {
-  background: color-mix(in srgb, var(--alias-label-primary) 14%, transparent);
-}
-
-/* ---------------------------------------------------------------------------
-   滚动条
-   --------------------------------------------------------------------------- */
-
-/**
- * 细、无色、悬停才出现。理由：这个界面的留白很多，
- * 常驻一条灰线会在留白里插一道视觉干扰。
- *
- * 宽度 8px 但视觉只有 2px：用 8px 是因为小于 8px 时
- * 鼠标很难抓住，实际粗细靠 thumb 的内阴影做出来。
- */
-.scroller {
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-.scroller::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.scroller::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scroller::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  background-clip: padding-box;
-}
-
-.scroller:hover::-webkit-scrollbar-thumb {
-  background: var(--alias-scrollbar-bg-l2);
-  background-clip: padding-box;
-}
-
-.scroller::-webkit-scrollbar-thumb:hover {
-  background: var(--alias-scrollbar-hover-l2);
-  background-clip: padding-box;
-}
-
-/* 所有可滚动容器默认套用同一套滚动条。 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  background-clip: padding-box;
-}
-
-/* 只在真正悬停到容器上时才显示 thumb。 */
-*:hover::-webkit-scrollbar-thumb {
-  background: var(--alias-scrollbar-bg-l2);
-  background-clip: padding-box;
-}
-
-/* ---------------------------------------------------------------------------
-   动效偏好
-   --------------------------------------------------------------------------- */
-
-/**
- * 尊重系统的「减弱动态效果」。
- *
- * 不是简单地把 duration 设为 0——那会让依赖 animation 的
- * 淡入效果直接跳到终态（视觉上等于没有动画，这是对的），
- * 但会让无限循环的呼吸点彻底不动（这就不对了，它是状态指示）。
- * 因此分组处理：一次性动画归零，循环动画只放慢。
- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}

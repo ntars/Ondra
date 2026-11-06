@@ -1,435 +1,578 @@
 /**
- * 设计令牌表。
+ * 设计令牌表 —— 全项目唯一的颜色、字号、间距、动效来源。
  *
- * ## 为什么分成两层名字
+ * ## 两层命名
  *
- * 第一层是**静态色板**（`--static-*`）：一组有明确定值的颜色，
- * 从最浅到最深排成阶梯。它回答的是"这个颜色具体是多少"。
+ * 第一层 **静态色板**（`--static-*`）：有明确定值的颜色，回答"这个颜色是多少"。
+ * 第二层 **语义别名**（`--alias-*` / `--specific-*`）：回答"这个位置该用什么"，
+ * 不写死色值，只指向色板里的某一档。
  *
- * 第二层是**语义别名**（`--alias-*`）：回答"这个位置该用什么颜色"。
- * 例如 `--alias-label-secondary` 不写死色值，而是指向色板里的某一档。
+ * 分层的唯一收益是深色模式：组件只引用语义别名，深色下改别名的指向即可，
+ * 组件样式一个字都不用动。若组件直接写 `#61666b`，深色就得逐条覆写。
  *
- * 分开的价值在于深色模式：一整套界面组件只引用语义别名，
- * 深色模式下改别名指向哪一档即可，组件样式一个字都不用动。
- * 如果组件直接写 `#61666b`，深色模式就得逐条覆写。
+ * ## 规则
  *
- * ## 与旧版的关系
+ * 1. **组件只引用 `--alias-*` / `--specific-*`**，不直接引用 `--static-*`。
+ *    例外只有两处：`--static-line`（全界面唯一线色，本身就是语义）与
+ *    `--static-danger`（平台地位的特殊色，不参与主题语义）。
+ * 2. **禁止蓝色**。全界面不出现 `#3B82F6` 一类系统蓝。
+ * 3. **字号一律 rem**，基准为 `html { font-size: 100% }`，系统放大字号时界面跟着放大。
+ *    尺寸（宽度、栏宽）一律 px，因为窗口尺寸由用户直接拖拽，不存在等比缩放需求。
+ * 4. 颜色写 6 位或 8 位十六进制，**统一小写**，便于 grep 与校验。
  *
- * 令牌的**命名与取值**来自旧版的设计体系，那些数值是经过实际渲染校准的，
- * 重新调一遍只会引入无谓偏差。但这里的文件、层级、注释与使用方式
- * 全部按新架构重新组织——旧版是在运行时由插件注入，这里是一张静态表，
- * 构建期就能被压缩与校验。
+ * ## 与设计文档的对应
  *
- * ## 单位
- *
- * 一律 px。这是桌面窗口，尺寸由用户直接拖拽，不存在等比缩放需求。
+ * 取值全部来自 `docs/UI-DESIGN.md` §4.0（深色映射）、§4.1（色板）、
+ * §4.2（字阶）、§4.3（几何）、§8.1（时长）、§8.2（曲线）、§11.2（令牌接入对照）。
+ * §11.2 演示了两种落地做法，本文件采用其中的 **B**：新增 `--static-paper-*` 与
+ * `--static-ink-*` 命名，与设计文档保持一致。旧名（`--static-neutral-bluish-*`）
+ * 一并保留为兼容别名，指向新档位，让尚未改完的旧引用自动收敛到新配色。
  */
 
+/* ===========================================================================
+   字体
+   =========================================================================== */
+
+/**
+ * MiSans VF，可变字重 150–700，8.3 MB，内嵌于产物不依赖系统字体。
+ *
+ * `font-display: block` 而非 `swap`：桌面应用不存在"字体加载慢"的场景
+ * （本地文件，不打网络），但存在首帧闪烁的场景。用 `block` 换零闪烁，
+ * 代价是最多 100ms 的空白——期间显示的是透明，不是错误字形。
+ *
+ * 路径相对本文件，`../assets/` 而非 `./assets/`：本文件在 `src/styles/`。
+ */
+@font-face {
+  font-family: 'MiSans';
+  src: url('../assets/fonts/MiSansVF.woff2') format('woff2-variations');
+  font-weight: 150 700;
+  font-style: normal;
+  /* 只覆盖常用子集即可，全量由可变字体单文件承担，不做 unicode-range 切分。 */
+  font-display: block;
+}
+
+/* ===========================================================================
+   一、静态色板（浅色基准）
+   =========================================================================== */
+
 :root {
-  /* ==========================================================================
-     一、静态色板
-     ========================================================================== */
+  /* --- 纸与墨 -------------------------------------------------------------
+   * 底色不是纯白，是带一点暖调的纸白 `#FFFDF9`。纯白在 14px 中文下
+   * 会显出"发光"感，长时间阅读累眼。
+   *
+   * 四级纸色构成明确的三层结构：
+   *   paper-0  主区（中栏、首页）
+   *   paper-1  双脊、检查器（比主区略暗，让中栏自然"浮"起来）
+   *   paper-2  薄片、控件槽、悬停底
+   *   paper-3  按下底
+   */
+  --static-paper-0: #fffdf9;
+  --static-paper-1: #f7f4ee;
+  --static-paper-2: #f2eee4;
+  --static-paper-3: #e9e4d6;
 
-  /* 中性偏蓝。界面骨架色，带极轻微的蓝调——
-     纯灰在 macOS 的白底上会显得发闷，偏一点点蓝才"透气"。 */
-  --static-neutral-bluish-00: #ffffff;
-  --static-neutral-bluish-50: #f9fafb;
-  --static-neutral-bluish-55: #f5f7fa;
-  --static-neutral-bluish-60: #f5f6f7;
-  --static-neutral-bluish-75: #f1f3f5;
-  --static-neutral-bluish-90: #edf0f4;
-  --static-neutral-bluish-100: #ebeef2;
-  --static-neutral-bluish-150: #e9ecf2;
-  --static-neutral-bluish-200: #e1e5ee;
-  --static-neutral-bluish-300: #cfd3d6;
-  --static-neutral-bluish-310: #cad2db;
-  --static-neutral-bluish-400: #adb2b8;
-  --static-neutral-bluish-500: #979da6;
-  --static-neutral-bluish-600: #81858c;
-  --static-neutral-bluish-700: #61666b;
-  --static-neutral-bluish-750: #43454a;
-  --static-neutral-bluish-800: #353638;
-  --static-neutral-bluish-850: #2c2c2e;
-  --static-neutral-bluish-875: #232324;
-  --static-neutral-bluish-900: #1b1b1c;
-  --static-neutral-bluish-950: #151517;
-  --static-neutral-bluish-1000: #0f1115;
+  /* 全界面唯一线色。0.5px 描边与全部 1px 分隔线都用它。
+     不用透明黑：透明黑叠在不同底色上会得到不同灰度，
+     "同一根线"在纸底与脊底上看起来是两个颜色。 */
+  --static-line: #e4dfd3;
 
-  /* 纯中性。滚动条与代码块用它，避免和带蓝的骨架色混在一起显脏。 */
-  --static-neutral-00: #ffffff;
-  --static-neutral-50: #fafafa;
-  --static-neutral-100: #f5f5f5;
-  --static-neutral-150: #ededed;
-  --static-neutral-200: #e5e5e5;
-  --static-neutral-250: #dcdcdc;
-  --static-neutral-300: #d4d4d4;
-  --static-neutral-400: #a2a4a6;
-  --static-neutral-500: #7f8287;
-  --static-neutral-550: #65676b;
-  --static-neutral-1000: #000000;
+  /* 四级墨色。对比度见下表。
+     ink-4 只够做占位符与分隔文字，**不承载信息**。
 
-  /* 品牌蓝。只用于"业务状态"（当前标签、焦点环、链接），
-     不用它做大面积填充——整屏铺蓝会让文字对比度全面下降。 */
-  --static-blue-50: #eff6ff;
-  --static-blue-75: #e5f0ff;
-  --static-blue-100: #dbeafe;
-  --static-blue-300: #93c5fd;
-  --static-blue-400: #60a5fa;
-  --static-blue-450: #4d93f8;
-  --static-blue-500: #3b82f6;
-  --static-blue-600: #2563eb;
-  --static-blue-900: #0e3074;
+     各级在四种纸底上的最低对比度（浅色 / 深色），必须全部 ≥ 4.5:1，
+     因为文字可能出现在纸 0～paper-3 的任意一层上（薄片与悬停底就是 paper-2）：
 
-  /* 主色阶。与品牌蓝同族但更深，用于强调与链接文字。 */
-  --static-primary-50: #edf3fe;
-  --static-primary-100: #e4edfd;
-  --static-primary-200: #d3e2ff;
-  --static-primary-450: #5686fe;
-  --static-primary-500: #4176e6;
-  --static-primary-600: #4868b2;
+       ink-1  浅 14.9 / 深 13.2      正文
+       ink-2  浅 5.5  / 深 8.2       次要正文
+       ink-3  浅 4.72 / 深 4.61      标注、读数标签（最紧的一档）
+       ink-4  浅 2.7  / 深 3.0       仅占位符
 
-  /* 语义色。绿=成功、红=错误、琥珀=警告。
-     每一档都对着一个可量化的对比度门槛，不凭感觉挑。 */
-  --static-green-100: #e6faed;
-  --static-green-400: #4ed17e;
-  --static-green-500: #22c55e;
-  --static-red-50: #fef2f2;
-  --static-red-100: #fee2e2;
-  --static-red-400: #f25a5a;
-  --static-red-500: #ef4444;
-  --static-red-600: #ec1313;
-  --static-amber-100: #fef5e7;
-  --static-amber-400: #f7ad31;
-  --static-amber-500: #f59e0b;
-  --static-amber-600: #dd8629;
-  --static-violet-400: #a78bfa;
-  --static-violet-600: #7c3aed;
+     ink-3 的取值由"最坏底色"反推，不是随手挑的：`#6e7570` 在 paper-2
+     上只有 4.08:1，不达标，因此压到 `#5e6560`（最坏 4.72:1，留 4% 余量）。
+     深色侧同理提到 `#959b95`（`#8a908a` 在 paper-3 上仅 4.01:1）。
+     改这两个值前，先跑一遍对比度脚本，别凭肉眼判断"看起来够深"。 */
+  --static-ink-1: #1c1f1d;
+  --static-ink-2: #5a625e;
+  --static-ink-3: #5e6560;
+  --static-ink-4: #9a9e96;
 
-  /* ==========================================================================
+  /* --- 玄青（主操作与水位）------------------------------------------------
+   * 品牌色相是"玄青"，不是蓝。teal-600 用于主操作、水位、用户竖线；
+   * teal-900 用于深底与按下态。
+   */
+  --static-teal-600: #2e4a45;
+  --static-teal-900: #16211f;
+  /* 玄青的最浅档，只做徽章底与选中行的淡底。 */
+  --static-teal-50: #eaf0ee;
+
+  /* --- 沙（暖度与关系）---------------------------------------------------
+   * sand 表示"暖度、关系、主动开口"。不用它表示状态，也不用于主操作。
+   *
+   * sand-500 是**装饰色**，只做标记块、水位暖段、主动开口的圆点，不承载文字。
+   * sand-700 是**文字色**（`--alias-state-warn-label` 指向它），
+   * 因此必须在最深纸底 paper-3 上也 ≥ 4.5:1，取值由该约束反推。
+   */
+  --static-sand-500: #b08a5a;
+  --static-sand-700: #72624b;
+
+  /* --- 状态色 -------------------------------------------------------------
+   * 成功用低饱和的苔绿，与整套暖纸配色同源；警告直接复用 sand，
+   * 不再单独定义一套琥珀色——多一套色相就多一处需要校准的对比度。
+   */
+  --static-green-500: #34704d;
+  --static-green-100: #eaf2ee;
+
+  /* 危险色。删除确认、错误态、Windows 关闭键悬停。
+     在 paper-3 上为 4.61:1（原 `#c42b1c` 只有 4.46，差 0.04 不达标）。 */
+  --static-danger: #c12819;
+
+  /* --- 旧名兼容 -----------------------------------------------------------
+   * 旧版用 `--static-neutral-bluish-*` 阶梯。它们仍有引用，不能删，
+   * 但也不能留着旧色值——留着会让"换了配色却没换干净"变成长期状态。
+   * 因此直接指向新档位，旧引用自动拿到新色。
+   *
+   * 全部旧引用清零后，这一整段可以整体删除。
+   */
+  --static-neutral-bluish-00: var(--static-paper-0);
+  --static-neutral-bluish-50: var(--static-paper-1);
+  --static-neutral-bluish-55: var(--static-paper-1);
+  --static-neutral-bluish-60: var(--static-paper-2);
+  --static-neutral-bluish-75: var(--static-paper-2);
+  --static-neutral-bluish-90: var(--static-paper-3);
+  --static-neutral-bluish-100: var(--static-paper-3);
+  --static-neutral-bluish-150: var(--static-paper-2);
+  --static-neutral-bluish-200: var(--static-paper-3);
+  --static-neutral-bluish-300: var(--static-ink-4);
+  --static-neutral-bluish-310: var(--static-ink-4);
+  --static-neutral-bluish-400: var(--static-ink-4);
+  --static-neutral-bluish-500: var(--static-ink-3);
+  --static-neutral-bluish-600: var(--static-ink-3);
+  --static-neutral-bluish-700: var(--static-ink-2);
+  --static-neutral-bluish-750: var(--static-ink-2);
+  --static-neutral-bluish-800: var(--static-ink-1);
+  --static-neutral-bluish-850: var(--static-ink-1);
+  --static-neutral-bluish-875: var(--static-ink-1);
+  --static-neutral-bluish-900: var(--static-ink-1);
+  --static-neutral-bluish-950: var(--static-ink-1);
+  --static-neutral-bluish-1000: var(--static-ink-1);
+
+  --static-neutral-00: var(--static-paper-0);
+  --static-neutral-50: var(--static-paper-1);
+  --static-neutral-200: var(--static-paper-3);
+  --static-neutral-300: var(--static-ink-4);
+
+  /* 旧品牌蓝。设计规范禁止蓝色，这里指回玄青，避免残留引用画出蓝块。 */
+  --static-primary-50: var(--static-teal-50);
+  --static-primary-100: var(--static-teal-50);
+  --static-primary-500: var(--static-teal-600);
+  --static-blue-900: var(--static-teal-900);
+
+  --static-amber-500: var(--static-sand-500);
+  --static-amber-600: var(--static-sand-700);
+  --static-red-600: var(--static-danger);
+  --static-red-100: #351916;
+
+  /* =========================================================================
      二、语义别名
-     ========================================================================== */
+     ========================================================================= */
 
-  /* --- 文字 ---------------------------------------------------------------
-   * 四级。每级都对应一个明确用途，不允许"看着差不多就换一档"：
-   * primary   正文与标题
-   * secondary 次要正文
-   * tertiary  辅助标签
-   * caption   占位符与极小注释（这一档刻意最淡，只用在非关键信息上）
+  /* --- 背景 -------------------------------------------------------------
+   * base 是内容区底色；layer-1/2 与 overlay 给分层容器用；
+   * skeleton 是加载占位，只在加载中出现，不做闪光（见 base.css 的说明）。
    */
-  --alias-label-primary: var(--static-neutral-bluish-1000);
-  --alias-label-secondary: var(--static-neutral-bluish-700);
-  --alias-label-tertiary: var(--static-neutral-bluish-600);
-  --alias-label-caption: var(--static-neutral-bluish-400);
-  --alias-label-primary-inverted: var(--static-neutral-bluish-00);
-  --alias-label-primary-foreground: var(--static-neutral-bluish-00);
+  --alias-bg-base: var(--static-paper-0);
+  --alias-bg-layer-1: var(--static-paper-0);
+  --alias-bg-layer-2: var(--static-paper-1);
+  --alias-bg-overlay: var(--static-paper-1);
+  /* 分段控件的槽底与已抬起按钮的底。 */
+  --alias-bg-module-platform: var(--static-paper-2);
+  --alias-bg-button-elevated: var(--static-paper-0);
+  --alias-bg-skeleton: var(--static-paper-2);
 
-  /* --- 线条 ---------------------------------------------------------------
-   * 四级透明度。l1 最淡，只在需要极轻分隔时用；
-   * l3 是面板边框的默认档，l4 用于卡片描边。
+  /* --- 边框 ---------------------------------------------------------------
+   * 四档全部指向同一个线色。设计规范里"全界面唯一线色"是硬约束，
+   * 分成四档只是因为旧引用有四个名字，语义上它们没有差别。
    */
-  --alias-border-l1: #0000000a;
-  --alias-border-l2: #0000001a;
-  --alias-border-l3: #0000001f;
-  --alias-border-l4: #00000029;
-
-  /* --- 背景 ---------------------------------------------------------------
-   * base 是内容区底色，sidebar-fill 是左右两栏底色。
-   * 两者相差一档（#fff vs #f9fafb），让中栏自然"浮"起来。
-   */
-  --alias-bg-base: var(--static-neutral-bluish-00);
-  --alias-bg-layer-1: var(--static-neutral-bluish-00);
-  --alias-bg-layer-2: var(--static-neutral-bluish-50);
-  --alias-bg-overlay: var(--static-neutral-bluish-150);
-  /* 分段控件的槽底。比侧栏再深一丝，让"滑动的白块"能浮在它上面。 */
-  --alias-bg-module-platform: #0000000b;
-  /* 已抬起的按钮底（分段控件的滑块、头像底）。纯白，靠描边定形。 */
-  --alias-bg-button-elevated: var(--static-neutral-bluish-00);
-  /* 骨架屏。极淡，只在加载中用。 */
-  --alias-bg-skeleton: #0000000a;
+  --alias-border-l1: var(--static-line);
+  --alias-border-l2: var(--static-line);
+  --alias-border-l3: var(--static-line);
+  --alias-border-l4: var(--static-line);
 
   /* --- 交互态 -------------------------------------------------------------
-   * 悬停用带蓝调的 6% 黑，比纯黑透明更柔和，且与骨架色同源。
+   * 悬停与按下用纸色的深两档，不用透明黑：透明黑叠在纸色上会发灰，
+   * 与暖纸底调和后显脏。用实色纸深，色相一致。
    */
-  --alias-interactive-bg-hover: #2631480f;
-  --alias-interactive-bg-active: #2631481a;
-  --alias-interactive-bg-hover-solid: var(--static-neutral-bluish-75);
+  --alias-interactive-bg-hover: var(--static-paper-2);
+  --alias-interactive-bg-active: var(--static-paper-3);
+  --alias-interactive-bg-hover-solid: var(--static-paper-2);
+
+  /* --- 文字 ---------------------------------------------------------------
+   * caption 指向 ink-3（4.5:1）而非 ink-4（2.6:1）。
+   * 设计文档 §11.2 建议 caption → ink-4，但那只是把旧值（2.1:1）往上提一档的
+   * 最小改动；caption 在 §4.2 里承担"记忆薄片、时间戳"——这两样都承载信息，
+   * 按 WCAG AA 必须 4.5:1。ink-4 在 §4.1 里明确标注"不承载信息"，
+   * 两处对不上，以 §4.1 的用途定义为准。
+   */
+  --alias-label-primary: var(--static-ink-1);
+  --alias-label-secondary: var(--static-ink-2);
+  --alias-label-tertiary: var(--static-ink-3);
+  --alias-label-caption: var(--static-ink-3);
+  /* 不可用态的文字。极淡，只给 disabled 控件。 */
+  --alias-label-dimmed: var(--static-ink-4);
+  /* 反色文字（深底上的字）。 */
+  --alias-label-primary-inverted: var(--static-paper-0);
+  --alias-label-primary-foreground: var(--static-paper-0);
+  /* 淡底徽章里的文字。玄青系淡底配玄青深字，比主色更贴底色。 */
+  --alias-label-primary-bluish: var(--static-teal-900);
 
   /* --- 状态 ---------------------------------------------------------------
-   * business-primary 是"当前选中"的统一色：标签下划线、焦点环、光标都用它。
-   * 三个 secondary/tertiary 是徽章底色，都取最浅那一档——
-   * 徽章里装的是文字，底色一深就压不住字。
+   * business-primary 是"当前选中"的统一色：焦点环、光标、选中竖线、水位。
    */
-  --alias-state-business-primary: var(--static-primary-500);
-  --alias-state-business-tertiary: var(--static-primary-100);
+  --alias-state-business-primary: var(--static-teal-600);
+  --alias-state-business-tertiary: var(--static-teal-50);
   --alias-state-success-primary: var(--static-green-500);
   --alias-state-success-tertiary: var(--static-green-100);
-  --alias-state-warn-primary: var(--static-amber-500);
-  --alias-state-warn-label: var(--static-amber-600);
-  --alias-state-error-primary: var(--static-red-600);
+  --alias-state-warn-primary: var(--static-sand-500);
+  --alias-state-warn-label: var(--static-sand-700);
+  --alias-state-error-primary: var(--static-danger);
   --alias-state-error-tertiary: var(--static-red-100);
-  --alias-state-idle-primary: var(--static-neutral-300);
+  --alias-state-idle-primary: var(--static-ink-4);
   --alias-state-idle-tertiary: var(--alias-interactive-bg-hover);
 
-  /* 链接与可点文字。 */
-  --alias-link: var(--static-primary-500);
-  /* 蓝底上的深蓝字。淡蓝徽章里的文字用它，比普通 primary 更贴底色。 */
-  --alias-label-primary-bluish: var(--static-blue-900);
-  /* 不可用态的文字。极淡，只用于 disabled 控件。 */
-  --alias-label-dimmed: var(--static-neutral-bluish-200);
+  /* 链接与可点文字。与主操作同色，不另设一档。 */
+  --alias-link: var(--static-teal-600);
 
-  /* --- 特定区块 ----------------------------------------------------------- */
-  /* 用户消息气泡。淡蓝而非灰：它要和"助手直接铺在纸面上的正文"区分开，
-     但不能深到像引用块。 */
-  --specific-bubble: var(--static-primary-50);
-  /* 输入框底色用纯白，靠描边阴影而非底色与页面区分。 */
-  --specific-input-major: var(--static-neutral-bluish-00);
-  /* 侧栏底色。 */
-  --specific-sidebar-fill: var(--static-neutral-bluish-50);
-  /* 输入框内的小圆形按钮（加号）底色。 */
-  --specific-selector: var(--static-neutral-bluish-60);
-  /* 浮层与菜单。半透明 + 背景模糊，让下层内容隐约透出。 */
-  --specific-menu: #f8f9faf0;
-  --specific-tip: var(--static-neutral-bluish-60);
+  /* --- 特定区块 -----------------------------------------------------------
+   * `--specific-bubble` 已删除（设计文档 §11.2）：消息不再有气泡，
+   * 用户消息改用一条玄青竖线标记（见 §5.4）。留着这个变量会诱使
+   * 后续实现"顺手加个气泡"，所以连名字一起删掉。
+   */
+  --specific-input-major: var(--static-paper-0);
+  --specific-sidebar-fill: var(--static-paper-1);
+  --specific-selector: var(--static-paper-2);
+  /* 浮层菜单：实色纸底 + --shadow-lv3，不用毛玻璃（§4.6）。 */
+  --specific-menu: var(--static-paper-0);
+  /* 提示气泡走反色：深墨底 + 纸白字，在两种主题下都成立。 */
+  --specific-tip: var(--static-ink-1);
 
   /* --- 强调色 -------------------------------------------------------------
-   * 发送按钮与进度条填充。这是全界面唯一的"实心深色块"，
-   * 它的作用是让用户的视线第一时间找到主操作。
+   * accent-fill 是发送键与进度条的实心块，全界面唯一的"实心深色块"，
+   * 作用是让视线第一时间找到主操作。
    */
-  --accent-fill: #171717;
-  --accent-hover: #000000;
-  --accent-ink: #f5f5f5;
-  --accent-soft: #0000000d;
-  --accent-track: #0000001a;
+  --accent-fill: var(--static-teal-600);
+  --accent-hover: var(--static-teal-900);
+  --accent-ink: var(--static-paper-0);
+  /* 选中文字的背景（::selection 用），玄青 8% 透明。 */
+  --accent-soft: #2e4a4514;
+  /* 进度条轨道，玄青 16% 透明。 */
+  --accent-track: #2e4a4529;
 
-  /* --- 滚动条 ------------------------------------------------------------- */
-  --alias-scrollbar-bg-l2: var(--static-neutral-200);
-  --alias-scrollbar-hover-l2: var(--static-neutral-300);
+  /* --- 滚动条 -------------------------------------------------------------
+   * 原生滚动条已全局隐藏（base.css），这两个给自绘 overlay 用。
+   */
+  --alias-scrollbar-bg-l2: var(--static-paper-3);
+  --alias-scrollbar-hover-l2: var(--static-ink-4);
 
-  /* ==========================================================================
+  /* =========================================================================
      三、几何
-     ========================================================================== */
+     ========================================================================= */
 
-  /* 圆角五档，靠重复建立秩序。
-     面板最外层用 panel(28px)，卡片用 lg(16px)，行用 md(12px)，
-     小控件用 sm(8px)，标签用 xs(4px)。 */
-  --radius-panel: 28px;
-  --radius-xl: 20px;
+  /**
+   * 圆角三档：16 / 8 / 4。
+   *
+   * 旧版有五档（28 / 20 / 16 / 12 / 8 / 4），设计规范只允许三档。
+   * 六个旧变量**一个都不删**，改为直接赋新值——删掉会让引用处
+   * 回落到 `0`（`var()` 找不到变量时不报错，只静默失效），
+   * 那种"某些圆角突然变成直角"的 bug 极难定位。
+   *
+   * 全部引用收敛到三档后，panel / xl / lg / md 四个名字可以整体删除。
+   */
+  --radius-panel: 16px;
+  --radius-xl: 16px;
   --radius-lg: 16px;
-  --radius-md: 12px;
+  --radius-md: 8px;
   --radius-sm: 8px;
   --radius-xs: 4px;
 
-  /* ==========================================================================
+  /* 全界面唯一线宽。0.5px 在 Retina 上是一条物理像素，在 Windows 上
+     会被渲染为一像素浅色线——两端观感一致，这是选它的原因。 */
+  --line-width: 0.5px;
+
+  /* =========================================================================
      四、字体
-     ========================================================================== */
+     ========================================================================= */
 
-  --font-family: "MiSans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-family-code: "SF Mono", "JetBrains Mono", "Fira Code", Consolas,
-    "Liberation Mono", Menlo, Courier, monospace;
+  --font-family: 'MiSans', -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, Courier, monospace;
 
-  /* 内容区字号。其余尺寸都以它和它的 delta 推导，
-     这样"放大正文字号"只需改这一个值，行高与次级字号自动跟着走。
-     14px 是 macOS 正文的常规档（13pt ≈ 17.3px，但界面正文习惯用 13–14px）。 */
-  --content-font-size: 14px;
-  --content-font-size-secondary: 13px;
-  --content-font-delta: 0px;
-  --content-font-delta-secondary: 0px;
+  /* --- 字号 ---------------------------------------------------------------
+   * 全部 rem，1rem = 16px（由 `html { font-size: 100% }` 保证）。
+   * 注释里的 px 值是按 16px 基准换算的结果，仅供对照，不是实际值。
+   */
+  --text-display: 1.375rem; /* 22px 引导页主标题 */
+  --text-title: 0.9375rem; /* 15px 窗口标题、面板标题 */
+  --text-body: 0.875rem; /* 14px 对话正文 */
+  --text-code: 0.8125rem; /* 13px 代码块 */
+  --text-caption: 0.75rem; /* 12px 记忆薄片、时间戳 */
+  --text-label: 0.6875rem; /* 11px 读数标签、分组标题 */
 
-  /* ==========================================================================
-     五、阴影与描边
-     ========================================================================== */
+  /* --- 行高 ---------------------------------------------------------------
+   * 正文 1.75 而非 1.5：中文方块字没有西文的升降部留白，
+   * 1.5 在大段中文下会显得行与行粘在一起。1.75 是中文长文的下限。
+   */
+  --leading-display: 1.3;
+  --leading-title: 1.4;
+  --leading-body: 1.75;
+  --leading-caption: 1.5;
+  --leading-label: 1.4;
+  --leading-code: 1.6;
 
-  /* 输入框与卡片的描边阴影。用 0 0 0 .5px 而不是 border：
-     border 参与盒模型计算，会改变元素尺寸；描边阴影不占位，
-     圆角处的表现也更平滑。 */
-  --elevation-stroke-color: var(--alias-border-l4);
-  --elevation-stroke: 0 0 0 0.5px var(--elevation-stroke-color);
+  /* --- 字距 ---------------------------------------------------------------
+   * 大字号收紧、小字号放开，这是光学补偿：字号越大字距越显宽，
+   * 字号越小越显挤。只有 Display 与 Title 收紧。
+   */
+  --tracking-display: -0.02em;
+  --tracking-title: -0.01em;
+  --tracking-body: 0;
+  --tracking-label: 0.01em;
+
+  /* --- 字重 ---------------------------------------------------------------
+   * MiSans VF 的可变区间是 150–700，这里只用三档。
+   */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-strong: 500;
+
+  /* =========================================================================
+     五、间距
+     ========================================================================= */
+
+  /**
+   * 间距基数 4px，全部取 4 的倍数。
+   * 只在下列八档里取值，出现第九个数值即为缺陷（同 §8.1 对时长的要求）。
+   */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* =========================================================================
+     六、动效
+     ========================================================================= */
+
+  /**
+   * 时长五档，硬约束。出现第六个过渡时长即为缺陷。
+   *
+   * 注意"停留时长"不受这五档约束：Toast 停留 2.4s、错误停留 4.0s、
+   * 呼吸周期 3–7s 都不是"动效快慢"，是"给人多久看"。
+   * 判定方法只有一句：看它有没有写在 `transition` 或 `animation-duration` 里。
+   */
+  --motion-0: 0ms; /* 降级态、跟随系统切换主题 */
+  --motion-fast: 120ms; /* 悬停、按下、菜单、焦点环 */
+  --motion-base: 180ms; /* 抽屉展开、Sheet 进场、消息入场 */
+  --motion-slow: 240ms; /* 水位变化、Toast 进场 */
+  --motion-emphasis: 900ms; /* 回声，唯一的长动效，只改文字色 */
+
+  /**
+   * 曲线三条。
+   *
+   * **进场与出场必须是两条**：进场时用户注意力在"新东西"，慢收尾让视线跟上；
+   * 出场时用户已决定关掉它，慢收尾就是拖沓。同一条曲线做两件事，
+   * 界面会显得"开门慢、关门也慢"。
+   */
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1); /* 所有"出现" */
+  --ease-fluid-reverse: cubic-bezier(0.4, 0, 1, 1); /* 所有"消失" */
+  --ease-breathe: ease-in-out; /* 仅呼吸循环，往返需要两端对称减速 */
+
+  /* --- 旧名兼容 -----------------------------------------------------------
+   * 旧版动效名。`--motion-duration-slow` 原为 0.26s（260ms，不在五档内）
+   * 归入 240ms；`--motion-curve` 原为 Material 的 standard 曲线，
+   * 本规范要求 Apple 的 fluid 曲线——这是唯一必须替换的动效令牌。
+   * 四个旧变量都保留并赋新值，让现有引用自动收敛。
+   */
+  --motion-duration: var(--motion-base);
+  --motion-duration-fast: var(--motion-fast);
+  --motion-duration-slow: var(--motion-slow);
+  --motion-curve: var(--ease-fluid);
+
+  /* =========================================================================
+     七、焦点
+     ========================================================================= */
+
+  /**
+   * 焦点环只用 `:focus-visible` 触发（见 base.css），鼠标点击不出现。
+   * 颜色取主操作色，与"当前选中"共用同一个语义。
+   */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--static-teal-600);
+
+  /* =========================================================================
+     八、窗口骨架尺寸
+     ========================================================================= */
+
+  /**
+   * 逐项对 `docs/UI-DESIGN.md` §3.1 与 §3.2：
+   *
+   *   垂直（820 × 580）：标题栏 44 → 主列 436 → 间距 12 → 输入 76 → 留白 12
+   *   水平（820）：       Rail 48 → 主列 716 → Spine 56
+   *   主列内：            正文封顶 588（两侧各 64）；输入卡片 620（比正文宽 32）
+   */
+  --titlebar-h: 44px;
+  --rail-w: 48px;
+  --spine-w: 56px;
+  --text-w: 588px;
+  --composer-w: 620px;
+  --drawer-w: 300px;
+  --inspector-w: 224px;
+
+  /**
+   * 旧名兼容。`--chat-content-width` 原为 `clamp(680px, 64%, 920px)`，
+   * 新规范要求正文封顶 588 且不随窗口拉长（行宽超过约 42 个汉字后，
+   * 视线从行尾回到行首会丢行）。旧名指向新值，避免逐文件查找。
+   */
+  --chat-content-width: var(--text-w);
+  --composer-card-max-width: var(--composer-w);
+
+  /* 侧栏内边距。旧版三个变量，新骨架里只有 Rail 需要水平内边距。 */
+  --sidebar-inline-padding: 8px;
+  --sidebar-row-padding: 12px;
+  --sidebar-label-gap: 6px;
+
+  /* =========================================================================
+     九、层级
+     ========================================================================= */
+
+  /**
+   * 只有七层。层级靠 0.5px 描边表达，阴影只给真正浮起的元素（§4.6）。
+   * 数字留空隙（20/30/40/50/60/70）是为将来插入新层时不重排全表。
+   */
+  --z-base: 0;
+  --z-titlebar: 20;
+  --z-drawer: 30;
+  --z-menu: 40;
+  --z-toast: 50;
+  --z-dialog: 60;
+  --z-drag: 70;
+
+  /* =========================================================================
+     十、阴影
+     ========================================================================= */
+
+  /**
+   * 全界面只有一种阴影，只给浮层菜单（z-index 与 `--z-menu` 同级及以上）。
+   * 其余层级一律用 0.5px 描边表达。
+   *
+   * 不用毛玻璃、渐变、内阴影、发光——毛玻璃在 820×580 的小窗口上
+   * 会显著拖低滚动帧率，且与宣纸底色冲突（§4.6）。
+   */
+  --shadow-lv3: 0 0 1px 0 #0000004d, 0 0 4px 0 #00000008, 0 12px 32px 0 #00000014;
+
+  /* 描边式阴影。用 `0 0 0 0.5px` 而不是 `border`：border 参与盒模型，
+     会让元素尺寸多出 1px；描边阴影不占位，圆角处也更平滑。 */
+  --elevation-stroke: 0 0 0 var(--line-width) var(--static-line);
   --elevation-soft: var(--elevation-stroke);
   --elevation-panel: var(--elevation-stroke);
   --elevation-prominent: var(--elevation-stroke);
 
-  /* 浮层菜单的实阴影。只有真正浮起的元素才用。 */
-  --shadow-lv3: 0 0 1px 0 #0003, 0 0 4px 0 #00000005, 0 12px 32px 0 #00000014;
-
-  --menu-backdrop-filter: blur(40px) saturate(150%);
-
-  /* ==========================================================================
-     六、动效
-     ========================================================================== */
-
-  --motion-duration: 0.18s;
-  --motion-duration-fast: 0.12s;
-  --motion-duration-slow: 0.26s;
-  --motion-curve: cubic-bezier(0.4, 0, 0.2, 1);
-
-  --focus-ring-width: 2px;
-  --focus-ring-color: var(--alias-state-business-primary);
-
-  /* ==========================================================================
-     七、会话区与输入框的几何（旧版实测值）
-     ========================================================================== */
-
-  /* 消息与输入框共用的内容宽度。
-     clamp 的三段含义：最小 680px 保证窄窗口下仍可读；
-     理想值取中栏宽度的 64%（这个比例来自实测，能让行长落在
-     每行 30–40 个汉字的舒适区间）；上限 920px 避免超宽屏上
-     一行拉到需要转头。 */
-  --chat-content-width: clamp(680px, 64%, 920px);
-  /* 输入卡片比正文宽 32px：它的圆角需要两侧各 16px 的呼吸。 */
-  --composer-card-max-width: calc(var(--chat-content-width) + 32px);
-  --composer-side-clearance: 16px;
-  --composer-dock-inset: 8px;
-  --composer-stack-gap: 6px;
-  /* 输入框文本区的最大高度。约 3 行，超过就内部滚动。 */
-  --composer-text-max-height: 64px;
-
-  /* 侧栏几何 */
-  --sidebar-inline-padding: 8px;
-  --sidebar-row-padding: 12px;
-  --sidebar-label-gap: 6px;
+  /* 内容区字号的旧名。保留是因为旧组件用它推导行高；
+     新代码直接用 --text-body。 */
+  --content-font-size: 14px;
+  --content-font-size-secondary: 13px;
+  --content-font-delta: 0px;
+  --content-font-delta-secondary: 0px;
 }
 
-/* ==========================================================================
-   深色模式
-   ========================================================================== */
+/* ===========================================================================
+   十一、深色模式
+   =========================================================================== */
 
 /**
- * 深色模式只改「静态色板」的指向与少量别名。
+ * **只用一个选择器** `:root[data-theme='dark']`，不写 `@media (prefers-color-scheme)`。
  *
- * 组件样式全部引用 `--alias-*` / `--specific-*`，因此不需要任何覆写——
- * 这正是分两层命名的收益。
+ * 原因：主题的解析在 `index.html` 的内联脚本里完成——它读 `localStorage`
+ * 与系统偏好，算出最终是 `light` 还是 `dark`，再把**具体值**写进
+ * `dataset.theme`。因此 CSS 只需要认一个东西：属性值。
  *
- * 深色不是把浅色反转：色阶要重新对齐亮度。深色下纯黑背景会让
- * 边缘发虚，所以底色取 #0f1115（带一点蓝，与浅色的骨架同源）；
- * 文字不用纯白而用 #f9fafb，纯白在深底上会产生光晕。
+ * 若同时写 `@media` 与属性选择器，同一组色值要维护两份，改一处漏一处，
+ * 深色模式会随时间长出两个版本。这是旧版的真实缺陷，不重复。
+ *
+ * ## 深色不是浅色的反色
+ *
+ * 三处必须逐条避开：
+ *
+ * 1. **光晕**。纯黑底配纯白字会产生 halation（笔画外扩发虚），14px 中文尤其明显。
+ *    底色取 `#141715`（带一点绿的深墨），正文取 `#e8e6df`（保留 8% 灰）。
+ * 2. **细线消失**。0.5px 线在纯黑上不可见、在纯白上刺眼。
+ *    线色由暖灰换为冷灰 `#2c3230`，是重新对齐亮度，不是取反。
+ * 3. **主色对比不足**。`#2e4a45` 放在 `#141715` 上几乎融进背景，
+ *    必须提亮到 `#7fa79b`。这是全表唯一"必须改亮度"的令牌。
+ *
+ * **语义不随主题变**：teal 永远表示主操作与水印，sand 永远表示暖度与关系，
+ * danger 永远表示危险。只换具体色值，不换语义。
+ *
+ * 标题栏底色（`tauri.conf.json` 的 `backgroundColor`）不在这里管——它由
+ * Rust 侧按系统主题 `set_background_color()` 设置，避免首帧闪白。
  */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --static-neutral-bluish-00: #0f1115;
-    --static-neutral-bluish-50: #151517;
-    --static-neutral-bluish-55: #1a1a1c;
-    --static-neutral-bluish-60: #232324;
-    --static-neutral-bluish-75: #1b1b1c;
-    --static-neutral-bluish-90: #232324;
-    --static-neutral-bluish-100: #2c2c2e;
-    --static-neutral-bluish-150: #2c2c2e;
-    --static-neutral-bluish-200: #353638;
-    --static-neutral-bluish-300: #43454a;
-    --static-neutral-bluish-310: #43454a;
-    --static-neutral-bluish-400: #61666b;
-    --static-neutral-bluish-500: #81858c;
-    --static-neutral-bluish-600: #adb2b8;
-    --static-neutral-bluish-700: #cfd3d6;
-    --static-neutral-bluish-750: #d4d7da;
-    --static-neutral-bluish-800: #e1e5ee;
-    --static-neutral-bluish-850: #e9ecf2;
-    --static-neutral-bluish-875: #edf0f4;
-    --static-neutral-bluish-900: #f1f3f5;
-    --static-neutral-bluish-950: #f5f6f7;
-    --static-neutral-bluish-1000: #f9fafb;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-    --static-neutral-50: #1b1b1c;
-    --static-neutral-100: #232324;
-    --static-neutral-150: #2c2c2e;
-    --static-neutral-200: #353638;
-    --static-neutral-250: #3c3c3d;
-    --static-neutral-300: #43454a;
-    --static-neutral-400: #61666b;
+  /* --- 纸与墨（重新对齐亮度，不是取反）------------------------------------- */
+  --static-paper-0: #141715;
+  --static-paper-1: #1a1e1c;
+  --static-paper-2: #222725;
+  --static-paper-3: #2c3230;
 
-    --static-primary-50: #1a2233;
-    --static-primary-100: #1e2a40;
+  /* 暖灰换冷灰：深底上暖灰会发黄，看起来像"蒙了一层"。 */
+  --static-line: #2c3230;
 
-    /* 深色下线条改用白色透明度：黑线在深底上完全不可见。 */
-    --alias-border-l1: #ffffff0f;
-    --alias-border-l2: #ffffff1a;
-    --alias-border-l3: #ffffff1f;
-    --alias-border-l4: #ffffff29;
+  --static-ink-1: #e8e6df;
+  --static-ink-2: #b4b8b0;
+  /* 提亮到 #959b95：`#8a908a` 在 paper-3 上只有 4.01:1，不达标。 */
+  --static-ink-3: #959b95;
+  --static-ink-4: #5f6560;
 
-    --alias-interactive-bg-hover: #ffffff0f;
-    --alias-interactive-bg-active: #ffffff1a;
+  /* --- 主色与暖色 --------------------------------------------------------- */
+  --static-teal-600: #7fa79b;
+  --static-teal-900: #0e1614;
+  --static-teal-50: #1e2a27;
 
-    --alias-bg-module-platform: #ffffff12;
-    --alias-bg-button-elevated: var(--static-neutral-bluish-100);
-    --alias-bg-skeleton: #ffffff0f;
-    --alias-state-business-tertiary: #1e2a40;
-    --alias-state-success-tertiary: #16301f;
-    --alias-state-error-tertiary: #3a1b1b;
-    --alias-state-idle-tertiary: var(--alias-interactive-bg-hover);
-    --alias-label-primary-bluish: var(--static-blue-100);
-    --alias-label-dimmed: var(--static-neutral-bluish-800);
+  --static-sand-500: #c9a578;
+  --static-sand-700: #ad9777;
 
-    --specific-menu: #1b1b1cf0;
-    --accent-fill: #f5f5f5;
-    --accent-hover: #ffffff;
-    --accent-ink: #171717;
-    --accent-track: #ffffff1a;
-    --accent-soft: #ffffff0d;
+  --static-green-500: #7fbf9a;
+  --static-green-100: #1e2a24;
 
-    --elevation-stroke-color: #ffffff24;
-  }
-}
+  /* 深底上原 `#c42b1c` 的对比度不足，提亮到 `#ff6b5e`。 */
+  --static-danger: #ff6b5e;
+  /* 错误淡底。深色下不能用极深的红，会被纸底吃掉。 */
+  --static-red-100: #2e1a18;
 
-/* 显式浅色：即便系统为深色也锁定浅色。属性选择器特异性高于媒体查询。 */
-:root[data-theme="light"] {
-  --static-neutral-bluish-00: #ffffff;
-  --static-neutral-bluish-50: #f9fafb;
-  --static-neutral-bluish-55: #f5f7fa;
-  --static-neutral-bluish-60: #f5f6f7;
-  --static-neutral-bluish-75: #f1f3f5;
-  --static-neutral-bluish-90: #edf0f4;
-  --static-neutral-bluish-100: #ebeef2;
-  --static-neutral-bluish-150: #e9ecf2;
-  --static-neutral-bluish-200: #e1e5ee;
-  --static-neutral-bluish-300: #cfd3d6;
-  --static-neutral-bluish-310: #cad2db;
-  --static-neutral-bluish-400: #adb2b8;
-  --static-neutral-bluish-500: #979da6;
-  --static-neutral-bluish-600: #81858c;
-  --static-neutral-bluish-700: #61666b;
-  --static-neutral-bluish-750: #43454a;
-  --static-neutral-bluish-800: #353638;
-  --static-neutral-bluish-850: #2c2c2e;
-  --static-neutral-bluish-875: #232324;
-  --static-neutral-bluish-900: #1b1b1c;
-  --static-neutral-bluish-950: #151517;
-  --static-neutral-bluish-1000: #0f1115;
+  /* --- 需要覆写的别名 -----------------------------------------------------
+   * 大部分别名只指向色板，色板一变它们自动跟着变。
+   * 下面这几个的指向里含"透明色"或"反色"，色板变化不足以修正，必须单独覆写。
+   */
 
-  --static-neutral-50: #fafafa;
-  --static-neutral-100: #f5f5f5;
-  --static-neutral-150: #ededed;
-  --static-neutral-200: #e5e5e5;
-  --static-neutral-250: #dcdcdc;
-  --static-neutral-300: #d4d4d4;
-  --static-neutral-400: #a2a4a6;
+  /* 文字选中背景：玄青在深底上要用浅色版才看得见。 */
+  --accent-soft: #7fa79b26;
+  --accent-track: #7fa79b40;
 
-  --static-primary-50: #edf3fe;
-  --static-primary-100: #e4edfd;
+  /* 反色文字：深色下"深底"变成浅墨，所以反色字要用纸底。 */
+  --alias-label-primary-inverted: var(--static-paper-0);
+  --alias-label-primary-foreground: var(--static-paper-0);
+  --alias-label-primary-bluish: var(--static-paper-0);
 
-  --alias-border-l1: #0000000a;
-  --alias-border-l2: #0000001a;
-  --alias-border-l3: #0000001f;
-  --alias-border-l4: #00000029;
+  /* 焦点环：主色已提亮，跟着走。 */
+  --focus-ring-color: var(--static-teal-600);
 
-  --alias-interactive-bg-hover: #2631480f;
-  --alias-interactive-bg-active: #2631481a;
+  /* 浮层阴影：深色下实阴影要更重，否则浮层与背景分离不出来。 */
+  --shadow-lv3: 0 0 1px 0 #000000cc, 0 0 4px 0 #0000001a, 0 12px 32px 0 #00000059;
 
-  --alias-bg-module-platform: #0000000b;
-  --alias-bg-button-elevated: #ffffff;
-  --alias-bg-skeleton: #0000000a;
-  --alias-state-business-tertiary: #e4edfd;
-  --alias-state-success-tertiary: #e6faed;
-  --alias-state-error-tertiary: #fee2e2;
-  --alias-state-idle-tertiary: #2631480f;
-  --alias-label-primary-bluish: #0e3074;
-  --alias-label-dimmed: #e1e5ee;
-
-  --specific-menu: #f8f9faf0;
-  --accent-fill: #171717;
-  --accent-hover: #000000;
-  --accent-ink: #f5f5f5;
-  --accent-track: #0000001a;
-  --accent-soft: #0000000d;
-
-  --elevation-stroke-color: #00000029;
+  /* 提示气泡：深色下反色方向要倒过来（浅底深字）。 */
+  --specific-tip: var(--static-paper-3);
 }

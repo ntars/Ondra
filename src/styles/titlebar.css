@@ -1,0 +1,168 @@
+/**
+ * 标题栏样式。
+ *
+ * 高度 44px，横跨全宽，背景透明。三个平台的差异全部由
+ * `[data-platform]` 分支表达，不在 TSX 里写内联样式——
+ * 内联样式无法被深色模式与降级块覆盖。
+ */
+
+.titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  /* 永远在上层，否则滚动内容会盖住它。 */
+  z-index: 20;
+  background: transparent;
+  /* 整条可拖拽。子元素里的按钮需显式声明 no-drag。 */
+  -webkit-app-region: drag;
+  /* 拖动时不该出现文字选区。 */
+  user-select: none;
+}
+
+/* macOS：红绿灯占 x ∈ [16, 68]，让位 76px。 */
+[data-platform='darwin'] .titlebar {
+  padding-left: 76px;
+}
+
+/* Windows：菜单按钮占 8 + 32 = 40，让位 46px。 */
+[data-platform='win32'] .titlebar {
+  padding-left: 46px;
+  /* 自绘标题栏，右侧需自己留出三键的位置。 */
+  padding-right: 138px;
+}
+
+/* ---------------------------------------------------------------------------
+   标题
+   --------------------------------------------------------------------------- */
+
+/**
+ * 全窗水平居中。
+ *
+ * 用绝对定位 + `translateX(-50%)` 而不是 flex 居中：flex 居中会受
+ * 左右两侧的占位元素（红绿灯让位、三键）影响，居中点会偏。
+ * 绝对定位以标题栏自身为参照，居中点恒为全宽一半。
+ *
+ * `max-width: 40%` 是为了两侧永远留出 30% 的空白——标题贴到按钮上
+ * 会显得拥挤，且省略号出现在按钮旁边容易被误认为按钮的一部分。
+ */
+.titlebar__title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-title);
+  line-height: var(--leading-title);
+  color: var(--alias-label-primary);
+  -webkit-app-region: drag;
+}
+
+/* ---------------------------------------------------------------------------
+   Windows 菜单按钮
+   --------------------------------------------------------------------------- */
+
+/**
+ * 32 × 32，左边距 8，垂直居中（top = (44 − 32) ÷ 2 = 6）。
+ *
+ * 图标用 `chevronDown` 而不是三横线：三横线在 16px 下三条线间距只有
+ * 3px，容易糊成一块实心矩形。下箭头在同样尺寸下轮廓清晰，且与
+ * 「点开会有东西下来」的语义一致。
+ */
+.titlebar__menu {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--alias-label-secondary);
+  -webkit-app-region: no-drag;
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.titlebar__menu:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+.titlebar__menu:active {
+  background: var(--alias-interactive-bg-active);
+}
+
+/* ---------------------------------------------------------------------------
+   Windows 三键
+   --------------------------------------------------------------------------- */
+
+/**
+ * 三键总宽 138（46 × 3），右对齐，top 6。
+ *
+ * 无间距是 Windows 的原生做法：三个键的悬停底色要连成一片，
+ * 中间留缝会让它们看起来像三个独立按钮而不是一组窗口控制。
+ */
+.titlebar__controls {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar__control {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 32px;
+  color: var(--alias-label-secondary);
+  /* 三键本身是矩形，不要圆角——圆角会让它们看起来像普通按钮。 */
+  border-radius: 0;
+  transition: background-color var(--motion-fast) var(--ease-fluid);
+}
+
+.titlebar__control:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+.titlebar__control:active {
+  background: var(--alias-interactive-bg-active);
+}
+
+/**
+ * 关闭键悬停变红。
+ *
+ * 注意这里用 `--static-danger` 而不是别名：危险色是**平台地位**上的
+ * 特殊色，不参与语义别名体系（它不用跟随主题换语义，只在深色下提亮）。
+ * 白图标直接写 `#FFFDF9`，因为深色下底色是 `#FF6B5E`，两种情况下
+ * 白都是唯一可读的。
+ */
+.titlebar__control--close:hover {
+  background: var(--static-danger);
+  color: #fffdf9;
+}
+
+.titlebar__control--close:active {
+  background: var(--static-danger);
+  color: #fffdf9;
+  /* 按下时压暗一档，用 filter 而不是换色值——换色值要再定义一个令牌。 */
+  filter: brightness(0.92);
+}
+
+/**
+ * 焦点环向内。
+ *
+ * 三键贴着窗口边缘，焦点环向外会被窗口裁掉一半，看起来像没画。
+ * `outline-offset` 取负值让环画进按钮内部。
+ */
+.titlebar__control:focus-visible {
+  outline-offset: -2px;
+}

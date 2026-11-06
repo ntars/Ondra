@@ -3,13 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="light dark" />
     <title>空谷 Ondra</title>
+    <script>
+      /**
+       * 首帧主题，必须在样式表加载前执行。
+       *
+       * 三件事，缺任何一件都会在深色系统下闪一帧白：
+       *
+       * 1. 读 `localStorage['ondra.theme']`，未设或为 `system` 时看系统偏好。
+       * 2. 把解析后的**具体值**写进 `data-theme`。注意不是写 `system`——
+       *    CSS 里只有 `[data-theme="dark"]` 一个选择器，写 `system` 不会命中。
+       * 3. 同步写 `style.colorScheme`，让原生滚动条与输入框光标一上来就是
+       *    正确的配色。等到 CSS 生效才变，光标会先黑后白闪一下。
+       *
+       * 脚本放在 `<head>` 内且不能 `defer`：defer 会等到文档解析完，
+       * 那时浏览器已经用默认白底画过一帧了。
+       */
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('ondra.theme')
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var root = document.documentElement
+          root.dataset.theme = dark ? 'dark' : 'light'
+          root.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (e) {
+          /* 隐私模式下 localStorage 可能抛异常。回落到浅色，不影响其余功能。 */
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
     <style>
-      /* 内联样式：在外部 CSS 加载完成前就定住背景色，
-         避免深色模式下先闪一帧白底。 */
-      html { background: #fbfbfd; }
-      @media (prefers-color-scheme: dark) { html { background: #000000; } }
+      /* 在外部 CSS 到达前先定住底色。值必须与 tokens.css 的
+         --static-neutral-bluish-00 一致，否则仍会看到一次变色。 */
+      html {
+        background: #fffdf9;
+      }
+      html[data-theme='dark'] {
+        background: #141715;
+      }
     </style>
   </head>
   <body>

@@ -1,292 +1,356 @@
 /**
- * 三栏布局骨架。
+ * 布局骨架：标题栏 + 双脊 + 主列。
  *
- * ## 比例：固定四等分
+ * ## 尺寸来源
  *
- * 横向按 **1/4 | 2/4 | 1/4** 切分，即左栏 25%、中栏 50%、右栏 25%，
- * 在任何窗口宽度下都成立。侧栏既不可拖拽也不可折叠。
+ * 全部取自 `docs/UI-DESIGN.md` §3.1 与 §3.2，逐项对得上：
  *
- * 为什么不是可折叠：这个窗口的默认与最小尺寸都是 820×580，
- * 最小宽度下左栏约 205px，刚好够放会话标题。折叠通常是为了在窄屏
- * 腾空间，这里不存在那个场景，多一个折叠态只会让用户每次都要确认
- * "我另一栏去哪了"。
+ *   垂直（820 × 580）：标题栏 44 → 内容 436 → 间距 12 → 输入 76 → 留白 12
+ *   水平（820）：     Rail 48 → 主列 716 → Spine 56
+ *   主列内：          正文封顶 588，两侧各 64；输入卡片 620，比正文宽 32
  *
- * 为什么不用 `grid-template-columns: 1fr 2fr 1fr`：`fr` 在内容溢出时
- * 会按内容最小宽度重新分配，比例就不再严格是 1:2:1。这里用百分比，
- * 并给三栏都加 `min-width: 0`，保证比例恒定、内容自己滚动。
+ * ## 为什么用 grid 固定列而不是 flex
  *
- * ## 三栏之间的关系
+ * `48px 1fr 56px` 是「两根定宽脊 + 一个吃满剩余的主列」。用 flex 也能写，
+ * 但主列需要 `min-width: 0` 才能让内部滚动生效——grid 里同一个属性
+ * 语义更直白，且不会因为内容溢出而改变两根脊的宽度。
  *
- * 只画一条线而不是两条——两条线相邻会形成 1px 的"双线"，
- * 在浅底上看起来像脏痕。
+ * ## 为什么首页不套这个骨架
  *
- * ## 首页例外
- *
- * 首页不使用三栏，保持设计稿那张居中的单页。
- * 判据是"有没有进入会话"，由 App 决定渲染哪一个。
+ * 首页是「logo + 输入框」的居中单页，没有脊。判据是 `inConversation`
+ * （是否已进入会话），不是「有没有消息」——用消息数判断会导致新建一个
+ * 空会话立刻弹回首页，用户会以为点了没反应。
  */
 
 /* ---------------------------------------------------------------------------
-   外层：可拖拽条 + 内容区
+   外壳
    --------------------------------------------------------------------------- */
 
 .shell {
   position: relative;
-  height: 100%;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
   background: var(--alias-bg-base);
+}
+
+/* ---------------------------------------------------------------------------
+   标题栏
+   --------------------------------------------------------------------------- */
+
+/**
+ * 标题栏的全部外观在 `titlebar.css`，这里**一行都不重复**。
+ *
+ * 曾经两处都定义过 `.titlebar` 与 `.titlebar__title`：布局文件里写高度与让位，
+ * 组件文件里也写一遍。两处的 `padding-left` 都写 76px 时看不出来，
+ * 但改一处漏一处就会出「macOS 正常、Windows 偏移 30px」这类只在单端复现的问题。
+ *
+ * 一个组件的样式只在一个文件里，靠「按组件分文件」而不是「按属性分文件」。
+ */
+
+/* 标题栏右侧的预留区，给未来的窗口级操作留位（当前为空）。 */
+.titlebar__tail {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* ---------------------------------------------------------------------------
+   双脊
+   --------------------------------------------------------------------------- */
+
+/**
+ * 两根脊的共同点：`paper-1` 底、不参与主列的边框计算、独立滚动。
+ *
+ * 这里只定骨架尺寸，具体内容排版在各自的组件文件里（第 3 批）。
+ * 现在写成可用的空壳，是为了让 `App.tsx` 的三个空 div 真的占住栅格——
+ * 一个没有样式的 `<nav>` 宽度是 0，视觉上等于脊不存在。
+ */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  padding: 8px 0;
+  background: var(--alias-bg-layer-2);
+  /* 脊内不出滚动条，内容超出时整体交给窗口高度处理。 */
   overflow: hidden;
 }
 
-/**
- * 顶部没有独立的拖拽条。
- *
- * 旧版的窗口拖拽区就是左栏那条 52px 的工具条与 60px 的身份行——
- * 它们的高度本来就是为"红绿灯浮在内容上"留的。若在它们之外再加一条
- * 38px 的全局横条，三栏会整体下移，顶部凭空出现一块空白，
- * 而那块空白又不能放任何东西。
- *
- * 拖拽能力由侧栏自己的 topStrip / logoRow 通过 `data-tauri-drag-region`
- * 提供，右侧两栏不需要——它们的顶部没有可拖的地方，
- * 而 macOS 上拖窗口的主要落点就是标题栏那一条。
- */
+.spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  padding: 12px 0;
+  background: var(--alias-bg-layer-2);
+  overflow: hidden;
+}
 
 /* ---------------------------------------------------------------------------
-   三栏容器
+   按钮
+   --------------------------------------------------------------------------- */
+
+/**
+ * 全局只有两种按钮：实心主按钮与幽灵按钮。
+ *
+ * `base.css` 把 `button` 重置成了「无底无边」，这对接管外观的组件是对的，
+ * 但对直接写 `<button className="button">` 的地方不够——那种按钮会退化成
+ * 一段普通文字，用户看不出它能点。所以这里给出两种完整外观。
+ *
+ * 尺寸按 §5.0.7：指针热区下限 24、舒适值 32，这里取 32 高。
+ */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  /* 按钮文字不该被选中，双击时不会出现选区。 */
+  user-select: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid),
+    border-color var(--motion-fast) var(--ease-fluid);
+}
+
+/* 实心主按钮：全界面唯一的实心色块，用来把视线引到主操作上。 */
+.button--primary {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+}
+
+.button--primary:hover {
+  background: var(--accent-hover);
+}
+
+/* 幽灵按钮：只有描边与文字，用于次要操作与错误页的重试。 */
+.button--ghost {
+  background: transparent;
+  color: var(--alias-label-primary);
+  /* 用 inset 描边而不是 border：border 会把按钮撑大 1px，
+     与实心按钮并排放时高度差一像素，肉眼能看出来。 */
+  box-shadow: inset 0 0 0 var(--line-width) var(--static-line);
+}
+
+.button--ghost:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+.button:active {
+  /* 按下时压暗一档。用 filter 而不是换色值，避免为每个状态再定义令牌。 */
+  filter: brightness(0.96);
+}
+
+/* ---------------------------------------------------------------------------
+   双脊骨架
    --------------------------------------------------------------------------- */
 
 /**
  * `min-height: 0` 是关键：grid 子项默认 `min-height: auto`，
- * 会被内容撑高导致滚动条失效。加上它，各栏内部才能各自滚动。
+ * 会被内容撑高导致内部滚动失效。
  */
 .workspace {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr var(--spine-w);
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 25% 50% 25%;
   overflow: hidden;
 }
 
 /**
- * 左栏。底色比中栏浅一档，中栏因此自然"浮"起来。
+ * 主列。
  *
- * ## 右边框为什么不画在这里
+ * ## 线画在谁身上
  *
- * 全局 `box-sizing: border-box`，若在这里画 0.5px 的右边框，
- * 侧栏内容宽度就变成 204.5px（820 宽下 25% = 205），
- * 拿 205 去比就永远差 0.5px。
+ * 全项目只有一种线宽 0.5px（`--line-width`）。线的位置必须落在
+ * 「主列的左边界」而不是「Rail 的右边界」——因为 `box-sizing: border-box`
+ * 下，画在 Rail 右侧会让 Rail 的内容宽度变成 47.5px，栏内所有算术
+ * 都要减半像素。画在主列左侧，Rail 拿到完整的 48px。
  *
- * 原版在 macOS 上正是把这条线挪走了：
- * `[data-platform="darwin"] .McQuPG_sidebarCol { border-right: none }`
- * 同时给中栏 `border-left: .5px`。线的位置一模一样，
- * 但侧栏拿到完整的 205px，栏内所有算术都不必再减半像素。
- * 这里照此处理：线画在中栏左侧。
+ * 同理，Spine 的线画在主列右侧。
+ *
+ * ## 为什么用 box-shadow 而不是 border
+ *
+ * `border-left: .5px` 会从主列的内容宽度里扣掉 0.5px。虽然只差半像素，
+ * 但 716 就变成 715.5，正文居中位置跟着偏。`box-shadow` 不占布局，
+ * 线的位置精确落在边界上。
  */
-.workspace__left {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--specific-sidebar-fill);
-}
-
-/**
- * 中栏。唯一的滚动容器在它内部，不是它自己。
- *
- * ## 左边框用 box-shadow 而不是 border
- *
- * 全局 `border-box`，`border-left: .5px` 会从内容宽度里扣掉半像素，
- * 820 宽下中栏就变成 409。虽然只差 1px，但三栏的比例从此不再是
- * 严格的 1:2:1，右栏也跟着偏。
- *
- * `box-shadow: -0.5px 0 0` 把线画在盒子外侧：位置与 border 一样
- * （都在两栏交界处），但不参与盒模型计算，三栏宽度各拿满整份。
- */
-.workspace__center {
+.column {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--alias-bg-base);
-  box-shadow: -0.5px 0 0 var(--alias-border-l3);
+  box-shadow:
+    calc(var(--line-width) * -1) 0 0 0 var(--static-line),
+    var(--line-width) 0 0 0 var(--static-line);
 }
 
-/* 右栏。分隔线同样用 box-shadow，理由见上。 */
-/**
- * 右栏。
- *
- * ## 为什么底色是纯白而不是侧栏灰
- *
- * 直觉上左右两栏该同色（都是"边栏"），但原版不是：左栏
- * `rgb(249,250,251)`，右栏 `rgb(255,255,255)` 与中栏同为纯白。
- * 来源是右栏的标签宿主 `_tabHost_lv4un_164` 写了
- * `background: var(--dsw-alias-bg-base)`，而 bg-base 是纯白。
- *
- * 之前这里用了 `--specific-sidebar-fill`，右栏整体比原版暗 6 个色阶，
- * 并排看就是"右边那块是灰的"。这与卡片的分隔线一起，
- * 让右栏读起来像另一个区域，而原版是与中栏连成一片。
- */
-.workspace__right {
-  min-width: 0;
+/* 主列的内容滚动区。 */
+.column__scroll {
+  flex: 1;
   min-height: 0;
-  overflow: hidden;
-  background: var(--alias-bg-base);
-  box-shadow: -0.5px 0 0 var(--alias-border-l3);
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 滚动留白：最后一条消息下方留 12px，与输入区上间距对称。 */
+  padding-bottom: 12px;
+}
+
+/**
+ * 正文宽度。
+ *
+ * 封顶 588px 后居中，两侧各留 64（716 − 588 = 128，均分）。
+ * 窗口宽于 820 时正文不跟着拉长——行宽超过约 42 个汉字后，
+ * 视线从行尾回到行首会丢行。
+ */
+.column__measure {
+  width: 100%;
+  max-width: var(--text-w);
+  margin: 0 auto;
+  padding: 0 0;
 }
 
 /* ---------------------------------------------------------------------------
-   连接中 / 失败
+   首页
    --------------------------------------------------------------------------- */
 
 /**
- * 连接态不显示转圈：本地宿主启动通常不到一秒，转圈会闪一下反而更干扰。
- * 用与三栏一致的分隔骨架，让"连上"看起来只是内容浮现。
+ * 首页：居中单页。
+ *
+ * 垂直方向上 logo 略高于正中（`44%` 而不是 `50%`）：视觉重心比几何中心
+ * 高一点才显得稳，这是所有单页设计的共同做法。
  */
-.skeleton {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 25% 50% 25%;
-}
-
-.skeleton > div {
-  background: var(--specific-sidebar-fill);
-  border-right: 0.5px solid var(--alias-border-l3);
-}
-
-.skeleton > div:nth-child(2) {
-  background: var(--alias-bg-base);
-}
-
-.skeleton > div:last-child {
-  border-right: none;
-  border-left: 0.5px solid var(--alias-border-l3);
-}
-
-/* 启动失败的兜底页。 */
-.fatal {
-  flex: 1;
+.welcome {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  height: 100%;
+  padding: 0 24px;
+  /* 补偿标题栏的视觉重量。 */
+  padding-bottom: 6vh;
+  background: var(--alias-bg-base);
+  -webkit-app-region: drag;
+}
+
+/* 首页里所有可交互元素必须显式声明不可拖拽，否则点不动。 */
+.welcome :is(button, input, textarea, a, [role='button']) {
+  -webkit-app-region: no-drag;
+}
+
+/**
+ * 首页标志。
+ *
+ * 尺寸 64px。比 48 大是因为首页只有一个元素，需要撑住版面；
+ * 比 96 小是因为它旁边还有标题与 slogan，太大会把文字挤到底部。
+ */
+.welcome__mark {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 20px;
+  color: var(--alias-state-business-primary);
+}
+
+.welcome__title {
+  font-size: var(--text-display);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-display);
+  color: var(--alias-label-primary);
+  margin-bottom: 10px;
+  user-select: none;
+}
+
+.welcome__slogan {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-caption);
+  margin-bottom: 36px;
+  user-select: none;
+}
+
+/**
+ * 首页的输入区宽度与骨架里的输入区一致（620），保证从首页进入会话时
+ * 输入框不跳动。位置也一致：都是从底部算起 12px。
+ */
+.welcome__composer {
+  width: min(var(--composer-w), 100%);
+}
+
+/* ---------------------------------------------------------------------------
+   致命错误与骨架
+   --------------------------------------------------------------------------- */
+
+/**
+ * 致命错误：宿主连不上。
+ *
+ * 为什么不给「转圈 + 重试」的常规错误页：连不上宿主时界面什么都做不了，
+ * 用户唯一需要知道的是「什么没连上」与「能不能重试」。两个信息加一个按钮
+ * 就够了，多余的插图与文案只会延迟他找到按钮。
+ */
+.fatal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
   padding: 32px;
   text-align: center;
 }
 
 .fatal__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
   color: var(--alias-label-primary);
 }
 
 .fatal__detail {
-  margin: 0;
   max-width: 420px;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--alias-label-tertiary);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-secondary);
+  /* 错误详情常含路径与堆栈，必须可选中复制。 */
   user-select: text;
+  word-break: break-all;
 }
-
-/* ---------------------------------------------------------------------------
-   首页（空状态）
-   --------------------------------------------------------------------------- */
 
 /**
- * 首页是设计稿那张居中的单页：logo、标题、输入框、双语 slogan 竖直排列。
+ * 骨架块。
  *
- * 竖直位置靠 `justify-content: center` 而非固定 padding：窗口高度变化时
- * 内容应保持视觉居中，写死 padding 会让它在不同窗口高度下偏高或偏低。
- * 底部多留 6vh，因为视觉重心应该略高于几何中心。
+ * **不做闪光**（§5.0.4）：本地宿主启动通常不到一秒，闪光动画还没跑完
+ * 就已经结束了，反而制造一帧噪声。纯色矩形足够表达「正在加载」。
  */
-.welcome {
-  flex: 1;
-  min-height: 0;
+.skeleton {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 24px 6vh;
-  overflow-y: auto;
+  gap: 12px;
+  height: 100%;
+  padding: calc(var(--titlebar-h) + 24px) 64px 24px;
 }
 
-.welcome__logo {
-  width: 62px;
-  height: 62px;
-  flex: none;
-  margin-bottom: 20px;
-  user-select: none;
-  -webkit-user-drag: none;
+.skeleton > div {
+  height: 14px;
+  border-radius: var(--radius-xs);
+  background: var(--alias-bg-skeleton);
 }
 
-.welcome__title {
-  margin: 0 0 26px;
-  font-size: 29px;
-  font-weight: 600;
-  line-height: 38px;
-  letter-spacing: 0.01em;
-  color: var(--alias-label-primary);
+.skeleton > div:nth-child(2) {
+  width: 72%;
 }
 
-/* 「Ondra」与中文同一基线，间隙靠 margin 而不是空格字符——
-   空格在不同字体下的宽度不可控。 */
-.welcome__title em {
-  font-style: normal;
-  margin-left: 7px;
-  font-weight: 400;
-  color: var(--alias-label-tertiary);
-}
-
-/* 首页输入框宽度。540px 是设计稿的实测值，比对话态的窄：
-   首页只有一件东西，宽度收窄能让视线自然聚焦。 */
-.welcome .composer {
-  width: 100%;
-  max-width: 540px;
-}
-
-.welcome__slogan {
-  margin-top: 22px;
-  text-align: center;
-}
-
-.welcome__slogan p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 19px;
-  color: var(--alias-label-caption);
-}
-
-.welcome__slogan p:first-child {
-  font-size: 11px;
-  letter-spacing: 0.01em;
-}
-
-/* 首页左下角的设置入口。 */
-.dock {
-  position: absolute;
-  left: 16px;
-  bottom: 14px;
-  display: flex;
-  gap: 4px;
-}
-
-.dock-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  color: var(--alias-label-tertiary);
-  transition: background-color var(--motion-duration-fast) ease,
-    color var(--motion-duration-fast) ease;
-}
-
-.dock-button:hover {
-  background: var(--alias-interactive-bg-hover);
-  color: var(--alias-label-primary);
+.skeleton > div:last-child {
+  width: 48%;
 }

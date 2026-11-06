@@ -1,0 +1,230 @@
+/**
+ * 全局基础样式。
+ *
+ * 这一层只放**全界面共用的重置与不可见规则**，不放任何组件外观。
+ * 组件外观在各自文件里，靠 `.组件名 { }` 命名空间隔离。
+ *
+ * ## 为什么字号基准写 100%
+ *
+ * `html { font-size: 100% }` 意味着 1rem = 浏览器基准字号（默认 16px）。
+ * 所有字号令牌都用 rem 表达，因此系统「字号放大」时界面跟着放大。
+ *
+ * **禁止写 `font-size: 14px`**：一旦写死，系统字号变化时界面纹丝不动，
+ * 视力不好的用户没有任何办法放大——这是最常见也最难改的可达性缺陷。
+ *
+ * ## 为什么 `prefers-reduced-motion` 的降级块只写在这一处
+ *
+ * 分散到各组件里写，一定会漏。集中一处，用 `*` 通配符压掉全部
+ * 过渡与动画，新增组件自动被覆盖。需要保留的极短反馈
+ * （如开关轨道变色）另用 `--motion-0` 显式声明。
+ *
+ * **降级用 1ms 而不是 0s**：`0s` 时部分浏览器不触发 `transitionend`，
+ * 依赖该事件的代码会永久等下去。1ms 既不可感知，又保证事件照常派发。
+ */
+
+/* ---------------------------------------------------------------------------
+   重置
+   --------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* 基准字号。**不要改这一行**，改它等于改全站缩放。 */
+  font-size: 100%;
+  /* 系统深色时页面底色也跟着深，避免滚动到边界时露出白边。 */
+  background: var(--alias-bg-base);
+  /* 禁止整页横向滚动。窗口由壳控制尺寸，页面不应出现第二根横向滚动条。 */
+  overflow: hidden;
+  /* 关闭 iOS 上的旋转自动调整字号。 */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-family);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--alias-label-primary);
+  background: var(--alias-bg-base);
+  /* 桌面应用不需要「橡皮筋」回弹：拖到边界时回弹会让人误以为在拖窗口。 */
+  overscroll-behavior: none;
+  /* 抗锯齿。macOS 上默认子像素渲染在深色底会发胖，这里统一灰度抗锯齿。 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100%;
+}
+
+/* 去掉默认外边距与列表样式。 */
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 按钮与输入框继承字体，否则会回落到浏览器默认的宋体。 */
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  /* 去掉所有浏览器默认外观，由各组件自己画。 */
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  /* 文字按钮不该被选中，双击时不会出现蓝色选区。 */
+  user-select: none;
+}
+
+/* 禁用的按钮保留指针形状为 not-allowed，而不是消失。 */
+button:disabled {
+  cursor: not-allowed;
+}
+
+textarea {
+  resize: none;
+  outline: none;
+  background: none;
+  border: none;
+}
+
+/* 图片不超出容器。 */
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   焦点
+   --------------------------------------------------------------------------- */
+
+/**
+ * 用 `:focus-visible` 而不是 `:focus`。
+ *
+ * 鼠标点击按钮后不该出现焦点环，只有键盘导航才该出现。用 `:focus`
+ * 会让每次点击都闪一个环——这是最常见的粗糙感来源。
+ */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  /* 焦点环跟随圆角。 */
+  border-radius: inherit;
+}
+
+/* ---------------------------------------------------------------------------
+   文本选择
+   --------------------------------------------------------------------------- */
+
+/**
+ * 选中色用玄青的淡色。默认的蓝色选中区会破坏整套暖纸配色，
+ * 且与「界面不出现蓝色」这条规定冲突。
+ *
+ * **不写 `::selection:window-inactive`**：那是 Firefox 的非标准伪类，
+ * lightningcss 会直接拒绝该规则导致构建失败，而 WebKit/Chromium 都不支持它。
+ * 「窗口失焦后选区仍可见」是浏览器自身行为，不需要也无法用 CSS 指定。
+ */
+::selection {
+  background: var(--accent-soft);
+  color: var(--alias-label-primary);
+}
+
+/* ---------------------------------------------------------------------------
+   滚动条
+   --------------------------------------------------------------------------- */
+
+/**
+ * 全局隐藏原生滚动条，由 `ScrollArea` 组件自绘 overlay（§12.1）。
+ *
+ * 原生滚动条在两个平台上外观完全不同（macOS 覆盖式、Windows 占位式），
+ * 占位式会让布局宽度随内容多少跳动。自绘可以做到两边一致且不占布局。
+ */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Firefox 走标准属性。本项目只跑在 WebKit/Chromium 内核的壳里，
+   这一条是给浏览器里调试时用的，不影响打包产物。 */
+* {
+  scrollbar-width: none;
+}
+
+/* ---------------------------------------------------------------------------
+   平台相关
+   --------------------------------------------------------------------------- */
+
+/**
+ * Windows 的字重补偿。
+ *
+ * MiSans 在 Windows 的 DirectWrite 下比 macOS 的 CoreText 略细，
+ * 同一字重看起来差半档。这里按平台加 0.02 的字重补偿，
+ * 让两端观感一致。判定依据由 `lib/platform.ts` 写入 `data-platform`。
+ */
+[data-platform='win32'] body {
+  font-variation-settings: 'wght' 420;
+}
+
+[data-platform='win32'] strong,
+[data-platform='win32'] b {
+  font-variation-settings: 'wght' 560;
+}
+
+/* ---------------------------------------------------------------------------
+   降级：减少动态效果
+   --------------------------------------------------------------------------- */
+
+/**
+ * 这是**全项目唯一一处** `prefers-reduced-motion` 降级块。
+ *
+ * 用 `*` 通配符而不是逐组件声明，是因为新增组件时一定会忘记加。
+ * 集中压掉的好处是：任何新写的动效自动被尊重用户偏好。
+ *
+ * 用 `1ms` 而不是 `0s`：`0s` 在部分浏览器下不派发 `transitionend`，
+ * 依赖该事件收尾的代码（如等抽屉展开后再聚焦）会永久挂起。
+ * 1ms 短到不可感知，又保证事件照常发生。
+ *
+ * **注意**：`animation-iteration-count: 1` 会让循环动画（呼吸、三点加载）
+ * 只跑一轮就停。这是有意的——用户要求减少动态效果，循环本身就是他要避免的。
+ * 需要表达「仍在进行」的地方，用静态的形状（如静止的三点）而非循环。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

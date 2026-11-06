@@ -37,9 +37,7 @@ import {
   selectModel,
 } from './api.ts'
 import type { ModelDescriptor, PermissionLevel, SessionMessage, SessionMeta, ThemeMode } from './api.ts'
-import type { Attachment, ComposerUsage } from '../components/Composer.tsx'
-import type { LogEntry } from '../components/Sidebar.tsx'
-import type { BondStats, MemoryItem, MoodState } from '../components/Companion.tsx'
+import type { Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState } from './types.ts'
 
 /**
  * 语音识别实例的最小形状。
