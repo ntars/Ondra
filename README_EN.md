@@ -2638,6 +2638,7 @@ The kernel's 13 methods are called over JSON-RPC 2.0 framed as newline-delimited
 | `tools/smoke.mjs` | Three-layer smoke test |
 | `tools/check-ui.mjs` | UI spec assertions: dimensions, layering, token definitions, the close dialog and the error tiers |
 | `tools/check-installer.mjs` | Windows installer script syntax: renders the placeholders, then compiles once with makensis |
+| `tools/build-tray-icons.mjs` | Renders the tray silhouette at three sizes (16 / 32 / 64) from `icon.svg`: no plate, alpha preserved |
 | `src-tauri/src/main.rs` | Shell entry: window, events, cleanup on exit |
 | `src-tauri/src/host.rs` | Host process management: start, wait, stop |
 | `src-tauri/src/commands.rs` | Native capability commands |
@@ -2880,8 +2881,8 @@ One real obstacle remains: `src-tauri/Cargo.toml` currently declares no `[lib]`,
 2. **The tool registry is empty.** The skeleton registers no tool that the model can call. Note that this is separate from the 137 loaded plugins: plugins provide application capabilities such as memory, emotion and channel adaptation, while tool calls refer to tools the model can invoke, which are not yet connected.
 3. **The shell command channel is not fully connected.** The desktop bridge's invoke does not yet reach the Tauri custom command endpoint on the host side, and calls return an explicit error.
 4. **Windows file selection is not implemented.** The file picker returns not implemented on platforms other than macOS.
-5. **The tray icon is not connected.** The tray feature is enabled in the Cargo manifest, but no tray is created yet.
-6. **Single-window form.** Closing the window quits; the application does not stay resident in the tray.
+5. **The tray icon and menu are wired up, but only verified on macOS.** The tray is created in `src-tauri/src/tray.rs`; its three sizes (16 / 32 / 64) are rendered from `icon.svg` by `tools/build-tray-icons.mjs` and tinted as a template image on macOS. On macOS the four menu items, the click-to-reveal behaviour and the hide-to-tray close flow were all verified by hand. Windows and Linux have only had a code review.
+6. **Single-window form, apart from preferences.** Closing the main window hides it to the tray rather than quitting; preferences is the only second window, 560 × 480, created once and then only shown or hidden.
 7. **No automatic updates.** The update flow is not implemented.
 8. **Plugin configuration is not yet connected to the interface.** All 134 plugins are loaded on the host side and can discover each other, but the interface layer does not yet expose their configuration or state. The 1168 fields listed in chapter 3 are the complete plugin-side declaration, and interface integration is the next stage of work.
 9. **Two strict type checks do not apply to migrated plugins.** The exact optional properties and unchecked indexed access options are enabled only in the host, the kernel, the front end and three newly written plugins. The 134 migrated plugins have them off, and the reason and the cost are described in 5.8.
@@ -2900,7 +2901,7 @@ These items are **implemented and reviewable in code, but have never actually ru
 | Item | What is done | What is missing | Risk |
 | --- | --- | --- | --- |
 | Windows installer (NSIS, 410×290, 3 pages) | Template, page sequence, variable declarations, DPI maths | A real install on Windows | Shortcut target, uninstall leftovers, high-DPI centring |
-| Windows tray icon | Tray feature enabled in the Cargo manifest | Multi-size set (16/32/48/256) not bundled; only 32×32 was produced | Blurry icon in the taskbar and Alt+Tab |
+| Windows tray icon | Three sizes (16 / 32 / 64) rendered by script and bundled into `Resources/tray` | Never looked at it in the Windows notification area | Notification-area sizing and DPI handling may differ from the macOS menu bar |
 | `cargo build` (release) | `cargo check` passes | A full release build | Problems that only surface at link or packaging time |
 | Linux desktop integration | Code shared with the other platforms | A build on any distribution | deb/rpm dependencies, tray fallback when StatusNotifier is absent |
 | 0.5px lines at 125% / 150% scaling | CSS declares a fallback to 1px | Never checked on real hardware | Lines may vanish or look fuzzy |

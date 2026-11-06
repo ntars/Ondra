@@ -22,8 +22,17 @@
 //! 16 / 32 / 64 对应普通屏、Retina、以及部分 Linux 桌面环境的放大场景。
 //! 只给一档会由系统缩放，缩小后的细线会糊成一团灰。
 //!
-//! 图标本体由 `tools/build-icons.mjs` 从 `/icon.svg` 生成，
-//! 与安装包、Dock、任务栏共用同一份母版（§4.5）。
+//! 三档取自 `tools/build-tray-icons.mjs`，它从 `/icon.svg` 渲染出**无底板**的
+//! 纯剪影。这一处与 `icons/32x32.png` 是两个不同的东西，不能互换：
+//!
+//! | | `icons/32x32.png` | `tray/tray-*.png` |
+//! | --- | --- | --- |
+//! | 用途 | 应用图标（Dock / 安装包 / 任务栏） | 菜单栏 / 系统托盘 |
+//! | 底板 | 白色 squircle | 无，四周透明 |
+//! | 颜色 | 白底黑鱼 | 纯黑剪影，交给系统按 template 染色 |
+//!
+//! 把应用图标塞进菜单栏，得到的是一枚 16×16 的白方块——比旁边的系统图标
+//! 重得多，深色菜单栏上尤其扎眼。这是 §4.5 明确要求两版分开的原因。
 
 use crate::window;
 use tauri::{
@@ -32,14 +41,19 @@ use tauri::{
     AppHandle, Manager, Runtime,
 };
 
-/// 托盘图标在 `icons/` 下的文件。三档按平台取其一。
+/// 托盘图标的候选档位（像素边长）。
 ///
-/// 打包后由 Tauri 的资源解析定位；开发态与安装后走同一条路径，
-/// 所以这里写相对路径而不是绝对路径。
+/// 由小到大排列，选档时取「第一个不小于所需像素」的那一档。
+const TRAY_SIZES: [u32; 3] = [16, 32, 64];
+
+/// 托盘图标的逻辑基准边长。
+///
+/// macOS 菜单栏图标高 18pt（系统值，写死 16 会显得偏小）；Windows 通知区与
+/// 主流 Linux 桌面环境都是 16px。这个基准乘上显示缩放，才是真正需要的像素。
 #[cfg(target_os = "macos")]
-const TRAY_ICON: &str = "icons/32x32.png";
+const TRAY_BASE: f64 = 18.0;
 #[cfg(not(target_os = "macos"))]
-const TRAY_ICON: &str = "icons/32x32.png";
+const TRAY_BASE: f64 = 16.0;
 
 /// 菜单项 id。
 ///
@@ -112,10 +126,20 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
             }
         });
 
-    // 图标：打包后从资源目录取，开发态从 `src-tauri/icons/` 取。
+    // 图标：打包后从资源目录取，开发态从 `src-tauri/tray/` 取。
     // 取不到就不设图标——系统会显示一个占位方块，比整个托盘创建失败好。
     if let Some(icon) = load_icon(app) {
         builder = builder.icon(icon);
+        // macOS 菜单栏图标是**模板图**：系统只看 alpha 通道，把不透明部分
+        // 整体染成黑（浅色菜单栏）或白（深色菜单栏）。不设这一位，图标会
+        // 保持文件里的纯黑，深色菜单栏上基本看不见。
+        //
+        // Windows / Linux 没有这个概念，它们的托盘直接显示原图，
+        // 所以只在 macOS 上开。
+        #[cfg(target_os = "macos")]
+        {
+            builder = builder.icon_as_template(true);
+        }
     }
 
     builder.build(app)
@@ -123,28 +147,50 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
 
 /// 读取托盘图标。
 ///
+/// # 选档规则
+///
+/// 菜单栏图标高 18pt（macOS）/ 16px（其余），乘窗口所在屏的缩放系数，
+/// 得到真正需要的**物理像素**，取第一个不小于它的档位。1x 屏要 18 像素 →
+/// 取 32 档（16 不够，会糊）；2x 屏要 36 像素 → 取 64 档。
+///
+/// 不从 `TRAY_SIZES` 里逐个 `scale_factor` 反算，是因为缩放不是整数
+/// （Windows 有 125% / 150%），反算出来的边长会落在两档之间，
+/// 判断「够不够」比「相等」稳得多。
+///
 /// # 为什么不用 `default_window_icon()`
 ///
 /// 那是应用图标（1024 的 squircle），缩到托盘尺寸后底板仍是一块实色方块，
-/// 在 macOS 菜单栏里显得又重又脏。托盘要的是**只有图形、没有底板**的那一版。
-///
-/// 目前 `icons/32x32.png` 仍带底板（由 `build-icons.mjs` 统一生成），
-/// 这一步留在图标脚本里做比在 Rust 里做更好——那里已经有渲染器。
-/// 现在先直接读，取不到返回 `None`。
+/// 在 macOS 菜单栏里显得又重又脏。托盘要的是**只有图形、没有底板**的那一版，
+/// 由 `tools/build-tray-icons.mjs` 单独渲染。
 fn load_icon<R: Runtime>(app: &AppHandle<R>) -> Option<tauri::image::Image<'static>> {
+    let scale = app
+        .get_webview_window("main")
+        .and_then(|window| window.scale_factor().ok())
+        // 窗口还没建好时按 1x 起步：宁可选小一档，也不要凭空放大一倍
+        // 之后在 1x 屏上被系统缩回去——那一步必糊。
+        .unwrap_or(1.0);
+    let needed = TRAY_BASE * scale;
+    let size = TRAY_SIZES
+        .iter()
+        .copied()
+        .find(|candidate| f64::from(*candidate) >= needed)
+        // 全部不够（缩放超过 400%）时用最大档，不让它退化成 None。
+        .unwrap_or(*TRAY_SIZES.last().unwrap_or(&64));
+    let file = format!("tray/tray-{size}.png");
+
     // 打包后：资源目录旁；开发态：`CARGO_MANIFEST_DIR` 下。
     // 两处都试，是因为 `tauri dev` 与安装后的目录结构本就不一样。
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-    if let Ok(dir) = app.path().resolve(TRAY_ICON, tauri::path::BaseDirectory::Resource) {
-        candidates.push(dir);
+    if let Ok(path) = app.path().resolve(&file, tauri::path::BaseDirectory::Resource) {
+        candidates.push(path);
     }
-    candidates.push(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(TRAY_ICON));
+    candidates.push(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(&file));
 
     for path in candidates {
         if let Ok(image) = tauri::image::Image::from_path(&path) {
             return Some(image.to_owned());
         }
     }
-    eprintln!("[shell] 读不到托盘图标：{TRAY_ICON}");
+    eprintln!("[shell] 读不到托盘图标：{file}（先跑 `node tools/build-tray-icons.mjs`）");
     None
 }

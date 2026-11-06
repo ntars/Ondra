@@ -463,6 +463,81 @@ async function checkStaticSpecs() {
   return problems.length === 0
 }
 
+/**
+ * 托盘图标核对（§12.10、§4.5）。
+ *
+ * ## 守的是什么
+ *
+ * 托盘图标曾经直接用 `icons/32x32.png`，而那是**应用图标**：白色 squircle
+ * 底板 + 黑色鲸鱼。放进 macOS 菜单栏就是一枚 16×16 的白方块，比旁边的
+ * 系统图标重得多。§4.5 要求两版分开，§12.10 要求 16 / 32 / 64 三档。
+ *
+ * ## 为什么必须静态验
+ *
+ * 这一处失败**在浏览器里完全看不出来**：`check-ui` 的主流程跑在无头 Chromium
+ * 里，没有菜单栏，托盘图标存不存在都一样绿。真机截图能看出来，但截图不进
+ * 自动化。能在 CI 里守住的只有三件事：
+ *
+ * 1. **三档都在**，且尺寸与文件名一致（缩错过一次就会一直是错的）。
+ * 2. **四角透明**。有底板就一定有某个角是不透明的——这是「无底板」唯一的
+ *    机器可判特征。中央不判：鲸鱼是描边图形，中心本来就是空的。
+ * 3. **被打包进 Resources**。`tauri.conf.json` 少了这一行，开发态照常能读
+ *    （走 `CARGO_MANIFEST_DIR`），装完就没了——最典型的「本机好的」。
+ */
+async function checkTrayAssets() {
+  const { readFile: readText, access } = await import('node:fs/promises')
+  const { spawnSync } = await import('node:child_process')
+  const repo = new URL('../', import.meta.url).pathname
+  const problems = []
+
+  console.log('\n托盘图标：')
+
+  const wanted = [[16, 'tray-16.png'], [32, 'tray-32.png'], [64, 'tray-64.png']]
+  for (const [size, name] of wanted) {
+    const path = join(repo, 'src-tauri', 'tray', name)
+    try {
+      await access(path)
+    } catch {
+      problems.push(`缺 ${name}（跑 \`node tools/build-tray-icons.mjs\`）`)
+      continue
+    }
+    // `sips -g` 读真实像素宽，不信文件名——文件名是手写的，像素是渲染出来的。
+    const probe = spawnSync('sips', ['-g', 'pixelWidth', path], { encoding: 'utf8' })
+    const actual = Number(/pixelWidth:\s*(\d+)/.exec(probe.stdout)?.[1] ?? 0)
+    if (actual !== size) problems.push(`${name} 实际宽 ${String(actual)}，应为 ${String(size)}`)
+  }
+
+  /*
+   * 四角透明：用 `sips` 转成原始像素太麻烦，改用 Python 读 PNG。
+   * 但 Python 未必有 PIL，所以退一步——直接扫 PNG 的 IHDR 色彩类型，
+   * 只有类型 6（RGBA）与类型 4（灰度 + alpha）才可能有透明区。
+   * 这比读像素弱，可它拦得住最常见的那种错：拿一张 RGB 的方图当剪影。
+   */
+  for (const [, name] of wanted) {
+    const path = join(repo, 'src-tauri', 'tray', name)
+    try {
+      const head = await readText(path, { encoding: null })
+      // PNG 布局：8 字节签名 + 4 字节长度 + 4 字节 'IHDR' + 宽 4 + 高 4 + 位深 + 色彩类型。
+      const colorType = head[8 + 4 + 4 + 4 + 4 + 1]
+      if (colorType !== 6 && colorType !== 4) {
+        problems.push(`${name} 无 alpha 通道（PNG 色彩类型 ${String(colorType)}），不可能是无底板剪影`)
+      }
+    } catch { /* 上面已经报过缺失 */ }
+  }
+
+  const conf = await readText(join(repo, 'src-tauri', 'tauri.conf.json'), 'utf8')
+  if (!/"tray"\s*:\s*"tray"/.test(conf)) {
+    problems.push('tauri.conf.json 的 bundle.resources 没有打包 tray 目录，装完就读不到图标')
+  }
+
+  if (problems.length === 0) {
+    console.log('  ✓ 16 / 32 / 64 三档齐备、带 alpha、且已打包进 Resources')
+  } else {
+    for (const problem of problems) console.log(`  ✗ ${problem}`)
+  }
+  return problems.length === 0
+}
+
 /** 量一组尺寸与交互。 */
 async function run() {
   const { chromium } = loadPlaywright()
@@ -1771,6 +1846,9 @@ async function run() {
 
   const specsOk = await checkStaticSpecs()
   if (!specsOk) process.exitCode = 1
+
+  const trayOk = await checkTrayAssets()
+  if (!trayOk) process.exitCode = 1
 }
 
 await run()

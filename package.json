@@ -36,6 +36,7 @@
     "smoke": "node tools/smoke.mjs",
     "check:ui": "node tools/check-ui.mjs",
     "check:brand": "node tools/gen-brand.mjs --check",
+    "icons": "node tools/build-icons.mjs && node tools/build-tray-icons.mjs",
     "check:installer": "node tools/check-installer.mjs",
     "check:core": "node cordis-host/check-core.mjs",
     "prepare:plugins": "node tools/prepare-plugins.mjs",

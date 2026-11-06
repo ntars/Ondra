@@ -2615,6 +2615,7 @@ pnpm 生成的 `node_modules` 分两层，理解这一点能解释「为什么�
 | `tools/smoke.mjs` | 三层链路冒烟测试 |
 | `tools/check-ui.mjs` | UI 规范断言：尺寸、层级、令牌定义、关闭框与错误分级 |
 | `tools/check-installer.mjs` | Windows 安装脚本语法检查：渲染占位符后用 makensis 真编译一遍 |
+| `tools/build-tray-icons.mjs` | 从 `icon.svg` 渲染托盘剪影三档（16 / 32 / 64），无底板、带 alpha |
 | `src-tauri/src/main.rs` | 壳入口：窗口、事件、退出清理 |
 | `src-tauri/src/host.rs` | 宿主进程管理：启动、等待、停止 |
 | `src-tauri/src/commands.rs` | 本机能力命令 |
@@ -2857,8 +2858,8 @@ Ondra/
 2. **工具注册表为空**。骨架未注册任何可被模型调用的工具。注意这与 134 个插件的装载是两件事：插件提供的是应用能力（记忆、情绪、通道适配等），`tool.*` 指的是可被模型调用的工具，后者尚未接入。
 3. **壳命令通道尚未完全接通**。`desktop-bridge` 的 `invoke` 在宿主侧尚未连接到 Tauri 的自定义命令端点，调用会返回明确错误。
 4. **Windows 文件选择未实现**。`pick_files` 在非 macOS 平台返回「尚未实现」。
-5. **托盘图标未接入**。`Cargo.toml` 已启用 `tray-icon` 特性，但 `main.rs` 尚未创建托盘。
-6. **单窗口形态**。关窗即退出，不驻留托盘。
+5. **托盘图标与菜单已接入，但未在 Windows / Linux 真机验证**。托盘由 `src-tauri/src/tray.rs` 创建，三档图标（16 / 32 / 64）由 `tools/build-tray-icons.mjs` 从 `icon.svg` 渲染，macOS 上按模板图染色。macOS 侧已实测：菜单四项齐全、单击唤回窗口、关闭拦截与「隐藏到托盘」生效。Windows 与 Linux 只做过代码复核。
+6. **单窗口形态（除偏好设置）**。主窗口关闭即隐藏到托盘，不退出；偏好设置是唯一的第二个窗口，560 × 480，建一次之后只显隐。
 7. **无自动更新**。更新流程尚未实现。
 8. **插件配置尚未接入界面**。134 个插件已在宿主侧装载并可互相发现，界面层尚未暴露它们的配置与状态。第三章列出的 1168 个字段是插件侧的完整声明，界面接入是下一阶段的工作。
 9. **两项严格类型检查对迁入插件不生效**。`exactOptionalPropertyTypes` 与 `noUncheckedIndexedAccess` 只在 `cordis-host`、`dsh-sidecar`、`src` 与新写的三个插件上启用。134 个迁入插件关闭了这两项，理由与代价见 4.1 与 5.8。
@@ -2877,7 +2878,7 @@ Ondra/
 | 项目 | 已完成的部分 | 缺什么验证 | 风险 |
 | --- | --- | --- | --- |
 | Windows 安装器（NSIS，410×290，3 页） | 模板、页面序列、变量声明、DPI 计算 | 未在 Windows 上真装一次 | 快捷方式落点、卸载残留、高 DPI 居中 |
-| Windows 托盘图标 | `Cargo.toml` 已启用 `tray-icon` | 多档位（16/32/48/256）尚未打包，只做过 32×32 | 任务栏与 Alt+Tab 图标模糊 |
+| Windows 托盘图标 | 三档位（16 / 32 / 64）由脚本渲染并打包进 `Resources/tray` | 未在 Windows 通知区看过 | 通知区尺寸与 DPI 处理可能与 macOS 菜单栏不同 |
 | `cargo build`（release） | `cargo check` 通过 | 未跑完整 release 构建 | 链接期或打包期才暴露的问题 |
 | Linux 桌面集成 | 代码同源 | 未在任意发行版构建 | deb/rpm 依赖、`StatusNotifier` 托盘缺失降级 |
 | 125% / 150% 缩放下 0.5px 线 | CSS 已声明降级到 1px | 未在真机缩放下核过 | 线可能消失或变虚 |
