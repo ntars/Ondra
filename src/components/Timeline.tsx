@@ -300,14 +300,13 @@ export function Timeline({
   /**
    * 标记「用户正在滚」。
    *
-   * ## 为什么用这几个事件而不是 `scroll`
+   * ## 为什么由 `ScrollArea` 报告而不是这里自己挂监听
    *
-   * 这三个事件只在用户真的有输入时才派发：`wheel` 是滚轮与触控板，
-   * `touchstart` 是触屏拖动，`pointerdown` 是按住自绘滑块。
-   * 浏览器自己调整位置时它们一个都不会发——这正是需要的判据。
+   * 滚轮与触屏在视口上，但拖滑块发生在视口的**兄弟节点**上，
+   * 事件根本不经过视口。让这里去猜「哪个是滑块、target 是不是它」
+   * 等于把 `ScrollArea` 的内部结构抄一份到时间轴里，对方一改就静默失效。
    *
-   * 挂在视口上而不是 `window`：别处的滚动与这条时间轴无关，
-   * 挂 `window` 会让侧栏滚一下也把 `stick` 改掉。
+   * 由 `ScrollArea` 统一报告是唯一稳的分法：它知道自己由哪几块拼成。
    *
    * ## 为什么不标 `keydown`
    *
@@ -374,20 +373,6 @@ export function Timeline({
     return () => { observer.disconnect() }
   }, [scrollToBottom])
 
-  /** 用户手势标记：挂在视口上，见 `markGesture`。 */
-  useEffect(() => {
-    const node = scrollRef.current
-    if (node === null) return
-    node.addEventListener('wheel', markGesture, { passive: true })
-    node.addEventListener('touchstart', markGesture, { passive: true })
-    node.addEventListener('pointerdown', markGesture, { passive: true })
-    return () => {
-      node.removeEventListener('wheel', markGesture)
-      node.removeEventListener('touchstart', markGesture)
-      node.removeEventListener('pointerdown', markGesture)
-    }
-  }, [markGesture])
-
   /** 首帧无条件贴底：打开一个历史会话时应停在最新一条，不是最旧一条。 */
   useEffect(() => {
     scrollToBottom(false)
@@ -429,6 +414,7 @@ export function Timeline({
         viewportRef={scrollRef}
         className="timeline__scroll"
         onScroll={onScroll}
+        onGesture={markGesture}
         onKeyDown={onKeyDown}
         viewportProps={{
           /*

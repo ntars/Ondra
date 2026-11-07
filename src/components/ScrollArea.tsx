@@ -57,6 +57,21 @@ export interface ScrollAreaProps {
    */
   onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void
   /**
+   * 用户在操作这个滚动区。
+   *
+   * 「用户在滚」这件事只有本组件知道全貌：滚轮与触屏在视口上，
+   * 而拖动滑块发生在视口的**兄弟节点**上，事件根本不经过视口。
+   * 让使用方去猜 DOM 结构（「找出滑块、判断 target」）是把封装漏出去，
+   * 而且滑块的结构一改就静默失效。
+   *
+   * 所以由这里统一报告：`wheel` / `touchstart` 一次，滑块拖动期间
+   * 每次 `pointerdown` 与 `pointermove` 各一次——拖动是连续动作，
+   * 用户可能一路拖回底部，只报第一次会让后半段的变化被忽略。
+   *
+   * 使用方通常拿它来区分「用户想看别处」与「内容自己变高了」。
+   */
+  onGesture?: () => void
+  /**
    * 视口的无障碍属性。
    *
    * `role` 不属 `React.AriaAttributes`（它在 `HTMLAttributes` 里），
@@ -85,6 +100,7 @@ export function ScrollArea({
   className,
   remeasureKey,
   onKeyDown,
+  onGesture,
   viewportProps,
   children,
 }: ScrollAreaProps): React.JSX.Element {
@@ -162,7 +178,8 @@ export function ScrollArea({
     event.currentTarget.setPointerCapture(event.pointerId)
     dragRef.current = 0
     setHover(true)
-  }, [node])
+    onGesture?.()
+  }, [node, onGesture])
 
   const onThumbPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
     if (dragRef.current === undefined) return
@@ -176,8 +193,9 @@ export function ScrollArea({
     if (rect === undefined) return
     const relative = event.clientY - rect.top - height / 2
     const ratio = Math.min(1, Math.max(0, relative / maxTop))
+    onGesture?.()
     element.scrollTop = ratio * (scrollHeight - clientHeight)
-  }, [node])
+  }, [node, onGesture])
 
   const onThumbPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
     dragRef.current = undefined
@@ -193,6 +211,15 @@ export function ScrollArea({
       data-hover={hover ? '' : undefined}
       onPointerEnter={() => { setHover(true) }}
       onPointerLeave={() => { setHover(false) }}
+      /*
+       * 手势监听挂在最外层，而不是视口上。
+       *
+       * 拖滑块时 `pointerdown` 落在滑块（视口的兄弟节点），事件不会
+       * 冒泡进视口。这一层下面只有视口与滑块两样，挂在这里两种入口
+       * 都收得到，也不会误收侧栏或抽屉的滚动。
+       */
+      onWheel={onGesture}
+      onTouchStart={onGesture}
     >
       <div
         ref={node}
@@ -200,8 +227,7 @@ export function ScrollArea({
         onScroll={handleScroll}
         onKeyDown={onKeyDown}
         {...viewportProps}
-      >
-        {children}
+      >        {children}
       </div>
 
       {/*

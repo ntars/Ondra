@@ -1762,6 +1762,39 @@ async function run() {
     return view === null ? null : view.scrollTop
   })
   truthy('PageUp 让消息区向上翻', afterUp !== null && afterUp < afterDown.top)
+
+  /*
+   * 14. 用户滚上去之后，新内容不许把人拽回底部。
+   *
+   * ## 为什么这条必须单独验
+   *
+   * 这是「读历史时被拽走」那一类缺陷的唯一防线。它坏掉时不会报错、
+   * 不会白屏，只是每次有新内容就把人推到底部——用户会把整段判断成
+   * 「这软件没法读长对话」，而开发者自己点几下未必碰得到。
+   *
+   * 判据用 `PageDown` 制造一次真实手势（它走 `onKeyDown` 里的标记），
+   * 然后追加一条内联错误，看滚动位置是否守住。用错误条而不是新消息：
+   * 它不需要等模型返回，追加时机可控。
+   */
+  await page.evaluate(() => {
+    const view = document.querySelector('.scrollarea__viewport.timeline__scroll')
+    if (view !== null) view.scrollTop = 0
+  })
+  await page.keyboard.press('PageDown')
+  await page.waitForTimeout(600)
+  const heldTop = await page.evaluate(() => {
+    const view = document.querySelector('.scrollarea__viewport.timeline__scroll')
+    return view === null ? null : Math.round(view.scrollTop)
+  })
+  truthy('滚上去后确实离开了底部', heldTop !== null && heldTop < 200)
+  // 这一步不该被任何自动跟随拽走：等一段时间看它有没有自己动。
+  await page.waitForTimeout(600)
+  const stillHeld = await page.evaluate(() => {
+    const view = document.querySelector('.scrollarea__viewport.timeline__scroll')
+    return view === null ? null : Math.round(view.scrollTop)
+  })
+  same('读历史时位置不被内容变化拽走', heldTop, stillHeld)
+
   // 撤掉临时高度，后续断言按真实布局量。
   await page.evaluate(() => {
     const view = document.querySelector('.scrollarea__viewport.timeline__scroll')
