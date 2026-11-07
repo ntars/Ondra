@@ -38,6 +38,7 @@ import { Mark } from './components/Mark.tsx'
 import { Settings } from './components/Settings.tsx'
 import { requestPreferences } from './components/Preferences.tsx'
 import { usePreferences } from './lib/preferences.ts'
+import { formatClock, isMuted, muteFor, unmute, useMuted } from './lib/mute.ts'
 import { Dialog } from './components/Dialog.tsx'
 import { ToastProvider, useToast } from './components/Toast.tsx'
 import { invokeShell, isDesktopShell, listenShell } from './lib/shell.ts'
@@ -152,6 +153,14 @@ function Shell(): React.JSX.Element {
 
   /** 偏好层。发送方式与主题都要读它。 */
   const preferences = usePreferences()
+
+  /**
+   * 一键静音状态（§12.12、§5.7 静音态）。
+   *
+   * 用钩子订阅而不是读一次：到期解除发生在「用户没操作」的时刻，
+   * 只有订阅能把那一帧推到界面上。
+   */
+  const muted = useMuted()
 
   /**
    * 把「右侧有没有浮层」反映到根节点（供 Toast 避让，§5.10）。
@@ -365,12 +374,21 @@ function Shell(): React.JSX.Element {
     /*
      * 静音 1 小时（§12.12）。
      *
-     * 真正的静音状态机还没接（声音模块整体待做），这里只给反馈。
-     * 假装已经静音而不改任何东西，比明确说「还没接」更糟——
-     * 用户会以为按了没反应。
+     * ## 为什么要看当前状态再决定动作
+     *
+     * 托盘菜单项的文字在静音后会变成「取消静音」（壳侧 `set_tray_muted`
+     * 改的）。用户看到哪个字就期待哪个动作，所以这里必须按同一份状态分岔：
+     * 没静音 → 静音一小时；已静音 → 取消。不看状态一律 "mute" 的话，
+     * 用户点了写着「取消静音」的那一项，静音却被延长了一小时。
      */
     const offMute = listenShell<null>('toggle-mute', () => {
-      toast('声音还没接上，暂时没有可静音的')
+      if (isMuted()) {
+        unmute()
+        toast('已取消静音')
+        return
+      }
+      const until = muteFor()
+      toast(`静音到 ${formatClock(until)}`)
     })
 
     return () => {
@@ -618,6 +636,7 @@ function Shell(): React.JSX.Element {
             busy={state.busy}
             inspectorOpen={inspector}
             resting={false}
+            muted={muted}
             onToggle={toggleInspector}
           />
 

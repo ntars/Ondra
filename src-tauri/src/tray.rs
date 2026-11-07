@@ -64,32 +64,65 @@ mod ids {
     pub const OPEN: &str = "tray.open";
     /// 打开今天抽屉。
     pub const TODAY: &str = "tray.today";
-    /// 静音 1 小时。
+    /// 静音 1 小时 / 取消静音。
     pub const MUTE: &str = "tray.mute";
     /// 退出应用。
     pub const QUIT: &str = "tray.quit";
 }
 
+/// 托盘图标 id。改菜单文字时要靠它取回那个托盘。
+const TRAY_ID: &str = "main";
+
+/// 静音菜单项的两种文案。
+///
+/// 为什么不是一句「静音」：菜单项写的是**点下去会发生什么**。
+/// 静音期间点它应当是取消，文字就得如实写「取消静音」。
+/// 只写「静音」的话，用户没有取消的入口，只能等一小时过去。
+const MUTE_OFF_TEXT: &str = "静音 1 小时";
+const MUTE_ON_TEXT: &str = "取消静音";
+
+/// 静音菜单项的句柄。
+///
+/// 为什么要把这一项单独存起来：托盘菜单建好之后，`TrayIcon` 上**没有**
+/// 读回菜单的方法（即便有，也得先在菜单树里按 id 找一遍）。要改一句文案，
+/// 唯一稳的路是在建的时候就留住那一项的手柄。
+///
+/// 这也解释了为什么只留静音这一项：其余四项的文案一辈子不变，
+/// 留住它们只会多出四个没人用的字段。
+pub struct MuteItem<R: Runtime>(pub MenuItem<R>);
+
+impl<R: Runtime> MuteItem<R> {
+    /// 按静音状态改写菜单文字。
+    ///
+    /// 失败只记日志：`set_text` 在 Linux 某些桌面环境下会返回错误，
+    /// 而那时菜单仍能用，只是文字没跟上——不值得让一次静音操作报错。
+    pub fn set_muted(&self, muted: bool) {
+        if let Err(error) = self.0.set_text(if muted { MUTE_ON_TEXT } else { MUTE_OFF_TEXT }) {
+            eprintln!("[shell] 托盘菜单文字没能改成静音态：{error}");
+        }
+    }
+}
+
 /// 创建托盘。
 ///
-/// 在 `setup()` 里调用一次。返回的句柄保存在 `AppState` 里，
-/// 用于后续更新菜单文字（静音开关要改文案）。
+/// 在 `setup()` 里调用一次。返回托盘句柄与静音菜单项的手柄：
+/// 前者由 Tauri 自己持有（丢掉会让图标消失），后者交给命令层改文案。
 ///
 /// # 失败为什么只记日志不上报
 ///
 /// 托盘创建失败（Linux 上没有 StatusNotifier 宿主时会发生）不该让应用
 /// 起不来——主窗口还能用。这种情况下关闭行为改为最小化（§10.5），
 /// 用户仍然找得回窗口。
-pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
+pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<(TrayIcon<R>, MuteItem<R>)> {
     let open = MenuItem::with_id(app, ids::OPEN, "打开空谷", true, None::<&str>)?;
     let today = MenuItem::with_id(app, ids::TODAY, "今天", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let mute = MenuItem::with_id(app, ids::MUTE, "静音 1 小时", true, None::<&str>)?;
+    let mute = MenuItem::with_id(app, ids::MUTE, MUTE_OFF_TEXT, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, ids::QUIT, "退出", true, None::<&str>)?;
 
     let menu = Menu::with_items(app, &[&open, &today, &separator, &mute, &quit])?;
 
-    let mut builder = TrayIconBuilder::with_id("main")
+    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
         .tooltip("空谷 Ondra")
         // 左键不弹菜单，直接唤回窗口：菜单里有「打开空谷」，再让左键弹菜单
@@ -142,7 +175,10 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
         }
     }
 
-    builder.build(app)
+    // 菜单项在 `menu` 构造时已被克隆进菜单树，这里再把静音那一项单独
+    // 交出去：之后改文案靠它，不靠从菜单树里找。
+    let tray = builder.build(app)?;
+    Ok((tray, MuteItem(mute)))
 }
 
 /// 读取托盘图标。

@@ -1572,6 +1572,106 @@ async function run() {
   await page.screenshot({ path: join(OUT, 'composer-v5.png') })
 
   /*
+   * --- 一键静音（§12.10、§12.12、§5.7 静音态）---
+   *
+   * ## 为什么这条必须真跑一遍
+   *
+   * 静音有三个外部可见的落点，三处都可能单独坏，而且坏法互不报错：
+   *
+   * | 落点 | 坏了的症状 |
+   * | --- | --- |
+   * | Spine 的「静音」二字 | 用户按了菜单，界面上什么都没有 → 以为没生效 |
+   * | 截止时刻落盘 | 重启后静音丢了 → 她提前一小时开始说话 |
+   * | 托盘菜单文字 | 菜单还写着「静音 1 小时」→ 用户找不到取消入口 |
+   *
+   * 三条都要断言。只验界面那条最省事，但漏掉的正是「重启后」与
+   * 「取消」这两个用户真会碰到的场景。
+   *
+   * ## 触发方式
+   *
+   * 托盘在 Rust 侧，测试里没有真托盘。壳的菜单点击会发 `toggle-mute`
+   * 事件，这里直接派发同名事件复现那条路径（与验关闭确认框同一个手法）。
+   */
+  const muteBefore = await page.evaluate(() => ({
+    muted: document.querySelector('.spine__muted') !== null,
+    stored: localStorage.getItem('ondra.mutedUntil'),
+    /*
+     * 呼吸标记的**初值**要留一份。
+     *
+     * §5.7 说静音不影响呼吸，但「呼吸开着」这条断言在无数据时会假失败：
+     * 没有心跳读数时水位本来就不呼吸（那是 §5.7 的暂停条件之一，与静音
+     * 无关）。测试的假宿主不返回心情数据，所以这一页没有读数。
+     *
+     * 正确的判据是「静音前后呼吸**不变**」——这恰好就是规范说的那件事，
+     * 而不是「静音后呼吸为真」。
+     */
+    breathe: document.querySelector('.spine__fill[data-breathe]') !== null,
+  }))
+  truthy('初始没有静音标记', muteBefore.muted === false)
+  truthy('初始没有静音落盘', muteBefore.stored === null)
+
+  await page.evaluate(() => {
+    for (const [name, handler] of (window.__ondraListeners ?? [])) {
+      if (name === 'toggle-mute') handler({ payload: null })
+    }
+  })
+  await page.waitForTimeout(400)
+
+  const mutedState = await page.evaluate(() => {
+    const marker = document.querySelector('.spine__muted')
+    const raw = localStorage.getItem('ondra.mutedUntil')
+    const until = raw === null ? 0 : Number(raw)
+    return {
+      shown: marker !== null,
+      text: marker?.textContent ?? '',
+      // 剩余时长应当接近一小时。抓宽一点（58–61 分钟），只排除
+      // 「存了 1 秒」或「存了 24 小时」这类量级错误。
+      minutes: until > 0 ? Math.round((until - Date.now()) / 60000) : -1,
+      trayCall: (window.__ondraCalls ?? []).filter((call) => call.command === 'set_tray_muted').at(-1) ?? null,
+      breathe: document.querySelector('.spine__fill[data-breathe]') !== null,
+      /*
+       * 静音**不等于**休息。
+       *
+       * §5.7 把两件事分开写：「静音」只关声音、水位照常；「休息中」是
+       * 她真的不在，水位压到 15% 并转灰。若实现偷懒复用 `resting` 那条
+       * 路径，界面看起来也对（都有字），但静音时水位会掉到 15%——
+       * 用户会以为她在睡觉，而其实只是在静音。
+       */
+      resting: document.querySelector('.spine')?.hasAttribute('data-resting') ?? false,
+      restingText: document.querySelector('.spine__empty')?.textContent ?? '',
+    }
+  })
+  truthy('静音后 Spine 显示「静音」', mutedState.shown === true)
+  same('静音标记文案是「静音」两字', '静音', mutedState.text)
+  truthy(`静音时长约一小时（${String(mutedState.minutes)} 分钟）`, mutedState.minutes >= 58 && mutedState.minutes <= 61)
+  truthy('静音状态同步给了托盘', mutedState.trayCall?.args?.muted === true)
+  truthy('静音不把脊切成休息态', mutedState.resting === false)
+  truthy('静音时文字不是「休息中」', mutedState.restingText !== '休息中')
+  same('静音不改变水位呼吸（§5.7 静音不影响在场感）', muteBefore.breathe, mutedState.breathe)
+  await page.screenshot({ path: join(OUT, 'muted-spine-v5.png') })
+
+  /*
+   * 再按一次 = 取消。这条对应托盘菜单文字变成「取消静音」之后的那个动作。
+   *
+   * 断言特意包含「落盘被清掉」：只清内存不清盘的话，用户取消静音、
+   * 关掉应用再打开，静音会**回来**——而他明明刚取消过。
+   */
+  await page.evaluate(() => {
+    for (const [name, handler] of (window.__ondraListeners ?? [])) {
+      if (name === 'toggle-mute') handler({ payload: null })
+    }
+  })
+  await page.waitForTimeout(400)
+  const unmutedState = await page.evaluate(() => ({
+    shown: document.querySelector('.spine__muted') !== null,
+    stored: localStorage.getItem('ondra.mutedUntil'),
+    trayCall: (window.__ondraCalls ?? []).filter((call) => call.command === 'set_tray_muted').at(-1) ?? null,
+  }))
+  truthy('取消静音后 Spine 不再显示「静音」', unmutedState.shown === false)
+  truthy('取消静音后落盘被清掉', unmutedState.stored === null)
+  truthy('取消静音同步给了托盘', unmutedState.trayCall?.args?.muted === false)
+
+  /*
    * 偏好设置窗口（§5.13 第一层）单独开一页验。
    *
    * ## 为什么不接着主界面验

@@ -353,6 +353,26 @@ pub async fn broadcast_preferences(
     Ok(())
 }
 
+/// 把静音状态写到托盘菜单上（§12.10、§12.12）。
+///
+/// # 为什么状态在前端，文字在壳
+///
+/// 静音要不要生效、Spine 上显示什么，全由前端的状态机决定（`lib/mute.ts`）。
+/// 但托盘菜单活在 Rust 侧，前端改不到。所以每次静音状态变化，前端把
+/// 新的布尔值送过来，壳只做一件事：把那一项的文字换成对应的说法。
+///
+/// # 为什么托盘不可用时不报错
+///
+/// 没有托盘（Linux 无 StatusNotifier）的机器上本来就没有菜单可改。
+/// 这不影响静音本身是否生效，返回错误只会让前端弹一条用户无法处理的提示。
+#[tauri::command]
+pub async fn set_tray_muted(state: tauri::State<'_, AppState>, muted: bool) -> Result<(), String> {
+    if let Some(item) = state.mute_item.as_ref() {
+        item.set_muted(muted);
+    }
+    Ok(())
+}
+
 /// 宿主日志目录。
 ///
 /// 故障页的「查看日志」要能打开一个真实存在的位置。宿主把 stderr 转发到

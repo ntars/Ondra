@@ -84,6 +84,14 @@ export interface SpineProps {
   inspectorOpen: boolean
   /** 是否休息态（`absence` 判定）。 */
   resting: boolean
+  /**
+   * 是否处于一键静音期（§12.12、§5.7「静音态」）。
+   *
+   * 静音**不影响呼吸**：静音关掉的是声音，不是她的在场感。水位照常呼吸，
+   * 只在下方多一行「静音」——把静音画成「她睡了」是两件不同的事，
+   * 而睡眠已有 `resting` 那一档专门表达。
+   */
+  muted: boolean
   /** 点击整条脊。 */
   onToggle(): void
 }
@@ -103,6 +111,7 @@ export function Spine({
   busy,
   inspectorOpen,
   resting,
+  muted,
   onToggle,
 }: SpineProps): React.JSX.Element {
   const fillRef = useRef<HTMLDivElement | null>(null)
@@ -175,6 +184,13 @@ export function Spine({
           {memoryCount > 0 ? <span className="spine__memory">记忆 {memoryCount}</span> : null}
         </span>
       )}
+
+      {/*
+        静音行（§5.7 静音态）。
+        独立于读数区渲染：静音与「有没有数据」是两件事，没有心跳读数时
+        静音照样成立。放在读数区外面，才不会因为无数据而整块消失。
+      */}
+      {muted ? <span className="spine__muted">静音</span> : null}
 
       {/* 悬停时浮现的一行提示（§5.7）。纯装饰，读屏不念。 */}
       <span className="spine__hint" aria-hidden="true">查看侧写</span>

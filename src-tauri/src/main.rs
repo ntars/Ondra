@@ -27,6 +27,13 @@ use host::HostManager;
 pub struct AppState {
     /// 宿主管家。命令层与退出钩子共用同一个实例。
     pub host: Arc<HostManager>,
+    /// 托盘本体。
+    ///
+    /// 留着它是为了**寿命**，不是为了调用：`TrayIcon` 一被 drop，图标就
+    /// 从菜单栏消失。托盘创建失败（Linux 无 StatusNotifier）时为 `None`。
+    pub tray_icon: Option<tauri::tray::TrayIcon<tauri::Wry>>,
+    /// 托盘里「静音 1 小时」那一项的手柄。改文案靠它。
+    pub mute_item: Option<Arc<tray::MuteItem<tauri::Wry>>>,
 }
 
 fn main() {
@@ -39,7 +46,6 @@ fn main() {
             // 两者分开解析而不是硬编码，是为了让开发与安装后走同一段代码。
             let layout = commands::ProjectLayout::resolve()?;
             let manager = HostManager::new(layout.host_entry.clone(), layout.node_path.clone());
-            app.manage(AppState { host: manager.clone() });
 
             // 每次启动都强制回到 820×580：它同时是默认尺寸与最小尺寸。
             // 即使用户上次把窗口拖大，这一版也只认这一个尺寸——
@@ -52,8 +58,9 @@ fn main() {
             // 在后台启动宿主，不阻塞窗口显示。
             // 界面先出来再等宿主，用户看到的是"正在连接"而不是"白屏很久"。
             let app_handle = handle.clone();
+            let manager_for_host = manager.clone();
             tauri::async_runtime::spawn(async move {
-                match manager.start().await {
+                match manager_for_host.start().await {
                     Ok(ready) => {
                         // 把访问信息交给前端：前端据此发请求。
                         let _ = app_handle.emit("host-ready", ready);
@@ -65,15 +72,36 @@ fn main() {
                 }
             });
 
-            // 托盘。失败不致命：主窗口还能用，只是关闭语义降级为最小化
-            // （Linux 上 GNOME 没装 StatusNotifier 扩展时会发生）。
-            match tray::create(&handle) {
-                Ok(_) => window::set_tray_available(true),
+            /*
+             * 托盘。失败不致命：主窗口还能用，只是关闭语义降级为最小化
+             * （Linux 上 GNOME 没装 StatusNotifier 扩展时会发生）。
+             *
+             * ## 为什么先建托盘再 `manage`
+             *
+             * `app.manage()` 每个类型只能调一次，第二次会 panic。托盘要
+             * 贡献一个字段（静音菜单项的手柄），所以它必须先建好，再和宿主
+             * 一起装进同一个 `AppState`。
+             *
+             * ## 托盘本体为什么要留着
+             *
+             * `TrayIcon` 不是可以被随意丢弃的句柄：它一被 drop，图标就从
+             * 菜单栏消失（Windows 与部分 Linux 上是这样，macOS 表现为
+             * 菜单不再更新）。留它在状态里，寿命与进程一致。
+             */
+            let (tray_icon, mute_item, tray_ok) = match tray::create(&handle) {
+                Ok((tray, mute)) => (Some(tray), Some(Arc::new(mute)), true),
                 Err(error) => {
                     eprintln!("[shell] 托盘创建失败，关闭行为降级为最小化：{error}");
-                    window::set_tray_available(false);
+                    (None, None, false)
                 }
-            }
+            };
+            window::set_tray_available(tray_ok);
+
+            app.manage(AppState {
+                host: manager,
+                tray_icon,
+                mute_item,
+            });
 
             Ok(())
         })
@@ -90,6 +118,7 @@ fn main() {
             commands::open_preferences,
             commands::close_preferences,
             commands::broadcast_preferences,
+            commands::set_tray_muted,
         ])
         .on_window_event(|window, event| {
             /*

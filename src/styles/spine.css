@@ -198,6 +198,26 @@
 }
 
 /**
+ * 静音行（§5.7「静音态」）。
+ *
+ * 11px、`ink-4`，落在读数区下方。**不占固定高度**：静音是一小时内的
+ * 临时状态，为它常留 14px 空白会让整条脊在非静音时显得空荡。
+ * 出现时把下方内容推开一点，消失时自然收回去——高度变化只发生在
+ * 用户自己按了静音的那一刻，不会在浏览中跳动。
+ *
+ * 不用红色或叉号：静音不是错误状态。它是一个用户主动做的选择，
+ * 用最弱的层级说一句「现在没声音」即可。
+ */
+.spine__muted {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-dimmed);
+  user-select: none;
+}
+
+/**
  * 悬停提示「查看侧写」。
  *
  * 竖排写在脊的右侧外沿（`writing-mode: vertical-rl`）：脊只有 56px 宽，

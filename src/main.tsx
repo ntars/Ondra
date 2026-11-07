@@ -48,6 +48,7 @@ import { listenShell, markPlatform } from './lib/shell.ts'
 import type { HostReadyPayload } from './lib/shell.ts'
 import { adoptDevConnection, setConnection, setConnectionFailure } from './lib/host.ts'
 import { startPreferences } from './lib/preferences.ts'
+import { loadMute } from './lib/mute.ts'
 
 // 平台标记必须在首个样式计算之前写好：它控制的规则里有网格列宽与边框，
 // 晚一帧设置就会先按另一套规则排一遍版，肉眼能看到跳一下。
@@ -61,6 +62,15 @@ markPlatform()
  * 存储、还要注册广播监听，会变成一段没人愿意维护的第二实现。
  */
 startPreferences()
+
+/*
+ * 静音状态也要在挂载前落定。
+ *
+ * 它只影响 Spine 的一行字与托盘菜单文案，不像主题那样会闪一帧颜色，
+ * 但仍必须在首帧前读：`loadMute()` 会顺手挂上到期定时器，晚一步挂
+ * 就等于「静音期内重启应用，界面要等到下一次操作才知道该解除」。
+ */
+loadMute()
 
 // 在 React 挂载之前就开始监听：壳可能在页面脚本执行后立刻发出 ready，
 // 若等到组件挂载才注册，就会错过这条消息，界面永远停在"正在连接"。
