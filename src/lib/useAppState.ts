@@ -38,6 +38,7 @@ import {
 } from './api.ts'
 import type { ModelDescriptor, PermissionLevel, SessionMessage, SessionMeta, ThemeMode } from './api.ts'
 import { setPreferences, usePreferences } from './preferences.ts'
+import { playCue } from './sound.ts'
 import type { Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState } from './types.ts'
 
 /**
@@ -421,6 +422,15 @@ export function useAppState(): AppState {
       : ''
     const text = `${prefix}${input}`.trim()
 
+    /*
+     * 发送音（§12.12）。放在清空输入之后、请求之前。
+     *
+     * 为什么不放在 `onSession`（那时才知道宿主任了会话）：那一刻距按键
+     * 已经过去几十到几百毫秒，声音会落在"我已经松手了"之后，听起来像
+     * 别的什么东西在响。提示音的价值在**即时**，不在准确。
+     */
+    playCue('send')
+
     setDraft('')
     setAttachments([])
     setChatError(undefined)
@@ -487,6 +497,13 @@ export function useAppState(): AppState {
             // 不落盘，落盘的只有正文，过了这一刻时长就再也算不出来了。
             if (answerAt === undefined) {
               answerAt = Date.now()
+              /*
+               * 「她开口」音（§12.12）。只在这一轮的第一帧响，不是每段都响。
+               *
+               * 收在这一处而不是 `onReasoning`：思考过程不是"开口"，
+               * 它甚至可能最终没有正文。用户等的那个声音，是"她开始说话了"。
+               */
+              playCue('speak')
               if (thoughtAt !== undefined) {
                 pushLog({
                   round,
@@ -570,6 +587,7 @@ export function useAppState(): AppState {
             }))
           },
           onError(message): void {
+            playCue('error')
             setChatError(message)
             pushLog({
               round,
@@ -588,6 +606,7 @@ export function useAppState(): AppState {
       // 用户主动停止不算错误，不弹提示。
       const aborted = caught instanceof DOMException && caught.name === 'AbortError'
       if (!aborted) {
+        playCue('error')
         setChatError(caught instanceof Error ? caught.message : '发送失败')
         pushLog({
           round,

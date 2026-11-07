@@ -46,6 +46,10 @@ export interface Preferences {
   theme: ThemeMode
   fontScale: FontScale
   sendMode: SendMode
+  /** 提示音开关（§12.12）。默认关闭。 */
+  sound: boolean
+  /** 提示音音量 0–100，独立于系统音量。 */
+  soundVolume: number
 }
 
 /** 出厂默认值。 */
@@ -53,6 +57,22 @@ const DEFAULTS: Preferences = {
   theme: 'system',
   fontScale: 'standard',
   sendMode: 'interrupt',
+  /*
+   * §12.12 第一行就是「默认关闭」。
+   *
+   * 这不是保守，是唯一正确的默认：声音是**用户主动要的**一层打扰。
+   * 在图书馆、会议、深夜打开应用的人，第一声提示音就够他把它关掉——
+   * 而默认关着的人，只会在想开的时候去开，永远不会因为被吵到而离开。
+   */
+  sound: false,
+  /*
+   * 默认 60 而不是 100。
+   *
+   * 用户打开声音的那一刻就要立刻听到一声，那一声的响度决定他对这个
+   * 功能的印象。100 在耳机上偏响；60 是"能听见但不惊人"的位置，
+   * 想要更响的人自己会去拉。
+   */
+  soundVolume: 60,
 }
 
 /**
@@ -72,6 +92,8 @@ const FONT_PERCENT: Record<FontScale, string> = {
 const KEY_THEME = 'ondra.theme'
 const KEY_FONT = 'ondra.fontScale'
 const KEY_SEND = 'ondra.sendMode'
+const KEY_SOUND = 'ondra.sound'
+const KEY_VOLUME = 'ondra.soundVolume'
 
 /** 当前偏好。模块级单例：两个窗口各持一份内存副本，靠广播对齐。 */
 let current: Preferences = { ...DEFAULTS }
@@ -105,12 +127,32 @@ function pick<T extends string>(value: string | undefined, allowed: readonly T[]
   return allowed.includes(value as T) ? (value as T) : fallback
 }
 
+/**
+ * 把音量收窄到 0–100 的整数。
+ *
+ * 存的是字符串，读回来可能是 `"70"`、`""`、`"abc"`，也可能是旧版本
+ * 留下的 `"0.7"`（比例写法）。`Number()` 对后两者给出 `NaN` 与 `0.7`：
+ * 前者回落默认，后者若不处理会被当成 0.7% 的音量——近乎无声。
+ * 小于 1 的非零值按比例理解，是唯一能同时兼容两种写法的判据。
+ */
+function pickVolume(value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback
+  const raw = Number(value)
+  if (!Number.isFinite(raw)) return fallback
+  const scaled = raw > 0 && raw < 1 ? raw * 100 : raw
+  return Math.min(100, Math.max(0, Math.round(scaled)))
+}
+
 /** 从磁盘读。启动时调一次。 */
 export function loadPreferences(): Preferences {
   current = {
     theme: pick(read(KEY_THEME), ['system', 'light', 'dark'] as const, DEFAULTS.theme),
     fontScale: pick(read(KEY_FONT), ['small', 'standard', 'large'] as const, DEFAULTS.fontScale),
     sendMode: pick(read(KEY_SEND), ['queue', 'interrupt'] as const, DEFAULTS.sendMode),
+    // 开关只认 `'on'`：`localStorage` 里只可能有我们自己写的这一个值，
+    // 出现别的一律当没开——声音这种东西，坏方向的默认才安全。
+    sound: read(KEY_SOUND) === 'on',
+    soundVolume: pickVolume(read(KEY_VOLUME), DEFAULTS.soundVolume),
   }
   return current
 }
@@ -157,6 +199,8 @@ export function setPreferences(patch: Partial<Preferences>, options?: { broadcas
   write(KEY_THEME, next.theme)
   write(KEY_FONT, next.fontScale)
   write(KEY_SEND, next.sendMode)
+  write(KEY_SOUND, next.sound ? 'on' : 'off')
+  write(KEY_VOLUME, String(next.soundVolume))
 
   applyPreferences(next)
   notify()
@@ -214,6 +258,12 @@ export function adoptPreferences(raw: unknown): void {
       theme: pick(shaped.theme, ['system', 'light', 'dark'] as const, current.theme),
       fontScale: pick(shaped.fontScale, ['small', 'standard', 'large'] as const, current.fontScale),
       sendMode: pick(shaped.sendMode, ['queue', 'interrupt'] as const, current.sendMode),
+      // 广播来的声音两项也要收：偏好窗口改音量、主窗口立刻生效，
+      // 否则用户得重启才听得到自己刚调的那一档。
+      sound: typeof shaped.sound === 'boolean' ? shaped.sound : current.sound,
+      soundVolume: typeof shaped.soundVolume === 'number'
+        ? Math.min(100, Math.max(0, Math.round(shaped.soundVolume)))
+        : current.soundVolume,
     },
     { broadcast: false },
   )

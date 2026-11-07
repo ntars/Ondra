@@ -342,3 +342,226 @@
   line-height: var(--leading-caption);
   color: var(--alias-label-tertiary);
 }
+
+/* ---------------------------------------------------------------------------
+   声音页
+   --------------------------------------------------------------------------- */
+
+/*
+ * 一行「文字 + 控件」。
+ *
+ * `align-items: center` 而不是 `flex-start`：右边是 20px 高的开关，
+ * 左边是两行文字，居中对齐让开关落在两行文字的视觉中线上。
+ */
+.pref__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.pref__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pref__row-label {
+  font-size: var(--text-body);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+}
+
+.pref__row-hint {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+}
+
+/*
+ * 开关。宽高与 `settings.css` 的 `.scene__switch` 一致（32 × 20，圆角 10），
+ * 圆点 16px、位移 12px——两处必须是同一套尺寸，否则用户在偏好窗口与
+ * 设置面板之间来回看会发现"开关长得不一样"。
+ *
+ * 底色用 `state-idle-tertiary`（关）与 `accent-fill`（开）：这是全项目
+ * 唯一实心色的既有语义，不新增。
+ */
+.pref__switch {
+  position: relative;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--alias-state-idle-tertiary);
+  transition: background-color var(--motion-base) var(--ease-fluid);
+}
+
+.pref__switch[aria-checked='true'] {
+  background: var(--accent-fill);
+}
+
+.pref__switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--alias-bg-base);
+  transition: transform var(--motion-base) var(--ease-fluid);
+}
+
+.pref__switch[aria-checked='true'] .pref__switch-knob {
+  transform: translateX(12px);
+}
+
+.pref__switch:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* 音量滑杆。轨道与滑块与 `settings.css` 的 `.scene__range` 同一套数值。 */
+.pref__slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  transition: opacity var(--motion-fast) var(--ease-fluid);
+}
+
+/*
+ * 提示音关着时，滑杆整块降不透明度。
+ *
+ * 用 `disabled` 而不是 `aria-disabled`：`input[type=range]` 的原生禁用
+ * 只是视觉降级，它仍然在 Tab 顺序里（WebKit 与 Chrome 都是），
+ * 键盘用户仍能聚焦并读到「已停用」。这与按钮的情况不同。
+ */
+.pref__slider[data-off] {
+  opacity: 0.5;
+}
+
+.pref__slider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pref__slider-readout {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pref__range {
+  width: 100%;
+  height: 16px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pref__range:disabled {
+  cursor: default;
+}
+
+.pref__range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-state-idle-tertiary);
+}
+
+.pref__range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--alias-state-idle-tertiary);
+}
+
+.pref__range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  transition: transform var(--motion-fast) var(--ease-fluid);
+}
+
+.pref__range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+.pref__range:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.pref__range:focus-visible {
+  outline: none;
+}
+
+.pref__range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+}
+
+/*
+ * 三个试听按钮。
+ *
+ * 横排三等分而不是竖排：三者的差别只在声音，横排能让用户连着点、
+ * 直接比较；竖排则要点三下再回忆第一下是什么样。
+ */
+.pref__cues {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.pref__cue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  /* 与 `.pref__choice` 同一套描边手法：box-shadow 不占布局，
+     按下或禁用时加粗不会让相邻项位移。 */
+  box-shadow: 0 0 0 var(--line-width) var(--alias-border-l1);
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    box-shadow var(--motion-fast) var(--ease-fluid);
+}
+
+.pref__cue:hover {
+  background: var(--alias-interactive-bg-hover);
+}
+
+/* 提示音关着时三个试听键灰掉但仍可聚焦（§5.9 禁用项保留 + 说明原因）。 */
+.pref__cue[aria-disabled='true'] {
+  color: var(--alias-label-dimmed);
+  cursor: default;
+}
+
+.pref__cue[aria-disabled='true']:hover {
+  background: transparent;
+}
+
+.pref__cue-name {
+  font-size: var(--text-body);
+  line-height: var(--leading-label);
+  color: var(--alias-label-primary);
+}
+
+.pref__cue[aria-disabled='true'] .pref__cue-name {
+  color: var(--alias-label-dimmed);
+}
+
+.pref__cue-hint {
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+}

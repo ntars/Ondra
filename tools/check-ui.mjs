@@ -228,6 +228,50 @@ const fakeShell = (port, autoReady = true) => `
 `
 
 /**
+ * 音频探针。
+ *
+ * ## 为什么要拦 `AudioContext`
+ *
+ * 提示音是**听不见**的那类功能，也是**最容易假装实现**的那类：
+ * 代码里写一句 `playCue('send')`，界面上什么都不会变，截图也看不出来。
+ * 无从断言，就等于没验。
+ *
+ * 这里用一个只记录、不出声的假上下文替换真的：每次 `osc.start()`
+ * 记下起始频率与波形。三种音的起始频率互不相同（发送 660 / 她开口 880 /
+ * 出错 311），所以"响了几声、响的是哪一声"全部可读回来。
+ *
+ * 也记 `gain` 的设定值：音量滑杆是否真的传到了增益上，靠它验。
+ */
+const soundSpy = `
+(() => {
+  const events = []
+  window.__ondraSound = events
+  const param = (name) => ({
+    setValueAtTime(value) { events.push({ op: name, value }) },
+    linearRampToValueAtTime(value) { events.push({ op: name, value }) },
+    exponentialRampToValueAtTime(value) { events.push({ op: name, value }) },
+  })
+  class FakeNode {
+    constructor() { this.gain = param('gain'); this.frequency = param('freq') }
+    connect() {}
+    disconnect() {}
+  }
+  class FakeOsc extends FakeNode {
+    constructor() { super(); this.type = 'sine'; this.onended = null }
+    start() { events.push({ op: 'start', type: this.type }) }
+    stop() {}
+  }
+  class FakeCtx {
+    constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {} }
+    createOscillator() { return new FakeOsc() }
+    createGain() { return new FakeNode() }
+    resume() { return Promise.resolve() }
+  }
+  Object.defineProperty(window, 'AudioContext', { value: FakeCtx, configurable: true, writable: true })
+})()
+`
+
+/**
  * 令牌核对（§13「Tokens 层专项」）。
  *
  * ## 为什么要做
@@ -579,6 +623,7 @@ async function run() {
   const truthy = (name, got) => { checks.push({ name, ok: Boolean(got), got: String(got), want: 'true' }) }
 
   await page.addInitScript(fakeShell(port))
+  await page.addInitScript(soundSpy)
   await page.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(500)
   await mkdir(OUT, { recursive: true })
@@ -866,9 +911,26 @@ async function run() {
   await page.route('**/api/inference', (route) => {
     void route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: '上游超时' }) })
   })
+  /*
+   * 先验「默认关闭时一声不响」。
+   *
+   * ## 为什么这条要抢在失败之前单独量
+   *
+   * 主流程这一页从没碰过偏好，`ondra.sound` 不存在，正是新用户的初始态。
+   * 此刻发一条注定失败的消息，三个响点都会走过（发送 / 出错），
+   * 一个 `start` 都不该有。若实现忘了在 `playCue` 里判开关，
+   * 用户第一次用就被响——而这是**默认值**问题，装好就已经错了。
+   */
+  await page.evaluate(() => { window.__ondraSound.length = 0 })
   await page.locator('.composer__input').fill('这一条会失败')
   await page.locator('.composer__input').press('Enter')
   await page.waitForTimeout(700)
+  const silentByDefault = await page.evaluate(() => ({
+    starts: window.__ondraSound.filter((event) => event.op === 'start').length,
+    stored: localStorage.getItem('ondra.sound'),
+  }))
+  eq('默认关闭时发送与出错都不出声', 0, silentByDefault.starts)
+  same('默认关闭不写任何声音键', null, silentByDefault.stored)
 
   const inline = await page.evaluate(() => {
     const bar = document.querySelector('.inline-error')
@@ -1694,6 +1756,7 @@ async function run() {
   })
   prefPage.on('pageerror', (error) => { prefErrors.push(String(error)) })
   await prefPage.addInitScript(fakeShell(port, false))
+  await prefPage.addInitScript(soundSpy)
   await prefPage.goto(`http://127.0.0.1:${String(port)}/#preferences`, { waitUntil: 'networkidle' })
   await prefPage.waitForTimeout(500)
 
@@ -1714,8 +1777,15 @@ async function run() {
       appGone: document.querySelector('.workspace') === null && document.querySelector('.welcome') === null,
     }
   })
-  // §5.13 的七页，顺序即规范列举顺序。
-  same('偏好设置七页齐全且有序', '主题/语言/字号/发送方式/默认权限/更新/关于', pref.navLabels)
+  /*
+   * §5.13 的七页 + §12.12 的声音页，顺序即规范列举顺序。
+   *
+   * 声音为什么落在「字号」之后：「发送方式」以及其后的四项都是**行为**
+   * 偏好（她怎么回、能做什么、怎么更新），而声音与主题、字号同属
+   * **感官**偏好——调的是这台机器上你听到、看到什么。把它挂在
+   * 字号后面，三件"感官"的事就挨在一起，用户不必在两个品类间跳。
+   */
+  same('偏好设置八页齐全且有序', '主题/语言/字号/声音/发送方式/默认权限/更新/关于', pref.navLabels)
   eq('偏好设置左导航宽 160', 160, pref.navWidth)
   same('偏好设置默认停在主题页', '主题', pref.current)
   same('偏好设置的选择组是 radiogroup', 'radiogroup', pref.role)
@@ -1881,6 +1951,165 @@ async function run() {
   same('偏好设置·同步 color-scheme', 'dark', prefDark.scheme)
   truthy(`偏好设置·深色底已生效（${prefDark.bg}）`, prefDark.bg !== 'rgb(255, 253, 249)')
   await prefPage.screenshot({ path: join(OUT, 'preferences-dark.png') })
+
+  /*
+   * --- 声音页（§12.12）---
+   *
+   * ## 这一页要验的四件事
+   *
+   * 1. **默认关闭**。规范第一行就是它。开着的话，用户在图书馆第一次
+   *    发消息就被响一下，那不是"细节没调好"，是产品态度错了。
+   * 2. **开关真的落盘**。只在内存里翻面，重启就回去，用户会以为
+   *    "这个设置存不住"。
+   * 3. **音量真的传到增益上**。滑杆拉到 0 必须真的静，拉到 100
+   *    必须真的响——中间无数种"调了没用"的写法都能通过截图。
+   * 4. **三种音各不相同**。三个按钮响同一个频率，等于只做了一种音。
+   */
+  await prefPage.evaluate(() => {
+    document.documentElement.dataset.theme = 'light'
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    const target = nav.find((node) => node.textContent === '声音')
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await prefPage.waitForTimeout(350)
+
+  const soundPage = await prefPage.evaluate(() => {
+    const toggle = document.querySelector('.pref__switch')
+    const range = document.querySelector('.pref__range')
+    const cues = [...document.querySelectorAll('.pref__cue-name')].map((node) => node.textContent ?? '')
+    return {
+      toggleRole: toggle?.getAttribute('role') ?? '',
+      toggleOn: toggle?.getAttribute('aria-checked') ?? '',
+      stored: localStorage.getItem('ondra.sound'),
+      rangeLabel: range?.getAttribute('aria-label') ?? '',
+      rangeDisabled: range?.disabled === true,
+      // 关着时三个试听键都要写明原因（§5.9），不能只是灰。
+      cueHint: document.querySelector('.pref__cue')?.getAttribute('title') ?? '',
+      cues: cues.join('/'),
+    }
+  })
+  same('声音页·开关用 role=switch', 'switch', soundPage.toggleRole)
+  same('声音页·提示音默认关闭', 'false', soundPage.toggleOn)
+  /*
+   * 「没改过」的判据是**值为关**，不是键不存在。
+   *
+   * 这一页之前为了验主题与字号已经调过 `setPreferences`，而它一次写全
+   * 五个键——所以到这里 `ondra.sound` 已经有值了。键存在与否取决于
+   * 用户有没有动过任何一条偏好，与默认值无关；把它写成"键必须为 null"
+   * 是在验一件实现根本不该保证的事（新装用户点两次主题就失效）。
+   * 真正要守的是：**默认那一档必须是关**。
+   */
+  truthy(`声音页·未被主动打开时保持关闭（键值 ${String(soundPage.stored)}）`, soundPage.stored !== 'on')
+  same('声音页·三种音齐全且有序', '发送/她开口/出错', soundPage.cues)
+  truthy('声音页·关着时滑杆禁用', soundPage.rangeDisabled === true)
+  truthy(`声音页·关着时试听键写明原因（${soundPage.cueHint}）`, soundPage.cueHint.length > 0)
+  eq('声音页·滑杆有可朗读名称', 5, soundPage.rangeLabel.length > 0 ? 5 : 0)
+
+  // 打开声音：必须立刻响一声（§6.5 预演），并落盘。
+  const soundOn = await prefPage.evaluate(async () => {
+    window.__ondraSound.length = 0
+    document.querySelector('.pref__switch')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => { setTimeout(resolve, 200) })
+    const range = document.querySelector('.pref__range')
+    return {
+      on: document.querySelector('.pref__switch')?.getAttribute('aria-checked'),
+      stored: localStorage.getItem('ondra.sound'),
+      volume: localStorage.getItem('ondra.soundVolume'),
+      rangeDisabled: range?.disabled === true,
+      starts: window.__ondraSound.filter((event) => event.op === 'start').length,
+    }
+  })
+  same('声音页·点开后开关为开', 'true', soundOn.on)
+  same('声音页·开关已落盘', 'on', soundOn.stored)
+  truthy(`声音页·音量已落盘（${soundOn.volume}）`, soundOn.volume === '60')
+  truthy('声音页·打开时立刻响一声', soundOn.starts === 1)
+  truthy('声音页·开着时滑杆可用', soundOn.rangeDisabled === false)
+
+  /*
+   * 三种音必须真的不同。
+   *
+   * 读的是 `osc.frequency` 的第一次设定值（起始频率）。三个数互不相等
+   * 才算"三种音"成立；相同就说明只写了一条配方，三个按钮指向同一段代码。
+   */
+  const cueStarts = await prefPage.evaluate(async () => {
+    const read = []
+    for (const name of ['发送', '她开口', '出错']) {
+      window.__ondraSound.length = 0
+      const button = [...document.querySelectorAll('.pref__cue')]
+        .find((node) => node.textContent?.includes(name))
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => { setTimeout(resolve, 120) })
+      const freq = window.__ondraSound.find((event) => event.op === 'freq')
+      read.push(freq?.value ?? 0)
+    }
+    return read
+  })
+  truthy(`声音页·发送与「她开口」音高不同（${String(cueStarts[0])} / ${String(cueStarts[1])}）`, cueStarts[0] !== cueStarts[1])
+  truthy(`声音页·出错音是下行且更低（${String(cueStarts[2])}）`, cueStarts[2] > 0 && cueStarts[2] < cueStarts[1])
+
+  /*
+   * 音量必须真的改变增益。
+   *
+   * 对比 0 与 100 两档：0 时一个 `start` 都不该有（`gainOf(0) = 0`，
+   * 在合成之前就返回），100 时必须响。这一条守的是"滑杆只改了界面
+   * 上的数字、没传给音频图"那类缺陷。
+   */
+  const volumeEffect = await prefPage.evaluate(async () => {
+    const setVolume = async (value) => {
+      const range = document.querySelector('.pref__range')
+      if (range === null) return
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      setter?.call(range, String(value))
+      range.dispatchEvent(new Event('input', { bubbles: true }))
+      range.dispatchEvent(new Event('change', { bubbles: true }))
+      await new Promise((resolve) => { setTimeout(resolve, 150) })
+    }
+    await setVolume(0)
+    window.__ondraSound.length = 0
+    const cue = [...document.querySelectorAll('.pref__cue')].find((node) => node.textContent?.includes('发送'))
+    cue?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => { setTimeout(resolve, 150) })
+    const silent = window.__ondraSound.filter((event) => event.op === 'start').length
+
+    const peakAt = async (value) => {
+      await setVolume(value)
+      window.__ondraSound.length = 0
+      cue?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => { setTimeout(resolve, 150) })
+      return Math.max(0, ...window.__ondraSound
+        .filter((event) => event.op === 'gain')
+        .map((event) => event.value))
+    }
+    const quiet = await peakAt(60)
+    const loudPeak = await peakAt(100)
+    const loud = window.__ondraSound.filter((event) => event.op === 'start').length
+    return { silent, loud, quiet, loudPeak }
+  })
+  eq('声音页·音量 0 时完全不出声', 0, volumeEffect.silent)
+  truthy('声音页·音量 100 时出声', volumeEffect.loud === 1)
+  /*
+   * 比的是**两档之间的比例**，不是某个绝对数。
+   *
+   * 绝对值取决于两条曲线（`gainOf` 的平方、每种音自己的 peak），
+   * 断言写死一个区间，等于把实现细节抄进测试——改一个音色的峰值就报红，
+   * 而那时功能其实是对的。比例才是"音量真的传到了增益上"这件事本身：
+   * 平方曲线下 60 → 100 应放大 (100/60)² ≈ 2.78 倍。
+   */
+  truthy(
+    `声音页·增益随音量成比例变化（60 档 ${String(volumeEffect.quiet.toFixed(3))} → 100 档 ${String(volumeEffect.loudPeak.toFixed(3))}）`,
+    volumeEffect.quiet > 0 && volumeEffect.loudPeak / volumeEffect.quiet > 2.5,
+  )
+
+  // 改回 60，给后面的主流程留下一个已知状态。
+  await prefPage.evaluate(async () => {
+    const range = document.querySelector('.pref__range')
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    setter?.call(range, '60')
+    range?.dispatchEvent(new Event('input', { bubbles: true }))
+    await new Promise((resolve) => { setTimeout(resolve, 120) })
+  })
+  await prefPage.waitForTimeout(200)
+  await prefPage.screenshot({ path: join(OUT, 'preferences-sound.png') })
 
   if (prefErrors.length > 0) {
     console.log('\n偏好设置页的控制台错误：')

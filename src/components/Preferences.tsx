@@ -9,7 +9,7 @@
  * 关闭键——主窗口那份 `TitleBar` 带着会话标题与 Windows 三键，
  * 语义不同，不能直接复用。
  *
- * ## 七个页面，每一格都必须有真数据
+ * ## 八个页面，每一格都必须有真数据
  *
  * §5.13 定的是「主题、语言、字号、发送方式、默认权限、更新、关于」。
  * 逐页对过现有能力：
@@ -19,6 +19,7 @@
  * | 主题 | `preferences.theme` | 能，写 `data-theme` 并广播 |
  * | 语言 | 无（只有简体中文） | 只能显示一档，不给假下拉 |
  * | 字号 | `preferences.fontScale` | 能，写 `html` 的 `font-size` |
+ * | 声音 | `preferences.sound` + `.soundVolume` | 能，`sound.ts` 直接读 |
  * | 发送方式 | `preferences.sendMode` | 能，`Composer` 直接读 |
  * | 默认权限 | 宿主 `/api/config/permission` | 能，写宿主 |
  * | 更新 | 版本号来自构建期常量 | 只能给下载页，没有自动更新通道 |
@@ -44,13 +45,28 @@ import { setPreferences, usePreferences } from '../lib/preferences.ts'
 import type { FontScale, SendMode } from '../lib/preferences.ts'
 import { getConfig, savePermission } from '../lib/api.ts'
 import type { PermissionLevel, ThemeMode } from '../lib/api.ts'
+import { playCue, previewCue } from '../lib/sound.ts'
+import type { SoundCue } from '../lib/sound.ts'
 
 /** 仓库与下载页。关于页与更新页共用，不各写一份。 */
 const REPO = 'https://github.com/ntars/Ondra'
 const RELEASES = 'https://github.com/ntars/Ondra/releases'
 
-/** 七个页面的键。顺序即导航顺序（§5.13 的列举顺序）。 */
-type PageKey = 'theme' | 'language' | 'font' | 'send' | 'permission' | 'update' | 'about'
+/**
+ * 三种音的展示清单。
+ *
+ * 顺序即用户在会话里听到它们的顺序：先发出去，她才开口，出错收尾。
+ * 文案用动词/名词的原样，不写「音效一」「提示音 A」——那种命名
+ * 让用户不知道该期待什么。
+ */
+const CUES: Array<{ key: SoundCue; label: string; hint: string }> = [
+  { key: 'send', label: '发送', hint: '一句话送出去时' },
+  { key: 'speak', label: '她开口', hint: '她开始回你时' },
+  { key: 'error', label: '出错', hint: '这一轮没成时' },
+]
+
+/** 八个页面的键。顺序即导航顺序（§5.13 的列举顺序 + §12.12 的声音）。 */
+type PageKey = 'theme' | 'language' | 'font' | 'sound' | 'send' | 'permission' | 'update' | 'about'
 
 interface Page {
   key: PageKey
@@ -61,6 +77,7 @@ const PAGES: Page[] = [
   { key: 'theme', label: '主题' },
   { key: 'language', label: '语言' },
   { key: 'font', label: '字号' },
+  { key: 'sound', label: '声音' },
   { key: 'send', label: '发送方式' },
   { key: 'permission', label: '默认权限' },
   { key: 'update', label: '更新' },
@@ -108,9 +125,42 @@ function Choices<T extends string>({
   )
 }
 
-/** 一行的说明文字。每页都用同一种排版，避免七个页面各长一样又各差一点。 */
+/** 一行的说明文字。每页都用同一种排版，避免八个页面各长一样又各差一点。 */
 function Note({ children }: { children: React.ReactNode }): React.JSX.Element {
   return <p className="pref__note">{children}</p>
+}
+
+/**
+ * 开关。
+ *
+ * ## 为什么不用 `<input type="checkbox">`
+ *
+ * 原生复选框的视觉由系统画，改不动尺寸与圆角，在 560 宽的窗口里
+ * 会显得比周围所有控件都"外来"。`role="switch"` +
+ * `aria-checked` 语义与复选框等价，样式完全可控，且 §13 要求
+ * 禁用态用 `aria-disabled` 不用原生 `disabled`——一并在这里成立。
+ */
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange(next: boolean): void
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className="pref__switch"
+      onClick={() => { onChange(!checked) }}
+    >
+      <span className="pref__switch-knob" />
+    </button>
+  )
 }
 
 /**
@@ -187,6 +237,21 @@ export function Preferences(): React.JSX.Element {
     void invokeShell<null>('close_preferences').catch(() => {
       globalThis.location.hash = ''
     })
+  }
+
+  /**
+   * 打开或关闭提示音。
+   *
+   * ## 打开的同时播一声
+   *
+   * §6.5 把「音量」列为可预演的一项：「播放一声 200ms 的提示音」。
+   * 开声音的那一刻同样该有一个确认——否则用户不知道它到底开没开，
+   * 只能等下一次真实发消息。这一声用 `previewCue`：它绕开开关，
+   * 但此刻开关刚被设为开，走哪一条都一样。
+   */
+  const changeSound = (next: boolean): void => {
+    setPreferences({ sound: next })
+    if (next) previewCue('send')
   }
 
   /** Esc 关窗（§9.3 最外层）。 */
@@ -311,6 +376,87 @@ export function Preferences(): React.JSX.Element {
               <Note>
                 这里改的是全局比例，会在系统字号的基础上再放大或缩小。系统里已经调大过的人，
                 用「标准」不会把他调回小字。
+              </Note>
+            </section>
+          ) : null}
+
+          {page === 'sound' ? (
+            <section className="pref__section">
+              <h2 className="pref__heading">声音</h2>
+
+              <div className="pref__row">
+                <div className="pref__row-text">
+                  <span className="pref__row-label">提示音</span>
+                  <span className="pref__row-hint">发送、她开口、出错时各一声</span>
+                </div>
+                <Toggle
+                  label="提示音"
+                  checked={prefs.sound}
+                  onChange={changeSound}
+                />
+              </div>
+
+              <div className="pref__slider" data-off={prefs.sound ? undefined : ''}>
+                <div className="pref__slider-head">
+                  <span className="pref__row-label">音量</span>
+                  <span className="pref__slider-readout" aria-hidden="true">{prefs.soundVolume}</span>
+                </div>
+                <input
+                  type="range"
+                  className="pref__range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={prefs.soundVolume}
+                  aria-label="提示音音量"
+                  aria-valuetext={`${String(prefs.soundVolume)}`}
+                  disabled={!prefs.sound}
+                  onChange={(event) => {
+                    setPreferences({ soundVolume: Number(event.target.value) })
+                  }}
+                  /*
+                    松手才试听（§6.5「音量 → 播放一声 200ms 的提示音」）。
+                    拖动过程中每帧都响会变成一串机关枪，那不是预演是噪音。
+                    `onChange` 在 WebKit 上随拖动连续触发，所以预演挂在
+                    `onPointerUp` / `onKeyUp` 上，而不是 `onChange`。
+                  */
+                  onPointerUp={() => { playCue('send') }}
+                  onKeyUp={() => { playCue('send') }}
+                />
+                <p className="pref__note">
+                  这一档音量只影响这三个音，不动系统音量——你调系统音量是为了别的应用，
+                  这里不该跟着变。
+                </p>
+              </div>
+
+              {/*
+                三种音逐个可听。
+                没有这三个入口，「只有三种音」就只是一句话：用户没法知道
+                「她开口」和「发送」听起来有什么不同，也就没法判断要不要开。
+              */}
+              <div className="pref__cues">
+                {CUES.map((cue) => (
+                  <button
+                    key={cue.key}
+                    type="button"
+                    className="pref__cue"
+                    aria-disabled={prefs.sound ? undefined : 'true'}
+                    title={prefs.sound ? undefined : '先打开提示音'}
+                    onClick={() => {
+                      if (!prefs.sound) return
+                      playCue(cue.key)
+                    }}
+                  >
+                    <span className="pref__cue-name">{cue.label}</span>
+                    <span className="pref__cue-hint">{cue.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              <Note>
+                不做打字音，也不做环境音。打字音会跟着逐字流出的文字响成一片，
+                环境音则把陪伴做成一个播放器——两件都不是这里想要的。
+                托盘菜单的「静音 1 小时」对这三个音同样生效。
               </Note>
             </section>
           ) : null}

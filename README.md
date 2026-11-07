@@ -2684,7 +2684,7 @@ Ondra/
 │   │   ├── SceneLayer.tsx        第一层：按场面填参数，预演写入
 │   │   ├── ModuleLayer.tsx       第二层：按模块分组的字段表单
 │   │   ├── RawLayer.tsx          第三层：扁平键值表，全量可搜
-│   │   ├── Preferences.tsx       偏好设置独立窗口：主题 / 语言 / 字号 / 发送方式 / 默认权限 / 更新 / 关于
+│   │   ├── Preferences.tsx       偏好设置独立窗口：主题 / 语言 / 字号 / 声音 / 发送方式 / 默认权限 / 更新 / 关于
 │   │   ├── ShortcutSheet.tsx     快捷键速查表
 │   │   ├── Dialog.tsx            确认对话框，焦点收束与还原
 │   │   ├── Toast.tsx             提示条：成功 / 警告 / 错误三级
@@ -2699,6 +2699,7 @@ Ondra/
 │   │   ├── useAppState.ts        主界面状态
 │   │   ├── preferences.ts        偏好真源：读盘、应用、跨窗口广播
 │   │   ├── mute.ts               一键静音：截止时刻、到期自愈、托盘文案同步
+│   │   ├── sound.ts              提示音：三种音现场合成、音量独立、受静音管
 │   │   ├── settings.ts           设置读写
 │   │   ├── settingTypes.ts       设置字段与分段的类型
 │   │   ├── scenes.ts             场面定义与写入推导

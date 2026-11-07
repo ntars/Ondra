@@ -2707,7 +2707,7 @@ Ondra/
 │   │   ├── SceneLayer.tsx        First layer: fill parameters by scene, preview the writes
 │   │   ├── ModuleLayer.tsx       Second layer: field forms grouped by module
 │   │   ├── RawLayer.tsx          Third layer: flat key-value table, fully searchable
-│   │   ├── Preferences.tsx       Standalone preferences window: theme, language, font size, send mode, default permission, updates, about
+│   │   ├── Preferences.tsx       Standalone preferences window: theme, language, font size, sound, send mode, default permission, updates, about
 │   │   ├── ShortcutSheet.tsx     Shortcut reference sheet
 │   │   ├── Dialog.tsx            Confirmation dialog with focus trapping and restore
 │   │   ├── Toast.tsx             Toasts in three tiers: success, warning, error
@@ -2722,6 +2722,7 @@ Ondra/
 │   │   ├── useAppState.ts        Main window state
 │   │   ├── preferences.ts        Single source for preferences: load, apply, broadcast across windows
 │   │   ├── mute.ts               One-hour mute: deadline, self-expiry, tray label sync
+│   │   ├── sound.ts              Cues: three synthesized tones, own volume, honours mute
 │   │   ├── settings.ts           Settings read and write
 │   │   ├── settingTypes.ts       Types for settings fields and sections
 │   │   ├── scenes.ts             Scene definitions and write derivation
