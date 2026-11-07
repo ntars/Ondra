@@ -47,6 +47,8 @@ import { getConfig, savePermission } from '../lib/api.ts'
 import type { PermissionLevel, ThemeMode } from '../lib/api.ts'
 import { playCue, previewCue } from '../lib/sound.ts'
 import type { SoundCue } from '../lib/sound.ts'
+import { readPermission, requestPermission } from '../lib/notify.ts'
+import type { NotifyPermission } from '../lib/notify.ts'
 
 /** 仓库与下载页。关于页与更新页共用，不各写一份。 */
 const REPO = 'https://github.com/ntars/Ondra'
@@ -65,8 +67,17 @@ const CUES: Array<{ key: SoundCue; label: string; hint: string }> = [
   { key: 'error', label: '出错', hint: '这一轮没成时' },
 ]
 
-/** 八个页面的键。顺序即导航顺序（§5.13 的列举顺序 + §12.12 的声音）。 */
-type PageKey = 'theme' | 'language' | 'font' | 'sound' | 'send' | 'permission' | 'update' | 'about'
+/** 九个页面的键。顺序即导航顺序（§5.13 的列举顺序 + §12.12 的声音 + §12.10 的通知）。 */
+type PageKey =
+  | 'theme'
+  | 'language'
+  | 'font'
+  | 'sound'
+  | 'notify'
+  | 'send'
+  | 'permission'
+  | 'update'
+  | 'about'
 
 interface Page {
   key: PageKey
@@ -78,6 +89,7 @@ const PAGES: Page[] = [
   { key: 'language', label: '语言' },
   { key: 'font', label: '字号' },
   { key: 'sound', label: '声音' },
+  { key: 'notify', label: '通知' },
   { key: 'send', label: '发送方式' },
   { key: 'permission', label: '默认权限' },
   { key: 'update', label: '更新' },
@@ -208,6 +220,8 @@ export function Preferences(): React.JSX.Element {
   /** 权限档位来自宿主，不在本地存。读到之前是 undefined。 */
   const [permission, setPermissionState] = useState<PermissionLevel | undefined>(undefined)
   const [permissionError, setPermissionError] = useState('')
+  /** 通知权限。打开「通知」页时读一次，不改就不请求。 */
+  const [notifyPermission, setNotifyPermission] = useState<NotifyPermission>('default')
 
   /*
    * 权限档位只在打开「默认权限」页时去读。
@@ -253,6 +267,54 @@ export function Preferences(): React.JSX.Element {
     setPreferences({ sound: next })
     if (next) previewCue('send')
   }
+
+  /**
+   * 打开或关闭系统通知（§12.10、§7.5 最后一条）。
+   *
+   * ## 请求权限的时机只能在这里
+   *
+   * §7.5：「系统通知权限只在用户开启"主动消息"时才请求，不在首启请求」。
+   * 这一条决定了整个函数的形状——它必须是**用户点开关**触发的，
+   * 不能在窗口打开时顺手请求。
+   *
+   * ## 被拒绝时开关要弹回去
+   *
+   * 用户点了「不允许」，如果开关还停在「开」，他会以为设置成功了，
+   * 然后一直等一条永远不会来的通知。弹回去 + 一句说明（去哪开）
+   * 是唯一诚实的做法。
+   */
+  const changeNotify = async (next: boolean): Promise<void> => {
+    if (!next) {
+      setPreferences({ notify: false })
+      return
+    }
+    /*
+     * 先落开关再请求：请求会弹系统框，用户点完才返回。若等他点完
+     * 才写偏好，那几百毫秒里界面上的开关是不动的——点了没反应。
+     * 落完再请求，若被拒则回滚。
+     */
+    setPreferences({ notify: true })
+    const result = await requestPermission()
+    setNotifyPermission(result)
+    if (result !== 'granted') {
+      setPreferences({ notify: false })
+    }
+  }
+
+  /*
+   * 读一次通知权限（只读，不请求）。
+   *
+   * 与「默认权限」页同一个理由：不为用户可能不看的页在窗口打开时
+   * 多跑一次 IPC。但这里还要多做一件事——用户可能已经授权过、
+   * 开关却因为别的原因关着（比如上次被拒后回滚）。读到已授权就
+   * 不显示那句「去系统设置」的提示，免得他自己都授权了还被告知去开。
+   */
+  useEffect(() => {
+    if (page !== 'notify') return
+    let alive = true
+    void readPermission().then((next) => { if (alive) setNotifyPermission(next) })
+    return () => { alive = false }
+  }, [page])
 
   /** Esc 关窗（§9.3 最外层）。 */
   useEffect(() => {
@@ -459,6 +521,50 @@ export function Preferences(): React.JSX.Element {
                 不做打字音，也不做环境音。打字音会跟着逐字流出的文字响成一片，
                 环境音则把陪伴做成一个播放器——两件都不是这里想要的。
                 托盘菜单的「静音 1 小时」对这三个音同样生效。
+              </Note>
+            </section>
+          ) : null}
+
+          {page === 'notify' ? (
+            <section className="pref__section">
+              <h2 className="pref__heading">通知</h2>
+
+              <div className="pref__row">
+                <div className="pref__row-text">
+                  <span className="pref__row-label">系统通知</span>
+                  <span className="pref__row-hint">窗口不在桌面时，她说的话会弹到通知栏</span>
+                </div>
+                <Toggle
+                  label="系统通知"
+                  checked={prefs.notify}
+                  onChange={(next) => { void changeNotify(next) }}
+                />
+              </div>
+
+              {/*
+                权限被拒时给一条可执行的出路，而不是只说「不可用」。
+                §7.6 的三段式在这里同样适用：发生了什么（没授权）·
+                为什么（系统里关着）· 下一步（去系统设置打开）。
+              */}
+              {notifyPermission === 'denied' ? (
+                <p className="pref__note pref__note--warn">
+                  系统里拒绝了通知权限。去「系统设置 → 通知 → 空谷 Ondra」打开，
+                  再回来打开这个开关。
+                </p>
+              ) : null}
+              {notifyPermission === 'unsupported' ? (
+                <p className="pref__note">
+                  这台机器上读不到通知权限（浏览器里预览时也会这样）。桌面端才能发系统通知。
+                </p>
+              ) : null}
+
+              <Note>
+                只有窗口看不见的时候才发。窗口在屏幕上、只是焦点在别的应用，不会弹——
+                你回来一眼就能看到，那时候弹反而是打扰。
+              </Note>
+              <Note>
+                她主动开口仍受每天的上限与作息约束，通知只是把已经在时间轴上的那一句
+                搬到你看得见的地方。静音期间不发任何通知。
               </Note>
             </section>
           ) : null}

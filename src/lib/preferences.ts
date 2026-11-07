@@ -50,6 +50,13 @@ export interface Preferences {
   sound: boolean
   /** 提示音音量 0–100，独立于系统音量。 */
   soundVolume: number
+  /**
+   * 系统通知开关（§12.10）。默认关闭。
+   *
+   * 只管「窗口不可见时她主动开口」这一件事。与 `sound` 不是同一层：
+   * 声音是应用自己出的声，通知是系统替他提醒；关掉一个不影响另一个。
+   */
+  notify: boolean
 }
 
 /** 出厂默认值。 */
@@ -73,6 +80,14 @@ const DEFAULTS: Preferences = {
    * 想要更响的人自己会去拉。
    */
   soundVolume: 60,
+  /*
+   * 通知默认关（§12.10 原话：「系统通知 默认关闭」）。
+   *
+   * 这条比声音那条更硬：系统通知是**跨出应用边界**的打扰——它会出现在
+   * 用户看别的应用时、在锁屏上、在会议共享的屏幕上。声音最坏是吵到旁边
+   * 的人，通知最坏是让一屋子人看到你的屏幕。
+   */
+  notify: false,
 }
 
 /**
@@ -94,6 +109,7 @@ const KEY_FONT = 'ondra.fontScale'
 const KEY_SEND = 'ondra.sendMode'
 const KEY_SOUND = 'ondra.sound'
 const KEY_VOLUME = 'ondra.soundVolume'
+const KEY_NOTIFY = 'ondra.notify'
 
 /** 当前偏好。模块级单例：两个窗口各持一份内存副本，靠广播对齐。 */
 let current: Preferences = { ...DEFAULTS }
@@ -153,6 +169,21 @@ export function loadPreferences(): Preferences {
     // 出现别的一律当没开——声音这种东西，坏方向的默认才安全。
     sound: read(KEY_SOUND) === 'on',
     soundVolume: pickVolume(read(KEY_VOLUME), DEFAULTS.soundVolume),
+    /*
+     * 通知：**没存过**才用出厂值，存过就只认 `'on'`。
+     *
+     * 这一行与上面 `sound` 那行的差别看着琐碎，其实是「一处真源」的
+     * 要求：上一版写成 `read(KEY_NOTIFY) === 'on'`，等于把默认值硬编码
+     * 在这里，`DEFAULTS.notify` 从此无论改成什么都不生效——两个地方
+     * 各说一套，而真正起作用的那一处没有注释说明。
+     *
+     * 这是反向验证抓出来的：把 `DEFAULTS.notify` 改成 `true`，断言
+     * **不报红**。那一刻红的不是测试，是这份重复。
+     *
+     * `sound` 那行暂时保留原样：它的行为与默认值恰好一致（都是关），
+     * 改它属于另一件事，不在本轮范围内混着动。
+     */
+    notify: read(KEY_NOTIFY) === undefined ? DEFAULTS.notify : read(KEY_NOTIFY) === 'on',
   }
   return current
 }
@@ -201,6 +232,7 @@ export function setPreferences(patch: Partial<Preferences>, options?: { broadcas
   write(KEY_SEND, next.sendMode)
   write(KEY_SOUND, next.sound ? 'on' : 'off')
   write(KEY_VOLUME, String(next.soundVolume))
+  write(KEY_NOTIFY, next.notify ? 'on' : 'off')
 
   applyPreferences(next)
   notify()
@@ -264,6 +296,9 @@ export function adoptPreferences(raw: unknown): void {
       soundVolume: typeof shaped.soundVolume === 'number'
         ? Math.min(100, Math.max(0, Math.round(shaped.soundVolume)))
         : current.soundVolume,
+      // 通知开关同样要跨窗口同步：偏好窗口打开它，主窗口下一次隐藏时
+      // 就该生效，不能等重启。
+      notify: typeof shaped.notify === 'boolean' ? shaped.notify : current.notify,
     },
     { broadcast: false },
   )

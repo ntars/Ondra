@@ -41,6 +41,7 @@ import {
 import type { ModelDescriptor, PermissionLevel, SessionMessage, SessionMeta, ThemeMode } from './api.ts'
 import { setPreferences, usePreferences } from './preferences.ts'
 import { playCue } from './sound.ts'
+import { notify } from './notify.ts'
 import { DECLINE_LIMIT, UNDO_WINDOW_MS, noteDecline, clearDeclines } from './proactive.ts'
 import type { Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState } from './types.ts'
 
@@ -921,6 +922,26 @@ export function useAppState(): AppState {
               return
             }
             playCue('speak')
+            /*
+             * 窗口看不见时补一条系统通知（§7.4「应用未开」那一行）。
+             *
+             * ## 判在 `onDone` 而不是在进 `speakUp` 时
+             *
+             * 从「决定开口」到「说出完整一句」隔着一次模型调用，通常几秒，
+             * 长的时候几十秒。用户完全可能在这中间把窗口关掉——按进
+             * `speakUp` 时的状态判，通知会漏发；按此刻的状态判才对。
+             *
+             * ## 只发正文，不发别的
+             *
+             * §12.10：「通知内容 只显示一句正文，不显示模型名、不显示插件名」。
+             * 标题固定用应用名，让用户一眼知道是谁在说话；判据（为什么此刻
+             * 开口）留在时间轴上，它是一句给用户回来看的解释，不该塞进
+             * 通知栏那种只能扫一眼的地方。
+             *
+             * 通知发不出去（没开、没授权、静音）时**什么都不做**：
+             * 她的话仍在时间轴上，用户回来就看得到。这是降级，不是失败。
+             */
+            notify({ title: '空谷', body: done })
             pushLog({
               round,
               at: Date.now(),

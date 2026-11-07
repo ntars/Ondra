@@ -11,6 +11,7 @@
     "core:window:allow-close",
     "core:window:allow-is-maximized",
     "opener:default",
+    "notification:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://*" }, { "url": "http://*" }]

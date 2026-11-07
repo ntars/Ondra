@@ -2384,7 +2384,7 @@ async function run() {
    * **感官**偏好——调的是这台机器上你听到、看到什么。把它挂在
    * 字号后面，三件"感官"的事就挨在一起，用户不必在两个品类间跳。
    */
-  same('偏好设置八页齐全且有序', '主题/语言/字号/声音/发送方式/默认权限/更新/关于', pref.navLabels)
+  same('偏好设置九页齐全且有序', '主题/语言/字号/声音/通知/发送方式/默认权限/更新/关于', pref.navLabels)
   eq('偏好设置左导航宽 160', 160, pref.navWidth)
   same('偏好设置默认停在主题页', '主题', pref.current)
   same('偏好设置的选择组是 radiogroup', 'radiogroup', pref.role)
@@ -2710,6 +2710,44 @@ async function run() {
   await prefPage.waitForTimeout(200)
   await prefPage.screenshot({ path: join(OUT, 'preferences-sound.png') })
 
+  /*
+   * --- 通知页（§12.10、§7.4）---
+   *
+   * 这一页能验的只有「界面这一半」：系统通知本身在无头浏览器里发不出去，
+   * 权限也是浏览器自己的。所以断言落在三件**能在 DOM 上确证**的事：
+   *
+   * 1. 出厂开关是关的（§12.10「默认关闭」）。
+   * 2. 开关旁边那句说明在（「只有窗口看不见时才发」）——它是这个功能
+   *    唯一能让用户判断「开了会怎样」的依据，藏起来等于不给判断。
+   * 3. 在浏览器环境里不谎称可用：`unsupported` 那句提示要出来。
+   *
+   * 第三点看着像吹毛求疵，其实是这一页最容易做错的地方：把「读不到权限」
+   * 当成「没授权」，用户点了开关、系统框弹不出来，开关自己弹回去，
+   * 而界面上一个字都不解释。
+   */
+  await prefPage.locator('.pref__nav-item', { hasText: '通知' }).click()
+  await prefPage.waitForTimeout(300)
+  const notifyPage = await prefPage.evaluate(() => {
+    const section = document.querySelector('.pref__section')
+    const toggle = section?.querySelector('[role="switch"]')
+    return {
+      heading: (section?.querySelector('.pref__heading')?.textContent ?? '').trim(),
+      checked: toggle?.getAttribute('aria-checked') ?? null,
+      notes: [...(section?.querySelectorAll('.pref__note') ?? [])].map((node) => (node.textContent ?? '').trim()),
+    }
+  })
+  same('通知页标题', '通知', notifyPage.heading)
+  same('系统通知出厂是关的', 'false', notifyPage.checked)
+  truthy(
+    '通知页说明「只有窗口看不见时才发」',
+    notifyPage.notes.some((note) => note.includes('只有窗口看不见的时候才发')),
+  )
+  truthy(
+    '浏览器里如实说明通知不可用',
+    notifyPage.notes.some((note) => note.includes('读不到通知权限')),
+  )
+  await prefPage.screenshot({ path: join(OUT, 'preferences-notify.png') })
+
   if (prefErrors.length > 0) {
     console.log('\n偏好设置页的控制台错误：')
     for (const error of prefErrors) console.log(`  ${error}`)
@@ -2749,11 +2787,56 @@ async function run() {
   })
   proPage.on('pageerror', (error) => { proErrors.push(String(error)) })
 
+  /*
+   * 时钟的起点钉在「今天上午 9 点」，不是「此刻」。
+   *
+   * ## 为什么必须钉
+   *
+   * 这一组断言要快进四轮、每轮 31 分钟，合计两小时零几分钟。若从
+   * 真实的「此刻」起步，而此刻是晚上 23 点，快进两次就跨过午夜——
+   * 而拒绝计数的键是 `ondra.proactive.declines.<日期>`：跨天等于换了一个
+   * 键，第三次拒绝记到新键的 `1` 上，于是「第三次之后 quiet」永远不成立。
+   *
+   * 实测确实是这个表现：`stored` 停在 2，另一天多出一个 `1`。
+   * 红的不是产品——真实用户不会在两分钟内过完一整天。
+   */
+  const startAt = new Date()
+  startAt.setHours(9, 0, 0, 0)
+
   /** 「这次不用」打到宿主的请求体。要验它带对了会话 id。 */
   const declineCalls = []
   await proPage.route('**/api/proactive/decline', (route) => {
     declineCalls.push(route.request().postDataJSON())
     void route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
+  })
+
+  /*
+   * 消息接口在这一页要**跟着虚拟时钟**回时间戳。
+   *
+   * ## 为什么不能直接用 `MESSAGES`
+   *
+   * `MESSAGES` 的时刻是脚本启动时的 `Date.now()`（真实世界）。这一页装
+   * 了虚拟时钟并且把起点钉在「今天 9 点」，于是页面里的 `Date.now()`
+   * 与桩给的 `createdAt` 差出十几个小时——`useProactiveTick` 算出的
+   * 到期时刻是 `lastAt + 25 分钟`，`lastAt` 落在未来，`due` 变成负数，
+   * 于是**一进页面就立刻开口**，而不是等 25 分钟。
+   *
+   * 上一版没暴露这个问题，是因为那时时钟从「此刻」起步，两边恰好一致。
+   * 钉起点本来是为了防跨午夜，代价就是这里必须跟着一起搬。
+   *
+   * 回的时间戳按「钉住的起点 - 2 分钟」给，与 `MESSAGES` 的相对关系一致：
+   * 最后一条消息在两分钟前，正好在空闲阈值之内。
+   */
+  await proPage.route('**/api/sessions/*/messages', (route) => {
+    const base = startAt.getTime()
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MESSAGES.map((message) => ({
+        ...message,
+        createdAt: base - 2 * MIN + (message.createdAt - now),
+      }))),
+    })
   })
   await proPage.route('**/api/inference', (route) => {
     /*
@@ -2771,7 +2854,7 @@ async function run() {
     void route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: `${frames}\n\n` })
   })
 
-  await proPage.clock.install()
+  await proPage.clock.install({ time: startAt })
   await proPage.addInitScript(fakeShell(port))
   await proPage.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
   await proPage.waitForTimeout(400)

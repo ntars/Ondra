@@ -92,6 +92,39 @@ fn write_pref<R: Runtime>(app: &AppHandle<R>, action: CloseAction) {
     }
 }
 
+/// 窗口可见性变化事件的名称。
+///
+/// # 为什么由壳来广播，不让前端自己判 `document.hidden`
+///
+/// 前端判「窗口可不可见」有两条路：`document.hidden` 与
+/// `document.hasFocus()`。两者都只回答「文档层」的问题，而这里要的是
+/// **窗口层**的答案：
+///
+/// | 状态 | `document.hidden` | `hasFocus()` | 该不该发系统通知 |
+/// | --- | --- | --- | --- |
+/// | 窗口在前台 | false | true | 不发，她直接出现在时间轴上 |
+/// | 窗口可见、焦点在别处 | false | false | 不发（§7.4 第二行），只加圆点 |
+/// | 关到托盘 / 最小化 | true（**不保证**） | false | **发** |
+/// | 切到别的 Space | 视 WebView 实现而定 | false | 介于上两行之间 |
+///
+/// 第三行的「不保证」是真问题：`window.hide()` 之后 WebView 是否触发
+/// `visibilitychange` 取决于平台与 WebView 版本，macOS 的 WKWebView
+/// 在被 `orderOut` 之后可能既不触发事件也不把 `hidden` 置真。用它当
+/// 判据，结果会是「用户关了窗口，她永远不说话」——一个安静的、查不出
+/// 原因的缺陷。
+///
+/// 而 `hide()` / `reveal()` 这两个动作**本来就发生在我们自己的代码里**，
+/// 在那里发一条事件，是唯一确定的答案。
+pub const VISIBILITY_EVENT: &str = "window-visibility";
+
+/// 广播窗口可见性。
+///
+/// 载荷是布尔：`true` 表示窗口已经显示且被聚焦，`false` 表示它退到了
+/// 看不见的地方（托盘、最小化）。
+pub fn emit_visibility<R: Runtime>(app: &AppHandle<R>, visible: bool) {
+    let _ = tauri::Emitter::emit(app, VISIBILITY_EVENT, visible);
+}
+
 /// 显示并聚焦主窗口。
 ///
 /// 三种「看不见」的状态都要收拾：隐藏、最小化、被其他窗口盖住。
@@ -103,6 +136,7 @@ pub fn reveal<R: Runtime>(app: &AppHandle<R>) {
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
+    emit_visibility(app, true);
 }
 
 /// 隐藏主窗口。
@@ -110,6 +144,7 @@ fn hide<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.hide();
     }
+    emit_visibility(app, false);
 }
 
 /// 真正退出。
@@ -136,6 +171,8 @@ pub fn intercept_close<R: Runtime>(app: &AppHandle<R>) -> bool {
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.minimize();
         }
+        // 最小化也是「看不见」。与隐藏同一个语义，所以同一个事件。
+        emit_visibility(app, false);
         let _ = tauri::Emitter::emit(app, "close-degraded", ());
         return true;
     }

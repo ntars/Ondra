@@ -51,6 +51,7 @@ import type { HostReadyPayload } from './lib/shell.ts'
 import { adoptDevConnection, setConnection, setConnectionFailure } from './lib/host.ts'
 import { startPreferences } from './lib/preferences.ts'
 import { loadMute } from './lib/mute.ts'
+import { installVisibilityTracking } from './lib/visibility.ts'
 
 // 平台标记必须在首个样式计算之前写好：它控制的规则里有网格列宽与边框，
 // 晚一帧设置就会先按另一套规则排一遍版，肉眼能看到跳一下。
@@ -73,6 +74,18 @@ startPreferences()
  * 就等于「静音期内重启应用，界面要等到下一次操作才知道该解除」。
  */
 loadMute()
+
+/*
+ * 窗口可见性跟踪（§7.4 系统通知的判据）。
+ *
+ * 装在这里而不是组件里：主动开口的定时器在 `App` 里，但通知的判定
+ * （`lib/notify.ts`）可能从任何地方被调用。模块级装一次，谁都能读。
+ *
+ * 它第一时间订阅壳的 `window-visibility` 事件。窗口在页面加载后立刻
+ * 被隐藏的情况（用户把应用启动项藏在后台）也要收得到，所以不能等
+ * 组件挂载。
+ */
+installVisibilityTracking()
 
 // 在 React 挂载之前就开始监听：壳可能在页面脚本执行后立刻发出 ready，
 // 若等到组件挂载才注册，就会错过这条消息，界面永远停在"正在连接"。

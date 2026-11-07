@@ -20,6 +20,11 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 tauri = { version = "2.12.5", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2.7.2"
+# 系统通知（§12.10）。只在「窗口不可见时她主动开口」这一处用。
+# 不自己写平台通知代码：三个平台各有一套权限模型与通知中心协议，
+# 自己实现等于把 macOS 的 UNUserNotificationCenter、Windows 的 Toast
+# 与 Linux 的 D-Bus 各写一遍，收益为零。
+tauri-plugin-notification = "2.4.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 异步运行时：宿主进程的 stdio 读写与超时控制都在异步上下文里，

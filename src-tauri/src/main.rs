@@ -39,6 +39,15 @@ pub struct AppState {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        /*
+         * 系统通知插件（§12.10）。
+         *
+         * 它除了提供 Rust 侧的 `NotificationExt`，还会往页面注入两层：
+         * `init-iife.js` 把 `window.Notification` 换成一个走 IPC 的实现，
+         * `api-iife.js` 挂上 `__TAURI__.notification`。前端因此可以用
+         * 标准 Web API 发通知，不必为它再造一条自定义命令。
+         */
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -135,6 +144,41 @@ fn main() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window::intercept_close(window.app_handle()) {
                     api.prevent_close();
+                }
+            }
+
+            /*
+             * 最小化与恢复也要广播（§12.10 系统通知的判据）。
+             *
+             * `intercept_close` 覆盖了「点关闭」与「托盘降级」两条路，
+             * 但用户还可以按 macOS 的黄键、Windows 的最小化键——那条路
+             * 不经过我们的命令，只在这里能看到。少了这两种情况，
+             * 用户最小化之后她就再也不说话了（前端以为窗口还在）。
+             *
+             * 只认主窗口：偏好设置窗口最小化不代表她看不见用户。
+             */
+            if window.label() == "main" {
+                match event {
+                    WindowEvent::Resized(_) => {
+                        // 最小化在 Tauri 里表现为 Resized（尺寸变成 0 或
+                        // 系统的收起尺寸），没有独立的 Minimized 事件。
+                        // 用 `is_minimized()` 现查，比猜尺寸可靠。
+                        if let Ok(minimized) = window.is_minimized() {
+                            if minimized {
+                                window::emit_visibility(window.app_handle(), false);
+                            }
+                        }
+                    }
+                    WindowEvent::Focused(true) => {
+                        // 重新获得焦点：先确认它不是最小化态（点 Dock 图标
+                        // 会先 focus 再 unminimize，中间那一帧不能算可见）。
+                        if let Ok(minimized) = window.is_minimized() {
+                            if !minimized {
+                                window::emit_visibility(window.app_handle(), true);
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         })

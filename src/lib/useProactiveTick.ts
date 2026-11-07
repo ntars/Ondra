@@ -31,6 +31,7 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { readVisibility } from './visibility.ts'
 
 /**
  * 会话安静多少分钟后才值得问她要不要开口。
@@ -69,6 +70,25 @@ export interface ProactiveTickOptions {
 }
 
 /**
+ * 窗口此刻对用户来说「看不看得见」。
+ *
+ * ## 为什么是三态而不是布尔
+ *
+ * §7.4 那张表区分了「应用未开」「已开但不在前台」「已开且在前台」三种，
+ * 而三种的**投递方式**各不相同：
+ *
+ * | 状态 | 怎么让她的话被看到 |
+ * | --- | --- |
+ * | `visible` | 她直接出现在时间轴上，不需要任何额外提示 |
+ * | `unfocused` | 窗口在屏幕上但焦点在别处：只加 Rail 圆点，**不发通知** |
+ * | `hidden` | 窗口看不见：走系统通知 |
+ *
+ * 合成一个布尔会丢掉中间那一档，而那一档正是规范特意点出来容易被忽略的
+ * 地方——「用户在浏览器里查东西，应用在后台。这时弹系统通知是打扰」。
+ */
+export type WindowVisibility = 'visible' | 'unfocused' | 'hidden'
+
+/**
  * 挂一个「到点问一次」的定时器。
  *
  * 依赖只有 `armed` 与 `lastAt`：这两样变化意味着「场景换了」，
@@ -93,22 +113,37 @@ export function useProactiveTick(options: ProactiveTickOptions): void {
         void (async () => {
           if (cancelled) return
           /*
-           * 窗口在后台、或页面不可见：不消耗额度，等他回来。
+           * ## 三态分流（§7.4）
            *
-           * `document.hidden` 覆盖「最小化 / 切到别的 Space」；
-           * `hasFocus()` 覆盖「窗口在但焦点在别的窗口」。两者都要，
-           * 因为 macOS 上切到全屏的另一个应用时 `hidden` 仍是 false。
+           * | 状态 | 做什么 | 为什么 |
+           * | --- | --- | --- |
+           * | `hidden` | **照常问门控、照常生成**，只是发出去之后补一条系统通知 | 她就是「应用未开」那一行：用户不知道她说过话，通知是唯一通路 |
+           * | `unfocused` | 不问，等他回来 | 窗口就在屏幕上，他回来就能看到；弹通知是打扰（§7.4 特意点出的那一行） |
+           * | `visible` | 照常问、照常上图 | 她直接出现在时间轴上 |
+           *
+           * ## 为什么 `hidden` 也要走完门控
+           *
+           * 曾经这里对「不可见」是一律 `armFor(RETRY_MS)` 跳过。那在
+           * 「窗口隐藏时她不该说话」的前提下成立，但 §7.4 明确要求这一档
+           * **走系统通知**——要么说，要么不说，不能既不说也不通知。
+           * 而说与不说的判据在宿主的九道闸里，界面无权也不该自己判。
+           *
+           * 另一点：额度。`hidden` 时问门控会真的消耗额度（插件放行即记账），
+           * 这正确——她确实开口了，用户也真的收到了通知。不消耗额度反而
+           * 会让她在用户看不见时无限开口。
            */
-          if (document.hidden || !document.hasFocus()) {
-            /*
-             * 回来时不靠事件补一次——`visibilitychange` 与 `focus`
-             * 会重新挂定时器（`lastAt` 没变，但 effect 的依赖里有
-             * 一个 tick 计数器，见下方 `bump`）。这里只等下一次。
-             */
+          const state = readVisibility()
+          if (state === 'unfocused') {
             armFor(RETRY_MS)
             return
           }
 
+          /*
+           * 把「窗口现在看不看得见」交给 `speakUp`：
+           * 它知道这一条要不要补发通知（只有 `hidden` 补）。
+           * 传参而不是在这里发通知——正文是她生成出来的，
+           * 通知的 body 必须是那一句真话，不能是「她说了句话」这种泛语。
+           */
           const ok = await speakRef.current()
           if (cancelled) return
           if (!ok) {
