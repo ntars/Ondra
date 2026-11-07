@@ -465,3 +465,138 @@
 .timeline__jump:hover {
   filter: brightness(1.12);
 }
+
+/**
+ * 主动开口的可解释行（§6.4 E）。
+ *
+ * ## 数值出处
+ *
+ * | 项 | 值 | 出处 |
+ * | --- | --- | --- |
+ * | 字号 | 11px `--static-ink-3` | §6.4 E「11px 一行」 |
+ * | 与正文距离 | 8px | §6.4 E「正文下 8px 处」 |
+ * | 行首点 | 6px 见方，沙色 | §6.4 E「行首 2px 沙色点」——见下方说明 |
+ * | 「这次不用」 | 11px，沙色文字 | §7.4 |
+ *
+ * ## 那 2px 与 6px 的差别
+ *
+ * 规范写「行首 2px 沙色点」。字面实现出来是一根 2 × 2 的方点，在 11px
+ * 字号旁边小到看不出来——它想表达的是「一个标记」，不是「一条 2px 线」。
+ * 这里做成 6px 的圆，颜色与规范一致。**不照抄尺寸是因为那个尺寸实现
+ * 不出它要的效果**，这类偏差必须写在这里，否则下一个人会照着规范改回去。
+ *
+ * ## 为什么整行 `user-select: none`
+ *
+ * §12.2 把「日期分隔行」列为不可选。这一行同理：它是元信息不是正文，
+ * 选中一半再复制会得到「她主动开口 · 想你」这种断句奇怪的东西。
+ *
+ * ## 淡出为什么是 `fluid-reverse`
+ *
+ * §8 的规矩：进场 `fluid`，出场 `fluid-reverse`。撤回是「消失」，
+ * 用 reverse 曲线才会先慢后快地收走，而不是拖一条尾巴。
+ */
+.reasonline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+  user-select: none;
+}
+
+/*
+ * 正在淡出。
+ *
+ * 只降不透明度、不动布局：消息本身已经被摘掉了（由上层 filter），
+ * 这一层只是让「撤下」这个动作有个 180ms 的过程而不是瞬间消失。
+ * 位移会牵动下方所有消息重排，那是另一种打扰。
+ */
+.reasonline[data-leaving] {
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--ease-fluid-reverse);
+}
+
+/**
+ * 行首那个点。
+ *
+ * ## 为什么是 2px，不是更"看得见"的 6px
+ *
+ * §6.4 E 写的是「行首 2px 沙色点」。这个尺寸不是随手写的：
+ * 11px 标签行里，6px 的点已经和文字笔画同重，眼睛会先看到点再读字，
+ * 而它承载的信息量是零——语义在「她主动开口」这四个字里。2px 是
+ * 「扫一眼能注意到有一抹颜色，但读的时候不会分心」的那个尺度。
+ *
+ * 高 DPI 屏上 2px 是 4 个物理像素，不会消失；`flex: none` 防止它
+ * 在窄容器里被压扁。
+ *
+ * `aria-hidden`：点本身没有语义，读屏念它等于念一个空标签。
+ */
+.reasonline__dot {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--specific-proactive-dot);
+}
+
+/*
+ * 判据摘要。
+ *
+ * 比「她主动开口」四个字再浅一档：那句是固定的、每次一样，用户扫两眼
+ * 就不读了；摘要是每次不同的信息，它需要同等可读。两者同色会让整行
+ * 重量均等，用户反而分不出哪一半是新的。
+ */
+.reasonline__why {
+  color: var(--alias-label-secondary);
+}
+
+/**
+ * 「这次不用」。
+ *
+ * ## 为什么是文字按钮而不是一个叉
+ *
+ * §7.4 的原话是「可点『这次不用』」。四个字是**这个动作的名字**，
+ * 它在告诉用户点下去会发生什么。换成一个叉，用户会以为那是「关掉
+ * 这条消息」，而实际效果是「她今天少一次开口机会」——差得很远。
+ *
+ * 图标只做视觉上的「这是个按钮」提示，放在文字右边，尺寸 16。
+ *
+ * ## 为什么热区必须比文字大
+ *
+ * 11px 的文字高度只有约 15px，远小于 32px 的最小热区（§5.0.7）。
+ * 用 `::before` 向上下各扩，而不是撑高这一行——撑高会推动下方消息。
+ */
+.reasonline__undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--alias-state-warn-label);
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  cursor: pointer;
+  /* 热区扩展的定位基准。 */
+  position: relative;
+  transition: color var(--motion-fast) var(--ease-fluid);
+}
+
+.reasonline__undo::before {
+  content: '';
+  position: absolute;
+  inset: -8px -6px;
+}
+
+.reasonline__undo:hover {
+  color: var(--alias-label-primary);
+}
+
+.reasonline__undo:focus-visible {
+  outline: 2px solid var(--alias-state-business-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}

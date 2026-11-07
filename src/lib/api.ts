@@ -167,20 +167,23 @@ export interface InferenceHandlers {
  * 用流式而非等最终结果：模型逐字产出，界面若只能等最后一次性显示，
  * 用户面对的是几秒到几十秒的空白，无法判断是在思考还是卡死了。
  *
- * @param input 用户输入。
+ * @param input 用户输入。主动开口时传空串。
  * @param sessionId 会话 id。空串表示新建。
  * @param handlers 各阶段的回调。
  * @param signal 取消信号。
+ * @param proactive 是否是她主动开口（§6.4 E）。为 true 时不追加用户消息，
+ *   宿主会带一句本次运行临时的提示让她真的开口。
  */
 export async function runInference(
   input: string,
   sessionId: string,
   handlers: InferenceHandlers,
   signal?: AbortSignal,
+  proactive = false,
 ): Promise<void> {
   await requestStream(
     '/api/inference',
-    { input, sessionId },
+    { input, sessionId, ...(proactive ? { proactive: true } : {}) },
     {
       ...(signal === undefined ? {} : { signal }),
       onFrame(frame): void {
@@ -226,4 +229,66 @@ export async function runInference(
 /** 中断正在进行的推理。 */
 export async function abortInference(sessionId: string): Promise<void> {
   await request<{ aborted: boolean }>('/api/inference/abort', { method: 'POST', body: { sessionId } })
+}
+
+/**
+ * 一次主动开口判定（§6.4 E、§7.4）。
+ *
+ * ## 为什么带上 `text`
+ *
+ * 门控的内容闸与 60 分钟去重要看「准备说什么」。不给正文，去重闸只能拿到
+ * 一个恒定占位串，于是第一条之后永远判重复——症状是「她只主动说过一次」。
+ * 这里传的是**意图描述**（由头摘要），不是最终发出去的那句话：判据需要
+ * 「说的是哪件事」，正文由模型生成时还不知道。
+ */
+export interface ProactiveVerdict {
+  /** 能不能说。 */
+  allow: boolean
+  /** 稳定原因码。`pass` 表示放行。 */
+  code: string
+  /** 一句人话，直接进「她主动开口 · {这句}」。 */
+  reason: string
+  /** 今日还剩几条。 */
+  remaining: number
+  /** 今日额度。 */
+  quota: number
+  /** 今日已用。 */
+  used: number
+  /** 需要等多久再说（毫秒）。 */
+  deferMs: number
+  /** 门控本身缺席（没装或关掉了）。与 `allow:false` 不是一回事。 */
+  gateMissing: boolean
+}
+
+/** 主动开口的请求参数。 */
+export interface ProactiveAsk {
+  sessionId: string
+  /** 会话已闲置多少分钟。 */
+  idleMinutes?: number
+  /** 准备说的事（由头）。缺省时宿主给一句通用描述。 */
+  text?: string
+}
+
+/**
+ * 判一次「此刻能不能主动开口」。
+ *
+ * 判据全部在宿主的 `ondra-proactive-gate` 里，界面只消费结论。
+ */
+export async function checkProactive(ask: ProactiveAsk): Promise<ProactiveVerdict> {
+  return await request<ProactiveVerdict>('/api/proactive/check', {
+    method: 'POST',
+    body: {
+      sessionId: ask.sessionId,
+      ...(ask.idleMinutes === undefined ? {} : { idleMinutes: ask.idleMinutes }),
+      ...(ask.text === undefined ? {} : { text: ask.text }),
+    },
+  })
+}
+
+/** 告诉宿主「这一次她主动说的话，用户点了这次不用」。 */
+export async function declineProactive(sessionId: string): Promise<void> {
+  await request<{ ok: boolean }>('/api/proactive/decline', {
+    method: 'POST',
+    body: { sessionId },
+  })
 }

@@ -2592,6 +2592,8 @@ Every request must carry `Authorization: Bearer <token>`. Unauthorised requests 
 | GET | `/api/sessions/:id` | Session detail | `SessionMeta` |
 | GET | `/api/models` | Available models | `ModelDescriptor[]` |
 | GET | `/api/tools` | Registered tools | `ToolDescriptor[]` |
+| POST | `/api/proactive/check` | Decide whether she may speak up right now (the nine gates live in the host) | `ProactiveVerdict` |
+| POST | `/api/proactive/decline` | The user dismissed this one with "not now"; the host records a decline | `{ ok }` |
 
 ### 10.2 Kernel protocol methods
 
@@ -2606,7 +2608,7 @@ The kernel's 13 methods are called over JSON-RPC 2.0 framed as newline-delimited
 | | `session.get` | `id` | Reads session metadata |
 | | `session.list` | `includeArchived` | Lists sessions |
 | | `session.archive` | `id` | Archives a session, idempotent |
-| Inference | `inference.run` | `sessionId`, `input` | Runs one turn, streaming deltas |
+| Inference | `inference.run` | `sessionId`, `input` (optional), `nudge` (optional) | Runs one turn, streaming deltas. Omitting `input` means she speaks up on her own; `nudge` is a transient system hint that is never persisted |
 | | `inference.abort` | `sessionId` | Aborts the current turn, idempotent |
 | Tools | `tool.list` | None | Lists registered tools |
 | | `tool.invoke` | `name`, `arguments` | Invokes one tool, validating arguments first |

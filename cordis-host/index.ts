@@ -55,6 +55,7 @@ import { startWebServer, type RouteHandler, type RouteRequest, type StreamEmitte
 import { ConfigStore, resolveDataDir, type PermissionLevel, type StoredProfile } from './src/config.js'
 import { ensureWorkspace, resolveWorkspaceRoot } from './src/workspace.js'
 import { SettingsStore, scanSections, type SettingsSection, type SettingsSnapshot } from './src/settings.js'
+import { checkProactive, declineProactive, PROACTIVE_NUDGE, type GateLike } from './src/proactive.js'
 
 /** 宿主与壳之间的消息形态。 */
 type ShellMessage =
@@ -144,7 +145,22 @@ async function main(): Promise<void> {
   // 「装着不用」而不是「不打包」是有意的：这些是产品的一部分，
   // 将来接通某个能力时把 id 加进 ONDRA_CORE_ENABLE 就能启用，不必重做打包流程。
   const corePlugin = await import('@ondra/cordis-plugin-ondra-core')
-  const enableList = parseEnableList(process.env.ONDRA_CORE_ENABLE)
+  /*
+   * 默认启用名单。
+   *
+   * 只有 `ondra-proactive-gate` 一项。它**不是**「打开一个功能」，
+   * 而是「把界面已经依赖的那份判据接上」：§7.4 的打扰预算、§12.10 的
+   * 「她主动开口」都写着「由 proactive-gate 判定」，而之前它默认不装，
+   * 于是界面上每一个「她主动开口」的入口背后都没有真源。
+   *
+   * 为什么不装另外两个（`-quota` / `-reason`）：它们读的是记忆、承诺、
+   * 执念池，那些上层器官此刻一个都没启用。装上会得到「永远没有话由」，
+   * 而症状是「她不主动」——反而更难查。等记忆链接通再一起开。
+   *
+   * 用户在环境变量里写的名单会**追加**在默认项之后，不被覆盖。
+   */
+  const DEFAULT_CORE_ENABLE = ['ondra-proactive-gate']
+  const enableList = [...new Set([...DEFAULT_CORE_ENABLE, ...parseEnableList(process.env.ONDRA_CORE_ENABLE)])]
   const coreResult = await corePlugin.loadCore(ctx, { enable: enableList })
   logInfo(
     ctx,
@@ -326,11 +342,32 @@ function buildRoutes(
     const client = getDsh(ctx)
     const body = (request.body ?? {}) as Record<string, unknown>
     const input = typeof body.input === 'string' ? body.input : ''
-    if (input.trim() === '') {
+    /*
+     * `proactive: true` 表示这一轮是**她主动开口**，用户没有输入。
+     *
+     * 与普通回话走同一条链路（同一个 RPC、同一套事件、同一份落盘），
+     * 差别只有两点：① 不追加用户消息；② 多带一句只有本次运行存在的
+     * 临时提示（`nudge`），否则模型会接着自己上一句自说自话。
+     *
+     * 为什么把判据放在宿主而不是界面：界面拿到的只是一句「可以了」，
+     * 它没有理由知道九道闸。反过来，界面上任何一处 `if (可以)` 都是
+     * 一份会漂移的旁路判据。
+     */
+    const proactive = body.proactive === true
+
+    const input_ = input.trim()
+    if (input_ === '' && !proactive) {
       return { status: 400, body: { error: '内容不能为空' } }
     }
 
     let sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
+    /*
+     * 主动开口必须已有会话：没有历史时「她主动开口」没有任何上下文，
+     * 说出来的必然是空话，而且会凭空造出一个用户没打开的会话。
+     */
+    if (sessionId === '' && proactive) {
+      return { status: 400, body: { error: '还没有对话，她没法主动开口' } }
+    }
     // 没有会话就先建一个。标题留空，内核会用首轮内容自动命名。
     // 首页直接打字走的就是这条路，因此工作区也要在这里建一次——
     // 否则"从首页开始说话"的用户会没有工作区，而"点新建对话"的用户有。
@@ -373,7 +410,11 @@ function buildRoutes(
         })
 
         try {
-          const result = await client.call('inference.run', { sessionId: finalSessionId, input }) as {
+          const result = await client.call('inference.run', {
+            sessionId: finalSessionId,
+            ...(input_ === '' ? {} : { input }),
+            ...(proactive ? { nudge: PROACTIVE_NUDGE } : {}),
+          }) as {
             text?: unknown
             aborted?: unknown
           }
@@ -395,6 +436,39 @@ function buildRoutes(
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
     if (sessionId === '') return { status: 400, body: { error: '缺少 sessionId' } }
     return { body: await client.call('inference.abort', { sessionId }) }
+  })
+
+  /**
+   * 主动开口：判一次「此刻能不能说」。
+   *
+   * 判据全部来自 `ondra-proactive-gate`（九道闸的唯一真源），这里只做
+   * 形状翻译与缺席说明。为什么是 `POST` 而不是 `GET`：它会**消耗额度**
+   * （放行即记账），不是幂等读取。写成 `GET` 会让任何预取、重试、
+   * 浏览器历史回放都悄悄吃掉一次额度。
+   */
+  routes.set('POST /api/proactive/check', async (request: RouteRequest) => {
+    const body = (request.body ?? {}) as Record<string, unknown>
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
+    // 正文只用于内容红线与去重，不是要发出去的那句话。
+    // 缺省时给一句固定的短描述：空串会被插件的 `isEmptyText` 判成
+    // 「没内容」而拦下，那就变成「永远不能主动」。
+    const text = typeof body.text === 'string' && body.text.trim() !== '' ? body.text : '想找你聊聊'
+    const idle = typeof body.idleMinutes === 'number' && Number.isFinite(body.idleMinutes)
+      ? Math.max(0, Math.trunc(body.idleMinutes))
+      : undefined
+
+    const gate = ctx.get('ondra-proactive-gate') as GateLike | undefined
+    return { body: checkProactive(gate, sessionId, idle, text) }
+  })
+
+  /** 主动开口：用户点了「这次不用」。 */
+  routes.set('POST /api/proactive/decline', (request: RouteRequest) => {
+    const body = (request.body ?? {}) as Record<string, unknown>
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
+    const gate = ctx.get('ondra-proactive-gate') as GateLike | undefined
+    declineProactive(gate)
+    logInfo(ctx, `主动开口被撤回${sessionId === '' ? '' : `（会话 ${sessionId}）`}`)
+    return { body: { ok: true } }
   })
 
   /** 模型列表。 */

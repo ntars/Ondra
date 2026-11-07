@@ -27,7 +27,9 @@ import { invokeShell, listenShell } from './shell.ts'
 import type { HostReadyPayload, ShellHostState } from './shell.ts'
 import {
   abortInference,
+  checkProactive,
   createSession,
+  declineProactive as declineProactiveCall,
   fetchHealth,
   getConfig,
   getMessages,
@@ -39,6 +41,7 @@ import {
 import type { ModelDescriptor, PermissionLevel, SessionMessage, SessionMeta, ThemeMode } from './api.ts'
 import { setPreferences, usePreferences } from './preferences.ts'
 import { playCue } from './sound.ts'
+import { DECLINE_LIMIT, UNDO_WINDOW_MS, noteDecline, clearDeclines } from './proactive.ts'
 import type { Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState } from './types.ts'
 
 /**
@@ -117,6 +120,19 @@ export interface ChatMessage {
    * 完整思考过程去左栏「日志」看。
    */
   reasoning?: string
+  /**
+   * 她主动开口时的判据摘要（§6.4 E）。
+   *
+   * `undefined` = 普通回复。**空串是有意义的取值**：它表示「这条是主动
+   * 开口，但门控没给出可读理由」。用 `undefined` 表达「没有理由」会让
+   * 「普通回复」与「主动但没理由」两件事混在一起，前者不该显示那一行，
+   * 后者必须显示（否则用户会觉得她莫名其妙开口）。
+   *
+   * 只存在于内存与本次渲染：宿主不落这个字段，所以刷新后主动标记消失。
+   * 这是刻意的——判据说的是「当时为什么开口」，事后重看没有意义，
+   * 而把它落盘就要在协议里加一个只为回忆存在的字段。
+   */
+  proactive?: string
 }
 
 /** 应用状态。 */
@@ -200,6 +216,52 @@ export interface AppState {
   dismissChatError(): void
   /** 重试连接。 */
   retry(): void
+
+  /**
+   * 让她主动开口（§6.4 E、§7.4）。
+   *
+   * ## 为什么是「界面主动去问」而不是「宿主推过来」
+   *
+   * 宿主推的话需要一条常驻定时器，而 §14.2 要求零常驻。更要紧的是：
+   * 用户此刻在不在看、上一次开口过了多久、会话是不是晾着——这些判断
+   * 有一半只有界面知道。界面在「这一个会话安静下来了」时问一次，
+   * 时机天然正确，且没有任何东西在没有用户时白跑。
+   *
+   * 方法内部依次做三件事：问门控 → 生成 → 上图并挂判据。
+   * 门控说不行就**安静地什么都不做**：这不是错误，不该弹提示
+   * （§7.5「除用户主动操作外无 2 级以上打扰」）。
+   *
+   * @returns 是否真的开口了。`false` 表示门控没放行或生成失败。
+   */
+  speakUp(): Promise<boolean>
+
+  /**
+   * 用户点了「这次不用」（§6.4 E）。
+   *
+   * 撤下那条消息、记一次拒绝。连续三次后当日不再主动（§7.4）。
+   *
+   * @param messageId 要撤下的那条消息 id。
+   */
+  declineProactive(messageId: string): Promise<void>
+
+  /**
+   * 还没有被撤下的那条主动消息的 id。
+   *
+   * 同一时刻最多一条：§7.4 的预算是「一次打扰」，两条同时挂着撤回按钮
+   * 会让「这次不用」变成「这两个哪个」。新的一条出现时旧的自动收起窗口，
+   * 消息本身留着。
+   */
+  undoable: string | undefined
+
+  /**
+   * 上一次门控建议的等待时长（毫秒）。`0` 表示它没说。
+   *
+   * 由 `speakUp` 写入，给 `useProactiveTick` 决定下次何时再问。
+   * 之所以要把它递出来、而不是让界面自己定一个重试间隔：
+   * 「多久之后可以再问」是插件算出来的（静默时段还剩几分钟、冷却还剩
+   * 多久），界面猜一个数就是在两处维护同一份算术。
+   */
+  lastDeferMs(): number
 }
 
 /**
@@ -246,6 +308,43 @@ export function useAppState(): AppState {
   const [companionUpdatedAt, setCompanionUpdatedAt] = useState(() => Date.now())
   /** 是否已进入对话。进入后不再回首页，三栏常驻。 */
   const [entered, setEntered] = useState(false)
+
+  /**
+   * 正在挂着撤回窗口的那条主动消息。
+   *
+   * 同一时刻最多一条（见 `AppState.undoable` 的注释）。用一个 id 而不是
+   * 一个布尔：撤回按钮要知道自己属于哪一条，否则两条主动消息相邻时
+   * 会撤错。
+   */
+  const [undoable, setUndoable] = useState<string | undefined>(undefined)
+
+  /**
+   * 撤回窗口的倒计时器。
+   *
+   * 放 ref 里而不是 state：它变化不该触发渲染（渲染只看 `undoable`
+   * 与剩余时间快照），而且要在新的一条出现时把上一条的计时器清掉。
+   */
+  const undoRef = useRef<ReturnType<typeof globalThis.setTimeout> | undefined>(undefined)
+
+  /**
+   * 上一次她主动开口的时刻。
+   *
+   * 冷却判据在宿主（`ondra-proactive-gate` 有自己的 `lastByConversation`），
+   * 这里这一份**只用于界面侧的一个判断**：同一会话在两分钟内不重复请求。
+   * 那不是在复刻九道闸，而是避免「界面每次重渲染都去问一遍门控」——
+   * 一次请求会消耗额度，反复问就会把额度问光。
+   */
+  const spokeAtRef = useRef(0)
+
+  /**
+   * 门控建议的下次可问时刻（毫秒时间戳）。`0` 表示它没说。
+   *
+   * 存成 ref 而不是 state：它只在 `useProactiveTick` 的重试逻辑里被读一次，
+   * 不参与渲染。放 state 会让每次被拦下都触发一次整树重渲染——而被拦下
+   * 恰恰是最不该有界面变化的情况。
+   */
+  const deferUntilRef = useRef(0)
+
   /*
    * 主题不再是本文件的状态。
    *
@@ -414,6 +513,28 @@ export function useAppState(): AppState {
     // 空内容不发送；但若附带了文件，空文字也允许发出（纯附件消息）。
     if (input === '' && attachments.length === 0) return
     if (busy) return
+
+    /*
+     * 用户开口了 → 连续拒绝清零（§7.4 的「连续」）。
+     *
+     * 放在这里而不是 `send` 的末尾：清计数是「用户做了这件事」的结果，
+     * 与这一轮成不成功无关。等发完再清的话，一次网络失败会让计数留着，
+     * 而她并没有再被拒绝一次。
+     */
+    clearDeclines()
+
+    /*
+     * 他一开口，那条还挂着的「这次不用」就该收了。
+     *
+     * 理由不是「窗口到期」，而是**用户已经用行动回答了**：他在跟她说
+     * 话，说明这次开口没打扰到他。此时那个按钮还挂着，会让人怀疑
+     * 「我是不是还得点一下才不算被打扰」。
+     */
+    if (undoRef.current !== undefined) {
+      globalThis.clearTimeout(undoRef.current)
+      undoRef.current = undefined
+    }
+    setUndoable(undefined)
 
     // 把附件名折叠进正文，作为可见的结构化前缀。内核当前只持久化
     // role + content，附件元数据走这条最简路径，既可见又不改动协议。
@@ -657,6 +778,233 @@ export function useAppState(): AppState {
       })
     }
   }, [sessionId])
+
+  /**
+   * 让她主动开口（§6.4 E、§7.4）。
+   *
+   * ## 顺序为什么不能换
+   *
+   * 1. **先问门控**，再生成。反过来的话每一条被拦下的消息都已经花了
+   *    一次模型调用，而拦下的原因往往正是「现在不该打扰」——那条消息
+   *    生成出来是要扔掉的。
+   * 2. **先拿到判据，再上图**。判据要跟着消息一起显示（`proactive` 字段）。
+   *    消息先上图、判据后补，中间那一帧用户会看到一条没有解释的主动消息，
+   *    而那正是他最想问「你为什么突然说话」的时刻。
+   *
+   * ## 为什么失败不弹提示
+   *
+   * 「她这次没开口」对用户不是错误，是没发生。弹一条「主动开口失败」
+   * 等于把一次不存在的打扰变成一次真的打扰（§7.5 第一条）。
+   * 失败只进日志，用户去日志里能查到。
+   */
+  const speakUp = useCallback(async (): Promise<boolean> => {
+    if (busy) return false
+    if (sessionId === undefined || sessionId === '') return false
+    if (messages.length === 0) return false
+
+    /*
+     * 两分钟内不重复问。
+     *
+     * 这不是复刻宿主的冷却（那在插件里，按会话记）。这里防的是另一个
+     * 问题：`speakUp` 由 effect 驱动，而 effect 的依赖里可能有会频繁
+     * 变化的会话状态。没有这道闸，一次挂载抖动就会连着问三次门控，
+     * 三次都放行——于是她在一分钟内说了三句。
+     *
+     * 取两分钟而不是更长：用户的耐心尺度是「我刚放下手机，她过一会儿
+     * 说句话」，两分钟足够让一次误触发被吸收，又不至于让正常间隔被吃掉。
+     */
+    const now = Date.now()
+    if (now - spokeAtRef.current < 120_000) return false
+
+    // 会话闲置多久。取最后一条消息的时间：那是「上一次有人说话」，
+    // 也正是 §5.5 `min_idle_seconds` 想量的东西。
+    const last = messages.at(-1)
+    const idleMinutes = last === undefined ? 0 : Math.floor((now - last.at) / 60_000)
+
+    let verdict: Awaited<ReturnType<typeof checkProactive>>
+    try {
+      verdict = await checkProactive({ sessionId, idleMinutes })
+    } catch {
+      // 宿主没应答：不开口，也不打扰。
+      spokeAtRef.current = now
+      return false
+    }
+
+    if (!verdict.allow) {
+      /*
+       * 门控不放行。**什么都不做**，连日志都不写。
+       *
+       * 记下时刻：`defer` 类原因（静默时段、冷却、空闲不够）本来就会
+       * 在到期后被重新问一次；不记的话每个 effect 都会再问一遍，
+       * 把「等一会儿」变成「一直问」。
+       *
+       * 为什么不区分 `drop` 与 `defer`：界面这一层判断不了，也不该判断——
+       * `deferMs` 已经把那件事表达清楚了（`0` 表示不用等）。
+       * 重试间隔由 `useProactiveTick` 按它决定。
+       */
+      spokeAtRef.current = now
+      /*
+       * 存下它建议的等待。用绝对时刻而不是时长：时长在「界面切后台
+       * 五分钟」之后会算错，绝对时刻不会。
+       */
+      deferUntilRef.current = verdict.deferMs > 0 ? now + verdict.deferMs : 0
+      return false
+    }
+
+    spokeAtRef.current = now
+    setBusy(true)
+    const startedAt = Date.now()
+    roundRef.current += 1
+    const round = roundRef.current
+    const reason = verdict.reason
+
+    /*
+     * 占位消息带上判据。
+     *
+     * 为什么是占位而不是等 `onDone` 再上图：她要先「出现」，文字随后
+     * 才流出来。先上图才能让那行判据在第一时间可见——用户看到她开口
+     * 的同时就知道为什么。
+     */
+    const replyId = `proactive-${String(startedAt)}`
+    setMessages((previous) => [...previous, {
+      id: replyId,
+      role: 'assistant',
+      content: '',
+      pending: true,
+      at: startedAt,
+      proactive: reason,
+    }])
+
+    const abort = new AbortController()
+    controller.current = abort
+    let finalText = ''
+
+    try {
+      await runInference(
+        '',
+        sessionId,
+        {
+          /*
+           * 会话 id 必定是已知的（`speakUp` 开头就判过）。这个回调不该
+           * 被调到——主动开口不允许新建会话。留一个空实现而不是省略：
+           * 它是 `InferenceHandlers` 的必填项，省略会在类型上不成立。
+           */
+          onSession(): void { /* 主动开口不新建会话 */ },
+          onDelta(text): void {
+            finalText += text
+            setMessages((previous) => previous.map((message) =>
+              message.id === replyId ? { ...message, content: finalText } : message,
+            ))
+          },
+          onReasoning(): void {
+            // 主动开口不展示思考过程：它没有对应的日志轮次可挂，
+            // 而且用户此刻关心的是「她说了什么」，不是「她想了什么」。
+          },
+          onDone(result): void {
+            const done = result.text.trim() === '' ? finalText : result.text
+            setMessages((previous) => previous.map((message) => {
+              if (message.id !== replyId) return message
+              return { ...message, content: done, pending: false }
+            }))
+            if (done.trim() === '') {
+              // 模型什么都没说：把空消息撤掉，不留一条空白。
+              setMessages((previous) => previous.filter((message) => message.id !== replyId))
+              return
+            }
+            playCue('speak')
+            pushLog({
+              round,
+              at: Date.now(),
+              channel: 'rhythm',
+              actor: 'assistant',
+              summary: `她主动开口 · ${reason === '' ? '没有给出理由' : reason}`,
+              chars: done.length,
+              detail: done,
+            })
+            /*
+             * 开三秒撤回窗口（§7.4）。
+             *
+             * 从**她说出完整一句**开始计时，不是从占位出现开始：
+             * 占位那一刻正文还是空的，用户看到一条空消息加一个「这次不用」，
+             * 只能盲点。从说完开始，他读了一遍、判断「这句我不需要」，
+             * 再决定撤——这才是「3 秒内可撤回」想保护的那个决定。
+             */
+            setUndoable(replyId)
+            if (undoRef.current !== undefined) globalThis.clearTimeout(undoRef.current)
+            undoRef.current = globalThis.setTimeout(() => {
+              undoRef.current = undefined
+              setUndoable(undefined)
+            }, UNDO_WINDOW_MS)
+          },
+          onError(): void {
+            // 生成失败：撤掉占位，不留半条。日志留一行线索。
+            setMessages((previous) => previous.filter((message) => message.id !== replyId))
+            pushLog({
+              round,
+              at: Date.now(),
+              channel: 'rhythm',
+              actor: 'system',
+              summary: '这次主动开口没说完，已撤下',
+            })
+          },
+        },
+        abort.signal,
+        true,
+      )
+      return true
+    } catch {
+      setMessages((previous) => previous.filter((message) => message.id !== replyId))
+      return false
+    } finally {
+      controller.current = undefined
+      setBusy(false)
+      setCompanionUpdatedAt(Date.now())
+    }
+  }, [busy, sessionId, messages, pushLog])
+
+  /**
+   * 「这次不用」（§6.4 E）。
+   *
+   * ## 三件事，顺序要紧
+   *
+   * 1. 关掉撤回窗口（`undoable` 置空）。先关窗再做网络请求：窗口是
+   *    可以立刻兑现的，而请求要几十毫秒。反过来会让按钮在点击后
+   *    还挂着不动的样子。
+   * 2. 撤下那条消息。淡出 180ms 交给 `ReasonLine` 的 CSS，这里直接移除。
+   * 3. 告诉宿主记账。失败不提示——用户已经表达了「不要」，再弹一条
+   *    「记账失败」是在他已经烦了的时候再烦一次。
+   */
+  const decline = useCallback(async (messageId: string): Promise<void> => {
+    if (undoRef.current !== undefined) {
+      globalThis.clearTimeout(undoRef.current)
+      undoRef.current = undefined
+    }
+    setUndoable(undefined)
+    setMessages((previous) => previous.filter((message) => message.id !== messageId))
+
+    const count = noteDecline()
+    if (count >= DECLINE_LIMIT) {
+      pushLog({
+        round: roundRef.current,
+        at: Date.now(),
+        channel: 'rhythm',
+        actor: 'system',
+        summary: `今天已经被拒绝 ${String(count)} 次，她今天不再主动开口`,
+      })
+    } else {
+      pushLog({
+        round: roundRef.current,
+        at: Date.now(),
+        channel: 'rhythm',
+        actor: 'system',
+        summary: '这次主动开口被撤下了',
+      })
+    }
+
+    if (sessionId !== undefined) {
+      await declineProactiveCall(sessionId).catch(() => { /* 见上 */ })
+    }
+  }, [sessionId, pushLog])
 
   /** 回到首页。 */
   const goHome = useCallback((): void => {
@@ -919,6 +1267,15 @@ export function useAppState(): AppState {
     setPermission,
     dismissChatError,
     retry,
+    speakUp,
+    declineProactive: decline,
+    undoable,
+    lastDeferMs: () => {
+      const until = deferUntilRef.current
+      if (until === 0) return 0
+      const left = until - Date.now()
+      return left > 0 ? left : 0
+    },
   }
 }
 

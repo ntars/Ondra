@@ -114,3 +114,13 @@ export { Trash2 as IconTrash } from 'lucide'
 
 /** 菜单。Windows 标题栏左上。 */
 export { Menu as IconMenu } from 'lucide'
+
+/**
+ * 关闭 / 撤下。
+ *
+ * 与 `IconClose` 的区别在**语义**而不是形状：这个用于「这次不用」——
+ * 撤下的是她的一句话，不是关掉一个面板。分开导出是因为两者将来可能
+ * 演化成不同的图形（撤下更适合一个「收回去」的方向），而现在共用一个
+ * 形状则是诚实的选择：语义差异靠 `aria-label` 传达，不靠猜图标。
+ */
+export { X as IconX } from 'lucide'

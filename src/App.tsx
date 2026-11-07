@@ -45,6 +45,8 @@ import { Dialog } from './components/Dialog.tsx'
 import { ToastProvider, useToast } from './components/Toast.tsx'
 import { invokeShell, isDesktopShell, listenShell } from './lib/shell.ts'
 import { isTypingTarget, keyContext, matches } from './lib/shortcuts.ts'
+import { useProactiveTick } from './lib/useProactiveTick.ts'
+import { useQuietToday } from './lib/proactive.ts'
 import type { ThemeMode } from './lib/api.ts'
 
 /** 渲染应用。外层只包一个 Toast 提供者。 */
@@ -532,6 +534,36 @@ function Shell(): React.JSX.Element {
     }
   }, [toast])
 
+  /*
+   * 主动开口的时机（§7.4）。
+   *
+   * ## 四个 arm 条件，每一条都有具体的打扰含义
+   *
+   * | 条件 | 不满足时的后果 |
+   * | --- | --- |
+   * | 在会话里 | 首页没有上下文，她开口只能是一句空话 |
+   * | 不在生成中 | 她会跟自己的回复抢同一轮，两条助手消息交织 |
+   * | 草稿是空的 | 用户正在打字时她先开口，是最典型的打断 |
+   * | 今天还没到「安静」 | §7.4：连续拒绝 3 次 → 当天停止 |
+   *
+   * 「窗口在前台」那一条不在这里判，在 `useProactiveTick` 内部按
+   * `document.hidden` / `hasFocus()` 现查：它是**时刻性**的，
+   * 放进依赖会让每次切窗口都拆挂一次定时器，而那时 `lastAt` 并没过期。
+   */
+  const quiet = useQuietToday()
+  const lastMessageAt = state.messages.at(-1)?.at ?? 0
+  useProactiveTick({
+    armed:
+      state.inConversation
+      && !state.busy
+      && state.draft.trim() === ''
+      && !quiet
+      && state.messages.length > 0,
+    lastAt: lastMessageAt,
+    onSpeak: state.speakUp,
+    deferMsOf: state.lastDeferMs,
+  })
+
   /**
    * 引用一段文字：插进草稿。
    *
@@ -543,8 +575,7 @@ function Shell(): React.JSX.Element {
    * 摘录的意义是「把这段话摆到输入框里，我接着往下说」。原文里的
    * `**`、`| --- |`、围栏反引号是**渲染用的记号**，不是用户想引用的话。
    * 带着记号插进去，用户还得先删一遍才能写自己的句子。
-   */
-  const quote = useCallback((text: string): void => {
+   */  const quote = useCallback((text: string): void => {
     const excerpt = toPlainText(text)
       .split('\n')
       .map((line) => `> ${line}`)
@@ -659,6 +690,8 @@ function Shell(): React.JSX.Element {
               */
               {...(inlineError === undefined ? {} : { error: inlineError })}
               {...(absence === undefined ? {} : { absence })}
+              {...(state.undoable === undefined ? {} : { undoable: state.undoable })}
+              onDeclineProactive={(messageId) => { void state.declineProactive(messageId) }}
             />
             <Composer
               value={state.draft}
@@ -691,6 +724,7 @@ function Shell(): React.JSX.Element {
             inspectorOpen={inspector}
             resting={false}
             muted={muted}
+            quietToday={quiet}
             onToggle={toggleInspector}
           />
 

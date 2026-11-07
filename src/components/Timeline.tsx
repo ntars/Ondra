@@ -30,10 +30,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconChevronDown, IconCopy, IconQuote } from './icons.ts'
+import { ReasonLine } from './ReasonLine.tsx'
 import { RichText, toPlainText } from './RichText.tsx'
 import { ScrollArea } from './ScrollArea.tsx'
 import { useToast } from './Toast.tsx'
 import type { ChatMessage } from '../lib/useAppState.ts'
+import { UNDO_WINDOW_MS } from '../lib/proactive.ts'
 
 /** 星期名。中文界面只用中文，不出现 `Thu` 这种。 */
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const
@@ -141,6 +143,17 @@ export interface TimelineProps {
    * `undefined` 表示不留痕。
    */
   absence?: string
+  /**
+   * 还挂着撤回窗口的那条主动消息 id（§6.4 E）。
+   *
+   * 传 id 而不是布尔：那行「这次不用」只属于某一条消息。用布尔的话，
+   * 一条主动消息出现后**所有**助手消息都会长出那个按钮——包括普通回复。
+   *
+   * 倒计时由本组件自己跑（见 `undoLeft` 的注释），上层只给「哪一条」。
+   */
+  undoable?: string
+  /** 点「这次不用」。 */
+  onDeclineProactive(messageId: string): void
 }
 
 /** 一条内联错误。 */
@@ -170,6 +183,8 @@ export function Timeline({
   error,
   onHandle,
   absence,
+  undoable,
+  onDeclineProactive,
 }: TimelineProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   /** 记录是否贴底。用 ref 而不是 state：`onScroll` 每帧都可能触发，不该引起重渲染。 */
@@ -196,6 +211,44 @@ export function Timeline({
   /** 当前显示操作条的消息 id。同一时刻只显示一条。 */
   const [active, setActive] = useState<string | undefined>(undefined)
   const toast = useToast()
+
+  /*
+   * 撤回窗口还剩多少毫秒。
+   *
+   * ## 为什么在这里倒计时，而不是让上层每秒重渲染一次
+   *
+   * 上层的 `useAppState` 是整棵树的状态源，让它每 250ms 变一次会让整个
+   * 会话视图（消息、日志、脊、输入框）全部重渲染——为一个三秒倒计时
+   * 付这个代价不合理。这里只需要一个翻页效果（按钮在/不在），
+   * 250ms 的粒度已经足够，且只影响时间轴这一棵子树。
+   *
+   * ## 为什么不是逐帧
+   *
+   * 那个按钮没有进度条，用户看不出 250ms 与 16ms 的差别。逐帧倒计时
+   * 反而会让「还剩 0.3 秒」时按钮闪一下消失——看起来像 bug。
+   */
+  const [undoLeft, setUndoLeft] = useState(0)
+
+  useEffect(() => {
+    if (undoable === undefined) {
+      setUndoLeft(0)
+      return
+    }
+    const deadline = Date.now() + UNDO_WINDOW_MS
+    setUndoLeft(UNDO_WINDOW_MS)
+    const timer = globalThis.setInterval(() => {
+      const left = deadline - Date.now()
+      if (left <= 0) {
+        globalThis.clearInterval(timer)
+        setUndoLeft(0)
+        return
+      }
+      setUndoLeft(left)
+    }, 250)
+    return () => {
+      globalThis.clearInterval(timer)
+    }
+  }, [undoable])
 
   /** 把行按日期分组，中间插分隔行。 */
   const rows = useMemo<Row[]>(() => {
@@ -489,6 +542,33 @@ export function Timeline({
                     </span>
                   ) : null}
                 </div>
+
+                {/*
+                  主动开口的可解释行（§6.4 E）。
+
+                  ## 为什么在正文**下方** 8px
+                  
+                  规范原话是「正文下 8px 处」。放上方的话，用户读到的顺序
+                  会变成「理由 → 她说的话」，而人真实的阅读顺序是「她说了
+                  什么 → 咦为什么」。放下面正合这个顺序。
+                  
+                  ## 为什么只对带 `proactive` 字段的消息渲染
+                  
+                  `undefined` 是普通回复，不渲染；空串是「主动但没给出理由」，
+                  照样渲染——后者必须显示，否则用户会觉得她莫名其妙开口。
+                  
+                  ## 为什么 pending 时不渲染
+                  
+                  正文还在流的时候，理由行已经在了，用户会先看到「她主动开口 ·
+                  想知道你睡了没」再看到那句话一个字一个字冒出来。等他读完
+                  理由是空的那 1.5 秒里，是在猜她到底说了什么。
+                */}
+                {row.message.proactive !== undefined && row.message.pending !== true ? (
+                  <ReasonLine
+                    reason={row.message.proactive}
+                    undoLeft={undoable === row.message.id ? undoLeft : 0}
+                    onDecline={() => { onDeclineProactive(row.message.id) }}
+                  />                ) : null}
 
                 {/*
                   悬停操作条。`data-actions` 挂在 article 上，CSS 用它控制

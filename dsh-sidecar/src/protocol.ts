@@ -159,7 +159,13 @@ export const Method = {
    */
   SessionMessages: 'session.messages',
 
-  /** 推理：发起一轮对话。返回本轮最终答复。 */
+  /**
+   * 推理：发起一轮对话。返回本轮最终答复。
+   *
+   * `input` 可省略（= 不追加用户消息）。省略时它是「她主动开口」：模型接着
+   * 已有历史往下说。配合可选的 `nudge`（本次运行临时存在的 system 提示，
+   * 不落盘）才能让她真的开口，否则模型只会接着自己上一句自问自答。
+   */
   InferenceRun: 'inference.run',
   /** 推理：中断正在进行的一轮。幂等，未在运行时调用无副作用。 */
   InferenceAbort: 'inference.abort',

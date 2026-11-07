@@ -2569,6 +2569,8 @@ pnpm 生成的 `node_modules` 分两层，理解这一点能解释「为什么�
 | GET | `/api/sessions/:id` | 会话详情 | `SessionMeta` |
 | GET | `/api/models` | 可用模型 | `ModelDescriptor[]` |
 | GET | `/api/tools` | 已注册工具 | `ToolDescriptor[]` |
+| POST | `/api/proactive/check` | 判一次「此刻能不能主动开口」（九道闸归宿主） | `ProactiveVerdict` |
+| POST | `/api/proactive/decline` | 用户点了「这次不用」，宿主记一次拒绝 | `{ ok }` |
 
 ### 10.2 内核协议方法
 
@@ -2583,7 +2585,7 @@ pnpm 生成的 `node_modules` 分两层，理解这一点能解释「为什么�
 | | `session.get` | `id` | 读取会话元信息 |
 | | `session.list` | `includeArchived` | 列出会话 |
 | | `session.archive` | `id` | 归档，幂等 |
-| 推理 | `inference.run` | `sessionId`、`input` | 发起一轮对话，流式推送增量 |
+| 推理 | `inference.run` | `sessionId`、`input`（可省）、`nudge`（可省） | 发起一轮对话，流式推送增量。`input` 省略即「她主动开口」，`nudge` 是不落盘的临时系统提示 |
 | | `inference.abort` | `sessionId` | 中断当前轮次，幂等 |
 | 工具 | `tool.list` | 无 | 列出已注册工具 |
 | | `tool.invoke` | `name`、`arguments` | 调用单个工具，执行前校验参数 |

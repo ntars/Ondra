@@ -92,6 +92,22 @@ export interface SpineProps {
    * 而睡眠已有 `resting` 那一档专门表达。
    */
   muted: boolean
+  /**
+   * 今天是否已经进入「安静」（§7.4：连续拒绝 3 次 → 当日停止主动消息）。
+   *
+   * ## 为什么不复用 `muted`
+   *
+   * 两者在脊上都显示一行字，但**原因完全不同**：静音是用户按下的开关，
+   * 有明确截止时刻，一小时后自己恢复；安静是她今天被拒绝了三次而退场，
+   * 到零点才重置。把它们画成同一个词，用户就永远分不清「为什么她今天
+   * 不说话了」——是我不小心按了静音，还是我被判定为不想理她。
+   *
+   * ## 与静音同时成立时显示哪一个
+   *
+   * 显示静音。它是更强的约束（用户明确要求「别出声」），
+   * 而且有截止时刻可查；两行一起挂会让脊看起来像出错了。
+   */
+  quietToday: boolean
   /** 点击整条脊。 */
   onToggle(): void
 }
@@ -112,6 +128,7 @@ export function Spine({
   inspectorOpen,
   resting,
   muted,
+  quietToday,
   onToggle,
 }: SpineProps): React.JSX.Element {
   const fillRef = useRef<HTMLDivElement | null>(null)
@@ -189,8 +206,12 @@ export function Spine({
         静音行（§5.7 静音态）。
         独立于读数区渲染：静音与「有没有数据」是两件事，没有心跳读数时
         静音照样成立。放在读数区外面，才不会因为无数据而整块消失。
+
+        「今天安静」与静音共用同一个位置（见 `quietToday` 的注释）：
+        静音优先，两者不同时显示。
       */}
       {muted ? <span className="spine__muted">静音</span> : null}
+      {!muted && quietToday ? <span className="spine__muted">今天安静</span> : null}
 
       {/* 悬停时浮现的一行提示（§5.7）。纯装饰，读屏不念。 */}
       <span className="spine__hint" aria-hidden="true">查看侧写</span>

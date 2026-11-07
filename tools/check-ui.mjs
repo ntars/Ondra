@@ -220,6 +220,22 @@ function serve(settings) {
     if (path === '/api/config') return json(response, { currentModel: 'magpie', permission: 'workspace', profiles: [] })
     if (path === '/api/settings' && request.method === 'GET') return json(response, settings)
     if (path === '/api/settings' && request.method === 'POST') return json(response, { ok: true })
+    /*
+     * 主动开口（§6.4 E、§7.4）。
+     *
+     * 默认放行、额度够、无冷却。这是宿主装了 `ondra-proactive-gate`
+     * 且各项都宽松时的真实返回，界面必须照着它渲染。
+     *
+     * 「这次不用」回 `{ok:true}`：宿主那边只做 `reportSuccess()` 记账，
+     * 没有别的回执。桩照抄真实形状，不发明字段。
+     */
+    if (path === '/api/proactive/check') {
+      return json(response, {
+        allow: true, code: 'pass', reason: '想问你雨停了没',
+        remaining: 2, quota: 3, used: 1, deferMs: 0, gateMissing: false,
+      })
+    }
+    if (path === '/api/proactive/decline') return json(response, { ok: true })
     if (/^\/api\/sessions\/[^/]+\/messages$/.test(path)) return json(response, MESSAGES)
     if (path.startsWith('/api/')) return json(response, { ok: true })
     const file = join(ROOT, normalize(path === '/' ? 'index.html' : path).replace(/^(\.\.[/\\])+/, ''))
@@ -2454,6 +2470,293 @@ async function run() {
     for (const error of prefErrors) console.log(`  ${error}`)
     process.exitCode = 1
   }
+
+  /*
+   * --- 主动开口（§6.4 E、§7.4）---
+   *
+   * ## 为什么开一页新文档，而不是在主流程里做
+   *
+   * 这条链路的触发条件是**会话安静 25 分钟**。在主流程里等，要么真等
+   * 二十五分钟，要么把 `IDLE_MINUTES` 改成可注入的——后者会让「默认值
+   * 是多少」这件事从代码里消失，测试也就验不到出厂行为了。
+   *
+   * 所以换一条路：新开一页，装 Playwright 的虚拟时钟，把时间快进过去。
+   * 页面里的 `Date.now()` 与 `setTimeout` 一起被接管，`useProactiveTick`
+   * 算出的到期时刻与真实运行时**完全同一条路径**，只是时钟走得快。
+   *
+   * ## 为什么必须是独立页
+   *
+   * 虚拟时钟是**整个文档**的。装到主流程那一页，前面所有靠真实时间
+   * 跑的断言（Toast 自动消失、抽屉 180ms、淡出）全都会失真。一页只
+   * 服务这一组断言，代价是重新进入会话的三次点击。
+   *
+   * ## 为什么推理接口要单独桩成 SSE
+   *
+   * `serve()` 的兜底路由回一段 JSON。主动开口走的是流式接口，
+   * 收到一段没有 `\n\n` 的 JSON 会一个帧都切不出来——于是占位消息
+   * 永远停在 `pending`，`onDone` 不触发，撤回窗口也不开。那时断言
+   * 会报「按钮不存在」，而真缺陷在测试自己的桩上。
+   */
+  const proPage = await browser.newPage({ viewport: { width: 820, height: 580 }, deviceScaleFactor: 2 })
+  const proErrors = []
+  proPage.on('console', (message) => {
+    if (message.type() === 'error') proErrors.push(message.text())
+  })
+  proPage.on('pageerror', (error) => { proErrors.push(String(error)) })
+
+  /** 「这次不用」打到宿主的请求体。要验它带对了会话 id。 */
+  const declineCalls = []
+  await proPage.route('**/api/proactive/decline', (route) => {
+    declineCalls.push(route.request().postDataJSON())
+    void route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
+  })
+  await proPage.route('**/api/inference', (route) => {
+    /*
+     * 一帧 `session`、一帧 `delta`、一帧 `done`。
+     *
+     * 三帧都要给：`session` 是 `onSession` 的来源（主动开口不该新建会话，
+     * 但桩照真实形状回，才能验出「界面没有因此把会话换掉」）；
+     * `delta` 让正文有字，`done` 才带得出 `setUndoable`。
+     */
+    const frames = [
+      'event: session\ndata: {"sessionId":"s1"}',
+      'event: delta\ndata: {"text":"雨好像停了。"}',
+      'event: done\ndata: {"text":"雨好像停了。"}',
+    ].join('\n\n')
+    void route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: `${frames}\n\n` })
+  })
+
+  await proPage.clock.install()
+  await proPage.addInitScript(fakeShell(port))
+  await proPage.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
+  await proPage.waitForTimeout(400)
+  await proPage.locator('.welcome__start').click()
+  await proPage.waitForTimeout(600)
+  await proPage.locator('.rail__item').first().click()
+  await proPage.waitForTimeout(400)
+  await proPage.locator('.drawer__row').first().click()
+  await proPage.waitForTimeout(700)
+
+  /*
+   * 先验「没到点不说话」。
+   *
+   * 这条比后面那条更重要：一个每 5 秒就问一次门控的实现，也能让「二十五
+   * 分钟后有一行理由」通过。只有先证明没到点时**一次都没问**，才能断定
+   * 它真的是按时间醒来的，而不是一直在问。
+   *
+   * 判据看两层：界面上没有 `.reasonline`，且宿主没收到过 `/api/proactive/check`。
+   */
+  const beforeDue = await proPage.evaluate(() => ({
+    lines: document.querySelectorAll('.reasonline').length,
+    msgs: document.querySelectorAll('.message').length,
+  }))
+  eq('未到空闲阈值时不出现主动开口', 0, beforeDue.lines)
+  same('未到阈值时消息条数不变', 2, beforeDue.msgs)
+
+  // 快进 31 分钟：越过 25 分钟阈值，也越过 90 秒抖动的上限。
+  await proPage.clock.fastForward(31 * 60 * 1000)
+  await proPage.waitForTimeout(1500)
+
+  const spoke = await proPage.evaluate(() => {
+    const line = document.querySelector('.reasonline')
+    if (line === null) return { found: false }
+    const dot = line.querySelector('.reasonline__dot')
+    const undo = line.querySelector('.reasonline__undo')
+    const article = line.closest('.message')
+    const body = article?.querySelector('.message__body')
+    const dotStyle = dot === null ? null : getComputedStyle(dot)
+    const lineStyle = getComputedStyle(line)
+    return {
+      found: true,
+      lines: document.querySelectorAll('.reasonline').length,
+      /* 正文：不含理由行，所以去掉它再量。 */
+      prose: (body?.textContent ?? '').trim(),
+      /*
+       * 整行文字去掉按钮：按钮文字不算「判据」。
+       *
+       * 只取 `reasonline__text` 自己的文本节点——`textContent` 会把里面
+       * 那个 `.reasonline__why` 的摘要一起拼进来，于是这条断言变成了
+       * 「摘要也在」，与它要守的「固定那五个字写没写对」不是一件事。
+       */
+      label: [...(line.querySelector('.reasonline__text')?.childNodes ?? [])]
+        .filter((node) => node.nodeType === 3)
+        .map((node) => (node.textContent ?? '').trim())
+        .join(''),
+      why: (line.querySelector('.reasonline__why')?.textContent ?? '').trim(),
+      fontSize: lineStyle.fontSize,
+      marginTop: lineStyle.marginTop,
+      /*
+       * 正文与理由行之间的**实际**间距。
+       *
+       * 不用 `margin-top` 一个数了事：正文最后一行如果是块级元素，
+       * 或者 `.message__body` 有自己的下边距，两者会折叠或叠加，
+       * `margin-top: 8px` 写着 8、视觉上却可能是 16 或 0。量几何差。
+       */
+      gap: body === null ? -1 : Math.round(line.getBoundingClientRect().top - body.getBoundingClientRect().bottom),
+      dot: dotStyle === null ? null : {
+        w: dotStyle.width, h: dotStyle.height,
+        radius: dotStyle.borderRadius, bg: dotStyle.backgroundColor,
+      },
+      undo: undo === null ? null : {
+        text: (undo.textContent ?? '').trim(),
+        hasIcon: undo.querySelector('svg') !== null,
+        inLine: undo.closest('.reasonline') !== null,
+      },
+      /* 理由行必须是消息的**一部分**（挂在 article 内），不能浮在外面。 */
+      inArticle: article !== null,
+      /* 判据行不是正文，选中复制时会带出断句奇怪的半句（§12.2）。 */
+      selectable: lineStyle.userSelect,
+    }
+  })
+
+  truthy('空闲满阈值后出现主动开口', spoke.found === true)
+  eq('一次只开口一条', 1, spoke.lines)
+  same('主动开口的正文已落定', '雨好像停了。', spoke.prose)
+  same('可解释行文字是「她主动开口」', '她主动开口', spoke.label)
+  same('可解释行带判据摘要', '· 想问你雨停了没', spoke.why)
+  same('可解释行字号 11', '11px', spoke.fontSize)
+  same('可解释行距正文 8', '8px', spoke.marginTop)
+  eq('可解释行几何间距 8', 8, spoke.gap)
+  truthy('可解释行是消息的一部分而非浮层', spoke.inArticle === true)
+  same('可解释行不可选中', 'none', spoke.selectable)
+  /*
+   * 沙色点：2px、正圆、颜色等于 `--static-sand-500`（浅色主题 #b08a5a）。
+   *
+   * 尺寸按 §6.4 E 的原话「行首 2px 沙色点」。颜色写死 rgb 而不是读令牌：
+   * 断言要抓的正是「令牌有没有真的传到这个元素上」，读令牌等于自证。
+   */
+  eq('沙色点宽 2', 2, Number.parseFloat(spoke.dot?.w ?? '0'))
+  eq('沙色点高 2', 2, Number.parseFloat(spoke.dot?.h ?? '0'))
+  same('沙色点是正圆', '50%', spoke.dot?.radius)
+  same('沙色点取沙色令牌', 'rgb(176, 138, 90)', spoke.dot?.bg)
+  same('「这次不用」四个字', '这次不用', spoke.undo?.text)
+  truthy('「这次不用」带图标', spoke.undo?.hasIcon === true)
+  truthy('「这次不用」在可解释行内', spoke.undo?.inLine === true)
+
+  /*
+   * 三秒窗口到点自动收起。
+   *
+   * 快进 3.2 秒再量：按钮该消失，**消息与理由行都还在**。后者是重点——
+   * 一个把「窗口过期」实现成「把整条消息删掉」的版本，第一条断言也会过。
+   */
+  await proPage.clock.runFor(3200)
+  await proPage.waitForTimeout(300)
+  const afterWindow = await proPage.evaluate(() => ({
+    undo: document.querySelectorAll('.reasonline__undo').length,
+    lines: document.querySelectorAll('.reasonline').length,
+    msgs: document.querySelectorAll('.message').length,
+  }))
+  eq('三秒后「这次不用」自动收起', 0, afterWindow.undo)
+  eq('三秒后可解释行仍在', 1, afterWindow.lines)
+  eq('三秒后消息仍在', 3, afterWindow.msgs)
+
+  /*
+   * 再等一轮，点「这次不用」。
+   *
+   * 验四件事：消息被撤下、请求带对会话 id、拒绝计数落盘、Spine 仍是常态
+   * （一次拒绝还没到「今天安静」）。
+   */
+  await proPage.clock.fastForward(31 * 60 * 1000)
+  await proPage.waitForTimeout(1200)
+  const second = await proPage.evaluate(() => ({
+    lines: document.querySelectorAll('.reasonline').length,
+    msgs: document.querySelectorAll('.message').length,
+  }))
+  eq('冷却过去后再次开口', 1, second.lines)
+  eq('两次开口后共四条消息', 4, second.msgs)
+
+  await proPage.locator('.reasonline__undo').first().click()
+  await proPage.waitForTimeout(600)
+  const afterDecline = await proPage.evaluate(() => ({
+    lines: document.querySelectorAll('.reasonline').length,
+    msgs: document.querySelectorAll('.message').length,
+    quiet: (document.querySelector('.spine__muted')?.textContent ?? '').trim(),
+    stored: (() => {
+      const key = Object.keys(localStorage).find((name) => name.startsWith('ondra.proactive.declines.'))
+      return key === undefined ? null : { key, value: localStorage.getItem(key) }
+    })(),
+  }))
+  eq('点「这次不用」后该条消息消失', 3, afterDecline.msgs)
+  /*
+   * 判断行留 1 条，不是 0。
+   *
+   * 上一轮那条主动消息**没被拒绝**，它带着自己的判断行留在历史里——
+   * §6.4 E 的可解释行是消息的一部分，不是临时浮层，删它等于删那条消息。
+   * 所以这里期望「刚好少一条」：2 → 1。
+   */
+  eq('点「这次不用」只撤下对应的那条判断行', 1, afterDecline.lines)
+  same('一次拒绝还没到当天安静', '', afterDecline.quiet)
+  truthy('拒绝计数落盘且键带日期', afterDecline.stored !== null && /^ondra\.proactive\.declines\.\d{4}-\d{2}-\d{2}$/.test(afterDecline.stored.key))
+  same('拒绝计数为 1', '1', afterDecline.stored?.value)
+  same('「这次不用」带上了会话 id', 's1', declineCalls.at(-1)?.sessionId)
+
+  /*
+   * 连续第三次拒绝 → 当天安静（§7.4）。
+   *
+   * 循环两次把计数推到 3：第二次拒完是 2，第三次是 3。用循环而不是
+   * 手写三遍，是因为中间每一步都要等一轮冷却，写三遍会漏掉「第二次
+   * 之后还肯开口」这件事——一个「拒绝一次就再也不说」的实现，也会让
+   * 最后那条断言通过。
+   */
+  for (let round = 2; round <= 3; round += 1) {
+    await proPage.clock.fastForward(31 * 60 * 1000)
+    await proPage.waitForTimeout(1200)
+    const again = await proPage.evaluate(() => ({
+      lines: document.querySelectorAll('.reasonline').length,
+      undo: document.querySelectorAll('.reasonline__undo').length,
+    }))
+    eq(`第 ${String(round)} 次拒绝前她仍肯开口`, 1, again.lines)
+    truthy(`第 ${String(round)} 次开口带「这次不用」`, again.undo === 1)
+    await proPage.locator('.reasonline__undo').first().click()
+    await proPage.waitForTimeout(600)
+  }
+
+  const quietState = await proPage.evaluate(() => ({
+    quiet: (document.querySelector('.spine__muted')?.textContent ?? '').trim(),
+    stored: (() => {
+      const key = Object.keys(localStorage).find((name) => name.startsWith('ondra.proactive.declines.'))
+      return key === undefined ? null : localStorage.getItem(key)
+    })(),
+    msgs: document.querySelectorAll('.message').length,
+    lines: document.querySelectorAll('.reasonline').length,
+  }))
+  same('连续拒绝三次后 Spine 显示今天安静', '今天安静', quietState.quiet)
+  same('连续拒绝三次后计数为 3', '3', quietState.stored)
+  eq('三次拒绝后消息总数', 3, quietState.msgs)
+  /*
+   * 判断行留 1 条：最早那条的撤回窗口已经过去，它永久留在历史里。
+   *
+   * 这条断言与上面「消息总数 3」是一体的：3 = 2 条原始 + 1 条没撤掉的。
+   * 两条一起看才兜得住「撤消息」与「撤理由」是同一个动作——若实现成
+   * 「只删理由行、留正文」，lines 会是 0 而 msgs 仍是 3，那条正文就
+   * 成了没有解释的凭空一句。
+   */
+  eq('三次拒绝后残留那条判断行（超时后永久保留）', 1, quietState.lines)
+
+  /*
+   * 安静之后**不再问**。
+   *
+   * 这条守的是「安静」的语义：它不是显示一句话，而是当天真的停止。
+   * 若只改显示不停定时器，再过 25 分钟她照样开口——用户会看到
+   * 「今天安静」旁边又冒出一条主动消息。
+   */
+  await proPage.clock.fastForward(31 * 60 * 1000)
+  await proPage.waitForTimeout(1200)
+  const afterQuiet = await proPage.evaluate(() => ({
+    lines: document.querySelectorAll('.reasonline').length,
+    msgs: document.querySelectorAll('.message').length,
+  }))
+  eq('安静之后不再主动开口', 0, afterQuiet.lines)
+  eq('安静之后消息条数不再增长', 2, afterQuiet.msgs)
+
+  await proPage.screenshot({ path: join(OUT, 'proactive-v5.png') })
+
+  if (proErrors.length > 0) {
+    console.log('\n主动开口页的控制台错误：')
+    for (const error of proErrors) console.log(`  ${error}`)
+    process.exitCode = 1
+  }
+  await proPage.close()
 
   // --- 深色 ---
   await page.evaluate(() => {

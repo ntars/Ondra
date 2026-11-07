@@ -176,8 +176,35 @@ export async function createKernel(
     running.set(sessionId, abort)
     const model = currentModel === '' ? ECHO_MODEL_ID : currentModel
 
+    /*
+     * 主动开口的临时提示（`nudge`）。
+     *
+     * ## 为什么需要它
+     *
+     * 用户没说话时，历史里最后一条是**她自己**说过的话。把这段历史原样
+     * 交给模型，它只会「接着自己的话往下说」——那不是主动开口，是自问自答。
+     * 主动开口需要一句只在本次运行存在的指令，告诉她「现在轮到你开口了」。
+     *
+     * ## 为什么是 `nudge` 而不是新增一个 RPC 方法
+     *
+     * 主动与回话在**推理这一层没有区别**：同样的历史、同样的模型、同样的
+     * 流式回调、同样的落盘规则。为了「谁发起」多开一条链路，会让两边的
+     * 中断、错误、事件推送各写一遍——而它们必须完全一致，否则主动消息
+     * 的异常态与普通回复不一样，用户会看到两种坏法。
+     *
+     * ## 为什么不落盘
+     *
+     * 它是**指令**不是**对话**。存进历史后，下次读消息会把它当成一条
+     * 系统消息再喂回去，模型就会以为「她每隔一轮都被要求主动开口」，
+     * 回话也会变得像主动。这条提示的生命周期严格等于本次运行。
+     */
+    const nudge = readOptionalString(params, 'nudge')
+
     try {
       const history = await readMessages(sessionId)
+      const messages = nudge !== undefined && nudge.trim() !== ''
+        ? [...history, { id: 'nudge', role: 'system' as const, content: nudge, createdAt: Date.now() }]
+        : history
       const chunks: string[] = []
       /** 思考过程的累计。只用于诊断与最终返回值，不写进会话正文。 */
       const thoughts: string[] = []
@@ -185,7 +212,7 @@ export async function createKernel(
 
       // 逐块消费适配器的输出：文本即时推送，工具调用留到流结束后执行
       // （工具可能改变后续对话，必须在模型本轮说完之后再跑）。
-      for await (const chunk of models.run({ model, messages: history, tools: [] })) {
+      for await (const chunk of models.run({ model, messages, tools: [] })) {
         if (abort.signal.aborted) break
         if (chunk.type === 'text' && chunk.text !== undefined) {
           chunks.push(chunk.text)
