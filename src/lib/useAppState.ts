@@ -170,6 +170,15 @@ export interface AppState {
   attachments: Attachment[]
   /** 弹出系统文件选择并附加。无壳时静默无操作。 */
   addFiles(): void
+  /**
+   * 直接附加一批（粘贴图片用，§12.14）。
+   *
+   * 与 `addFiles` 分开而不是加一个可选参数：那条路走系统选择器、
+   * 拿回来的是路径；这条路不走选择器、拿回来的是内存里的缩略图。
+   * 硬合成一个函数，内部就要按「有没有 path」分叉两次，
+   * 而两条路的入参形状根本没有交集。
+   */
+  addAttachments(items: readonly { name: string; thumb?: string }[]): void
   /** 移除一条附件。 */
   removeAttachment(id: string): void
 
@@ -1094,6 +1103,35 @@ export function useAppState(): AppState {
   }, [])
 
   /**
+   * 直接附加一批（§12.14 粘贴图片）。
+   *
+   * ## 为什么 id 仍在这里生成
+   *
+   * 调用方（`Composer` 的 paste 处理）已经在做「读剪贴板 → 解码 → 缩放」
+   * 三件异步的事，再让它拼 id 就得知道 id 的格式。格式是数据层的约定，
+   * 留在这里，调用方只交「名字与图」。
+   *
+   * 与 `addFiles` 共用同一个前缀与随机后缀规则，两处的 key 不会撞。
+   */
+  const addAttachments = useCallback((items: readonly { name: string; thumb?: string }[]): void => {
+    if (items.length === 0) return
+    const stamp = Date.now()
+    setAttachments((previous) => [
+      ...previous,
+      ...items.map((item, index) => ({
+        /*
+         * 后缀带序号：同一毫秒内加六张图时，`Math.random` 理论上能撞，
+         * 而 React 的 key 撞了会静默丢一条附件——用户看到五个，
+         * 发送时却提示六个。序号把这条概率压成零。
+         */
+        id: `att-${String(stamp)}-${String(index)}-${Math.random().toString(36).slice(2, 7)}`,
+        name: item.name,
+        ...(item.thumb === undefined || item.thumb === '' ? {} : { thumb: item.thumb }),
+      })),
+    ])
+  }, [])
+
+  /**
    * 切换语音输入。
    *
    * 不支持的环境（多数 WebView）直接提示，而不是假装能录。
@@ -1244,6 +1282,7 @@ export function useAppState(): AppState {
     setModel,
     attachments,
     addFiles,
+    addAttachments,
     removeAttachment,
     voiceActive,
     toggleVoice,

@@ -517,6 +517,32 @@ async function checkStaticSpecs() {
     const body = contrastBlock[1]
     if (!/--line-width:\s*1px/.test(body)) problems.push('prefers-contrast: more 没有把 --line-width 提到 1px')
     if (!/--focus-ring-width:\s*3px/.test(body)) problems.push('prefers-contrast: more 没有把 --focus-ring-width 提到 3px')
+    /*
+     * §12.11 原文是「`ink-4` 提升为 `ink-3`」。
+     *
+     * ## 为什么必须逐个别名查，不能只查 `--static-ink-4`
+     *
+     * 直接改 `--static-ink-4` 会连带改掉表头底线与滚动条悬停色——两者
+     * 都不是文字。所以正确做法是**按别名提**，而按别名提就必然会出现
+     * 「漏一个」：`--alias-label-dimmed` 在 16 个组件样式里出现，
+     * 漏掉它时界面看起来完全正常（它本来就淡），只是那几句话
+     * 在大对比度模式下仍然读不清。这类缺陷只能靠枚举守住。
+     */
+    for (const alias of ['--alias-label-tertiary', '--alias-label-caption', '--alias-label-dimmed']) {
+      const rule = new RegExp(`${alias}:\\s*var\\(--static-ink-[23]\\)`)
+      if (!rule.test(body)) problems.push(`prefers-contrast: more 没有把 ${alias} 提到 ink-2 / ink-3`)
+    }
+    // 水位在休息/静音时用这个别名画，它也是「承载信息」的颜色。
+    if (!/--alias-state-idle-primary:\s*var\(--static-ink-[23]\)/.test(body)) {
+      problems.push('prefers-contrast: more 没有把 --alias-state-idle-primary 提高一档')
+    }
+    /*
+     * 反向：`--static-ink-4` 本身**不该**在这个块里被改。
+     * 改了它就等于把表头底线与滚动条一起加深，那是这条规则的越界。
+     */
+    if (/--static-ink-4:/.test(body)) {
+      problems.push('prefers-contrast: more 直接改了 --static-ink-4（会把非文字用途的线一起加深）')
+    }
   }
 
   if (!/@media\s*\(prefers-reduced-transparency:\s*reduce\)/.test(stripTokens)) {
@@ -839,6 +865,27 @@ async function run() {
         return node === null ? '' : getComputedStyle(node).backgroundColor
       })(),
       modelLabel: (document.querySelector('.composer__model-button')?.textContent ?? '').trim(),
+      /*
+       * 输入区只有**一圈**焦点指示（§5.6）。
+       *
+       * ## 为什么这一条必须量，而且量两样
+       *
+       * 「卡片描边转 teal」与「textarea 不画自己的环」是一件事的两半：
+       * 只做前一半会得到两圈重叠的框（textarea 的环是直角的、
+       * 且贴着文字，直接压在正文上，截图里一眼就能看出来）。
+       * 只做后一半则完全没有焦点可视化，键盘用户摸不到自己在哪。
+       *
+       * `outlineStyle` 而不是宽度：`outline-style: none` 时 Chromium 仍会把
+       * 宽度报成 `0px`，与「画了 0 宽」混在一起；`none` 才是没画的确定证据。
+       */
+      inputOutline: (() => {
+        const node = document.querySelector('.composer__input')
+        return node === null ? 'missing' : getComputedStyle(node).outlineStyle
+      })(),
+      cardShadow: (() => {
+        const node = document.querySelector('.composer__card')
+        return node === null ? '' : getComputedStyle(node).boxShadow
+      })(),
     }
   })
 
@@ -858,6 +905,35 @@ async function run() {
   truthy('禁用的发送键带可朗读原因', result.sendHint.length > 0)
   same('模型名显示当前模型', 'magpie', result.modelLabel)
 
+  /*
+   * 焦点指示只有一层（§5.6）。
+   *
+   * 这两条要在**输入框聚焦之后**量。此刻页面刚加载、焦点在 body，
+   * 卡片描边还是 line 色——那时候量到的 teal 是假的。所以先点一下输入框，
+   * 等 CSS 过渡（120ms）走完再读。
+   */
+  await page.locator('.composer__input').click()
+  await page.waitForTimeout(300)
+  const focusRing = await page.evaluate(() => {
+    const input = document.querySelector('.composer__input')
+    const card = document.querySelector('.composer__card')
+    return {
+      inputOutline: input === null ? 'missing' : getComputedStyle(input).outlineStyle,
+      cardShadow: card === null ? '' : getComputedStyle(card).boxShadow,
+    }
+  })
+  /*
+   * `outline-style: none` 是唯一可靠判据。
+   *
+   * `outline-width` 在 `style: none` 时仍报 `0px`，而「画了一圈 0 宽」在
+   * 观感上与没画一样——用宽度判会让「残留一圈 0.5px」这类回归静默通过。
+   */
+  same('输入框自己不画焦点环', 'none', focusRing.inputOutline)
+  truthy(
+    `聚焦时卡片描边转 teal（${focusRing.cardShadow.slice(0, 60)}）`,
+    /rgb\(46,\s*74,\s*69\)/.test(focusRing.cardShadow),
+  )
+
   // --- 打字后发送键启用 ---
   await page.locator('.composer__input').fill('试试发送')
   await page.waitForTimeout(200)
@@ -869,6 +945,175 @@ async function run() {
     }
   })
   same('有内容时发送键启用', 'false', String(afterType.disabled))
+
+  /*
+   * --- 粘贴（§12.14）---
+   *
+   * ## 为什么这三条必须真往剪贴板里放东西
+   *
+   * 「粘贴图片转附件」这条最容易假绿的地方是：写了个 `onPaste`，
+   * 也在里面调了 `preventDefault`，但真粘贴时拿到的 `clipboardData`
+   * 结构不对（`files` 为空、`items` 才有），于是什么都不发生——
+   * 而任何只查「有没有绑定 onPaste」的断言都会通过。
+   *
+   * 这里用 `ClipboardEvent` + 真 `DataTransfer` 派发事件，
+   * 走的是与用户按 Cmd+V 完全相同的处理路径。
+   *
+   * ## 图片为什么要 1×1 的 canvas 现造
+   *
+   * `createImageBitmap` 要一份能解码的图。用一段写死的 base64 PNG
+   * 最省事，但那个常量一改错（少一个字符）测的就是「解码失败」这条
+   * 降级路径，而断言看到的仍然是「附件加上了」——因为失败时也会
+   * 退回不带缩略图的附件。现造一张 2×2 的纯色图，解码一定成功，
+   * 才能验到缩略图**真的有值**。
+   */
+  const pasteImage = await page.evaluate(async () => {
+    const input = document.querySelector('.composer__input')
+    if (input === null) return { ran: false }
+
+    // 造一张 2×2 的红色 PNG。
+    const canvas = document.createElement('canvas')
+    canvas.width = 2
+    canvas.height = 2
+    const context = canvas.getContext('2d')
+    if (context === null) return { ran: false }
+    context.fillStyle = '#c0392b'
+    context.fillRect(0, 0, 2, 2)
+    const blob = await new Promise((resolve) => { canvas.toBlob(resolve, 'image/png') })
+    if (blob === null) return { ran: false }
+    const file = new File([blob], 'clip.png', { type: 'image/png' })
+
+    const data = new DataTransfer()
+    data.items.add(file)
+    // 剪贴板同时带一段文字：模拟「从网页复制一张图」的真实情况。
+    data.setData('text/plain', '这段文字不该被插进输入框')
+
+    /*
+     * 记**变化量**而不是「粘完是不是空」。
+     *
+     * 输入框里此刻有前面打字测试留下的内容（「试试发送」），拿绝对值得出
+     * 的预期必然是错的。要验的是「粘贴这一步有没有往输入框里加东西」，
+     * 那就只能看前后差——这也正是断言该问的问题。
+     */
+    const before = input.value ?? ''
+    input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    // 解码 + 缩放是异步的，等它落地。
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const image = document.querySelector('.composer__attachment--image')
+    const thumb = document.querySelector('.composer__attachment-thumb')
+    const style = thumb === null ? null : getComputedStyle(thumb)
+    const box = thumb === null ? null : thumb.getBoundingClientRect()
+    return {
+      ran: true,
+      added: document.querySelectorAll('.composer__attachment').length,
+      imageClass: image !== null,
+      thumbW: box === null ? 0 : Math.round(box.width),
+      thumbH: box === null ? 0 : Math.round(box.height),
+      thumbRadius: style?.borderRadius ?? '',
+      thumbBg: style?.backgroundImage ?? '',
+      grew: (input.value ?? '').length - before.length,
+      unchanged: (input.value ?? '') === before,
+    }
+  })
+
+  truthy('粘贴图片后出现附件', pasteImage.ran === true && pasteImage.added >= 1)
+  eq('图片附件缩略图 48 宽', 48, pasteImage.thumbW)
+  eq('图片附件缩略图 48 高', 48, pasteImage.thumbH)
+  truthy('缩略图真的有图（不是空背景）', (pasteImage.thumbBg ?? '').startsWith('url("data:image/'))
+  truthy(
+    `粘贴图片时文字不落进输入框（多了 ${String(pasteImage.grew)} 字）`,
+    pasteImage.unchanged === true,
+  )
+
+  /*
+   * 留一张带附件的截图。
+   *
+   * 几何断言量得到「48 × 48」，量不到「48 × 48 的图上面那个 16px 的叉
+   * 有没有把图挡掉一半」。这一块是纯视觉判断，只能靠图。
+   */
+  await page.screenshot({ path: join(OUT, 'paste-attachment-v1.png') })
+
+  /*
+   * 纯文字粘贴必须走浏览器默认路径。
+   *
+   * 判据不是「输入框里多了字」——直接 `fill` 也能让它多字。判据是
+   * **事件没有被 `preventDefault`**：真被拦了，浏览器的默认插入就不会发生，
+   * 用户按 Cmd+V 什么都没出来。这里读 `dispatchEvent` 的返回值，
+   * 它为 `false` 就说明默认行为被挡掉了。
+   */
+  const pasteText = await page.evaluate(() => {
+    const input = document.querySelector('.composer__input')
+    if (input === null) return { ran: false }
+    const data = new DataTransfer()
+    data.setData('text/plain', '纯文字粘贴')
+    const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+    const allowed = input.dispatchEvent(event)
+    return { ran: true, allowed, prevented: event.defaultPrevented }
+  })
+  truthy('纯文字粘贴未被拦截（交浏览器默认处理）', pasteText.ran === true && pasteText.prevented === false)
+
+  // 清掉粘贴测试留下的附件，后面的尺寸断言才回到「无附件」状态。
+  await page.evaluate(() => {
+    for (const button of document.querySelectorAll('.composer__attachment-remove')) button.click()
+  })
+  await page.waitForTimeout(150)
+  const afterClean = await page.evaluate(() => ({
+    count: document.querySelectorAll('.composer__attachment').length,
+    cardH: Math.round((document.querySelector('.composer__card')?.getBoundingClientRect().height ?? 0)),
+  }))
+  eq('移除后附件清空', 0, afterClean.count)
+  eq('移除后输入卡回到 76', 76, afterClean.cardH)
+
+  /*
+   * --- 超长确认（§12.14）---
+   *
+   * 判据是「弹出的是 Dialog 而不是原生 confirm」。原生 `confirm` 会
+   * **阻塞整个渲染进程**，在无头浏览器里表现是这次 `evaluate` 永久挂住——
+   * 所以这里绝不能真触发它，而是先 `page.on('dialog')` 兜住并记一笔：
+   * 一旦代码退回原生 `confirm`，那条会记到 `nativeDialogs` 里，断言报红。
+   *
+   * 之所以不满足于「有对话框出现」：原生 confirm 也是一张对话框，
+   * 用户能看见、也能点，唯独样式是系统的，与 §5.12 的规格毫无关系。
+   */
+  let nativeDialogs = 0
+  const onNativeDialog = async (dialog) => { nativeDialogs += 1; await dialog.dismiss() }
+  page.on('dialog', onNativeDialog)
+
+  await page.locator('.composer__input').fill('长'.repeat(8001))
+  await page.waitForTimeout(150)
+  await page.locator('.composer__send').click()
+  await page.waitForTimeout(300)
+  const longConfirm = await page.evaluate(() => {
+    const dialog = document.querySelector('.dialog')
+    return {
+      open: dialog !== null,
+      title: (document.querySelector('.dialog__title')?.textContent ?? '').trim(),
+      body: (document.querySelector('.dialog__body')?.textContent ?? '').trim(),
+      confirm: [...document.querySelectorAll('.dialog__actions button')].map((node) => node.textContent.trim()),
+      // 输入框里的字必须还在：确认只是加一道闸，不该清空用户的内容。
+      kept: (document.querySelector('.composer__input')?.value ?? '').length,
+    }
+  })
+  truthy('超长时出现对话框', longConfirm.open === true)
+  eq('超长提示未走原生 confirm', 0, nativeDialogs)
+  same('超长对话框用 Dialog 组件标题', '这条有点长', longConfirm.title)
+  truthy('超长对话框说明具体字数', longConfirm.body.includes('8001'))
+  truthy('超长对话框有两个明确动词', longConfirm.confirm.length === 2 && longConfirm.confirm[0] === '再改改')
+  eq('超长时草稿保留', 8001, longConfirm.kept)
+
+  // 「再改改」只关框，不改草稿。
+  await page.locator('.dialog__actions button').first().click()
+  await page.waitForTimeout(200)
+  const afterCancel = await page.evaluate(() => ({
+    open: document.querySelector('.dialog') !== null,
+    draft: (document.querySelector('.composer__input')?.value ?? '').length,
+  }))
+  same('点再改改后对话框关闭', false, afterCancel.open)
+  eq('点再改改后草稿仍在', 8001, afterCancel.draft)
+  page.off('dialog', onNativeDialog)
+  await page.locator('.composer__input').fill('')
+  await page.waitForTimeout(150)
 
   /*
    * --- 正文排版（§12.4）---

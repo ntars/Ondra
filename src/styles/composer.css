@@ -71,6 +71,8 @@
 
 .composer__attachments {
   display: flex;
+  /* 图片缩略图 48 高、文件胶囊 24 高，居中对齐才落在同一条视觉基线上。 */
+  align-items: center;
   gap: 8px;
   margin-bottom: 8px;
   /* 超过 6 个时横向滚动，不换行——换行会把 76 高的卡撑到 130。 */
@@ -118,6 +120,78 @@
   color: var(--alias-label-primary);
 }
 
+/**
+ * 图片附件：48 × 48 的方块（§12.14）。
+ *
+ * ## 高度 48 的来源，以及它对 76 的影响
+ *
+ * 48 是规范定的缩略图边长。但它一出现，输入卡就从 76 变成
+ * 76 + 48 + 8（间距）= 132——**附件一旦存在，76 这条预算本来就不成立了**。
+ * 这不是缺陷：76 描述的是「单行、无附件」的常态，主列 436 的预算也按
+ * 常态算。附件是用户主动加的东西，接受它把卡撑高。
+ *
+ * ## 删除点压在右上角外侧
+ *
+ * 缩略图右上角是图里最不承载信息的位置。放里面（`top: 0`）会压住图，
+ * 放外面（负偏移）在横向滚动条旁边会被裁。取 `inset: 2px 2px auto auto`，
+ * 完整落在图内又不碰到边缘。
+ */
+.composer__attachment--image {
+  position: relative;
+  display: block;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: none;
+  border-radius: var(--radius-sm);
+  /* 描边用 inset 阴影：border 会把 48 撑成 49，与另一张图对不齐。 */
+  box-shadow: inset 0 0 0 var(--line-width) var(--alias-border-l2);
+  overflow: visible;
+}
+
+.composer__attachment-thumb {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  /*
+   * `cover` 而不是 `contain`：thumb 在 `lib/paste.ts` 里已经按 1:1 裁过，
+   * 这里只在系统字号放大导致容器被拉伸时才用得上。`cover` 保证任何比例下
+   * 都不出空白边。
+   */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/**
+ * 图片附件的删除点。
+ *
+ * ## 为什么与文件胶囊的删除键分开写
+ *
+ * 文件胶囊里它是一个 20 × 20 的透明热区，跟着文字走；图片上它必须
+ * **有底色**——直接压在照片上，一个透明的叉在浅色照片里根本看不见。
+ * 底色取纸底 + 一圈细描边，像一枚扣在图上的小按钮。
+ */
+.composer__attachment--image .composer__attachment-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  /* 视觉 12 的叉：Icon 只有 16/20 两档，靠 scale 落到 12。 */
+  transform: scale(0.75);
+  border-radius: 50%;
+  background: var(--alias-bg-overlay);
+  box-shadow: 0 0 0 var(--line-width) var(--alias-border-l2);
+  color: var(--alias-label-secondary);
+}
+
+.composer__attachment--image .composer__attachment-remove:hover {
+  color: var(--alias-label-primary);
+  background: var(--alias-bg-base);
+}
+
 /* ---------------------------------------------------------------------------
    输入
    --------------------------------------------------------------------------- */
@@ -140,6 +214,30 @@
 
 .composer__input::placeholder {
   color: var(--alias-label-dimmed);
+}
+
+/**
+ * 输入框自己**不画焦点环**，焦点指示交给卡片（§5.6）。
+ *
+ * ## 为什么这不是「去掉了焦点可视化」
+ *
+ * §5.6 明写「首次聚焦：边框从 0.5px line 过渡到 0.5px teal，**不做外发光**」。
+ * 也就是说，输入区的焦点指示器是**卡片描边**这一件事，不是 textarea 的轮廓。
+ *
+ * 不关掉的话会出现两圈框：`base.css` 的全局 `:focus-visible` 给 textarea 画
+ * 一圈 2px teal 环（`border-radius: inherit`，而 textarea 没有圆角，
+ * 于是画出一个贴着文字的直角框），卡片再画一圈 teal 描边。截图里那圈压在
+ * 「试试发送」上的直角框就是它——既挡字，又让界面上同时出现两个「你在这里」。
+ *
+ * ## 为什么键盘用户仍然看得见焦点
+ *
+ * 卡片用的是 `:focus-within`，不区分鼠标与键盘：**只要焦点在输入区里，
+ * 卡片描边就是 teal**。所以关掉 textarea 自己的环不会造成
+ * 「键盘用户失去焦点可视化」——那才是 `outline: none` 真正危险的地方。
+ * 换句话说，这里挪走的是重复的那一圈，不是唯一的那一圈。
+ */
+.composer__input:focus-visible {
+  outline: none;
 }
 
 /* ---------------------------------------------------------------------------

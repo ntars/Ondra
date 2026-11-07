@@ -2727,6 +2727,7 @@ Ondra/
 │   │   ├── mute.ts               One-hour mute: deadline, self-expiry, tray label sync
 │   │   ├── sound.ts              Cues: three synthesized tones, own volume, honours mute
 │   │   ├── absence.ts            Time away: 10-minute threshold, human wording, one line on return
+│   │   ├── paste.ts              Paste: images become attachments, 48px thumbs, one length limit
 │   │   ├── richText.ts           Body parser: Markdown into structures, link allowlist, depth limits
 │   │   ├── settings.ts           Settings read and write
 │   │   ├── settingTypes.ts       Types for settings fields and sections

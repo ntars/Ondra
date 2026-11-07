@@ -16,7 +16,9 @@
  * | 空输入时发送键**保留**但降为 40% | `disabled` + CSS 不透明度，不移除节点 |
  * | 首次聚焦边框转 teal | CSS `:focus-within` |
  * | 高度 1→3 行逐级增长 | `rows` 由内容行数算，封顶 3 |
- * | 粘贴多行不自动发送 | 不监听 paste，交给浏览器默认行为 |
+ * | 粘贴多行不自动发送 | 不拦文本粘贴，交给浏览器默认行为 |
+ * | 粘贴图片转附件 | `lib/paste.ts` + 本文件的 `onPaste` |
+ * | 粘贴超长先确认 | 本文件的 `pending` + `Dialog` |
  * | 生成中输入框仍可编辑 | `disabled` 只加在发送键上 |
  * | 生成中按 Enter | 走 `interrupt` 判断 |
  * | 草稿跨会话保留 | 状态在 `useAppState`，本组件不持有 |
@@ -32,16 +34,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconClose, IconPlus, IconSend } from './icons.ts'
+import { Dialog } from './Dialog.tsx'
+import { CONFIRM_LIMIT, imagesOf, toPastedImages } from '../lib/paste.ts'
 import type { Attachment } from '../lib/types.ts'
 import type { ModelDescriptor } from '../lib/api.ts'
 
-/** 单条上限。超过这个字数在底部行给计数提示（§5.6）。 */
-const SOFT_LIMIT = 8000
+/**
+ * 单条上限：底部行出现计数的阈值，也是发送前确认的阈值。
+ *
+ * 定义在 `lib/paste.ts`——那里是「多少字算长」这条规则的唯一真源，
+ * 而计数与确认是它的两种表现。定义两遍就会出现「计数跳了但不问」。
+ */
+const SOFT_LIMIT = CONFIRM_LIMIT
 
-/** 超过这个字数在发送前弹确认（§12.14）。 */
-const CONFIRM_LIMIT = 8000
-
-/** 单行高度，用于把内容行数换算成可视高度。 */
+/**
+ * 单行高度，用于把内容行数换算成可视高度。
+ *
+ * `LINE` 是 textarea 的 `line-height`（见 `composer.css`：14px × 20/14），
+ * 不是字号。两者分开写，是因为将来改字号时行高不该跟着等比缩——
+ * 20px 行高在 14 与 15 两个字号下都是中文的舒适值。
+ */
 const LINE = 20
 
 /** 最多展开 3 行，超出内部滚动（§5.6）。 */
@@ -62,6 +74,13 @@ export interface ComposerProps {
   attachments: Attachment[]
   /** 弹出文件选择。 */
   onAddFiles(): void
+  /**
+   * 直接附加一批（粘贴图片，§12.14）。
+   *
+   * 与 `onAddFiles` 并列而不是复用它：那条走系统选择器，
+   * 这条走内存里的缩略图，两者唯一的共同点是「都往附件列表里加东西」。
+   */
+  onAddAttachments(items: readonly { name: string; thumb?: string }[]): void
   /** 移除一条附件。 */
   onRemoveAttachment(id: string): void
   /** 可选模型。 */
@@ -103,6 +122,7 @@ export function Composer({
   busy,
   attachments,
   onAddFiles,
+  onAddAttachments,
   onRemoveAttachment,
   models,
   modelId,
@@ -139,22 +159,39 @@ export function Composer({
     node.style.height = `${String(Math.min(node.scrollHeight, max))}px`
   }, [value])
 
-  /** 发送。超长时先确认（§12.14）。 */
-  const submit = useCallback((): void => {
-    const text = value.trim()
-    if (text === '' && attachments.length === 0) return
-    if (text.length > CONFIRM_LIMIT) {
-      // 用原生 confirm 是这一处唯一的例外：项目里没有 Dialog 组件，
-      // 为一个边缘场景引入一整套 Sheet/Dialog 不划算。等 §5.12 的
-      // Dialog 落地后换掉，注释留在此处便于日后定位。
-      if (!globalThis.confirm(`内容较长（${String(text.length)} 字），确认发送？`)) return
-    }
+  /**
+   * 待确认的超长草稿。
+   *
+   * `undefined` 表示没有待确认的东西。存的是**提交那一刻的快照**而不是
+   * 「要不要确认」的布尔：确认后要发的是那一份内容，而用户在这期间
+   * 完全可能又改了几个字——真发出去的是他改过的版本，确认框就成了摆设。
+   */
+  const [pending, setPending] = useState<{ text: string } | undefined>(undefined)
+
+  /**
+   * 真正发送。抽出来是因为它有两个入口：直接发、确认后发。
+   *
+   * 抽出来而不是在 `submit` 里加一个 `confirmed` 参数：那个参数一旦存在，
+   * 每个调用点都要想一次「我这里该传什么」，而答案永远是同一个。
+   */
+  const deliver = useCallback((): void => {
     if (busy) {
       if (interrupt === 'interrupt') onStop()
       else return
     }
     onSend()
-  }, [value, attachments.length, busy, interrupt, onStop, onSend])
+  }, [busy, interrupt, onStop, onSend])
+
+  /** 发送。超长时先确认（§12.14）。 */
+  const submit = useCallback((): void => {
+    const text = value.trim()
+    if (text === '' && attachments.length === 0) return
+    if (text.length > CONFIRM_LIMIT) {
+      setPending({ text })
+      return
+    }
+    deliver()
+  }, [value, attachments.length, deliver])
 
   const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     // 组合中不发送（§12.3）。这一条必须最先判。
@@ -184,6 +221,34 @@ export function Composer({
     return () => { globalThis.removeEventListener('pointerdown', onPointerDown) }
   }, [menuOpen])
 
+  /**
+   * 粘贴（§12.14）。
+   *
+   * ## 三种情形，只有两种需要动手
+   *
+   * | 剪贴板里是 | 动作 |
+   * | --- | --- |
+   * | 纯文字 | 什么都不做，浏览器默认粘贴（含换行、丢样式，天然满足要求） |
+   * | 图片 | `preventDefault` + 转附件，文字一并不收 |
+   * | 图片 + 文字 | 同上。文字是图片的元数据，不是用户要说的话 |
+   *
+   * ## 为什么在没有图片时直接返回
+   *
+   * 这是这一条最容易被写坏的地方。一旦对**所有** paste 都
+   * `preventDefault` 再自己 `insertText`，就会同时丢掉：撤销栈的
+   * 合并、输入法的候选上屏、原生选区替换。三样都要自己重写一遍，
+   * 而收益是零——textarea 的默认粘贴本来就是我们想要的。
+   */
+  const onPaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const files = imagesOf(event.clipboardData)
+    if (files.length === 0) return
+    event.preventDefault()
+    void (async () => {
+      const images = await toPastedImages(files)
+      onAddAttachments(images)
+    })()
+  }, [onAddAttachments])
+
   const overLimit = value.length > SOFT_LIMIT
   /** 空输入：发送键保留但不可用（§5.6）。 */
   const empty = value.trim() === '' && attachments.length === 0
@@ -191,12 +256,43 @@ export function Composer({
   return (
     <div className="composer">
       <div className="composer__card">
-        {/* 附件缩略图排在输入框上方，超过 6 个横向滚动（§5.6）。 */}
+        {/*
+          附件缩略图排在输入框上方，超过 6 个横向滚动（§5.6）。
+
+          ## 两种形态：图片有图，文件没有
+
+          图片附件画成 48 × 48 的方块（§12.14），文件附件留 24 高的胶囊。
+          不是刻意不一致——胶囊里能放文件名，图片附件放不下，
+          硬塞一个 48 高的方块里再叠文字会让两者都看不清。
+          容器用 `align-items: center` 让它们在一条水平线上居中对齐。
+        */}
         {attachments.length > 0 ? (
           <ul className="composer__attachments">
             {attachments.map((item) => (
-              <li key={item.id} className="composer__attachment">
-                <span className="composer__attachment-name" title={item.name}>{item.name}</span>
+              <li
+                key={item.id}
+                className={item.thumb === undefined
+                  ? 'composer__attachment'
+                  : 'composer__attachment composer__attachment--image'}
+                title={item.name}
+              >
+                {item.thumb === undefined ? (
+                  <span className="composer__attachment-name">{item.name}</span>
+                ) : (
+                  /*
+                    缩略图用 `background-image` 而不是 `<img>`：
+                    它是 48 × 48 的定方块，`background-size: cover` 一行就够，
+                    而 `<img>` 要额外处理 object-fit、拖拽（图片默认可拖，
+                    拖出去会变成往别的应用扔一个 data URL）与 alt 取舍。
+                    装饰性图片不该有 alt——文件名已在 `title` 上。
+                  */
+                  <span
+                    className="composer__attachment-thumb"
+                    role="img"
+                    aria-label={item.name}
+                    style={{ backgroundImage: `url(${item.thumb})` }}
+                  />
+                )}
                 <button
                   type="button"
                   className="composer__attachment-remove"
@@ -219,6 +315,7 @@ export function Composer({
           aria-label="输入消息"
           onChange={(event) => { onChange(event.target.value) }}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
         />
 
         <div className="composer__row">
@@ -320,6 +417,38 @@ export function Composer({
           )}
         </div>
       </div>
+
+      {/*
+        超长确认（§12.14）。
+
+        ## 为什么用 `Dialog` 而不是 `globalThis.confirm`
+
+        原生 `confirm` 在 macOS 上会弹出系统级模态框，**样式完全不受控制**：
+        字号、圆角、按钮顺序都是系统的，与这个纸白界面放在一起像两个应用。
+        更实际的问题在 Tauri 里——WebView 的 `confirm` 在部分平台会被壳拦掉
+        或根本不显示，于是「超长时提示」这条静默失效，谁也不会发现。
+
+        ## 文案按 §7.6 的三段式
+
+        「发了什么 · 为什么值得一问 · 下一步」。不说「确定吗」，因为
+        「确定/取消」是抽象词，用户读完仍不知道自己按下去会发生什么。
+      */}
+      {pending === undefined ? null : (
+        <Dialog
+          title="这条有点长"
+          confirmLabel="照这样发"
+          cancelLabel="再改改"
+          onConfirm={() => {
+            setPending(undefined)
+            deliver()
+          }}
+          /* Esc 与「再改改」都只是关掉这个框，草稿原样留在输入框里。 */
+          onCancel={() => { setPending(undefined) }}
+          onDismiss={() => { setPending(undefined) }}
+        >
+          这条有 {pending.text.length} 个字，对方读到一半可能就跟不上了。拆成两条通常更好读。
+        </Dialog>
+      )}
     </div>
   )
 }

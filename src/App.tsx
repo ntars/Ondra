@@ -706,6 +706,7 @@ function Shell(): React.JSX.Element {
               busy={state.busy}
               attachments={state.attachments}
               onAddFiles={state.addFiles}
+              onAddAttachments={state.addAttachments}
               onRemoveAttachment={state.removeAttachment}
               models={state.models}
               modelId={state.modelId}

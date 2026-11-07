@@ -779,6 +779,23 @@
        是「看得清才读得下去」的那一类，不该留在 4.5:1 的下限上。 */
     --alias-label-tertiary: var(--static-ink-2);
     --alias-label-caption: var(--static-ink-2);
+    /*
+     * §12.11 的原话是「`ink-4` 提升为 `ink-3`」。
+     *
+     * ## 为什么这里必须按「别名」改，而不能只改 `--static-ink-4`
+     *
+     * 改 `--static-ink-4` 会连着改掉 `--specific-table-head-line` 与
+     * `--alias-scrollbar-hover-l2`——前者是 0.5px 的表头底线（装饰），
+     * 后者是滚动条悬停色。两个都是**非文字**用途，在大对比度下把线加深
+     * 等于把表格切碎、把滚动条变成一块黑条。§12.11 说的「ink-4 提升」
+     * 针对的是文字，所以就只提指向文字的那两个别名。
+     *
+     * 这条原来是漏的：只提了 tertiary / caption，`dimmed` 与
+     * `state-idle-primary` 仍停在 2.7:1——而它们承载的正是
+     * 「休息中」「静音」「这一天离开了多久」三句**必须读得到**的话。
+     */
+    --alias-label-dimmed: var(--static-ink-3);
+    --alias-state-idle-primary: var(--static-ink-3);
   }
 }
 

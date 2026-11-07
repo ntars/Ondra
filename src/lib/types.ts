@@ -28,6 +28,22 @@ export type { PermissionLevel } from './api.ts'
 export interface Attachment {
   id: string
   name: string
+  /**
+   * 图片附件的 48 × 48 缩略图（data URL，§12.14「粘贴图片 → 自动转附件」）。
+   *
+   * ## 为什么是可选字段而不是 `kind: 'image' | 'file'`
+   *
+   * 判别式联合会强迫每个读到附件的地方都先写一次 `switch`，而除输入区
+   * 以外**没有任何地方关心附件是不是图片**——发送时只取 `name`。
+   * 一个可选的图，比一个让所有调用方多写分支的标签便宜。
+   *
+   * ## 为什么存 data URL 而不是路径
+   *
+   * 粘贴来的图没有路径。`<img src>` 要显示它，只能拿到一份可直接解码的
+   * 内容；再存路径就得先把这段 base64 落到磁盘，为一个缩略图多写一次文件。
+   * data URL 只活在这一个附件对象里，随它一起被移除。
+   */
+  thumb?: string
 }
 
 /** 本轮用量，显示在输入区底部行。 */
