@@ -1,0 +1,273 @@
+/**
+ * 通用控件规格（§12.16）。
+ *
+ * ## 为什么单独一个文件
+ *
+ * 滑杆、开关、分段三种控件在三个地方出现：检查器设置的场景层、模块层、
+ * 偏好设置窗口。它们此前**各写一套**——轨道 4px / 4px / 4px 但滑块
+ * 12 / 10 / 12、开关 32 宽与 32 宽、分段 26 高与 26 高。三处数值
+ * 相近而不相同，改一处另两处不会跟着变，用户在两扇窗口之间来回看
+ * 会觉得"同样的开关长得不一样"。
+ *
+ * 所以规格收到这里，一处定义、三处共用。各组件只额外声明**布局**
+ * （宽度、flex、间距），不再重复外观。
+ *
+ * ## 命名
+ *
+ * `control-*` 前缀表示"规格类"，与原有的语义类（`scene__range`）并存。
+ * 组件同时挂两个类，原类名保留的原因是：它承载布局与调用方的定位，
+ * 而且现有断言按它选择元素。**不改成单一类名**是有意的——布局属于
+ * 使用场景，规格属于控件本身，两者生命周期不同。
+ *
+ * ## 数值来源
+ *
+ * 全部来自 `docs/UI-DESIGN.md` §12.16「设置的控件规格」，
+ * 与 §8.3 的动效表（A4 分段滑块、A5 开关、A6 滑杆拖动）配合。
+ */
+
+/* ---------------------------------------------------------------------------
+   滑杆
+   --------------------------------------------------------------------------- */
+
+/*
+ * 轨道 2px / 已填充 2px / 滑块直径 14。
+ *
+ * ## 已填充段为什么画在元素背景上
+ *
+ * 原生 `input[type=range]` 的 `::-webkit-slider-runnable-track` 只有一条
+ * 背景，无法分段着色。所以整条轨道与填充都移到元素自身的
+ * `linear-gradient` 上，原生轨道设为透明。
+ *
+ * `--fill` 由组件按 `(值 - min) / (max - min)` 算好写上；组件没写时
+ * 退到 0%，此时整条都是轨道色——**视觉上等于"还没调过"**，不会错报成满格。
+ */
+.control-range {
+  /*
+   * 已填充比例。**默认值必须在这里声明**，不能只靠组件写行内样式。
+   *
+   * 两个理由：
+   * 1. `var(--fill)` 无定义时整条 `background` 静默失效（轨道整条消失），
+   *    而组件没传时不该看着像"控件坏了"。
+   * 2. 令牌核对脚本只扫 CSS 里的 `--x:` 定义，只在 TSX 里赋值的变量会被
+   *    报成"未定义令牌"。声明在这里，它就既是兜底也是真源。
+   *
+   * `--fill` 是**局部变量**（只在 `.control-range` 内有效），不放进
+   * `tokens.css`：它不是设计令牌，是一个由数据算出来的运行期值。
+   */
+  --fill: 0%;
+
+  width: 100%;
+  /* 热区 32：规范写"高 32（上下各扩 15）"，即 2px 轨道 ± 15。 */
+  height: 32px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.control-range::-webkit-slider-runnable-track,
+.control-range::-moz-range-track {
+  height: 2px;
+  border-radius: 1px;
+  background:
+    linear-gradient(
+      to right,
+      var(--alias-state-business-primary) 0,
+      var(--alias-state-business-primary) var(--fill, 0%),
+      var(--alias-border-l1) var(--fill, 0%),
+      var(--alias-border-l1) 100%
+    );
+}
+
+.control-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  /* 轨道 2、滑块 14：`(2 - 14) / 2 = -6` 才是垂直居中。 */
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--specific-control-thumb);
+  box-shadow:
+    0 0 0 var(--line-width) var(--alias-border-l1),
+    var(--shadow-lv3);
+  /* A6：拖动跟随指针，**无过渡**。加过渡会拖尾，像在追赶手指。 */
+  transition: none;
+}
+
+.control-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--specific-control-thumb);
+  box-shadow:
+    0 0 0 var(--line-width) var(--alias-border-l1),
+    var(--shadow-lv3);
+}
+
+/*
+ * 焦点环画在滑块上而不是整个控件上。
+ *
+ * 滑杆的热区是 32 高、整行宽，若按常规在外框画 1.5px 环，会得到一条
+ * 贯穿整栏的长框——它不指示"焦点在哪个控件上"，只制造一条横线。
+ * 画在直径 14 的圆上才是"光标在这里"。
+ */
+.control-range:focus-visible {
+  outline: none;
+}
+
+.control-range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 var(--line-width) var(--alias-border-l1),
+    0 0 0 calc(var(--line-width) * 3) var(--alias-state-business-primary);
+}
+
+.control-range:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 var(--line-width) var(--alias-border-l1),
+    0 0 0 calc(var(--line-width) * 3) var(--alias-state-business-primary);
+}
+
+/* 不可用：整条压到 40% 不透明度。禁用态不换色，换色会被误读成"另一档"。 */
+.control-range:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------------------
+   开关
+   --------------------------------------------------------------------------- */
+
+/*
+ * 36 × 20，圆角 10，滑块直径 16。
+ *
+ * 关态轨道用 `--specific-switch-track-off`（paper-3）而不是
+ * `state-idle-tertiary`（paper-2）：后者与开关所在的纸底只差一档，
+ * 深色下几乎看不出边界，开关会像"浮在纸上的两个点"。
+ *
+ * 只可点击、不可拖动：开关能拖是移动端习惯，指针环境下反而容易误触
+ * （鼠标按下去稍微一动就改变了状态）。
+ */
+.control-switch {
+  position: relative;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--specific-switch-track-off);
+  transition: background-color var(--motion-base) var(--ease-fluid);
+}
+
+.control-switch[aria-checked='true'] {
+  background: var(--accent-fill);
+}
+
+.control-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--specific-control-thumb);
+  /* A5：位移与底色同时长。两者不同步会显得旋钮"滑了一下才变色"。 */
+  transition: transform var(--motion-base) var(--ease-fluid);
+}
+
+/* 36 - 16 - 2 - 2 = 16。 */
+.control-switch[aria-checked='true'] .control-switch-knob {
+  transform: translateX(16px);
+}
+
+.control-switch:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+.control-switch:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------------------
+   分段控件
+   --------------------------------------------------------------------------- */
+
+/*
+ * 外框 28 高（+ 2 × 2 内边距 = 32 外高）、圆角 8、`paper-2` 底。
+ * 滑块 `paper-0` 底 + 0.5px 描边、圆角 6。
+ * 文字 12px：未选中 `ink-2`、选中 `ink-1`。
+ *
+ * 候选项**等分**（`flex: 1`）。文字长短差异大时仍等分——不等分会让人
+ * 按字宽猜点击区，点到空白处才发现没选中。
+ */
+.control-segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--alias-bg-module-platform);
+}
+
+.control-segment {
+  flex: 1;
+  height: 28px;
+  border-radius: 6px;
+  font-size: var(--text-caption);
+  color: var(--alias-label-secondary);
+  transition:
+    background-color var(--motion-fast) var(--ease-fluid),
+    color var(--motion-fast) var(--ease-fluid),
+    box-shadow var(--motion-fast) var(--ease-fluid);
+}
+
+.control-segment:hover {
+  color: var(--alias-label-primary);
+}
+
+/*
+ * 选中态：抬起 + 描边。
+ *
+ * 描边用 `box-shadow` 而不是 `border`：border 参与盒模型，选中时会让
+ * 整行高度跳 1px，同排其它项跟着位移。阴影的扩散不占布局。
+ */
+.control-segment[aria-pressed='true'] {
+  background: var(--alias-bg-base);
+  color: var(--alias-label-primary);
+  font-weight: var(--weight-medium);
+  box-shadow: 0 0 0 var(--line-width) var(--alias-border-l1);
+}
+
+.control-segment:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  outline: none;
+}
+
+/* 已选中的项再叠加焦点环：两个阴影要同时保留，不能互相覆盖。 */
+.control-segment[aria-pressed='true']:focus-visible {
+  box-shadow:
+    0 0 0 var(--line-width) var(--alias-border-l1),
+    0 0 0 1.5px var(--alias-state-business-primary);
+}
+
+.control-segment:disabled {
+  cursor: default;
+  color: var(--alias-label-dimmed);
+}
+
+/* ---------------------------------------------------------------------------
+   降级
+   --------------------------------------------------------------------------- */
+
+/*
+ * `prefers-reduced-motion` 下开关与分段的位移全部瞬时（§8.7）。
+ *
+ * 只砍位移，不砍颜色：颜色变化不是"动"，它只是状态的可视化，
+ * 砍掉会让用户看不出开关是否已切换。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .control-switch,
+  .control-switch-knob,
+  .control-segment {
+    transition-duration: 0s;
+  }
+}

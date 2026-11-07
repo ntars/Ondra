@@ -243,7 +243,18 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               />
             ) : null}
 
-            {tab === 'raw' ? <RawLayer sections={sections} user={user} /> : null}
+            {tab === 'raw' ? (
+              <RawLayer
+                sections={sections}
+                user={user}
+                onJump={(sectionId) => {
+                  // 切到模块层并把搜索框填成段 id：模块层按段 id 过滤，
+                  // 跳过去正好只剩那一段。比"只切层不定位"少一次手动搜索。
+                  setQuery(sectionId)
+                  setTab('module')
+                }}
+              />
+            ) : null}
           </>
         ) : null}
       </div>

@@ -314,60 +314,20 @@
   outline: none;
 }
 
-/* --- 滑杆 --- */
-
+/* --- 滑杆 ----------------------------------------------------------------
+ * 外观规格在 `controls.css`（`.control-range`），这里只留场景层的布局。
+ * 场景层的滑杆独占一行，宽度吃满；模块层的滑杆要与右侧数字框并排，
+ * 那是不同的布局，写在各自的文件里。
+ */
 .scene__range {
   width: 100%;
-  height: 16px;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
 }
 
-/* 轨道 4px 高、圆角 2，色用 state-idle-tertiary（最浅一档的交互底）。 */
-.scene__range::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--alias-state-idle-tertiary);
-}
-
-.scene__range::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--alias-state-idle-tertiary);
-}
-
-/* 滑块 12px 圆点，玄青实心——全界面唯一实心色只给主操作，
-   这里是"正在调的那个值"，属同一语义。 */
-.scene__range::-webkit-slider-thumb {
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -4px;
-  border-radius: 50%;
-  background: var(--accent-fill);
-  transition: transform var(--motion-fast) var(--ease-fluid);
-}
-
-.scene__range::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent-fill);
-}
-
-.scene__range:active::-webkit-slider-thumb {
-  transform: scale(1.15);
-}
-
-.scene__range:focus-visible {
-  outline: none;
-}
-
-.scene__range:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
-}
+/* --- 分段 ----------------------------------------------------------------
+ * 外观在 `controls.css`（`.control-segments` / `.control-segment`）。
+ * 这里只保留与模块层共用的布局类名——两层的分段必须长得一样，
+ * 因此数值不在这里重复一遍。
+ */
 
 .scene__readout {
   display: flex;
@@ -389,89 +349,18 @@
   color: var(--alias-label-secondary);
 }
 
-/* --- 分段 --- */
+/* --- 开关 ----------------------------------------------------------------
+ * 外观在 `controls.css`（`.control-switch`）。旧的 `.scene__switch` 规则
+ * 已删除：它曾是开关外观的第二份定义，与偏好窗口那份数值不一致。
+ */
 
-.scene__segments,
-.field__segments {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--radius-sm);
-  background: var(--alias-bg-module-platform);
-}
-
-.scene__segment,
-.field__segment {
-  flex: 1;
-  height: 26px;
-  border-radius: var(--radius-xs);
-  font-size: var(--text-label);
-  color: var(--alias-label-tertiary);
-  transition:
-    background-color var(--motion-fast) var(--ease-fluid),
-    color var(--motion-fast) var(--ease-fluid);
-}
-
-.scene__segment:hover,
-.field__segment:hover {
-  color: var(--alias-label-primary);
-}
-
-.scene__segment[aria-pressed='true'],
-.field__segment[aria-pressed='true'] {
-  background: var(--alias-bg-base);
-  color: var(--alias-label-primary);
-  font-weight: var(--weight-medium);
-}
-
-.scene__segment:focus-visible,
-.field__segment:focus-visible {
-  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
-  outline: none;
-}
-
-/* --- 开关 --- */
-
-.scene__switch {
-  position: relative;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--alias-state-idle-tertiary);
-  transition: background-color var(--motion-base) var(--ease-fluid);
-}
-
-.scene__switch[aria-checked='true'] {
-  background: var(--accent-fill);
-}
-
-.scene__switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--alias-bg-base);
-  /* 位移走 base 档：与底色变化同时长，两者不同步会显得旋钮"滑了一下"。 */
-  transition: transform var(--motion-base) var(--ease-fluid);
-}
-
-.scene__switch[aria-checked='true'] .scene__switch-knob {
-  transform: translateX(12px);
-}
-
-.scene__switch:focus-visible {
-  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
-  outline: none;
-}
-
-/* --- 24 小时横轴 --- */
-
+/* --- 24 小时横轴（§12.16「曲线」）---------------------------------------
+ * 宽 268（抽屉内满宽减内边距）、高 80。
+ * 横轴 0–24 时，每 6 时一条 0.5px 竖线；纵轴不画刻度。
+ */
 .scene__clock {
   position: relative;
-  height: 20px;
+  height: 80px;
   border-radius: var(--radius-xs);
   background: var(--alias-bg-module-platform);
   overflow: hidden;
@@ -492,7 +381,7 @@
   bottom: 0;
   width: var(--line-width);
   background: var(--alias-border-l1);
-}
+  }
 
 .scene__times {
   display: flex;
@@ -733,10 +622,19 @@
   color: var(--alias-label-primary);
 }
 
+/*
+ * 元数据行（§12.16）：12px `ink-3`，位于控件下方 6px。
+ *
+ * 四项「当前值 · 默认值 · 来源插件 · 已改/未改」全用文字不用图标。
+ * 来源段名不进这一行——它已经在段标题上写着，重复一遍只会挤掉别的项。
+ */
 .field__meta {
-  font-size: var(--text-label);
+  margin-top: 6px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
   color: var(--alias-label-tertiary);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .field__control {
@@ -751,41 +649,10 @@
   gap: 4px;
 }
 
+/* 模块层的滑杆只留布局：外观在 `controls.css`（`.control-range`）。
+   这一层要与右侧数字框并排，所以吃剩余宽度而不是整行。 */
 .field__range {
   flex: 1;
-  height: 16px;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-.field__range::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--alias-state-idle-tertiary);
-}
-
-.field__range::-webkit-slider-thumb {
-  appearance: none;
-  width: 10px;
-  height: 10px;
-  margin-top: -3px;
-  border-radius: 50%;
-  background: var(--accent-fill);
-}
-
-.field__range::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--alias-state-idle-tertiary);
-}
-
-.field__range::-moz-range-thumb {
-  width: 10px;
-  height: 10px;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent-fill);
 }
 
 .field__number {
@@ -867,6 +734,21 @@
    原始层
    --------------------------------------------------------------------------- */
 
+/*
+ * §12.16「原始层键值行」：
+ *   行高 32 · 键名 13px 等宽 `ink-1` · 类型与默认值 11px `ink-4` 同行右侧
+ *   来源插件 11px `ink-3` 可点击 · 已改标记：键名左侧 2px teal 竖条
+ *
+ * ## 值只读，不给行内编辑
+ *
+ * 规范写了「点击值进入编辑」，但这一层的定位是**排障视图**——
+ * 它的价值是「一眼看全 1168 条」。json 字段的正确编辑方式是模块层的
+ * 等宽文本域（有实时校验）；在这里塞一个输入框，用户改完 json 写错了
+ * 也没有校验提示，只会在下次启动时被插件静默回退默认值。
+ *
+ * **知道规范与实现不一致，比假装一致好。** 这条差异记在当日日志里，
+ * 等模块层的校验能力搬到这一层时再补。
+ */
 .raw__table {
   width: 100%;
   border-collapse: collapse;
@@ -881,9 +763,11 @@
   box-shadow: inset 0 calc(var(--line-width) * -1) 0 0 var(--alias-border-l1);
 }
 
+/* 行高 32。用 min-height 而不是固定 height：长键名换行时不该被裁掉。 */
 .raw__table td {
-  padding: 4px 0;
-  vertical-align: top;
+  height: 32px;
+  padding: 0;
+  vertical-align: middle;
   color: var(--alias-label-secondary);
 }
 
@@ -892,8 +776,17 @@
 }
 
 .raw__key {
+  /* 13px 等宽。用 rem：系统字号放大时键名要跟着放大。 */
   font-family: var(--font-family-code);
+  font-size: 0.8125rem;
+  color: var(--alias-label-primary);
   word-break: break-all;
+}
+
+/* 已改标记：键名左侧 2px teal 竖条。 */
+.raw__table tr[data-changed] .raw__key {
+  box-shadow: inset 2px 0 0 0 var(--alias-state-business-primary);
+  padding-left: 6px;
 }
 
 .raw__tag {
@@ -910,7 +803,9 @@
 
 .raw__kind {
   font-family: var(--font-family-code);
-  color: var(--alias-label-tertiary);
+  /* 11px `ink-4`：类型是"读一眼就够"的元信息，不承载判断。 */
+  font-size: var(--text-label);
+  color: var(--alias-label-dimmed);
 }
 
 /* 值列限宽 + 省略号：json 长值会把表格撑出横向滚动（§12.4 不允许整块横向滚）。 */
@@ -932,7 +827,33 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-family-code);
+}
+
+/*
+ * 段 id 作为跳转按钮：长成普通文字，只在悬停时给出"可以点"的信号。
+ *
+ * 不做成蓝色链接——全项目禁蓝，且这一列有 80 行，每行一个彩色链接
+ * 会把表格读成一片荧光。下划线在悬停时出现，足够表达"这是可点的"。
+ */
+.raw__jump {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label);
   color: var(--alias-label-tertiary);
+  text-align: left;
+}
+
+.raw__jump:hover {
+  color: var(--alias-label-primary);
+  text-decoration: underline;
+}
+
+.raw__jump:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
+  border-radius: 2px;
 }
 
 .raw__pager {

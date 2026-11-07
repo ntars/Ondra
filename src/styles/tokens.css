@@ -250,6 +250,17 @@
   --alias-state-idle-primary: var(--static-ink-4);
   --alias-state-idle-tertiary: var(--alias-interactive-bg-hover);
 
+  /* --- 控件 ---------------------------------------------------------------
+   * 滑块与开关的白圆点。**必须单独一个令牌**，不能借 `--alias-bg-base`：
+   * 那个在深色下是 `#141715`，借它会让白滑块变成深色圆点，落在同样深的
+   * 轨道上等于消失。深色下改为 `ink-1`（浅墨），语义仍是"这个圆点是凸起的"。
+   *
+   * 开关关闭态的轨道用 paper-3（比纸底深两档）。借 `state-idle-tertiary`
+   * 不行——那是 paper-2，与开关所在的纸底只差一档，深色下几乎看不出边界。
+   */
+  --specific-control-thumb: var(--static-paper-0);
+  --specific-switch-track-off: var(--static-paper-3);
+
   /* --- 水位 ---------------------------------------------------------------
    * 水位填充色由 JS 按心情值在两端之间插值后写进 `--specific-water`，
    * 组件只读 `--specific-water`，不自己算色。这里给两个端点做兜底，
@@ -682,6 +693,9 @@
 
   /* 焦点环：主色已提亮，跟着走。 */
   --focus-ring-color: var(--static-teal-600);
+
+  /* 滑块与开关的圆点：深色底上"白"要改成浅墨，否则深底深点看不出。 */
+  --specific-control-thumb: var(--static-ink-1);
 
   /* 滚动条滑块：深底上用更亮的一档。`#5a635f` 在 paper-0 上 2.91:1、
      paper-1 上 2.72:1，与浅色侧的 2.20 / 2.03 视觉重量相当

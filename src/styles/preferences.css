@@ -381,46 +381,12 @@
 }
 
 /*
- * 开关。宽高与 `settings.css` 的 `.scene__switch` 一致（32 × 20，圆角 10），
- * 圆点 16px、位移 12px——两处必须是同一套尺寸，否则用户在偏好窗口与
- * 设置面板之间来回看会发现"开关长得不一样"。
+ * 开关：外观在 `controls.css`（`.control-switch`）。
  *
- * 底色用 `state-idle-tertiary`（关）与 `accent-fill`（开）：这是全项目
- * 唯一实心色的既有语义，不新增。
+ * 这里删掉了原先的 32 × 20 那一版。曾同时存在两套宽度（32 与 36），
+ * 用户在偏好窗口和设置面板之间来回看会发现开关"长得不一样"——
+ * 而它们本该是同一种控件。规格只能有一处。
  */
-.pref__switch {
-  position: relative;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--alias-state-idle-tertiary);
-  transition: background-color var(--motion-base) var(--ease-fluid);
-}
-
-.pref__switch[aria-checked='true'] {
-  background: var(--accent-fill);
-}
-
-.pref__switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--alias-bg-base);
-  transition: transform var(--motion-base) var(--ease-fluid);
-}
-
-.pref__switch[aria-checked='true'] .pref__switch-knob {
-  transform: translateX(12px);
-}
-
-.pref__switch:focus-visible {
-  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
-  outline: none;
-}
 
 /* 音量滑杆。轨道与滑块与 `settings.css` 的 `.scene__range` 同一套数值。 */
 .pref__slider {
@@ -454,58 +420,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 外观在 `controls.css`（`.control-range`）。这里只留布局。 */
 .pref__range {
   width: 100%;
-  height: 16px;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-.pref__range:disabled {
-  cursor: default;
-}
-
-.pref__range::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--alias-state-idle-tertiary);
-}
-
-.pref__range::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--alias-state-idle-tertiary);
-}
-
-.pref__range::-webkit-slider-thumb {
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -4px;
-  border-radius: 50%;
-  background: var(--accent-fill);
-  transition: transform var(--motion-fast) var(--ease-fluid);
-}
-
-.pref__range::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent-fill);
-}
-
-.pref__range:active::-webkit-slider-thumb {
-  transform: scale(1.15);
-}
-
-.pref__range:focus-visible {
-  outline: none;
-}
-
-.pref__range:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 1.5px var(--alias-state-business-primary);
 }
 
 /*

@@ -75,17 +75,21 @@ function NumberField({
    */
   const useSlider = max - min <= 200
 
+  /* 已填充比例（§12.16）。同 `SceneLayer`：轨道无法分段着色，填充画在元素背景上。 */
+  const fill = max > min ? `${String(((current - min) / (max - min)) * 100)}%` : '0%'
+
   return (
     <div className="field__control">
       {useSlider ? (
         <input
-          className="field__range"
+          className="field__range control-range"
           type="range"
           min={min}
           max={max}
           step={1}
           value={current}
           aria-label={field.key}
+          style={{ '--fill': fill } as React.CSSProperties}
           onChange={(event) => { onCommit(Number(event.target.value)) }}
         />
       ) : null}
@@ -220,12 +224,12 @@ function EnumField({
 
   if (values.length <= 4) {
     return (
-      <div className="field__control field__segments" role="group" aria-label={field.key}>
+      <div className="field__control field__segments control-segments" role="group" aria-label={field.key}>
         {values.map((option) => (
           <button
             key={option}
             type="button"
-            className="field__segment"
+            className="field__segment control-segment"
             aria-pressed={current === option}
             onClick={() => { onCommit(option) }}
           >
@@ -266,6 +270,19 @@ function FieldRow({
 }): React.JSX.Element {
   const value = valueOf(user, section.id, field.key, field.default)
   const changed = user[section.id]?.[field.key] !== undefined
+
+  /*
+   * 当前值压成一行短文本给元数据行用。
+   *
+   * json 不展开（展开会把面板撑破），只报条数或类型——用户从这行字里
+   * 要得到的是"现在是什么形态"，不是全文。
+   */
+  const currentText = Array.isArray(value)
+    ? `[${String(value.length)} 项]`
+    : typeof value === 'object' && value !== null
+      ? '{…}'
+      : String(value)
+
   const commit = useCallback((next: unknown): void => {
     void onWrite(section.id, field.key, next)
   }, [field.key, onWrite, section.id])
@@ -285,21 +302,18 @@ function FieldRow({
       <div className="field__head">
         {/* 标题用字段键：`doc` 是说明，不是标题。缺失中文名时显示原名即可（§5.13）。 */}
         <span className="field__key">{field.key}</span>
-        <span className="field__meta">
-          {changed ? `已改 · 默认 ${String(field.default ?? '—')}` : String(field.default ?? '—')}
-        </span>
       </div>
 
       {field.kind === 'boolean' ? (
         <button
           type="button"
-          className="scene__switch"
+          className="scene__switch control-switch"
           role="switch"
           aria-checked={value === true}
           aria-label={field.key}
           onClick={() => { commit(value !== true) }}
         >
-          <span className="scene__switch-knob" />
+          <span className="scene__switch-knob control-switch-knob" />
         </button>
       ) : null}
 
@@ -307,6 +321,23 @@ function FieldRow({
       {field.kind === 'string' ? <StringField field={field} value={value} onCommit={commit} /> : null}
       {field.kind === 'json' ? <JsonField field={field} value={value} onCommit={commit} /> : null}
       {field.kind === 'enum' ? <EnumField field={field} value={value} onCommit={commit} /> : null}
+
+      {/*
+        * 元数据行（§12.16「五种控件共用」）。
+        *
+        * 四项全用文字不用图标：图标需要学习，文字不需要。
+        *
+        * 位置在控件**下方** 6px。原先放在标题右侧，与键名挤在一行里——
+        * 那样一行要放「键名 + 当前 + 默认 + 已改」四段文字，12px 字在
+        * 360 宽的面板里会折行，折了行就一项都读不全。
+        *
+        * 「当前」只在改动过时显示：未改时当前值恒等于默认值，
+        * 并排写两个一样的数字只是噪声。
+        */}
+      <p className="field__meta">
+        {changed ? `当前 ${currentText} · ` : null}
+        默认 {String(field.default ?? '—')} · {changed ? '已改' : '未改'}
+      </p>
 
       {field.doc === undefined ? null : <p className="field__doc">{field.doc}</p>}
       {needsRestart ? <p className="field__restart">下次启动生效</p> : null}

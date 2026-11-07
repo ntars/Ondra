@@ -155,10 +155,10 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      className="pref__switch"
+      className="pref__switch control-switch"
       onClick={() => { onChange(!checked) }}
     >
-      <span className="pref__switch-knob" />
+      <span className="pref__switch-knob control-switch-knob" />
     </button>
   )
 }
@@ -403,7 +403,7 @@ export function Preferences(): React.JSX.Element {
                 </div>
                 <input
                   type="range"
-                  className="pref__range"
+                  className="pref__range control-range"
                   min={0}
                   max={100}
                   step={1}
@@ -411,6 +411,8 @@ export function Preferences(): React.JSX.Element {
                   aria-label="提示音音量"
                   aria-valuetext={`${String(prefs.soundVolume)}`}
                   disabled={!prefs.sound}
+                  /* 已填充比例（§12.16）。0–100 的连续档，直接用值当百分比。 */
+                  style={{ '--fill': `${String(prefs.soundVolume)}%` } as React.CSSProperties}
                   onChange={(event) => {
                     setPreferences({ soundVolume: Number(event.target.value) })
                   }}

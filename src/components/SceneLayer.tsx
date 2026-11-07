@@ -98,6 +98,15 @@ function NumberControl({
     if (draft !== current) onCommit(draft)
   }
 
+  /*
+   * 已填充比例（§12.16「左起至滑块」）。
+   *
+   * 轨道本身只有一条背景，无法分段着色，所以填充画在元素自己的
+   * `linear-gradient` 上，由这个百分比切成两段。`max === min` 时除零，
+   * 退到 0——那种字段在界面上不该出现滑杆，但真出现了也不该崩。
+   */
+  const fill = max > min ? `${String(((draft - min) / (max - min)) * 100)}%` : '0%'
+
   return (
     <div className="scene__control">
       {item.options === undefined || item.options.length === 0 ? null : (
@@ -124,7 +133,7 @@ function NumberControl({
       )}
 
       <input
-        className="scene__range"
+        className="scene__range control-range"
         type="range"
         min={min}
         max={max}
@@ -133,6 +142,8 @@ function NumberControl({
         value={draft}
         aria-label={item.name}
         aria-valuetext={String(draft)}
+        /* 已填充比例交给 CSS 画（见 `controls.css` 的 `.control-range`）。 */
+        style={{ '--fill': fill } as React.CSSProperties}
         onChange={(event) => {
           dragging.current = true
           setDraft(Number(event.target.value))
@@ -172,14 +183,14 @@ function EnumControl({
   const values = state.field?.values ?? item.options?.map((option) => option.value) ?? []
 
   return (
-    <div className="scene__segments" role="group" aria-label={item.name}>
+    <div className="scene__segments control-segments" role="group" aria-label={item.name}>
       {values.map((value) => {
         const label = item.options?.find((option) => option.value === value)?.label ?? value
         return (
           <button
             key={value}
             type="button"
-            className="scene__segment"
+            className="scene__segment control-segment"
             aria-pressed={current === value}
             onClick={() => { onCommit(value) }}
           >
@@ -205,13 +216,13 @@ function SwitchControl({
   return (
     <button
       type="button"
-      className="scene__switch"
+      className="scene__switch control-switch"
       role="switch"
       aria-checked={on}
       aria-label={item.name}
       onClick={() => { onCommit(!on) }}
     >
-      <span className="scene__switch-knob" />
+      <span className="scene__switch-knob control-switch-knob" />
     </button>
   )
 }

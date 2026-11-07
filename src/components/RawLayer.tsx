@@ -25,6 +25,14 @@ import type { SceneValues } from '../lib/scenes.ts'
 export interface RawLayerProps {
   sections: SettingsSection[]
   user: SceneValues
+  /**
+   * 跳到模块层的某个段（§12.16「来源插件可点击跳转」）。
+   *
+   * 回调由 `Settings` 提供：它持有「当前在哪一层」与「模块层搜索词」两个
+   * 状态，原始层只负责说"用户点了这一段"。让原始层自己去切层，就得把
+   * 两个状态传进来再传出去，比一个回调重。
+   */
+  onJump?(sectionId: string): void
 }
 
 /** 每页行数。80 行约两屏，足够看清一批同类字段。 */
@@ -51,7 +59,7 @@ function cell(value: unknown): string {
 }
 
 /** 渲染原始层。 */
-export function RawLayer({ sections, user }: RawLayerProps): React.JSX.Element {
+export function RawLayer({ sections, user, onJump }: RawLayerProps): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
 
@@ -135,7 +143,22 @@ export function RawLayer({ sections, user }: RawLayerProps): React.JSX.Element {
               <td className="raw__kind">{row.kind}</td>
               <td className="raw__value" title={row.current}>{row.current}</td>
               <td className="raw__value raw__value--muted" title={row.fallback}>{row.fallback}</td>
-              <td className="raw__section" title={row.section.dir}>{row.section.id}</td>
+              <td className="raw__section">
+                {/*
+                  * 段 id 可点击跳到模块层（§12.16）。
+                  *
+                  * 用 `button` 而不是给 `td` 加 `onClick`：它要能被 Tab 到、
+                  * 能被回车触发。给单元格挂点击事件只有鼠标用户碰得到。
+                  */}
+                <button
+                  type="button"
+                  className="raw__jump"
+                  title={`在模块层查看 ${row.section.id}`}
+                  onClick={() => { onJump?.(row.section.id) }}
+                >
+                  {row.section.id}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
