@@ -150,6 +150,54 @@
   text-align: center;
 }
 
+/**
+ * 「第一次」的空态块（§12.15）。
+ *
+ * 与「之后为空」的区别只在**上面多了三张灰薄片**：那是「这里会长出
+ * 什么形状的东西」的样本。所以两者共用 `.drawer__empty` 那句话，
+ * 只是第一次多一层样例——不需要第二套文字。
+ *
+ * 上下间距比单句空态紧：三张薄片本身已经占到高度，再加 24 的上下
+ * 内边距会把整块推出可视区（抽屉宽 300，正文区高度有限）。
+ */
+.drawer__first {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 8px var(--space-6);
+}
+
+.drawer__first .drawer__empty {
+  padding: 0;
+}
+
+/**
+ * 三张示例薄片。
+ *
+ * 刻意做成 12px 灰字 + 虚线描边：**虚线**是「这不是真东西」最省字
+ * 的表达，比加一行「以下是示例」更轻，也不会被误读成可点的行。
+ *
+ * `aria-hidden` 在 TSX 上，因为它们纯属示意；读屏用户听到三条不存在的
+ * 记忆只会困惑——真正的信息是下面那句「聊两句就会自己长出东西」。
+ */
+.drawer__samples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drawer__sample {
+  padding: var(--space-3);
+  border: var(--line-width) dashed var(--alias-border-l2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--alias-label-dimmed);
+}
+
 .drawer__list {
   display: flex;
   flex-direction: column;

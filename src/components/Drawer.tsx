@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconClose } from './icons.ts'
+import { useFirstVisit } from '../lib/seen.ts'
 import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 import type { DrawerKey } from './Rail.tsx'
 import type { SessionMeta } from '../lib/api.ts'
@@ -99,6 +100,12 @@ export function Drawer({
   const open = view !== undefined
   /** 搜索词。故意只在本地：它不是会话状态，切抽屉即弃。 */
   const [query, setQuery] = useState('')
+
+  /*
+   * 「第一次」判定（§12.15）。只在抽屉真的打开时结算：收起状态下
+   * 用户根本没看见内容，不该被记成「已看过」。
+   */
+  const firstVisit = useFirstVisit(view, open)
 
   /*
    * 关闭时把焦点还给触发它的图标（§9.5）。
@@ -243,9 +250,30 @@ export function Drawer({
 
           {view === 'memory' ? (
             shownMemories.length === 0 ? (
-              <p className="drawer__empty">
-                {needle === '' ? '聊两句就有了' : `没找到「${query.trim()}」`}
-              </p>
+              /*
+               * 空态分两种（§12.15）：
+               *
+               * - 第一次：给一条能照着做的路径。三张灰薄片是「这里会长出
+               *   什么形状的东西」的样本，不可点——它们是示意，不是数据。
+               * - 之后为空：用户已经知道这里是什么，一句引导语就够。
+               *
+               * 搜索无结果不属于上面两种：那不是「这里还没有东西」，
+               * 而是「你搜的词没有」。混在一起会让用户以为记忆丢了。
+               */
+              needle !== '' ? (
+                <p className="drawer__empty">{`没找到「${query.trim()}」`}</p>
+              ) : firstVisit ? (
+                <div className="drawer__first">
+                  <ul className="drawer__samples" aria-hidden="true">
+                    <li className="drawer__sample">她记得你怕吵，说话总压着声</li>
+                    <li className="drawer__sample">你提过一次想学做番茄牛腩</li>
+                    <li className="drawer__sample">上周三你熬到三点，她记着</li>
+                  </ul>
+                  <p className="drawer__empty">聊两句，这里就会自己长出东西</p>
+                </div>
+              ) : (
+                <p className="drawer__empty">聊两句就有了</p>
+              )
             ) : (
               <ul className="drawer__list">
                 {shownMemories.map((memory) => (
