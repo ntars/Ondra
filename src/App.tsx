@@ -32,6 +32,7 @@ import { Inspector } from './components/Inspector.tsx'
 import { Drawer } from './components/Drawer.tsx'
 import { Timeline } from './components/Timeline.tsx'
 import type { TimelineHandle } from './components/Timeline.tsx'
+import { toPlainText } from './components/RichText.tsx'
 import { Composer } from './components/Composer.tsx'
 import { ShortcutSheet } from './components/ShortcutSheet.tsx'
 import { Mark } from './components/Mark.tsx'
@@ -536,9 +537,15 @@ function Shell(): React.JSX.Element {
    *
    * 格式按 §12.7：`> 摘录` + 空行 + 光标。多行摘录每行都加 `>`，
    * 否则第二行会掉出引用块。
+   *
+   * ## 为什么先过 `toPlainText`
+   *
+   * 摘录的意义是「把这段话摆到输入框里，我接着往下说」。原文里的
+   * `**`、`| --- |`、围栏反引号是**渲染用的记号**，不是用户想引用的话。
+   * 带着记号插进去，用户还得先删一遍才能写自己的句子。
    */
   const quote = useCallback((text: string): void => {
-    const excerpt = text
+    const excerpt = toPlainText(text)
       .split('\n')
       .map((line) => `> ${line}`)
       .join('\n')

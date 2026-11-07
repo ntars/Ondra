@@ -2702,6 +2702,7 @@ Ondra/
 │   │   ├── Inspector.tsx         Profile inspector: right now, how she sees you, what she remembers, what she is doing
 │   │   ├── Drawer.tsx            Drawer container shared by today, week, memory and theatre, swapping content in place
 │   │   ├── Timeline.tsx          Conversation reading flow: messages, quotes, copy
+│   │   ├── RichText.tsx          Message body typesetting: headings, lists, tables, code, quotes, never touching innerHTML
 │   │   ├── Composer.tsx          Input box: attachments, drag and drop, send mode
 │   │   ├── Settings.tsx          Inspector settings drawer: scene, module and raw layers
 │   │   ├── SceneLayer.tsx        First layer: fill parameters by scene, preview the writes
@@ -2724,6 +2725,7 @@ Ondra/
 │   │   ├── mute.ts               One-hour mute: deadline, self-expiry, tray label sync
 │   │   ├── sound.ts              Cues: three synthesized tones, own volume, honours mute
 │   │   ├── absence.ts            Time away: 10-minute threshold, human wording, one line on return
+│   │   ├── richText.ts           Body parser: Markdown into structures, link allowlist, depth limits
 │   │   ├── settings.ts           Settings read and write
 │   │   ├── settingTypes.ts       Types for settings fields and sections
 │   │   ├── scenes.ts             Scene definitions and write derivation

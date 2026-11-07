@@ -64,12 +64,61 @@ const SESSIONS = [
   { id: 's1', title: '关于雨的那个比喻', createdAt: now - 2 * MIN, updatedAt: now - 12 * MIN, archived: false, workspace: '' },
 ]
 
+/**
+ * 会话里的消息。
+ *
+ * ## 第二条为什么写成一段带满 Markdown 的回复
+ *
+ * §12.4 的排版要验的是「代码块、表格、引用、列表、链接、行内代码」
+ * 六种块在真实 DOM 里的几何关系——只用一句纯文本的话，那六条断言
+ * 全都会因为「元素不存在」而报红，报的却是真问题（元素压根没渲染）。
+ * 用一条把六种块都放进去的回复，一次加载就能验完。
+ *
+ * ## 为什么段落里留一行 `**粗**` 与 `[链接]`
+ *
+ * 行内元素不占独立块，靠块级断言量不到。它们必须出现在**第一段**里，
+ * 也就是滚动位置最靠上、截图一定覆盖的地方。
+ */
+const RICH_REPLY = [
+  '像。雨落在不同的东西上会换一种嗓音——落在伞面是闷的，落在铁皮上是脆的，落在叶子上的那一种最轻。',
+  '',
+  '## 三种声音',
+  '',
+  '- 伞面：闷，像隔着掌心说话',
+  '- 铁皮：脆，**每一下都单独成立**',
+  '- 叶子：最轻，要停下来才听得见',
+  '',
+  '我更喜欢它停下来的那几秒。屋檐还在滴水，但已经不是雨了，是雨留下的回声。',
+  '',
+  '> 雨停之后的那几秒，才是这句话真正的部分。',
+  '',
+  '| 落点 | 音色 | 余音 |',
+  '| :--- | :---: | ---: |',
+  '| 伞面 | 闷 | 0.2 秒 |',
+  '| 铁皮 | 脆 | 0.8 秒 |',
+  '',
+  /* 第二张表故意写宽：§12.4 的硬约束是「表格超出时在容器内横向滚动，
+     整条消息不横向滚动」。只有表真的比 588 宽，这条才有东西可验——
+     用上面那张三列窄表去断言「有横向滚动」，量到的是数据太窄，
+     不是代码对不对。 */
+  '| 落点 | 音色 | 余音 | 频率范围 | 听感描述 | 适合的比喻 |',
+  '| --- | --- | --- | --- | --- | --- |',
+  '| 伞面 | 闷 | 0.2 秒 | 200–800 Hz | 像隔着掌心说话，高频被织物吃掉 | 有人在你肩上低声讲话 |',
+  '| 铁皮 | 脆 | 0.8 秒 | 2–6 kHz | 每一下都单独成立，起音极短、尾巴带金属共鸣 | 有人用指甲敲了一下玻璃 |',
+  '',
+  '用 `rain --seconds 3` 可以听见这三层的差别，或者看 [这个比喻](https://example.com/rain)。',
+  '',
+  '```sh',
+  'rain --seconds 3 --layers umbrella,tin,leaf',
+  '```',
+].join('\n')
+
 const MESSAGES = [
   { id: 'm1', role: 'user', content: '你觉不觉得今天这场雨，像有人在很低的地方说话。', createdAt: now - 2 * MIN },
   {
     id: 'm2',
     role: 'assistant',
-    content: '像。雨落在不同的东西上会换一种嗓音——落在伞面是闷的，落在铁皮上是脆的，落在叶子上的那一种最轻。\n\n我更喜欢它停下来的那几秒。屋檐还在滴水，但已经不是雨了，是雨留下的回声。',
+    content: RICH_REPLY,
     createdAt: now - 2 * MIN + 20_000,
   },
 ]
@@ -805,6 +854,137 @@ async function run() {
   })
   same('有内容时发送键启用', 'false', String(afterType.disabled))
 
+  /*
+   * --- 正文排版（§12.4）---
+   *
+   * ## 为什么每一条都量几何而不是只量存在
+   *
+   * 「元素渲染出来了」与「排版对了」是两件事。上一批验收里踩过一次：
+   * 元素在 DOM 里、节点数对，但那行字落在可视区外，用户一个字看不到。
+   * 这里对间距、宽度、滚动行为逐项量真值，量不到就报红。
+   */
+  const rich = await page.evaluate(() => {
+    const body = document.querySelector('.message[data-role="assistant"] .md')
+    if (body === null) return { found: false }
+    const px = (value) => Math.round(Number.parseFloat(value) || 0)
+
+    const code = body.querySelector('.md__pre-body')
+    const inlineCode = body.querySelector('.md__code')
+    const quote = body.querySelector('.md__quote')
+    const quoteText = quote === null ? null : getComputedStyle(quote)
+    const codeText = code === null ? null : getComputedStyle(code)
+    const inlineText = inlineCode === null ? null : getComputedStyle(inlineCode)
+    /* 表格取**最宽的那张**：测试数据里第二张表是故意写宽的，
+       专门用来验「超出时在容器内横向滚动」。取第一张窄表验不到溢出。 */
+    const wraps = [...body.querySelectorAll('.md__table-wrap')]
+    const widest = wraps
+      .map((node) => ({ node, over: node.scrollWidth - node.clientWidth }))
+      .sort((a, b) => b.over - a.over)[0]
+    const wrap = widest?.node ?? null
+    const table = wrap === null ? null : wrap.querySelector('.md__table')
+    const wrapBox = wrap === null ? null : wrap.getBoundingClientRect()
+    const tableBox = table === null ? null : table.getBoundingClientRect()
+
+    /* 段间距：标题**上一段**与标题之间是节奏值 12（`.md > * + *`），
+       标题与**它后面那段**之间应该是 6（`.md__h + *`，贴紧自己的内容）。
+       两个方向都要量——只量一个方向的话，`margin` 被清零或全部统一成 12
+       都抓不到。 */
+    const p = body.querySelector('.md__p')
+    const h = body.querySelector('.md__h')
+    const gapAbove = p === null || h === null ? null : Math.round(h.getBoundingClientRect().top - p.getBoundingClientRect().bottom)
+    const afterH = h === null ? null : h.nextElementSibling
+    const gapBelow = h === null || afterH === null ? null : Math.round(afterH.getBoundingClientRect().top - h.getBoundingClientRect().bottom)
+
+    return {
+      found: true,
+      /* 代码块 */
+      codeFont: codeText?.fontSize ?? '',
+      codePad: codeText === null ? 0 : px(codeText.paddingTop),
+      codeRadius: codeText?.borderRadius ?? '',
+      codeBg: codeText?.backgroundColor ?? '',
+      /* 行内代码 */
+      inlineFont: inlineText?.fontSize ?? '',
+      inlinePadX: inlineText === null ? 0 : px(inlineText.paddingLeft),
+      inlineRadius: inlineText?.borderRadius ?? '',
+      /* 引用 */
+      quoteBorder: quoteText === null ? 0 : px(quoteText.borderLeftWidth),
+      quotePad: quoteText === null ? 0 : px(quoteText.paddingLeft),
+      /* 表格 */
+      tableOverflow: wrap === null ? false : wrap.scrollWidth > wrap.clientWidth,
+      tableMetrics: wrap === null ? null : { sw: wrap.scrollWidth, cw: wrap.clientWidth },
+      wrapRight: wrapBox === null ? 0 : Math.round(wrapBox.right),
+      tableRight: tableBox === null ? 0 : Math.round(tableBox.right),
+      headFont: table === null ? '' : getComputedStyle(table.querySelector('th')).fontSize,
+      cellFont: table === null ? '' : getComputedStyle(table.querySelector('td')).fontSize,
+      /* 段落与标题的间距 */
+      gapAbove,
+      gapBelow,
+      /* 列表符号 */
+      bulletContent: (() => {
+        const li = body.querySelector('.md__list > li')
+        if (li === null) return ''
+        return getComputedStyle(li, '::before').content
+      })(),
+      listPad: (() => {
+        const list = body.querySelector('.md__list')
+        return list === null ? 0 : px(getComputedStyle(list).paddingLeft)
+      })(),
+      /* 链接 */
+      linkColor: (() => {
+        const link = body.querySelector('.md__link')
+        return link === null ? '' : getComputedStyle(link).color
+      })(),
+      linkUnderline: (() => {
+        const link = body.querySelector('.md__link')
+        return link === null ? 'none' : getComputedStyle(link).textDecorationLine
+      })(),
+      /* 粗体真的渲染成了 strong，而不是留着两个星号 */
+      strong: body.querySelectorAll('strong').length,
+      rawMarks: /(^|\n)#{1,6}\s|\*\*|```/.test(body.textContent ?? ''),
+    }
+  })
+  truthy('正文渲染成结构化块（非纯文本）', rich.found === true)
+  same('代码块字号 13', '13px', rich.codeFont)
+  eq('代码块内边距 12', 12, rich.codePad)
+  same('代码块圆角 8', '8px', rich.codeRadius)
+  same('行内代码字号 12', '12px', rich.inlineFont)
+  eq('行内代码左右内边距 4', 4, rich.inlinePadX)
+  same('行内代码圆角 4', '4px', rich.inlineRadius)
+  eq('引用左侧竖条 2', 2, rich.quoteBorder)
+  eq('引用左内边距 12', 12, rich.quotePad)
+  same('表头字号 12', '12px', rich.headFont)
+  same('表格正文字号 13', '13px', rich.cellFont)
+  eq('段与段间距 12', 12, rich.gapAbove, 2)
+  eq('标题与下文间距 6', 6, rich.gapBelow, 2)
+  truthy('列表符号是 ·', rich.bulletContent.includes('·'))
+  eq('列表缩进 20', 20, rich.listPad)
+  same('链接常态无下划线', 'none', rich.linkUnderline)
+  truthy('粗体渲染成 strong', rich.strong > 0)
+  truthy('正文不残留 Markdown 记号', rich.rawMarks === false)
+
+  /*
+   * 表格溢出必须收在容器里。
+   *
+   * 这一条是 §12.4 末尾的硬约束：「不允许整条消息横向滚动」。
+   *
+   * ## 判据为什么不是「表格不比容器宽」
+   *
+   * 第一版写的是 `tableRight <= wrapRight`，看似合理，实际与上一条
+   * **自相矛盾**：一张真需要横向滚动的表，内容宽度必然大于容器宽度，
+   * `tableRight` 必然超过 `wrapRight`。两条断言合起来等于要求
+   * 「既有滚动又不许超出」，永远只能满足一个。
+   *
+   * 正确判据分两半：容器自己有溢出可滚（`scrollWidth > clientWidth`），
+   * 且这份溢出**没有漏到页面上**（`document.scrollWidth` 不超过视口）。
+   * 前者证明滚动存在，后者证明它被容器裁住了。
+   */
+  const pageWidth = await page.evaluate(() => ({
+    doc: document.documentElement.scrollWidth,
+    view: window.innerWidth,
+  }))
+  truthy(`表格在容器内横向滚动（实测 ${JSON.stringify(rich.tableMetrics)}）`, rich.tableOverflow === true)
+  truthy(`表格溢出被容器裁住，未撑宽页面（${String(pageWidth.doc)} / ${String(pageWidth.view)}）`, pageWidth.doc <= pageWidth.view + 1)
+
   // --- 引号：消息悬停操作 ---
   const quote = await page.evaluate(() => {
     const message = document.querySelector('.message')
@@ -833,7 +1013,25 @@ async function run() {
    * 右边界就是正文右边界）上正好盖住最后几个字。截图里能看出，
    * 但那是「正好看了一眼」才发现的——把它变成断言，以后改样式
    * 撞到同一处会立刻报红。
+   *
+   * ## 为什么要先把滚动位置归零再量
+   *
+   * 操作条是浮在消息**上方** 32px 的，它是否被滚动容器裁掉，只有
+   * 在「这条消息正好贴着视口顶边」时才是真问题——那正是首条消息
+   * 的位置。而进到这一步时页面已经滚到底（断言 `vST: 248`），
+   * 首条消息在视口上方 -125px 处，此刻量到的「不在视口内」是
+   * 滚动位置造成的，不是布局缺陷。
+   *
+   * 所以先归零再看：这条断言问的是「首条消息的操作条会不会被
+   * 视口顶边切掉」，不是「滚到底时首条消息还在不在屏幕上」。
    */
+  await page.evaluate(async () => {
+    const view = document.querySelector('.scrollarea__viewport')
+    if (view === null) return
+    view.scrollTop = 0
+    // 等两帧：一帧让滚动落地，一帧让 ResizeObserver 之类的补滚有机会跑。
+    await new Promise((resolve) => { requestAnimationFrame(() => { requestAnimationFrame(resolve) }) })
+  })
   const overlap = await page.evaluate(() => {
     const message = document.querySelector('.message[data-role="user"]')
     if (message === null) return { found: false }
@@ -846,22 +1044,23 @@ async function run() {
     const b = body.getBoundingClientRect()
     const a = actions.getBoundingClientRect()
     const intersects = a.top < b.bottom && a.bottom > b.top && a.left < b.right && a.right > b.left
+    const view = document.querySelector('.scrollarea__viewport')
+    const v = view === null ? null : view.getBoundingClientRect()
     return {
       found: true,
       intersects,
       // 操作条是否完整落在滚动视口内（否则会被裁掉一半）。
-      insideViewport: (() => {
-        const view = document.querySelector('.scrollarea__viewport')
-        if (view === null) return false
-        const v = view.getBoundingClientRect()
-        return a.top >= v.top - 1 && a.bottom <= v.bottom + 1
-      })(),
+      insideViewport: v !== null && a.top >= v.top - 1 && a.bottom <= v.bottom + 1,
       actionsTop: Math.round(a.top),
+      actionsBottom: Math.round(a.bottom),
       bodyTop: Math.round(b.top),
+      vTop: v === null ? null : Math.round(v.top),
+      vBot: v === null ? null : Math.round(v.bottom),
+      vST: view === null ? null : Math.round(view.scrollTop),
     }
   })
   truthy('操作条不压住自己这条消息的文字', overlap.found === true && overlap.intersects === false)
-  truthy('操作条完整落在滚动视口内', overlap.insideViewport === true)
+  truthy(`操作条完整落在滚动视口内 ${JSON.stringify(overlap)}`, overlap.insideViewport === true)
 
   // --- 引用写入草稿 ---
   await page.evaluate(() => {
@@ -944,6 +1143,19 @@ async function run() {
       text: (bar.textContent ?? '').trim(),
       // 在可视区内：贴着消息流末尾，不该跑到视口外。
       visible: rect.top > 0 && rect.top < window.innerHeight,
+      dbg: (() => {
+        const v = document.querySelector('.scrollarea__viewport')
+        return v === null ? null : {
+          top: Math.round(rect.top),
+          vTop: Math.round(v.getBoundingClientRect().top),
+          vBot: Math.round(v.getBoundingClientRect().bottom),
+          vH: v.clientHeight,
+          vSH: v.scrollHeight,
+          vST: v.scrollTop,
+          sh: v.scrollHeight,
+          ch: v.clientHeight,
+        }
+      })(),
       fontSize: style.fontSize,
       hasRetry: bar.querySelector('.inline-error__action') !== null,
     }
@@ -952,7 +1164,7 @@ async function run() {
   truthy('内联错误在消息流内而非浮层', inline.inTimeline === true)
   same('内联错误字号 12', '12px', inline.fontSize)
   truthy('内联错误带重试', inline.hasRetry === true)
-  truthy('内联错误可见', inline.visible === true)
+  truthy(`内联错误可见 ${JSON.stringify(inline.dbg)}`, inline.visible === true)
   await page.unroute('**/api/inference')
   await page.screenshot({ path: join(OUT, 'inline-error-v5.png') })
 

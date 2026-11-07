@@ -2679,6 +2679,7 @@ Ondra/
 │   │   ├── Inspector.tsx         侧写检查器：此刻 → 她对你 → 记得的事 → 她此刻在做什么
 │   │   ├── Drawer.tsx            抽屉容器：今天 / 本周 / 记忆 / 剧场四种内容共用，原地替换
 │   │   ├── Timeline.tsx          对话阅读流：消息、引用、复制
+│   │   ├── RichText.tsx          正文排版渲染：标题、列表、表格、代码、引用，全程不碰 innerHTML
 │   │   ├── Composer.tsx          输入框：附件、拖放、发送方式
 │   │   ├── Settings.tsx          检查器设置抽屉：场面 / 模块 / 原始三层
 │   │   ├── SceneLayer.tsx        第一层：按场面填参数，预演写入
@@ -2701,6 +2702,7 @@ Ondra/
 │   │   ├── mute.ts               一键静音：截止时刻、到期自愈、托盘文案同步
 │   │   ├── sound.ts              提示音：三种音现场合成、音量独立、受静音管
 │   │   ├── absence.ts            离开时长：10 分钟阈值、人话换算、归来留一行
+│   │   ├── richText.ts           正文解析：Markdown 转结构体，链接白名单、递归限深
 │   │   ├── settings.ts           设置读写
 │   │   ├── settingTypes.ts       设置字段与分段的类型
 │   │   ├── scenes.ts             场面定义与写入推导

@@ -1,0 +1,404 @@
+/**
+ * 正文排版样式（§12.4）。
+ *
+ * ## 数值出处
+ *
+ * | 元素 | 规范 |
+ * | --- | --- |
+ * | 代码块 | 13px Menlo，底 `--specific-code-bg`，圆角 8，内边距 12 |
+ * | 行内代码 | 12px 等宽，底 `--specific-code-bg`，圆角 4，左右内边距 4 |
+ * | 表格 | 最大宽 588，超出横向滚动；表头 12px 500，正文 13px |
+ * | 图片 | 最大宽 588，圆角 8 |
+ * | 链接 | `--static-teal-600`，常态无下划线，悬停出现下划线 |
+ * | 引用 | 左侧 2px `--static-line` 竖条，文字 `--static-ink-2`，左内边距 12 |
+ * | 列表 | 缩进 20，项目符号用 `·`，不用圆点图片 |
+ *
+ * 规范里没写的两样（标题、分隔线）按同一套量纲补齐，注释里逐条说明
+ * 取值依据，不留「看起来还行」的数字。
+ *
+ * ## 一条硬约束
+ *
+ * §12.4 末尾：「正文 588px 下，代码块与表格是唯一允许横向滚动的元素。
+ * **不允许整条消息横向滚动**」。因此所有溢出都收在各自的 `-wrap` 容器里，
+ * 外层 `.message` 只有 `overflow-wrap`，没有 `overflow-x`。
+ */
+
+/* ------------------------------------------------------------------ *
+ * 块间距
+ * ------------------------------------------------------------------ */
+
+/**
+ * 清零，且**不依赖书写顺序**。
+ *
+ * ## 为什么用 `:where()`
+ *
+ * 全部块级元素先清零外边距，再由下面 `.md > * + *` 统一排节奏。
+ * 问题是两者权重相同（都是 0,1,0——`*` 不参与计数），同权重下后写的赢：
+ * 只要某条清零规则写在节奏规则之后，段间距就会被静默抹成 0。
+ *
+ * 这个坑已经踩了两次——第一次是 `.md__p`，改完之后 `.md__h` 又犯了同样
+ * 的错（截图里「三种声音」这个标题紧贴上一段，一点缝都没有）。
+ * 靠「记得把 reset 写前面」是靠不住的：文件有 300 多行，下一个人加一个
+ * 新块级元素时不会去数它在第几行。
+ *
+ * `:where()` 的选择器**权重恒为 0**，所以无论写在哪里，`.md > * + *`
+ * 都能稳定胜出。规则从此与顺序无关。
+ */
+:where(.md__p, .md__h, .md__list, .md__quote, .md__table-wrap, .md__pre, .md__rule, .md__image) {
+  margin: 0;
+}
+
+.md__p {
+  /* 段内软换行由 TSX 里的 `<br>` 承担，这里只要把空白折叠掉，
+     避免缩进进来的空格被渲染成一段空白。 */
+  white-space: normal;
+}
+
+/**
+ * 段与段之间 12px。
+ *
+ * 正文行高 1.75 × 14 ≈ 24.5，12 不到半行——段距若等于或超过一行，
+ * 读者会以为那里有一条分隔线。取 12 是「能看出分段、但不打断阅读节奏」。
+ */
+.md > * + * {
+  margin-top: 12px;
+}
+
+/* 首尾不留白：消息本身由时间轴的间距管，块级元素再留一份就是双倍。 */
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * 标题
+ * ------------------------------------------------------------------ */
+
+/**
+ * 正文内的标题。
+ *
+ * 规范 §12.4 没有列标题，但模型回复里 `### 一、现象` 这类写法极常见，
+ * 不解析的话用户会看到三个井号。取值理由：
+ *
+ * - 一级 = 正文 +1（15px / 500），与窗口标题同级——它确实是这一段的小标题；
+ * - 二级 = 正文同号（14px / 500），靠字重区分，不再变大；
+ * - 三级 = 正文同号同重，只给 `ink-2`，表示「这一层只是分组」。
+ *
+ * 不再往大走：消息里的标题不该压过窗口标题，否则一条长回复看起来
+ * 像一份文档，而用户打开的是一段对话。
+ */
+.md__h {
+  font-weight: var(--weight-medium);
+  color: var(--alias-label-primary);
+  line-height: var(--leading-title);
+}
+
+.md__h[data-level='1'] {
+  font-size: var(--text-title);
+}
+
+.md__h[data-level='2'] {
+  font-size: var(--text-body);
+}
+
+.md__h[data-level='3'] {
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  color: var(--alias-label-secondary);
+}
+
+/* 标题与它后面那段贴紧一点：12px 会让标题看起来像独立的一条消息。 */
+.md__h + * {
+  margin-top: 6px;
+}
+
+/* ------------------------------------------------------------------ *
+ * 行内代码
+ * ------------------------------------------------------------------ */
+
+/**
+ * 12px 等宽、圆角 4、左右内边距 4。
+ *
+ * `padding: 1px 4px` 的上下 1px 不是规范里的数——只给左右内边距时，
+ * 底色块比行高矮太多，视觉上像被压扁的一条横杠。加 1px 让它包住字身。
+ */
+.md__code {
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  background: var(--specific-code-bg);
+  font-family: var(--font-family-code);
+  font-size: var(--text-caption);
+  /* 行内代码不参与正文的断行规则：URL 与标识符里没有可断的位置，
+     允许任意处断行，否则一个长路径会把整段撑出一条横向滚动。 */
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * 代码块
+ * ------------------------------------------------------------------ */
+
+/**
+ * 代码块容器。
+ *
+ * 用 `position: relative` 而不是给 `<pre>` 加背景：复制按钮与语言名
+ * 要浮在右上角，`<pre>` 自身会被横向滚动条裁切，绝对定位挂在它上面
+ * 会跟着内容一起滚走。
+ */
+.md__pre {
+  position: relative;
+  border-radius: var(--radius-md);
+  background: var(--specific-code-bg);
+}
+
+.md__pre-body {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: var(--font-family-code);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  /* 代码里的空白与换行是内容的一部分，必须原样保留。 */
+  white-space: pre;
+  /* 代码块自身横向滚动，外层的 `overflow-wrap` 不要来插手。 */
+  overflow-wrap: normal;
+  color: var(--alias-label-primary);
+  /* 圆角裁切：横向滚动条出现时不该顶出圆角。 */
+  border-radius: inherit;
+}
+
+/**
+ * 复制按钮与语言名。
+ *
+ * 常态隐藏、悬停出现（§12.4「右上角复制按钮悬停出现」）。
+ * 用 `opacity` 而不是 `display`：`display: none` 的元素无法获得焦点，
+ * 键盘用户就永远按不到它——而这个按钮恰好是代码块唯一的操作。
+ * `opacity: 0` 仍可聚焦，`:focus-visible` 时强制显形。
+ */
+.md__pre-copy,
+.md__pre-lang {
+  position: absolute;
+  top: 6px;
+  font-size: var(--text-label);
+  line-height: var(--leading-label);
+  color: var(--alias-label-tertiary);
+  transition: opacity var(--motion-fast) var(--ease-fluid);
+}
+
+.md__pre-copy {
+  right: 6px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.md__pre-lang {
+  right: 8px;
+  opacity: 0.7;
+  /* 按钮显形时让位给它，两者不重叠。 */
+  pointer-events: none;
+  transition:
+    opacity var(--motion-fast) var(--ease-fluid),
+    right var(--motion-fast) var(--ease-fluid);
+}
+
+.md__pre:hover .md__pre-copy,
+.md__pre-copy:focus-visible {
+  opacity: 1;
+}
+
+/* 复制键出现时，语言名往左让出按钮的宽度（约 40px + 间距）。 */
+.md__pre:hover .md__pre-lang,
+.md__pre:focus-within .md__pre-lang {
+  right: 52px;
+}
+
+.md__pre-copy:hover {
+  background: var(--alias-interactive-bg-hover);
+  color: var(--alias-label-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * 引用
+ * ------------------------------------------------------------------ */
+
+/**
+ * 左侧 2px 竖条、`ink-2` 文字、左内边距 12。
+ *
+ * 竖条用 `border-left` 而不是伪元素：`<blockquote>` 里可能嵌列表，
+ * 伪元素要跟着内容高度算，`border` 天然贴住整块。
+ */
+.md__quote {
+  padding-left: 12px;
+  border-left: 2px solid var(--alias-border-l1);
+  color: var(--alias-label-secondary);
+}
+
+/* 嵌套引用再加一层竖条，缩进同样 12。 */
+.md__quote .md__quote {
+  padding-left: 12px;
+}
+
+/* ------------------------------------------------------------------ *
+ * 列表
+ * ------------------------------------------------------------------ */
+
+/**
+ * 缩进 20，项目符号用 `·`。
+ *
+ * 规范明确「不用圆点图片」——图片在不同缩放下会糊，而且颜色改不了。
+ * `list-style` 用文本时只能通过 `::marker` 着色，`·` 的宽度也比
+ * 标准 `disc` 窄，因此左内边距要单独调，不能直接用浏览器默认的 40。
+ */
+.md__list {
+  padding-left: 20px;
+}
+
+.md__list > li {
+  /* 列表项之间 4px：比段距 12 小得多，它们属于同一段。 */
+  margin-top: 4px;
+}
+
+.md__list > li:first-child {
+  margin-top: 0;
+}
+
+/* 无序列表的符号。`::marker` 只吃得到颜色与字号，改不了字形，
+   因此把默认符号关掉，用 `::before` 画一个 `·`。 */
+.md__list:not([start]) > li {
+  list-style: none;
+  position: relative;
+}
+
+.md__list:not([start]) > li::before {
+  content: '·';
+  position: absolute;
+  left: -12px;
+  color: var(--alias-label-tertiary);
+}
+
+/* ------------------------------------------------------------------ *
+ * 表格
+ * ------------------------------------------------------------------ */
+
+/**
+ * 表格容器：横向滚动的唯一承担者。
+ *
+ * `max-width: 100%` 让它在 588 的正文宽里收住，`overflow-x: auto` 把
+ * 超宽的表压在容器内——这就是「不允许整条消息横向滚动」的落点。
+ */
+.md__table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.md__table {
+  /* `border-collapse` 必须，否则 0.5px 的相邻边会叠成 1px，
+     与全项目「线宽一致」的要求冲突。 */
+  border-collapse: collapse;
+  font-size: var(--text-code);
+  line-height: var(--leading-caption);
+}
+
+.md__table th,
+.md__table td {
+  padding: 6px 10px;
+  border-bottom: var(--line-width) solid var(--alias-border-l1);
+  /*
+   * 单元格不换行。
+   *
+   * ## 为什么不是 `overflow-wrap: anywhere`
+   *
+   * 第一版写的是 `overflow-wrap: anywhere`，理由是「防止一个长 URL 把表
+   * 撑到 2000px」。实测发现它把 §12.4 的「超出横向滚动」这条**整个废掉**：
+   * `anywhere` 同时压缩了单元格的 min-content，于是六列的表会被压进 564px
+   * 的正文宽里，列宽只剩 90 出头，每行挤五六个字——表格变得又高又难扫，
+   * 而容器一次横向滚动都不会出现。也就是说，滚动能力写了，永远用不上。
+   *
+   * ## 为什么 `nowrap` 是更对的那个
+   *
+   * 表格在对话里是拿来**扫行**的：读者的眼睛沿一行横向移动，比较同一
+   * 维度上的几个值。一旦单元格内部换行，同一行的基线被打断，行与行之间
+   * 的高度也变得参差，扫读立刻失效。宁可横向滚，也不要把列压扁。
+   *
+   * 长 URL 这类极端情况靠容器的 `overflow-x: auto` 兜住——它本来就在那儿。
+   */
+  white-space: nowrap;
+}
+
+/* 表头 12px / 500（§12.4）。正文 13px 已在 `.md__table` 上设好。 */
+.md__table th {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--alias-label-secondary);
+  /* 表头底色不设：588 宽的表已经在纸上，再加一层灰会让它看起来像卡片。 */
+  border-bottom-width: var(--line-width);
+  border-bottom-color: var(--specific-table-head-line);
+}
+
+/* 最后一行不画底线：表格外面没有框，留一条线会像被截断。 */
+.md__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * 图片
+ * ------------------------------------------------------------------ */
+
+/**
+ * 最大宽 588（即正文宽）、圆角 8、不裁剪。
+ *
+ * 高度不设上限：设了 `max-height` 就得裁，而规范明确「不自动裁剪」。
+ * 一张很高的图会把消息撑长——这是可接受的，用户滚一下就能过；
+ * 裁掉的图则永远看不到全貌。
+ */
+.md__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+/* ------------------------------------------------------------------ *
+ * 链接
+ * ------------------------------------------------------------------ */
+
+/**
+ * `--alias-link`（即 `teal-600`）、常态无下划线、悬停出现下划线。
+ *
+ * 下划线用 `text-decoration-thickness: 1px` 收细：默认粗细在 14px 字上
+ * 会盖住下伸部，看起来像加粗的删除线。
+ */
+.md__link {
+  color: var(--alias-link);
+  text-decoration: none;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.md__link:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------ *
+ * 分隔线
+ * ------------------------------------------------------------------ */
+
+/**
+ * 规范未列，但模型回复里 `---` 会被当成分隔线，不解析就显示成三个减号。
+ *
+ * 用 0.5px 线宽而非 1px：分隔线属于「线」，全项目线宽统一是硬约束。
+ * 上下 12px 与段距一致，视觉上它替代了一次分段。
+ */
+.md__rule {
+  height: 0;
+  margin: 12px 0;
+  border: none;
+  border-top: var(--line-width) solid var(--alias-border-l1);
+}

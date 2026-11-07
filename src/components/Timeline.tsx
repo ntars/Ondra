@@ -30,6 +30,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconChevronDown, IconCopy, IconQuote } from './icons.ts'
+import { RichText, toPlainText } from './RichText.tsx'
 import { ScrollArea } from './ScrollArea.tsx'
 import { useToast } from './Toast.tsx'
 import type { ChatMessage } from '../lib/useAppState.ts'
@@ -171,8 +172,26 @@ export function Timeline({
   absence,
 }: TimelineProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  /** 是否贴底。用 ref 而不是 state：`onScroll` 每帧都可能触发，不该引起重渲染。 */
+  /** 记录是否贴底。用 ref 而不是 state：`onScroll` 每帧都可能触发，不该引起重渲染。 */
   const stick = useRef(true)
+  /**
+   * 用户是否刚发起过一次滚动动作。
+   *
+   * 这是 `stick` 唯一的合法来源。`scroll` 事件本身不能说明任何事——
+   * 它由三类完全不同的原因触发：
+   *
+   * 1. 用户滚轮 / 触摸 / 拖动滑块 / 按翻页键 —— 真实的「我想看别处」；
+   * 2. 我们自己的 `scrollToBottom` —— 程序跟随，不该反过来否决跟随；
+   * 3. 浏览器在布局阶段自行调整位置（字体加载后重排、内容插入）——
+   *    与用户意图毫无关系，却表现为「`scrollTop` 变了」。
+   *
+   * 早期版本用「`scrollTop` 有没有变」区分，把第 3 类也算成了用户行为，
+   * 于是 `stick` 被永久置 false：错误条、离开提示、新消息全落在视口外，
+   * 界面上一个字都不显示，也没有任何报错——这类静默失败最难查。
+   */
+  const gesture = useRef(false)
+  /** 内容容器，供 `ResizeObserver` 观察高度变化。 */
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const [showJump, setShowJump] = useState(false)
   /** 当前显示操作条的消息 id。同一时刻只显示一条。 */
   const [active, setActive] = useState<string | undefined>(undefined)
@@ -219,8 +238,24 @@ export function Timeline({
     node.scrollTo({ top: node.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
   }, [])
 
-  /** 记录是否贴底，并决定浮标是否出现。 */
+  /**
+   * 记录是否贴底，并决定浮标是否出现。
+   *
+   * ## 为什么不在每次 `scroll` 里重算
+   *
+   * 见 `gesture` 的注释：`scroll` 事件不区分「人滚的」与「机器滚的」。
+   * 这里只在**检测到真实手势**时才更新 `stick`——其余情况（程序跟随、
+   * 浏览器重排）一律不碰它。
+   *
+   * 手势标记用掉即清：一次滚轮可能产生多个 `scroll` 事件，但意图只有
+   * 一个；留着不清会让之后某次布局调整被误读成用户行为。
+   *
+   * 距离判定用 `STICK_THRESHOLD` 而不是严格等于 0：用户滚回底部时
+   * 未必精确停在最后 1px，留 80px 容差才不会「差两像素就不跟了」。
+   */
   const onScroll = useCallback((): void => {
+    if (!gesture.current) return
+    gesture.current = false
     const node = scrollRef.current
     if (node === null) return
     const distance = node.scrollHeight - node.scrollTop - node.clientHeight
@@ -258,28 +293,100 @@ export function Timeline({
     const line = Number.parseFloat(getComputedStyle(node).lineHeight)
     const overlap = Number.isFinite(line) ? line * 3 : 60
     const step = Math.max(120, node.clientHeight - overlap)
+    gesture.current = true
     node.scrollBy({ top: event.key === 'PageDown' ? step : -step, behavior: 'smooth' })
   }, [])
 
   /**
-   * 新消息或生成中变化时决定是否跟随。
+   * 标记「用户正在滚」。
+   *
+   * ## 为什么用这几个事件而不是 `scroll`
+   *
+   * 这三个事件只在用户真的有输入时才派发：`wheel` 是滚轮与触控板，
+   * `touchstart` 是触屏拖动，`pointerdown` 是按住自绘滑块。
+   * 浏览器自己调整位置时它们一个都不会发——这正是需要的判据。
+   *
+   * 挂在视口上而不是 `window`：别处的滚动与这条时间轴无关，
+   * 挂 `window` 会让侧栏滚一下也把 `stick` 改掉。
+   *
+   * ## 为什么不标 `keydown`
+   *
+   * 只有翻页键会滚，而它们在 `onKeyDown` 里已经标了。把整个
+   * `keydown` 都标上，会让「在消息区里按 Tab、按 Cmd+C」也被当成
+   * 一次滚动意图，下次布局调整就会被误判。
+   */
+  const markGesture = useCallback((): void => {
+    gesture.current = true
+  }, [])
+
+  /**
+   * 新消息、生成中变化、或错误条与离开提示出现时决定是否跟随。
    *
    * 依赖里放 `messages.length` 与 `busy`：前者管「来了新的一条」，
    * 后者管「开始生成」——生成开始时用户通常刚发完消息，应当跟到底。
    *
-   * ## 为什么 `absence` 也在依赖里
+   * ## 为什么 `absence` 与 `error` 都在依赖里
    *
-   * 那行灰字是**在末尾追加**的一段，而它出现的时机正是用户刚回到窗口、
-   * 视野停在最后一条消息上的那一刻。不跟着滚，它就落在可视区下方——
-   * 用户看到的仍然是「我走之前那一屏」，那行字一个字都看不到，功能
-   * 等于没做。
+   * 这两样都是**在末尾追加**的一段，且出现时机正是用户视线停在
+   * 最后一条消息上的那一刻。不跟着滚，它们就落在可视区下方——
+   * 用户看到的仍然是「刚才那一屏」，那行字一个字都看不到，功能等于没做。
    *
-   * 只在原本就贴底时跟（`stick.current`）：用户回来时若正在读历史，
+   * 这个坑上一轮在 `absence` 上踩过一次（DOM 里有节点、断言全绿、
+   * 但字在视口外），本轮的 `error` 是同一个坑的复现：错误条渲染了、
+   * 「出现内联错误条」那条断言也绿了，但「内联错误可见」报红。
+   * 所以**凡追加到流末尾的内容，都必须进这个依赖**。
+   *
+   * 依赖写 `error?.text` 而不是 `error` 对象：后者每次渲染都是新对象，
+   * 会让这个 effect 每帧都跑一次滚动，用户往上翻的历史会被不停拽回底部。
+   *
+   * 只在原本就贴底时跟（`stick.current`）：用户若正在读历史，
    * 把他拽到底部是另一种打扰。这与新消息的处理用同一条判据。
    */
   useEffect(() => {
     if (stick.current) scrollToBottom(false)
-  }, [messages.length, busy, absence, scrollToBottom])
+  }, [messages.length, busy, absence, error?.text, scrollToBottom])
+
+  /**
+   * 内容高度变化时补一次跟随。
+   *
+   * ## 为什么光有上面那个 effect 不够
+   *
+   * 首帧挂载时正文还没排版完：字体未加载、`RichText` 刚插入、图片未撑开，
+   * 此时 `scrollHeight` 可能恰好等于 `clientHeight`——滚到底也还是 0，
+   * 因为**没有可滚的余地**。等字体加载完、内容撑到两倍高，那个 effect
+   * 早就跑完了，没有任何东西会再滚一次。
+   *
+   * 实测症状：打开一个带长回复的会话，视图停在最上面第一条，
+   * 而这恰恰是「打开历史会话应该停在最新一条」的反面。更麻烦的是，
+   * 内容变高会触发一次 `scroll` 事件，把 `stick` 误判成 false（见
+   * `onScroll` 的守卫），于是后续的错误条、离开提示全都不再跟随。
+   *
+   * 用 `ResizeObserver` 而不是在 `useEffect` 里量一次：高度变化可能
+   * 发生多次（字体、图片、窗口缩放），只量一次抓不全。
+   */
+  useEffect(() => {
+    const content = contentRef.current
+    if (content === null) return
+    const observer = new ResizeObserver(() => {
+      if (stick.current) scrollToBottom(false)
+    })
+    observer.observe(content)
+    return () => { observer.disconnect() }
+  }, [scrollToBottom])
+
+  /** 用户手势标记：挂在视口上，见 `markGesture`。 */
+  useEffect(() => {
+    const node = scrollRef.current
+    if (node === null) return
+    node.addEventListener('wheel', markGesture, { passive: true })
+    node.addEventListener('touchstart', markGesture, { passive: true })
+    node.addEventListener('pointerdown', markGesture, { passive: true })
+    return () => {
+      node.removeEventListener('wheel', markGesture)
+      node.removeEventListener('touchstart', markGesture)
+      node.removeEventListener('pointerdown', markGesture)
+    }
+  }, [markGesture])
 
   /** 首帧无条件贴底：打开一个历史会话时应停在最新一条，不是最旧一条。 */
   useEffect(() => {
@@ -303,9 +410,14 @@ export function Timeline({
    * 反馈走 Toast「已复制」1.6s——但 Toast 的成功态是 2.4s（§5.10）。
    * 两者冲突时按 §5.10：提示条只有一种成功时长，为复制单独开一个
    * 1.6s 的例外会让「提示条多久消失」变成一件不可预期的事。
+   *
+   * ## 为什么先过一遍 `toPlainText`
+   *
+   * §5.4 写的是「复制纯文本，**不含 Markdown 记号**」。直接把源串写进
+   * 剪贴板，粘到别处会是一堆 `**`、`| --- |` 与围栏反引号。
    */
   const copy = useCallback((text: string): void => {
-    void navigator.clipboard.writeText(text).then(
+    void navigator.clipboard.writeText(toPlainText(text)).then(
       () => { toast('已复制') },
       () => { toast({ text: '复制失败', tone: 'error' }) },
     )
@@ -345,7 +457,7 @@ export function Timeline({
         }}
         remeasureKey={messages.length}
       >
-        <div className="timeline__measure">
+        <div className="timeline__measure" ref={contentRef}>
           {empty ? <p className="timeline__empty">从哪儿说起都行</p> : null}
 
           {rows.map((row) =>
@@ -382,7 +494,7 @@ export function Timeline({
                 }}
               >
                 <div className="message__body">
-                  {row.message.content}
+                  <RichText source={row.message.content} />
                   {row.message.pending === true ? (
                     <span className="message__dots" aria-label="正在回复">
                       <i />
