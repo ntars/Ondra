@@ -1734,6 +1734,99 @@ async function run() {
   truthy('取消静音同步给了托盘', unmutedState.trayCall?.args?.muted === false)
 
   /*
+   * --- 离开归来的一行（§12.9）---
+   *
+   * ## 这条验的是「阈值」与「不留痕」两件事
+   *
+   * 功能本身很轻（一行灰字），坏起来却很吵：
+   *
+   * | 坏法 | 症状 |
+   * | --- | --- |
+   * | 没有 10 分钟阈值 | 切一下设置窗口回来就多一行「你离开了 1 分钟」 |
+   * | 不清 `leftAt` | 下一次短切窗口会算出一次根本没发生的长离开 |
+   * | 说话后不撤掉 | 整段对话末尾永远挂着一句「你离开了 23 分钟」 |
+   *
+   * 三条都不可见地坏——界面不会报错，只会一直多一行字。
+   *
+   * ## 怎么造「离开了 23 分钟」
+   *
+   * 不能真等。这里覆盖 `Date.now` 之后重放一次 blur→focus：
+   * 组件读的就是 `Date.now()`，把时钟往前推 23 分钟与真的等 23 分钟
+   * 对它来说完全等价。用完立刻还原，不影响后面的断言。
+   */
+  const absenceShort = await page.evaluate(async () => {
+    const original = Date.now
+    let offset = 0
+    Date.now = () => original() + offset
+    try {
+      // 先短切一次（2 分钟）：不该留痕。
+      window.dispatchEvent(new Event('blur'))
+      offset = 2 * 60 * 1000
+      window.dispatchEvent(new Event('focus'))
+      await new Promise((resolve) => { setTimeout(resolve, 120) })
+      return { shown: document.querySelector('.timeline__absence') !== null }
+    } finally {
+      Date.now = original
+    }
+  })
+  truthy('离开 2 分钟不留痕', absenceShort.shown === false)
+
+  const absenceLong = await page.evaluate(async () => {
+    const original = Date.now
+    let offset = 0
+    Date.now = () => original() + offset
+    try {
+      window.dispatchEvent(new Event('blur'))
+      offset = 23 * 60 * 1000
+      window.dispatchEvent(new Event('focus'))
+      await new Promise((resolve) => { setTimeout(resolve, 150) })
+      const node = document.querySelector('.timeline__absence')
+      const style = node === null ? null : getComputedStyle(node)
+      return {
+        shown: node !== null,
+        text: node?.textContent ?? '',
+        fontSize: style?.fontSize ?? '',
+        align: style?.textAlign ?? '',
+      }
+    } finally {
+      Date.now = original
+    }
+  })
+  truthy('离开 23 分钟留一行', absenceLong.shown === true)
+  same('离开提示写成「你离开了 23 分钟」', '你离开了 23 分钟', absenceLong.text)
+  /*
+   * 11px：§12.9 原文「一行 11px 灰字」。
+   *
+   * 断言用 px 解析而不是比对字符串——`--text-label` 可能是 `0.6875rem`，
+   * 字面不同而实际相同。比的是**算出来的像素值**，那才是用户看到的。
+   */
+  eq('离开提示是 11px', 11, Number.parseFloat(absenceLong.fontSize))
+  same('离开提示居中', 'center', absenceLong.align)
+  await page.screenshot({ path: join(OUT, 'absence-v7.png') })
+
+  /*
+   * 说话之后这行要撤掉。
+   *
+   * 它说的是「刚才这里没人」，而此刻人已经在说话了——留着就是一句
+   * 永远挂在末尾的废话。用发送按钮真发一条来验，不直接调内部函数：
+   * 那样验的是函数，不是用户的那条路径。
+   */
+  const absenceAfterSend = await page.evaluate(async () => {
+    const box = document.querySelector('.composer__input')
+    if (box !== null) {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+      setter?.call(box, '我回来了')
+      box.dispatchEvent(new Event('input', { bubbles: true }))
+      await new Promise((resolve) => { setTimeout(resolve, 60) })
+    }
+    const send = document.querySelector('.composer__send')
+    send?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => { setTimeout(resolve, 400) })
+    return { shown: document.querySelector('.timeline__absence') !== null }
+  })
+  truthy('发出下一句话后离开提示撤掉', absenceAfterSend.shown === false)
+
+  /*
    * 偏好设置窗口（§5.13 第一层）单独开一页验。
    *
    * ## 为什么不接着主界面验

@@ -2700,6 +2700,7 @@ Ondra/
 │   │   ├── preferences.ts        偏好真源：读盘、应用、跨窗口广播
 │   │   ├── mute.ts               一键静音：截止时刻、到期自愈、托盘文案同步
 │   │   ├── sound.ts              提示音：三种音现场合成、音量独立、受静音管
+│   │   ├── absence.ts            离开时长：10 分钟阈值、人话换算、归来留一行
 │   │   ├── settings.ts           设置读写
 │   │   ├── settingTypes.ts       设置字段与分段的类型
 │   │   ├── scenes.ts             场面定义与写入推导

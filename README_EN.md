@@ -2723,6 +2723,7 @@ Ondra/
 │   │   ├── preferences.ts        Single source for preferences: load, apply, broadcast across windows
 │   │   ├── mute.ts               One-hour mute: deadline, self-expiry, tray label sync
 │   │   ├── sound.ts              Cues: three synthesized tones, own volume, honours mute
+│   │   ├── absence.ts            Time away: 10-minute threshold, human wording, one line on return
 │   │   ├── settings.ts           Settings read and write
 │   │   ├── settingTypes.ts       Types for settings fields and sections
 │   │   ├── scenes.ts             Scene definitions and write derivation

@@ -39,6 +39,7 @@ import { Settings } from './components/Settings.tsx'
 import { requestPreferences } from './components/Preferences.tsx'
 import { usePreferences } from './lib/preferences.ts'
 import { formatClock, isMuted, muteFor, unmute, useMuted } from './lib/mute.ts'
+import { absenceHint } from './lib/absence.ts'
 import { Dialog } from './components/Dialog.tsx'
 import { ToastProvider, useToast } from './components/Toast.tsx'
 import { invokeShell, isDesktopShell, listenShell } from './lib/shell.ts'
@@ -75,6 +76,22 @@ function Shell(): React.JSX.Element {
   const [settings, setSettings] = useState(false)
   /** 窗口是否失焦。失焦时呼吸暂停、水位降不透明度（§12.9）。 */
   const [blurred, setBlurred] = useState(false)
+  /**
+   * 离开归来时那一行灰字（§12.9）。
+   *
+   * 与 `blurred` 分开存：后者是「现在看不看得见」，前者是「刚才离开了多久」。
+   * 两者生命周期不同——`blurred` 在每次切窗口时都变，这行只在超过 10 分钟
+   * 时才出现一次，且出现后要一直留在时间轴上直到用户发出下一句话。
+   * 合成一个状态会让「切个窗口回来」也把这行重新算一遍。
+   */
+  const [absence, setAbsence] = useState<string | undefined>(undefined)
+  /**
+   * 失焦的时刻。`0` 表示当前没有在「离开中」。
+   *
+   * 用 ref 而不是 state：它只在 blur→focus 这一对回调之间传递，
+   * 中间不参与渲染，放 state 会为它多跑一次无意义的渲染。
+   */
+  const leftAt = useRef(0)
   /** 是否正有一个文件被拖到窗口上。 */
   const [dragging, setDragging] = useState(false)
   /** 拖动是否停在窗口内。`dragleave` 在子元素之间移动时也会触发，需要计数。 */
@@ -300,6 +317,8 @@ function Shell(): React.JSX.Element {
       }
       if (matches(context, 'newSession')) {
         event.preventDefault()
+        // 新会话是一段全新的对话，上一段那句「你离开了 23 分钟」指的不是这里。
+        setAbsence(undefined)
         void state.newSession().catch((caught: unknown) => {
           console.error('新建对话失败', caught)
           toast({ text: '没能新建对话', tone: 'error' })
@@ -420,10 +439,32 @@ function Shell(): React.JSX.Element {
    * 失焦时暂停呼吸、水位降到 60% 不透明度。用 `window` 的 blur/focus
    * 而不是 visibilitychange：切到另一个应用时页面仍可见，visibility
    * 不会变，但呼吸确实该停——用户看不见它，一直在动是浪费电。
+   *
+   * ## 顺便量一次「离开了多久」
+   *
+   * 同一对事件顺手记时刻，回来时算差值。放在这里而不是单开一个监听：
+   * blur/focus 已经在处理「用户离没离开」这个事实，再挂一对监听会让
+   * 「谁先跑」变成注册顺序问题——而这两个回调都必须先知道时刻才能判。
+   *
+   * ## 为什么算出来要清掉 `leftAt`
+   *
+   * 不清的话，下一次「窗口失焦但不到 10 分钟」时，`leftAt` 还留着上一次
+   * 的旧值，会算出一次根本没有发生的长时间离开。每次 focus 都是
+   * 一次结算，结算完这个数就作废。
    */
   useEffect(() => {
-    const onBlur = (): void => { setBlurred(true) }
-    const onFocus = (): void => { setBlurred(false) }
+    const onBlur = (): void => {
+      setBlurred(true)
+      leftAt.current = Date.now()
+    }
+    const onFocus = (): void => {
+      setBlurred(false)
+      const hint = absenceHint(leftAt.current, Date.now())
+      leftAt.current = 0
+      // 只有超过 10 分钟才有话。不到阈值的切窗口不该在时间轴上留痕——
+      // 那会让用户在一天里看到十几行「你离开了 2 分钟」。
+      if (hint !== undefined) setAbsence(hint)
+    }
     globalThis.addEventListener('blur', onBlur)
     globalThis.addEventListener('focus', onFocus)
     return () => {
@@ -610,11 +651,17 @@ function Shell(): React.JSX.Element {
                 `exactOptionalPropertyTypes`，可选属性不接受显式 undefined。
               */
               {...(inlineError === undefined ? {} : { error: inlineError })}
+              {...(absence === undefined ? {} : { absence })}
             />
             <Composer
               value={state.draft}
               onChange={state.setDraft}
-              onSend={() => { void state.send() }}
+              onSend={() => {
+                // 用户开口了，这行离开提示就完成使命了：它说的是「刚才这里没人」，
+                // 而此刻人已经在这里说话了。留着会变成一句永远挂在末尾的废话。
+                setAbsence(undefined)
+                void state.send()
+              }}
               onStop={() => { void state.stop() }}
               busy={state.busy}
               attachments={state.attachments}
@@ -646,6 +693,12 @@ function Shell(): React.JSX.Element {
             currentSessionId={state.sessionId}
             memories={state.memories}
             onOpenSession={(id) => {
+              /*
+                换会话就丢掉这行。它量的是「你在**这个**会话的末尾离开了多久」，
+                换到另一段对话后这句话指向的空白根本不存在——留着会让用户
+                以为自己在那个会话里也离开了 23 分钟。
+              */
+              setAbsence(undefined)
               void state.openSession(id)
               setDrawer(undefined)
             }}
@@ -686,7 +739,10 @@ function Shell(): React.JSX.Element {
             <button
               type="button"
               className="button button--ghost welcome__start"
-              onClick={state.enterSession}
+              onClick={() => {
+                setAbsence(undefined)
+                state.enterSession()
+              }}
             >
               说点什么
             </button>

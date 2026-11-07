@@ -130,6 +130,16 @@ export interface TimelineProps {
    * 不清的话切换会话后会调到上一个实例的滚动节点，滚的是已经被卸掉的 DOM。
    */
   onHandle?(handle: TimelineHandle | undefined): void
+  /**
+   * 离开归来的一行灰字（§12.9）。
+   *
+   * 传一句已经算好的话，而不是传时长让这里算：阈值判定、单位换算、
+   * 取整三件事在 `lib/absence.ts` 里，那是唯一真源。这里若再算一遍，
+   * 改阈值就要改两处，而其中一处必然被忘。
+   *
+   * `undefined` 表示不留痕。
+   */
+  absence?: string
 }
 
 /** 一条内联错误。 */
@@ -158,6 +168,7 @@ export function Timeline({
   onQuote,
   error,
   onHandle,
+  absence,
 }: TimelineProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   /** 是否贴底。用 ref 而不是 state：`onScroll` 每帧都可能触发，不该引起重渲染。 */
@@ -255,10 +266,20 @@ export function Timeline({
    *
    * 依赖里放 `messages.length` 与 `busy`：前者管「来了新的一条」，
    * 后者管「开始生成」——生成开始时用户通常刚发完消息，应当跟到底。
+   *
+   * ## 为什么 `absence` 也在依赖里
+   *
+   * 那行灰字是**在末尾追加**的一段，而它出现的时机正是用户刚回到窗口、
+   * 视野停在最后一条消息上的那一刻。不跟着滚，它就落在可视区下方——
+   * 用户看到的仍然是「我走之前那一屏」，那行字一个字都看不到，功能
+   * 等于没做。
+   *
+   * 只在原本就贴底时跟（`stick.current`）：用户回来时若正在读历史，
+   * 把他拽到底部是另一种打扰。这与新消息的处理用同一条判据。
    */
   useEffect(() => {
     if (stick.current) scrollToBottom(false)
-  }, [messages.length, busy, scrollToBottom])
+  }, [messages.length, busy, absence, scrollToBottom])
 
   /** 首帧无条件贴底：打开一个历史会话时应停在最新一条，不是最旧一条。 */
   useEffect(() => {
@@ -403,6 +424,17 @@ export function Timeline({
                 </div>
               </article>
             ),
+          )}
+
+          {/*
+            离开归来的一行（§12.9）。放在消息流末尾、错误条之前：
+            它是这段时间轴上的一段空白，属于流水线本身；错误条说的是
+            最后一次尝试的结果，是叠加在流水线上的状态。顺序反了，
+            用户会读到「你离开了 23 分钟」压在一条红色报错下面，
+            像是离开导致了报错。
+          */}
+          {absence === undefined ? null : (
+            <p className="timeline__absence">{absence}</p>
           )}
 
           {/*
