@@ -670,7 +670,7 @@ function Shell(): React.JSX.Element {
       <TitleBar title={title} />
 
       {state.inConversation ? (
-        <div className="workspace">
+        <div className="workspace" {...(inspector ? { 'data-inspector': '' } : {})}>
           <Rail
             active={drawer}
             onToggle={toggleDrawer}

@@ -3086,6 +3086,255 @@ async function run() {
   }
   await proPage.close()
 
+  /*
+   * --- §12.8 窗口尺寸与断点 ---
+   *
+   * ## 为什么必须单开一页
+   *
+   * 这一组要反复改视口宽度（820 / 960 / 1200 / 1920）。主流程那一页累积了
+   * 几十条依赖几何位置的断言：滚动位置、抽屉展开、焦点落点。中途改宽度会
+   * 让它们全部失效，而失效的方式是**报红在别处**——排查时会怀疑抽屉坏了，
+   * 实际是窗口变宽了。新开一页，主流程的几何保持原样。
+   *
+   * ## 这一组守的是什么
+   *
+   * 系统提示里那句「正文宽度永不随窗口变宽而增长」，在代码里只由一个
+   * `max-width` 保证。它最容易在两种改动里丢掉：
+   *
+   * 1. 有人把 `max-width: var(--text-w)` 改成 `width: 100%` 想让大窗口
+   *    "更好看"——那样 1920 下每行会到 80 个汉字，读起来会跳行。
+   * 2. 加了 `min-width` 或 `flex: 1` 的中间层，把 588 的约束架空。
+   *
+   * 两种都不会报错、不会白屏，只是"看起来还行"。所以必须真的拉宽窗口量。
+   */
+  const breakPage = await browser.newPage({ viewport: { width: 820, height: 580 }, deviceScaleFactor: 1 })
+  const breakErrors = []
+  breakPage.on('console', (message) => {
+    if (message.type() === 'error') breakErrors.push(message.text())
+  })
+  breakPage.on('pageerror', (error) => { breakErrors.push(String(error)) })
+  await breakPage.addInitScript(fakeShell(port))
+  await breakPage.addInitScript(soundSpy)
+  await breakPage.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
+  await breakPage.waitForTimeout(400)
+  /*
+   * 这一组量的是**会话态**骨架（有双脊才有列可量）。首页是居中单页，
+   * 没有 `.column__measure`，直接量会得到 null，报红的方式是
+   * 「期望 588，实测 null」——看着像布局坏了，实际是还没进会话。
+   */
+  await breakPage.locator('.welcome__start').click()
+  await breakPage.waitForTimeout(500)
+
+  /**
+   * 量一次当前视口下的骨架几何。
+   *
+   * 每次都要重新读，不能缓存：容器查询的命中结果是**布局阶段**算出来的，
+   * 改完视口不读一遍就拿不到新值。
+   */
+  const measureAt = async () => breakPage.evaluate(() => {
+    const box = (selector) => {
+      const node = document.querySelector(selector)
+      if (node === null) return null
+      const rect = node.getBoundingClientRect()
+      return { x: Math.round(rect.x), w: Math.round(rect.width), h: Math.round(rect.height) }
+    }
+    const measure = box('.timeline__measure')
+    const column = box('.column')
+    const shell = box('.shell')
+    const spineBox = box('.spine')
+    const workspace = document.querySelector('.workspace')
+    return {
+      shell: shell === null ? null : shell.w,
+      column: column === null ? null : column.w,
+      spine: spineBox === null ? null : spineBox.w,
+      measure: measure === null ? null : measure.w,
+      /* 正文两侧留白 = (主列宽 − 正文宽) / 2。这是「留白吸收新增宽度」的直接读数。 */
+      gutter: measure === null || column === null ? null : Math.round((column.w - measure.w) / 2),
+      /* 列数：读 grid 模板的列数，比逐个量元素更能反映"到底排了几列"。 */
+      columns: workspace === null
+        ? null
+        : getComputedStyle(workspace).gridTemplateColumns.split(' ').length,
+      inspector: box('.inspector'),
+      /* 文档宽度：任何横向溢出都会让它大于视口。 */
+      docWidth: Math.round(document.documentElement.scrollWidth),
+      viewport: globalThis.innerWidth,
+    }
+  })
+
+  /**
+   * 改视口、等布局落地、再量。
+   *
+   * ## 为什么不能只等两帧
+   *
+   * 第一版就是「setViewportSize → 两帧 → 量」，结果反向验证时把阈值从
+   * 1200 改成 1100，**断言居然全绿**。诊断打出来才发现：量的时候
+   * `gridTemplateColumns` 还是三列，几百毫秒后再读已经是四列了。
+   * 也就是说 `setViewportSize` 返回时新宽度还没落到布局上，两帧不够。
+   *
+   * 等的是**事实**不是时长：先等 `innerWidth` 真的变成目标值，再等两帧。
+   * 这一条如果不修，整个 §12.8 断言组会在阈值写错时静默通过——比没有断言更糟。
+   */
+  const resizeAndMeasure = async (width, height = 580) => {
+    await breakPage.setViewportSize({ width, height })
+    await breakPage.waitForFunction(
+      (target) => globalThis.innerWidth === target,
+      width,
+      { timeout: 5000 },
+    )
+    // 宽度到位后再等两帧：一帧让容器查询重算，一帧让可能的过渡走完。
+    await breakPage.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => { requestAnimationFrame(resolve) })
+    }))
+    return measureAt()
+  }
+
+  // --- 820 基准：正文 588，两侧各 64 ---
+  const at820 = await resizeAndMeasure(820)
+  eq('§12.8 820 下正文仍 588', 588, at820.measure)
+  eq('§12.8 820 下两侧各留 64', 64, at820.gutter)
+  /*
+   * 列数是**计数**，容差必须是 0。
+   *
+   * `eq()` 的默认容差是 1px——它为像素测量设计（半像素取整），对列数
+   * 却是灾难：3 与 4 只差 1，落在容差内，于是「容器查询把骨架切成四列」
+   * 这件事**永远不会被这条断言发现**。反向验证时正是这样：阈值改成 1100
+   * 后 1199 已经是四列，这条仍打绿勾，是旁边那条几何断言报的红。
+   * 计数类断言一律显式传 0。
+   */
+  eq('§12.8 820 下是三列骨架', 3, at820.columns, 0)
+
+  // --- 960：正文不动，留白吸收全部新增宽度（960 − 820 = 140，均分 70） ---
+  const at960 = await resizeAndMeasure(960)
+  eq('§12.8 960 下正文仍 588', 588, at960.measure)
+  eq('§12.8 960 下两侧各留 134', 134, at960.gutter)
+  eq('§12.8 960 下仍是三列', 3, at960.columns, 0)
+
+  /*
+   * --- 1199：常驻阈值的**下边**，必须仍是覆盖式三列 ---
+   *
+   * 只测 820 和 1200 会漏掉"阈值写成了 1190" 这类偏差。取 1199 是因为
+   * 它离边界只有一个像素，`min-width: 1200` 若被误写成 `min-width: 1199`
+   * 或 `min-width: 1100`，这里立刻红。
+   */
+  await breakPage.locator('.spine').click()
+  await breakPage.waitForTimeout(400)
+  const at1199Open = await resizeAndMeasure(1199)
+
+  eq('§12.8 1199 下检查器仍是三列（覆盖式）', 3, at1199Open.columns, 0)
+  truthy('§12.8 1199 下检查器存在', at1199Open.inspector !== null)
+  /*
+   * 覆盖态：检查器贴在 Spine 内侧，**与主列重叠**。
+   *
+   * 判据是两条几何事实同时成立：
+   *   1. 它的右缘与主列右缘重合（`right: var(--spine-w)` 的效果）；
+   *   2. 它的左缘**严格小于**主列右缘，即它压在正文区域上。
+   *
+   * ## 第一版判据太松，反向验证没抓住
+   *
+   * 原先写的是 `inspector.x < 1199 - 56`（"左缘小于 Spine 左边界"）。
+   * 把阈值改成 1100 后检查器左缘从 843 变成 899，**仍然小于 1143**，
+   * 断言照绿。那条式子看着像几何，实际只是把窗口宽度又抄了一遍，
+   * 对"容器查询有没有命中"完全无感。改成与主列的关系式。
+   */
+  truthy(
+    `§12.8 1199 下检查器覆盖主列（主列右缘 ${String(at1199Open.column === null ? 0 : at1199Open.column + 48)}，检查器 ${String(at1199Open.inspector?.x ?? -1)}–${String((at1199Open.inspector?.x ?? 0) + (at1199Open.inspector?.w ?? 0))}）`,
+    at1199Open.inspector !== null &&
+      at1199Open.column !== null &&
+      /* 右缘贴在 Spine 左沿：覆盖态是 `right: var(--spine-w)`。 */
+      Math.abs(at1199Open.inspector.x + at1199Open.inspector.w - (at1199Open.column + 48)) <= 1 &&
+      /* 左缘落在主列之内：这就是"覆盖"的定义。 */
+      at1199Open.inspector.x < at1199Open.column + 48 - 1,
+  )
+
+  /*
+   * --- 1200：正好在阈值上，`min-width` 含等号，必须换成四列 ---
+   *
+   * 这一条与上一条成对：一条验"没到就别展开"，一条验"到了必须展开"。
+   * 只留一条时，把整个容器查询删掉也能全绿。
+   */
+  const at1200 = await resizeAndMeasure(1200)
+  eq('§12.8 1200 下检查器占第四列', 4, at1200.columns, 0)
+  eq('§12.8 1200 下正文仍 588', 588, at1200.measure)
+  eq('§12.8 1200 下两侧各留 104', 104, at1200.gutter)
+  /*
+   * 并排的判据：检查器左缘 == 主列右缘 + Spine 宽。
+   *
+   * ## 为什么是"加 Spine 宽"而不是"等于主列右缘"
+   *
+   * DOM 顺序是 Rail → 主列 → Spine → 检查器，四列时检查器排在 Spine **之后**，
+   * 所以它从 Spine 右沿起算。第一版写成"等于主列右缘"，实测差正好 56
+   * （= Spine 宽），红的是断言不是布局。写这条时把 56 硬编码进去同样是错的
+   * ——`--spine-w` 改了断言会跟着假红，所以读 `.spine` 的实际宽度。
+   *
+   * 覆盖态（三列）下它 `position: absolute; right: var(--spine-w)`，
+   * 左缘落在**主列之内**，与这条等式相差一整个检查器宽，两者不能同时成立。
+   */
+  truthy(
+    `§12.8 1200 下检查器不覆盖主列（主列右缘 ${String(at1200.column === null ? 0 : at1200.column + 48)}，Spine ${String(at1200.spine)}，检查器左缘 ${String(at1200.inspector?.x ?? -1)}）`,
+    at1200.inspector !== null &&
+      at1200.column !== null &&
+      at1200.spine !== null &&
+      Math.abs(at1200.inspector.x - (at1200.column + 48 + at1200.spine)) <= 1,
+  )
+
+  /*
+   * --- 1920：正文绝不跟着变宽 ---
+   *
+   * §13 原文「窗口放大到 1920 时正文仍为 588，新增宽度全部给留白」。
+   * 这一档最能暴露「有人把 max-width 改成百分比」。
+   */
+  const at1920 = await resizeAndMeasure(1920)
+  eq('§12.8 1920 下正文仍 588', 588, at1920.measure)
+  eq('§12.8 1920 下留白吸收全部新增宽度', Math.round((1920 - 48 - 56 - 300 - 588) / 2), at1920.gutter)
+  eq('§12.8 1920 下无横向滚动', 1920, at1920.docWidth)
+
+  /*
+   * --- 常驻检查器关掉后，第四列必须消失 ---
+   *
+   * 这是一个真实存在的错误写法：把四列写死在 `.workspace` 上（而不是
+   * `.workspace[data-inspector]`），关掉检查器后右侧留 300px 空白，
+   * 主列内容偏左。而"打开时是四列"那条断言照样绿。
+   */
+  await breakPage.locator('.spine').click()
+  await breakPage.waitForTimeout(400)
+  const at1920Closed = await measureAt()
+  eq('§12.8 关掉检查器后回到三列', 3, at1920Closed.columns, 0)
+  eq('§12.8 关掉检查器后正文仍 588', 588, at1920Closed.measure)
+
+  await breakPage.screenshot({ path: join(OUT, 'breakpoint-1920.png') })
+
+  /*
+   * --- 高度 < 560：输入区上间距 12 → 8（§12.8、§3.6 第 2 条）---
+   *
+   * 高度方向的断点用的是媒体查询而不是容器查询，这是**有意**的：
+   * `container-type: inline-size` 只管行内轴，管不到块轴；要管块轴得
+   * `container-type: size`，那会让 `.shell` 的高度不再由内容决定，
+   * 整页被压扁（`composer.css` 里有同样的说明）。
+   *
+   * 判据取 padding-top：`12px` → `8px` 是这一档唯一的变化，量它最直接。
+   * 560 本身是边界，取 559 与 561 两侧，避免"写成 max-height: 500" 时
+   * 在 560 上仍然通过。
+   */
+  await breakPage.setViewportSize({ width: 820, height: 561 })
+  await breakPage.waitForTimeout(150)
+  const tallPad = await breakPage.evaluate(
+    () => getComputedStyle(document.querySelector('.composer')).paddingTop,
+  )
+  await breakPage.setViewportSize({ width: 820, height: 559 })
+  await breakPage.waitForTimeout(150)
+  const shortPad = await breakPage.evaluate(
+    () => getComputedStyle(document.querySelector('.composer')).paddingTop,
+  )
+  same('§12.8 高度 561 时输入区上间距 12', '12px', tallPad)
+  same('§12.8 高度 559 时输入区上间距收到 8', '8px', shortPad)
+
+  if (breakErrors.length > 0) {
+    console.log('\n断点页的控制台错误：')
+    for (const error of breakErrors) console.log(`  ${error}`)
+    process.exitCode = 1
+  }
+  await breakPage.close()
+
   // --- 深色 ---
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'dark'
