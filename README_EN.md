@@ -2642,7 +2642,7 @@ The kernel's 13 methods are called over JSON-RPC 2.0 framed as newline-delimited
 | `src-tauri/src/main.rs` | Shell entry: window, events, cleanup on exit |
 | `src-tauri/src/host.rs` | Host process management: start, wait, stop |
 | `src-tauri/src/commands.rs` | Native capability commands |
-| `src-tauri/src/tray.rs` | Tray icon and menu: open, today, mute, quit |
+| `src-tauri/src/tray.rs` | Tray icon and menu: open, today, mute (label switches between "Mute 1 hour" and "Unmute" with state), quit |
 | `src-tauri/src/window.rs` | Close interception: hide to tray or quit, preference persisted, falls back to minimise when no tray exists |
 | `src-tauri/src/preferences.rs` | Preferences window: created once at 560 × 480, then only shown or hidden; broadcasts preference changes to the other window |
 | `src-tauri/installer/installer.nsi` | Windows installer script: three pages, 410 × 290, DPI aware |
@@ -2721,6 +2721,7 @@ Ondra/
 │   │   ├── shell.ts              Thin wrapper for front-end to shell communication
 │   │   ├── useAppState.ts        Main window state
 │   │   ├── preferences.ts        Single source for preferences: load, apply, broadcast across windows
+│   │   ├── mute.ts               One-hour mute: deadline, self-expiry, tray label sync
 │   │   ├── settings.ts           Settings read and write
 │   │   ├── settingTypes.ts       Types for settings fields and sections
 │   │   ├── scenes.ts             Scene definitions and write derivation

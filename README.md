@@ -2619,7 +2619,7 @@ pnpm 生成的 `node_modules` 分两层，理解这一点能解释「为什么�
 | `src-tauri/src/main.rs` | 壳入口：窗口、事件、退出清理 |
 | `src-tauri/src/host.rs` | 宿主进程管理：启动、等待、停止 |
 | `src-tauri/src/commands.rs` | 本机能力命令 |
-| `src-tauri/src/tray.rs` | 托盘图标与菜单：打开、今天、静音、退出 |
+| `src-tauri/src/tray.rs` | 托盘图标与菜单：打开、今天、静音（文案随状态在「静音 1 小时」与「取消静音」间切换）、退出 |
 | `src-tauri/src/window.rs` | 关闭拦截：隐藏到托盘 / 退出，偏好落盘，无托盘时降级最小化 |
 | `src-tauri/src/preferences.rs` | 偏好设置窗口：建一次 560 × 480，之后只显隐；广播偏好变更到其他窗口 |
 | `src-tauri/installer/installer.nsi` | Windows 安装器脚本：三页流程、410 × 290、DPI 自适应 |
@@ -2698,6 +2698,7 @@ Ondra/
 │   │   ├── shell.ts              与壳通信的薄封装
 │   │   ├── useAppState.ts        主界面状态
 │   │   ├── preferences.ts        偏好真源：读盘、应用、跨窗口广播
+│   │   ├── mute.ts               一键静音：截止时刻、到期自愈、托盘文案同步
 │   │   ├── settings.ts           设置读写
 │   │   ├── settingTypes.ts       设置字段与分段的类型
 │   │   ├── scenes.ts             场面定义与写入推导
