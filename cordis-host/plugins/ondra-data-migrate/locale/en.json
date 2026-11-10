@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra migrations",
+    "description": "Idempotent schema migration for Ondra: user_version is the single source of truth, one transaction per migration, table rebuild for type/primary-key/not-null drift."
+  }
+}

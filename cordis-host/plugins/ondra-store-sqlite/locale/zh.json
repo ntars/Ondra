@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra SQLite 存储",
+    "description": "空谷 Ondra 的 SQLite 存储端口：WAL、外键、STRICT 建表、补列与 0600 收权限，失败只降级不阻断。"
+  }
+}

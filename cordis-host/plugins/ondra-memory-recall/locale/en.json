@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory recall",
+    "description": "What she remembers right now: five weighted factors (semantic .18 / keyword .46 / graph .11 / importance .14 / freshness .11), RRF rank fusion and BM25 (k1=1.2, b=0.75). Recall never truncates by count (dropped is always 0), sealed memories never take part, and absent factors drop out of the normalisation denominator."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-inject-dedupe",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的注入去重（手册 §2.6）：首轮一次性大块注入，之后只推增量——同一条记忆在不同轮次、不同块里只出现一次；上下文一旦被压缩就释放已见、重新整块注入。记账按「记忆」不按「块」（mem:/pin: 归一为 fact:），分两段提交（begin 只出待记账，commit 才真写），失败时放行整块而不是半块。不做装箱与预算（归 O-036），不碰前缀（归 O-033）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

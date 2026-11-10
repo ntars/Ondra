@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra identity",
+    "description": "Single source of truth for the product name, process name, pidfile name, environment variable prefix, and data directory names; other plugins read them from this service."
+  }
+}

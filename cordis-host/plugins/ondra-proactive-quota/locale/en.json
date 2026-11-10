@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Proactive Quota",
+    "description": "Whether she still feels like speaking, how many times are left today, and whether it is time to bow out. Three quota profiles (slow 1 / standard 3 / fast 6 a day), a minimum interval between two proactive messages, a give-up rate for personality-driven silence, and a single parting line once the user has stopped answering. The draw is a deterministic hash rather than a random number — with randomness, every retry re-rolls it and a thirty percent give-up rate quietly becomes twenty. Whether a message may actually go out is still decided by the proactive gate; this plugin only governs restraint."
+  }
+}

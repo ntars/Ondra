@@ -1,0 +1,1428 @@
+/**
+ * 抽屉（会话列表）与检查器（侧写）：玻璃浮层。
+ */
+
+/* ===========================================================================
+   抽屉
+   =========================================================================== */
+
+.drawer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: var(--z-overlay);
+  width: calc(var(--w-rail) + var(--w-drawer));
+  /* 容器永远不拦点击；可点区域只由面板承担。rail 的开关键必须始终可点。 */
+  pointer-events: none;
+}
+
+.drawer__panel {
+  pointer-events: auto;
+  position: absolute;
+  left: var(--w-rail);
+  top: 0;
+  bottom: 0;
+  width: var(--w-drawer);
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-glass);
+  border-right: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  transform: translateX(-16px);
+  opacity: 0;
+  /* visibility 关闭态立即生效（不入过渡）：透明面板仍会命中点击。 */
+  visibility: hidden;
+  transition:
+    transform 180ms var(--ease-fluid),
+    opacity 180ms var(--ease-fluid);
+}
+
+.drawer[data-open] .drawer__panel {
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+}
+
+.drawer__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 52px;
+  padding: 0 14px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.drawer__title {
+  flex: 1;
+  font-size: var(--text-title);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.drawer__search {
+  flex: none;
+  padding: 10px 14px 6px;
+}
+
+.drawer__search-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-field);
+  box-shadow: var(--ui-shadow-well);
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  outline: none;
+  transition: box-shadow var(--motion-f) var(--ease-fluid);
+}
+
+.drawer__search-input:focus {
+  box-shadow: var(--ui-shadow-well), 0 0 0 3px var(--focus-ring);
+}
+
+.drawer__search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px 14px;
+}
+
+.drawer__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.drawer__row:hover {
+  background: var(--ui-bg-hover);
+}
+
+.drawer__row[aria-current='page'] {
+  background: var(--ui-bg-selected);
+}
+
+.drawer__row[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: var(--ui-action);
+  transform: translateY(-50%);
+}
+
+.drawer__row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+}
+
+.drawer__row[aria-current='page'] .drawer__row-title {
+  font-weight: var(--w-medium);
+  color: var(--jade-700);
+}
+
+.drawer__row-time {
+  flex: none;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.drawer__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 10px 14px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+/* ===========================================================================
+   检查器（侧写）
+   =========================================================================== */
+
+.inspector {
+  position: absolute;
+  right: var(--w-spine);
+  top: 0;
+  bottom: 0;
+  width: var(--w-inspector);
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-glass);
+  border-left: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  animation: panel-in var(--motion-b) var(--ease-fluid);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.inspector__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 52px;
+  padding: 0 14px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.inspector__title {
+  flex: 1;
+  font-size: var(--text-title);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.inspector__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.inspector__group {
+  margin-bottom: 18px;
+}
+
+.inspector__caption {
+  display: block;
+  margin-bottom: 8px;
+  font-size: var(--text-label);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink-4);
+}
+
+.inspector__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.inspector__key {
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+}
+
+.inspector__value {
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 量条：一段 3px 的横槽， bipolar 时从中间向两边。 */
+.inspector__track {
+  position: relative;
+  height: 3px;
+  margin-top: 5px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
+  overflow: hidden;
+}
+
+.inspector__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+  background: var(--ui-action);
+}
+
+.inspector__fill[data-bipolar] {
+  left: 50%;
+  transform-origin: left center;
+}
+
+.inspector__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-label);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.inspector__all:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/* 记忆列表：与会话行同一密度。 */
+.drawer__memory {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.drawer__memory:first-child {
+  border-top: 0;
+}
+
+.drawer__memory-text {
+  font-size: var(--text-caption);
+  line-height: 1.7;
+  color: var(--ui-ink-2);
+}
+
+/* ===========================================================================
+   记忆体检
+   
+   与抽屉其它块共用同一套语汇：卡片底、语义线、caption 字。它比记忆列表
+   更「重」一点（整块托在 `--ui-bg-raise` 上），因为它是这一屏唯一
+   会写库的操作入口——视觉上要能一眼分辨「可读」与「可动」。
+   =========================================================================== */
+
+.health {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 2px 0 10px;
+  padding: 10px 11px 11px;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-md);
+  background: var(--ui-bg-raise);
+}
+
+.health__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.health__title {
+  flex: 1;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+/* 体检键：与抽屉里其它次级动作同一形态（描边、无底色）。 */
+.health__run {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.health__run:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.health__run:disabled {
+  color: var(--ui-ink-4);
+}
+
+.health__idle {
+  font-size: var(--text-label);
+  line-height: 1.7;
+  color: var(--ui-ink-3);
+}
+
+.health__summary {
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+}
+
+/* 缺席的上游：用暖色而非红色。它不是错误，是「有一类没查」。 */
+.health__missing {
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-warn);
+}
+
+.health__group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.health__group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: 5px;
+}
+
+.health__group-label {
+  font-size: var(--text-label);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink-2);
+}
+
+.health__group-hint {
+  flex: 1;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.health__group-count {
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-3);
+}
+
+.health__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.health__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.health__item-text {
+  flex: 1;
+  font-size: var(--text-label);
+  line-height: 1.65;
+  color: var(--ui-ink-2);
+}
+
+/* 单项修复键：极小的方键，避免在列表里读成一排大按钮。 */
+.health__fix {
+  flex: none;
+  height: 20px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  background: transparent;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.health__fix:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.health__fix:disabled {
+  color: var(--ui-ink-4);
+}
+
+/* 整组修：唯一带主色的位置。它是「可自动修」那档的批量口，无损。 */
+.health__fix-all {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 11px;
+  border: var(--rule) solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--ui-action);
+  font-size: var(--text-label);
+  color: var(--ui-action-ink);
+  transition: background var(--motion-f) var(--ease-fluid);
+}
+
+.health__fix-all:hover:not(:disabled) {
+  background: var(--ui-action-hover);
+}
+
+.health__fix-all:disabled {
+  background: var(--ui-bg-sunken);
+  color: var(--ui-ink-4);
+}
+
+.health__stamp {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.health__note {
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-her-text);
+}
+
+/* ===========================================================================
+   做梦
+
+   与体检卡同一套语汇、同一个底（`--ui-bg-raise`）：两块都是「会在这一屏
+   写库」的地方，视觉上必须同族。差别只有一处——做梦的主键用主色实底，
+   因为它是**唯一的不可逆写操作**（体检的 auto 档无损，做梦写进事实后
+   不会被自动撤销），点下去要能被看见。
+   =========================================================================== */
+
+.dream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 2px 0 10px;
+  padding: 10px 11px 11px;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-md);
+  background: var(--ui-bg-raise);
+}
+
+.dream__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.dream__title {
+  flex: 1;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+/* 做梦键：本块唯一带主色的位置，理由见上面那段说明。 */
+.dream__run {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: var(--rule) solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--ui-action);
+  font-size: var(--text-label);
+  color: var(--ui-action-ink);
+  transition: background var(--motion-f) var(--ease-fluid);
+}
+
+.dream__run:hover:not(:disabled) {
+  background: var(--ui-action-hover);
+}
+
+.dream__run:disabled {
+  background: var(--ui-bg-sunken);
+  color: var(--ui-ink-4);
+}
+
+.dream__idle {
+  font-size: var(--text-label);
+  line-height: 1.7;
+  color: var(--ui-ink-3);
+}
+
+/* 分支说明：一行小字，不抢主信息。 */
+.dream__mode {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.dream__result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dream__summary {
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+}
+
+/* 四个数用等宽数字：它们会被并排比较，比例字宽会看错位。 */
+.dream__counts {
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-3);
+}
+
+.dream__note {
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-her-text);
+}
+
+/* 「再来一场」：次级动作，描边无底色，与体检键同一形态。 */
+.dream__again {
+  align-self: flex-start;
+  height: 24px;
+  padding: 0 9px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.dream__again:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.dream__again:disabled {
+  color: var(--ui-ink-4);
+}
+
+.dream__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dream__cards-head {
+  padding-top: 5px;
+  font-size: var(--text-label);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink-2);
+}
+
+.dream__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dream__card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 0;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.dream__card-title {
+  font-size: var(--text-label);
+  color: var(--ui-ink);
+}
+
+.dream__card-body {
+  font-size: var(--text-micro);
+  line-height: 1.65;
+  color: var(--ui-ink-3);
+}
+
+.dream__stamp {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* ===========================================================================
+   快照
+
+   与体检、做梦同族（`--ui-bg-raise` 的卡片底），但**刻意不用主色实底**：
+   这一块全是只读动作（验一份快照不改任何东西），没有不可逆操作要警告。
+   唯一的按钮「验」用描边形态，与体检键同一档。
+   =========================================================================== */
+
+.snap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 2px 0 10px;
+  padding: 10px 11px 11px;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-md);
+  background: var(--ui-bg-raise);
+}
+
+.snap__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.snap__title {
+  flex: 1;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.snap__keep {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.snap__idle {
+  font-size: var(--text-label);
+  line-height: 1.7;
+  color: var(--ui-ink-3);
+}
+
+.snap__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.snap__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.snap__item-main {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.snap__item-time {
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+}
+
+.snap__item-size {
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-4);
+}
+
+/* 库版本：与存储份数同一档的次要信息。 */
+.snap__item-schema {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* 验过且好：用与她同一支的琥珀，不用绿色——绿在这套配色里没有语义位。 */
+.snap__item-ok {
+  font-size: var(--text-micro);
+  color: var(--ui-her-text);
+}
+
+/* 验过且坏：这是真的故障，用故障色。 */
+.snap__item-bad {
+  font-size: var(--text-micro);
+  color: var(--ui-bad);
+}
+
+/* 没验过：灰色。它与「好」的区别就是这一块存在的理由。 */
+.snap__item-raw {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* 校验键：与体检键同一形态（描边、无底色、极小）。 */
+.snap__verify {
+  flex: none;
+  height: 20px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  background: transparent;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.snap__verify:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.snap__verify:disabled {
+  color: var(--ui-ink-4);
+}
+
+.snap__stamp {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.snap__note {
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-warn);
+}
+
+/* 首次进入记忆抽屉：三条示例用引用的形式排列，明确标注「这是示例」。 */
+.drawer__first {  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 16px 8px;
+}
+
+.drawer__samples {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawer__sample {
+  padding: 7px 10px;
+  border-left: 1px solid var(--ui-line);
+  font-size: var(--text-label);
+  color: var(--ui-ink-3);
+  font-style: normal;
+}
+
+/* ===========================================================================
+   会话抽屉：这一段的账
+
+   四格读数用 2×2 网格而不是一行四个：抽屉内宽 300 − 28 内边距 = 272，
+   四个数挤在一行时每个只有 60px，五位数就会换行。两列时每格 130，
+   五位数也放得下，且两列天然对齐。
+   =========================================================================== */
+
+.sess {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px 0;
+}
+
+.sess__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sess__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+/* 状态徽标：描边、无底色。它不是按钮，别做得像能点。 */
+.sess__badge {
+  flex: none;
+  padding: 1px 7px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-full);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+}
+
+.sess__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  overflow: hidden;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-md);
+  /* 用 1px 间隙露出底色当分隔线：比给每格写四边 border 少八条规则。 */
+  background: var(--ui-line-soft);
+}
+
+.sess__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 9px 10px;
+  background: var(--ui-bg-raise);
+}
+
+.sess__key {
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink-4);
+}
+
+.sess__value {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink);
+}
+
+/* 时间那一格是「2026-11-10 16:40」，比数字长，小半号才不挤。 */
+.sess__value--time {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-2);
+}
+
+.sess__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.sess__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* 路径里的斜杠与短横要读准，用系统等宽字体。 */
+  font-family: ui-monospace, monospace;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  /* 从右向左截断：路径的尾部（真正的目录名）才是最要紧的部分。 */
+  direction: rtl;
+  text-align: left;
+}
+
+.sess__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 4px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+/*
+  清空键：默认描边（可逆动作的形态），进入确认态才用故障色。
+  两态之间只换颜色与边框，不换尺寸——换尺寸会让按钮跳一下。
+*/
+.sess__clear {
+  height: 30px;
+  padding: 0 12px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    border-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.sess__clear:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.sess__clear[data-armed] {
+  border-color: var(--ui-bad);
+  color: var(--ui-bad);
+}
+
+.sess__clear[data-armed]:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+}
+
+.sess__clear:disabled {
+  color: var(--ui-ink-4);
+}
+
+.sess__hint {
+  font-size: var(--text-micro);
+  line-height: 1.6;
+  color: var(--ui-ink-4);
+}
+
+/* ===========================================================================
+   日志抽屉：三类分区
+
+   三个 section 之间只隔一条细线，不各自套卡片：它们读起来是一份连续的
+   记录，套三张卡会把「同一段时间里发生了什么」切成三块互不相关的东西。
+   =========================================================================== */
+
+.logp {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 0;
+}
+
+.logp__section {
+  padding: 10px 0 12px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.logp__section:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.logp__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.logp__title {
+  flex: 1;
+  font-size: var(--text-label);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink-3);
+}
+
+.logp__count {
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-4);
+}
+
+.logp__refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-3);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.logp__refresh:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.logp__refresh:disabled {
+  color: var(--ui-ink-4);
+}
+
+.logp__empty {
+  padding: 4px 0;
+  font-size: var(--text-label);
+  line-height: 1.7;
+  color: var(--ui-ink-3);
+}
+
+.logp__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.logp__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.logp__item:first-child {
+  border-top: 0;
+}
+
+/* 徽标：16px 方块。它是一个分类记号，不是状态，所以不用彩色底。 */
+.logp__badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  /* 10px 是 0.625rem：日志的通道徽标只有一个字母，标称比正文小两档。 */
+  font-size: 0.625rem;
+  line-height: 1;
+  color: var(--ui-ink-3);
+}
+
+/* 她说过的话用琥珀，与全项目「她的声音」同一支色。 */
+.logp__badge[data-channel='model'] {
+  border-color: var(--ui-line);
+  color: var(--ui-her-text);
+}
+
+.logp__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logp__line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.logp__summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-caption);
+  line-height: 1.55;
+  color: var(--ui-ink-2);
+}
+
+.logp__time {
+  flex: none;
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-4);
+}
+
+.logp__meta {
+  display: flex;
+  gap: 8px;
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-4);
+}
+
+/* 系统日志的级别点：3px 圆点，不占正文宽度。 */
+.logp__dot {
+  flex: none;
+  width: 4px;
+  height: 4px;
+  margin-top: 7px;
+  margin-left: 6px;
+  margin-right: 6px;
+  border-radius: var(--r-full);
+  background: var(--ui-ink-4);
+}
+
+.logp__dot[data-level='warn'] {
+  background: var(--ui-warn);
+}
+
+.logp__dot[data-level='error'] {
+  background: var(--ui-bad);
+}
+
+.logp__detail {
+  margin-top: 2px;
+}
+
+.logp__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  cursor: pointer;
+  /* 去掉原生三角：它与项目里的 chevron 图标是两套线。 */
+  list-style: none;
+}
+
+.logp__more::-webkit-details-marker {
+  display: none;
+}
+
+.logp__more:hover {
+  color: var(--ui-ink-2);
+}
+
+/* 展开时把右箭头转成下箭头，与全项目薄片形变同一动作。 */
+.logp__detail[open] .logp__more svg {
+  transform: rotate(90deg);
+}
+
+.logp__more svg {
+  transition: transform var(--motion-f) var(--ease-fluid);
+}
+
+.logp__text {
+  margin: 4px 0 0 15px;
+  padding-left: 8px;
+  border-left: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-label);
+  line-height: 1.7;
+  color: var(--ui-ink-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===========================================================================
+   扩展抽屉：76 个包的清单
+
+   行高比会话行更高（三行信息：名称 / 包名 / 描述），但仍然不套卡片：
+   76 张卡滚动起来是一堵墙，而连续的行能扫。
+   =========================================================================== */
+
+/*
+ * 扩展抽屉自己管滚动。
+ *
+ * 76 个包远超一屏，而搜索框是这个列表的主要用法。若让 `.drawer__body`
+ * 整体滚动，滚到第 40 行时搜索框早就滚出去了——想换个词得先滚回顶部。
+ * 所以这里把 `.ext` 撑满内容区、由 `.ext__list` 独占滚动：搜索框与合计
+ * 三格是固定表头，只有列表动。
+ */
+.ext {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 2px 0 0;
+}
+
+.ext__search {
+  flex: none;
+  /* 与抽屉容器的搜索框同一内边距，切到这一屏时它不会跳一下。 */
+  padding: 0 0 2px;
+}
+
+.ext__totals {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px 4px;
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-4);
+}
+
+/* 待重启是唯一需要被看见的一格：它表示有改动还没落地。 */
+.ext__totals--pending {
+  color: var(--ui-warn);
+}
+
+.ext__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.ext__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 2px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.ext__row:first-child {
+  border-top: 0;
+}
+
+.ext__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ext__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ext__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+}
+
+.ext__tag {
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sunken);
+  font-size: 0.625rem;
+  line-height: 15px;
+  color: var(--ui-ink-3);
+}
+
+.ext__state {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.ext__state[data-tone='live'] {
+  color: var(--ui-her-text);
+}
+
+.ext__state[data-tone='pending'] {
+  color: var(--ui-warn);
+}
+
+.ext__meta {
+  display: flex;
+  flex-wrap: wrap;
+  /* 这一行现在挂了一个固定高 20 的按钮，靠中线对齐才不会比文字高半行。 */
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* 包名用等宽：用户报问题时复制的是它，字符宽度不一致会看错 l/1。 */
+.ext__id {
+  font-family: ui-monospace, monospace;
+}
+
+.ext__desc {
+  font-size: var(--text-micro);
+  line-height: 1.6;
+  color: var(--ui-ink-3);
+  /* 描述最多两行：再长会把 76 行的列表拉得读不动。 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
+  「配置」推到自己那一行的最右端：既与上面一行的状态文字对齐右缘，
+  又跟随包名/版本那行——它改的就是这些字段所属的那一段设置。
+*/
+.ext__config {
+  margin-left: auto;
+  height: 20px;
+  padding: 0 7px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  background: transparent;
+  font-size: var(--text-micro);
+  line-height: 1;
+  color: var(--ui-ink-2);
+  transition:
+    background var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.ext__config:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/*
+  开关：28 × 16 的轨道 + 12px 圆钮。
+
+  宽度写死而不是按内容撑开：一列开关必须同宽，否则「开/关」两个字会让
+  轨道左右各差几像素，纵向扫视时边界是锯齿。
+*/
+.ext__switch {
+  flex: none;
+  position: relative;
+  width: 28px;
+  height: 16px;
+  margin-top: 3px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line);
+  transition: background var(--motion-f) var(--ease-fluid);
+}
+
+.ext__switch[aria-checked='true'] {
+  background: var(--ui-action);
+  box-shadow: none;
+}
+
+.ext__switch:disabled {
+  opacity: 0.45;
+}
+
+.ext__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-raise);
+  box-shadow: var(--ui-shadow-well);
+  transition: transform var(--motion-f) var(--ease-fluid);
+}
+
+.ext__switch[aria-checked='true'] .ext__knob {
+  transform: translateX(12px);
+}
+
+/* 焦点环：键盘用户按 Tab 到开关时必须看得见位置。 */
+.ext__switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* ===========================================================================
+   检查器里的折叠段（记忆维护）
+   =========================================================================== */
+
+.inspector__fold {
+  border-top: var(--rule) solid var(--ui-line-soft);
+  padding-top: 10px;
+}
+
+.inspector__fold-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  font-size: var(--text-label);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.inspector__fold-head::-webkit-details-marker {
+  display: none;
+}
+
+/* 收起时一个加号、展开时一个减号：比箭头更贴近「多一块 / 少一块」。 */
+.inspector__fold-head::before {
+  content: '+';
+  width: 12px;
+  font-size: var(--text-label);
+  color: var(--ui-ink-4);
+}
+
+.inspector__fold[open] .inspector__fold-head::before {
+  content: '−';
+}
+
+.inspector__fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 三块内部自带外边距，这里只做一层轻微缩进，表示它们属于这一段。 */
+  padding-left: 2px;
+}

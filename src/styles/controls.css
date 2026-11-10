@@ -1,0 +1,139 @@
+/**
+ * 控件层：设置字段的各种控件（文本、数字、JSON、选择、滑杆）。
+ */
+
+.field {
+  padding: 8px 0;
+}
+
+.field__key {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.6875rem;
+  color: var(--ui-ink-2);
+  word-break: break-all;
+}
+
+.field__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.field__range {
+  flex: 1;
+  min-width: 0;
+}
+
+.field__number {
+  width: 72px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-field);
+  border: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink);
+  text-align: right;
+  transition:
+    border-color var(--motion-f) var(--ease-fluid),
+    box-shadow var(--motion-f) var(--ease-fluid);
+}
+
+.field__text,
+.field__json {
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-field);
+  border: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-caption);
+  font-family: var(--font-family);
+  line-height: 1.6;
+  color: var(--ui-ink);
+  transition:
+    border-color var(--motion-f) var(--ease-fluid),
+    box-shadow var(--motion-f) var(--ease-fluid);
+}
+
+.field__json {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  min-height: 64px;
+  resize: vertical;
+}
+
+.field__select {
+  width: auto;
+  min-width: 120px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-field);
+  border: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+}
+
+.field__text:focus,
+.field__json:focus,
+.field__select:focus,
+.field__number:focus {
+  border-color: var(--jade-200);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/**
+ * 校验失败的字段。
+ *
+ * 不用 `!important` 压过 `:focus`——那是让步进层失去可预测性的开端。
+ * 提高特异性即可：联写 `:focus` 覆盖聚焦态，平手时后写的赢。
+ */
+.field__invalid,
+.field__invalid:focus {
+  border-color: var(--ui-bad);
+  box-shadow: 0 0 0 3px var(--ui-bad-glow);
+}
+
+.field__doc {
+  margin-top: 4px;
+  font-size: var(--text-micro);
+  line-height: 1.65;
+  color: var(--ui-ink-4);
+}
+
+.field__reset {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.field__reset:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink-2);
+}
+
+.field__segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* 触屏：输入类控件抬到 16px 防自动放大。 */
+@media (any-pointer: coarse) {
+  .field__text,
+  .field__number {
+    font-size: 1rem;
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra persona packages",
+    "description": "Read-only discovery of persona packages (.skill.zip) under ondra-persona-skills: unpacks meta.json and SKILL.md, registers the usable personas, and marks which one ships as the factory default and which one is the sample. The packages themselves are never written back — they are product assets, not user data."
+  }
+}

@@ -1,0 +1,289 @@
+/**
+ * 右栏：水位与读数。56px 竖条，三段式仪器面板。
+ *
+ * ## 三段：标签 / 轨道 / 读数
+ *
+ * 顶上一枚信号点加竖排「此刻」，中间是可伸缩的水位槽，底部三行读数。
+ * 轨道吃满剩余高度，所以窗口拉高时水位会跟着长——这不是装饰，是
+ * 「还剩多少」这件事本身的形状。
+ *
+ * ## 三条不能错的实现细节
+ *
+ * 1. 液面用 `transform: scaleY()`，不用 `height`——改 height 每帧触发布局。
+ * 2. 无数据时不画 0。「数据是零」和「还没有数据」是两件事。
+ * 3. 颜色由 JS 插值后写入 `--specific-water`，组件不自己算色。
+ *
+ * ## 刻度只画在左侧
+ *
+ * 两侧都画会变成一把尺子，视觉重量压过 6px 的液柱本身。单侧刻度读起来
+ * 像「边缘的游标」，符合它作为仪表面板的分工。
+ */
+
+.spine {
+  position: relative;
+  z-index: var(--z-spine);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--w-spine);
+  padding: 14px 0 16px;
+  /*
+   * 整组垂直居中，而不是「标签顶天、读数立地」。
+   *
+   * 三段拉满整栏时，中间还剩一大段空白，读数会孤零零地贴在窗口右下角，
+   * 看起来像漏了内容。居中后这一组是一个完整的仪表，上下留白对称。
+   */
+  justify-content: center;
+  background: var(--ui-bg-canvas);
+  color: var(--ui-ink-3);
+  cursor: pointer;
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.spine:hover {
+  background: rgb(18 24 40 / 3.5%);
+}
+
+/**
+ * 竖排标签。
+ *
+ * `writing-mode: vertical-rl` 加 `text-orientation: upright`：两个字横排
+ * 会挤成「此 刻」，竖排才是这个位置该有的读法。
+ *
+ * 上方那枚 3px 的点是「她在场」的唯一记号。休息态整点消失——把「没有
+ * 心跳」画成「心跳为零」是撒谎（见 `.spine[data-resting]`）。
+ */
+.spine__caption {
+  position: relative;
+  margin-bottom: 12px;
+  font-size: var(--text-micro);
+  letter-spacing: 0.18em;
+  color: var(--ui-ink-4);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  line-height: 1.1;
+}
+
+.spine__caption::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: var(--r-full);
+  background: var(--ui-her);
+  animation: her-breathe 5.6s var(--ease-breathe) infinite;
+}
+
+.spine[data-resting] .spine__caption::before {
+  display: none;
+}
+
+/**
+ * 水位槽：只做定位盒，不裁切——刻度画在槽外。
+ * 内胆（`.spine__well`）与轨道分离：液面缩放必须先被裁成圆角，而刻度
+ * 不能被裁，两个需求冲突，只能拆两层。
+ */
+.spine__track {
+  position: relative;
+  /*
+   * 8px 宽、最高 300、上下 auto。
+   *
+   * 拉满整个栏高会得到一根 6 × 380 的细长条（比例 1:63），读起来像
+   * 一根管子而不是一个刻度；加宽到 8 并把高度封在 300，比例回到 1:37，
+   * 才像「量筒」。上下 `auto` 让它在剩余空间里居中，读数就不会被挤到
+   * 底部角落里。
+   */
+  flex: 0 1 auto;
+  width: 8px;
+  height: 100%;
+  max-height: 300px;
+  min-height: 96px;
+  margin: 0 0 16px;
+}
+
+.spine__well {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: rgb(18 24 40 / 7%);
+  box-shadow: inset 0 0 0 0.5px rgb(18 24 40 / 8%);
+  overflow: hidden;
+}
+
+/**
+ * 等分标记：25% 一格，共三格。
+ *
+ * §5.7 明写「水位不画刻度，150px 上画刻度假装精确」。那条论证针对的是
+ * 「按数值画密刻度」——水位是比例量，没有绝对单位，画 10 格只会制造
+ * 噪声。但 25 / 50 / 75 三个四分点是真的：它们回答「过了四分之一没有」，
+ * 与读数互补而不是重复。
+ *
+ * 用百分比做步长（而不是固定 16px）也是同一个道理：轨道高度随窗口变，
+ * 固定步长会在高窗口上凭空多出几格，低窗口上少几格。
+ */
+.spine__track::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--ui-ink-4) 0,
+    var(--ui-ink-4) 0.5px,
+    transparent 0.5px,
+    transparent 25%
+  );
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* 中线（50%）加长：给「一半」一个可读的锚点。 */
+.spine__track::after {
+  content: '';
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 9px;
+  height: 0.5px;
+  background: var(--ui-ink-4);
+  opacity: 0.5;
+}
+
+.spine__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--specific-water, var(--ui-water));
+  transform-origin: bottom center;
+  transition: transform var(--motion-s) var(--ease-fluid);
+}
+
+/* 呼吸：≈11.5 次/分，接近安静时的呼吸。 */
+.spine__fill[data-breathe] {
+  animation: water-breathe 5.2s var(--ease-breathe) infinite;
+}
+
+@keyframes water-breathe {
+  0%, 100% { opacity: 0.86; }
+  50% { opacity: 1; }
+}
+
+/**
+ * 读数：等宽数字。
+ *
+ * `tabular-nums` 让 62 与 9 占同样的宽，水位每秒变一次时数字不会左右
+ * 抖。这一条在 15px 的小字上几乎看不出来，但它是「精致」与「凑合」的
+ * 分界——凡是在变的数字都要这样处理。
+ */
+.spine__readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.spine__energy {
+  font-size: 0.9375rem;
+  font-weight: var(--w-regular);
+  letter-spacing: 0;
+  color: var(--ui-ink);
+}
+
+.spine__mood {
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  color: var(--ui-ink-2);
+}
+
+.spine__memory {
+  margin-top: 6px;
+  /* 0.5625rem = 9px：56px 栏宽能容下「记忆 148」的唯一字号，再大就压边。 */
+  font-size: 0.5625rem;
+  letter-spacing: 0.01em;
+  color: var(--ui-ink-4);
+  white-space: nowrap;
+}
+
+/* 无数据/休息态：竖排，横排四字在 56px 里会折行。 */
+.spine__empty {
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-ink-4);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.12em;
+}
+
+/* 静音/今天安静：竖排胶囊。 */
+.spine__muted {
+  margin-top: auto;
+  padding: 7px 3px;
+  border-radius: var(--r-xs);
+  background: var(--ui-her-bg);
+  font-size: var(--text-micro);
+  color: var(--ui-her-text);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.14em;
+}
+
+/* 悬停浮签。 */
+.spine__hint {
+  position: absolute;
+  right: 52px;
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  padding: 4px 9px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sheet);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: 0 4px 12px -6px rgb(18 24 40 / 22%);
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--motion-f) var(--ease-fluid),
+    transform var(--motion-f) var(--ease-fluid);
+}
+
+.spine:hover .spine__hint {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.spine[data-resting] .spine__caption {
+  color: var(--ui-ink-4);
+}
+
+/* 生成中：读数轻微脉动，表示数字正在更新。 */
+.spine[data-busy] .spine__energy {
+  animation: pulse-dim 1.8s var(--ease-breathe) infinite;
+}
+
+@keyframes pulse-dim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/**
+ * 窗口失焦：水位降到 60% 并停止呼吸（§12.9、§5.7 暂停条件①）。
+ * 必须同时 `animation: none`——只写 opacity 会被呼吸动画帧覆盖。
+ */
+.shell[data-window-blurred] .spine__fill {
+  opacity: 0.6;
+  animation: none;
+}
+
+.shell[data-window-blurred] .spine__readout {
+  opacity: 0.6;
+  transition: opacity var(--motion-s) var(--ease-fluid);
+}

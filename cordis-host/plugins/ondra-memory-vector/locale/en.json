@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra vector recall",
+    "description": "Vector recall branch for Ondra: dependency-free deterministic hashing embedder, auto mode switching at 300/1000 docs, RRF fusion. Inverted index stays the default; this branch is disabled by default."
+  }
+}

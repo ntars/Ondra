@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Emotion Diffusion",
+    "description": "Cross-session emotional carry-over: computes how much mood survives into a new session as (mood - baseline) * 0.4 * (1 - familiarity * 0.5). Proposal only - the caller writes the value. Boundary-key idempotency plus a gap gate keep a long chat from washing the mood back to baseline."
+  }
+}

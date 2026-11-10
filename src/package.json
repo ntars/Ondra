@@ -1,0 +1,26 @@
+{
+  "name": "@ondra/web",
+  "version": "2.2.1",
+  "private": true,
+  "description": "空谷 Ondra 前端界面：React 单页应用，经本地 HTTP 与 Cordis 宿主通信。",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "lucide": "^1.68.0",
+    "morphicons": "^2.0.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.2.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.6"
+  }
+}

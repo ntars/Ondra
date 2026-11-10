@@ -1,0 +1,251 @@
+/**
+ * 外壳与骨架：44px 标题栏 + 三列工作区 + 容器查询锚点 + 首页。
+ */
+
+/* ===========================================================================
+   外壳
+   =========================================================================== */
+
+.shell {
+  display: grid;
+  grid-template-rows: var(--h-titlebar) minmax(0, 1fr);
+  height: 100%;
+  background: var(--ui-bg-canvas);
+  overflow: hidden;
+  /*
+   * 容器查询的锚点。
+   *
+   * 媒体查询按窗口判断，而本应用有两处独立可伸缩区域（左脊抽屉、右侧
+   * 检查器）。容器查询量父级实际宽度，主列被挤压时也能正确命中。
+   */
+  container-type: inline-size;
+  container-name: shell;
+}
+
+/* ===========================================================================
+   标题栏
+   =========================================================================== */
+
+.titlebar {
+  position: relative;
+  z-index: var(--z-chrome);
+  display: flex;
+  align-items: center;
+  height: var(--h-titlebar);
+  padding: 0 12px;
+  background: var(--ui-bg-canvas);
+  box-shadow: 0 0.5px 0 var(--ui-line-soft);
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+:root[data-platform='darwin'] .titlebar {
+  /* 红绿灯中心在 y=22，左侧让出 76px：12 + 52 + 12。 */
+  padding-left: 76px;
+}
+
+/**
+ * 标题：全窗水平居中，与两端占位完全解耦。
+ * 左右占位不对称（macOS 76px / Windows 46+138），flex 居中会被推偏。
+ */
+.titlebar__title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  max-width: 46%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.02em;
+  color: var(--ui-ink-3);
+  pointer-events: none;
+}
+
+.titlebar__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  margin-left: -2px;
+  border-radius: var(--r-sm);
+  color: var(--ui-ink-2);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.titlebar__menu:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/**
+ * Windows 三键：单键 46 × 32，三键 138，贴右缘，top 6。
+ * 垂直中心 = 6 + 32 ÷ 2 = 22，与红绿灯中心重合。
+ */
+.titlebar__controls {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  display: flex;
+  height: 32px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.titlebar__control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 32px;
+  color: var(--ui-ink-2);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.titlebar__control:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.titlebar__control--close:hover {
+  background: var(--ui-bad);
+  color: var(--ui-bad-ink);
+}
+
+/* ===========================================================================
+   工作区
+   =========================================================================== */
+
+.workspace {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--w-rail) minmax(0, 1fr) var(--w-spine);
+  min-height: 0;
+  /* 抽屉与检查器是覆盖层，不被网格压缩（§3.4）。 */
+  overflow: hidden;
+}
+
+.column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /*
+   * 中栏是「一片纸」：比左右两条仪器框亮一档。
+   *
+   * 扁平界面的分区不靠投影也不靠描边，靠**明度差 + 0.5px 缝**。这三栏
+   * 里只有中间一栏是阅读区，所以只有它提亮；如果三栏同色，界面会读成
+   * 一整块灰板，用户分不清哪儿能滚。
+   */
+  background: var(--ui-bg-paper);
+}
+
+/* ===========================================================================
+   致命错误 / 骨架 / 拖放
+   =========================================================================== */
+
+.fatal {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  padding: var(--s-6);
+  text-align: center;
+}
+
+.fatal__title {
+  font-size: var(--text-title);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.fatal__detail {
+  max-width: 420px;
+  font-size: var(--text-caption);
+  line-height: var(--lh-caption);
+  color: var(--ui-ink-3);
+  word-break: break-all;
+}
+
+.skeleton {
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sunken);
+  animation: skeleton-pulse 1.6s var(--ease-breathe) infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.dropzone {
+  position: absolute;
+  inset: 8px;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-lg);
+  border: 1.5px dashed var(--jade-200);
+  background: var(--ui-bg-glass);
+  font-size: var(--text-body);
+  color: var(--ui-ink-2);
+  pointer-events: none;
+  animation: fade-in var(--motion-b) var(--ease-fluid);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes her-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+/* ===========================================================================
+   宽窗：检查器常驻为第四列
+   =========================================================================== */
+
+@container shell (min-width: 1200px) {
+  .workspace[data-inspector] {
+    grid-template-columns: var(--w-rail) minmax(0, 1fr) var(--w-spine) var(--w-inspector);
+  }
+
+  .workspace[data-inspector] .inspector {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    height: 100%;
+    box-shadow: none;
+    animation: none;
+  }
+}

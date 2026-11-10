@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra evidence gate",
+    "description": "A deterministic write-time gate for memory: every candidate must carry verbatim quotes (USER / TOOL / ACT / SELF), numbers must be sourced, and any attribution of a decision to the user without a USER quote is refused. No model calls — because self-reinforcing hallucination is exactly what prompt instructions cannot stop."
+  }
+}

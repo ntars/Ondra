@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-tts-gate",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的语音四道闸门（手册 §9.4 自研档）：开关、6–30 字、情绪强度 ≥0.15（或本轮有情绪词）、3 秒频控，外加「连续两条后强制留文本」。只做判定、不发声也不合成：判定结果带原因码、真实字数、情绪强度与六态语速，由对话链接到 O-050。缺情绪服务时按降级放行并在结果里标明，缺合成通道时如实报 unavailable——两种失败方向相反，是刻意的。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

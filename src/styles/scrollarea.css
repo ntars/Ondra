@@ -1,0 +1,67 @@
+/**
+ * 自绘滚动区。
+ *
+ * 不用原生滚动条：macOS 上宽 15px 且随系统变化，主列右侧多一条灰带，
+ * 两脊的对称立刻破掉。只隐藏绘制，不隐藏滚动——滚轮、触屏、键盘翻页、
+ * 拖拽滑块四条路径都还在。
+ */
+
+.scrollarea {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.scrollarea__viewport {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* 滚动容器自身不画焦点框，焦点语义由内部内容承担。 */
+  outline: none;
+  scroll-behavior: auto;
+}
+
+.scrollarea__viewport:focus-visible {
+  outline: none;
+}
+
+/**
+ * 滑块：3px 细条，悬停 5px。
+ * `height <= 0` 的内容不滚动时组件整块不渲染，不会挡右下角点击。
+ */
+.scrollarea__thumb {
+  position: absolute;
+  right: 2px;
+  width: 3px;
+  border-radius: var(--r-full);
+  background: rgb(115 122 138 / 26%);
+  opacity: 0;
+  transition:
+    opacity var(--motion-f) var(--ease-fluid),
+    width var(--motion-f) var(--ease-fluid),
+    background-color var(--motion-f) var(--ease-fluid);
+  pointer-events: auto;
+  cursor: default;
+  z-index: var(--z-spine);
+}
+
+.scrollarea__thumb[data-visible],
+.scrollarea:hover .scrollarea__thumb {
+  opacity: 1;
+}
+
+.scrollarea__thumb:hover,
+.scrollarea__thumb[data-dragging] {
+  width: 5px;
+  background: rgb(115 122 138 / 42%);
+}
+
+/* 触屏不显示滚动条：拖动滑块的操作在手指下会被遮挡。 */
+@media (hover: none) {
+  .scrollarea__thumb {
+    display: none;
+  }
+}

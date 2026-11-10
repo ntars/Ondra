@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra persona assembly",
+    "description": "Assembles the four persona segments — kernel, relationship tuning, speech tone, boundaries — in a fixed order (never sorted by priority) into this turn's prompt. Units are packed one by one against a character budget, skipping anything that does not fit and continuing with the next; the boundary layer is fully exempt from trimming, so it would rather report overBudget than silently drop a single prohibition. Trimming is whole-unit only: no slicing, no summarising, no rewriting."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Memory Heal",
+    "description": "Self-healing for Ondra's memory store (L9 extension pool): performs an on-demand inspection of fixable problems (dangling pins, tombstone leaks, ghost resurface ids, zero-strength entries that stayed active, missing summaries, suspected duplicates, excess pins), sorts each into three tiers (safe to fix automatically / needs explicit confirmation / advisory only), produces a reviewable repair plan, and re-inspects right before applying so a stale plan is never acted on. On-demand only: no background daemon, no unattended repair (apply requires confirm: repair), no rewriting summaries or merging memories on behalf of other plugins, no direct table access. When the memory core is absent, available is false; when the audit service is absent, three checks are skipped and named in missing."
+  }
+}

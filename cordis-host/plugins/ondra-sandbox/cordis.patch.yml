@@ -1,0 +1,19 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（master-plan §8.3-2，全仓对照确认）：
+#   - `insert` 块自身不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 块自身带 `id`   → 目标是 `group: true` 的分组；本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / `name` 不一致 → 宿主只告警然后跳过（不报错，也不会加载）。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`。
+# 在补丁里再写一份，等于让「票期多久」有两个真源，而两个真源迟早会给出两个答案。
+#
+# 刻意**不写 inject**：本插件**一项硬依赖都没有**（身份 / 时钟 / 路径 / 配置全是软依赖）。
+# 尤其刻意**不 inject `ondra-organ-gate` 与 `ondra-organ-host`**：本包与它们没有调用关系，
+# 只是职责相邻。写进 inject 会造成「装了沙箱就得装器官宿主」的假硬依赖，
+# 而 §15.5 的纪律恰好相反——相邻服务一律经服务键现取，取不到就降级。
+- insert:
+    - id: ondra-sandbox
+      name: 'ondra-sandbox'

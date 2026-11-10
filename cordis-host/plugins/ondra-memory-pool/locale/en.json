@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory pools",
+    "description": "Pool-based memory layering with a three-stage day-scale timeline: guard window, half-life, and archive. The core pool never decays and is capped at 32 entries (full means reject, never evict); the iron-rule pool has a 730-day half-life; the hippocampus pool is never injected. When a label matches no pool it is not guessed: the record falls into the hippocampus and is marked unclassified, and the same sentence recurring three times escalates to manual pool assignment. Timestamps only, no weights, and it never writes any column of the memory table."
+  }
+}

@@ -1,0 +1,66 @@
+/**
+ * 手机顶栏（≤819 容器宽出现）。标题栏本体与 Windows 三键在 layout.css。
+ */
+
+.topbar {
+  display: none;
+  position: relative;
+  align-items: center;
+  height: 48px;
+  padding: 0 4px;
+  background: var(--ui-bg-canvas);
+  box-shadow: 0 0.5px 0 var(--ui-line-soft);
+}
+
+.topbar__hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-sm);
+  color: var(--ui-ink-2);
+}
+
+.topbar__hit:active {
+  background: var(--ui-bg-active);
+}
+
+.topbar__title {
+  flex: 1;
+  min-width: 0;
+  max-width: 180px;
+  margin: 0 auto;
+  text-align: center;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 状态点：颜色由内联 `--specific-water` 写入。 */
+.topbar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--specific-water, var(--ui-water));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--specific-water, var(--ui-water)) 16%, transparent);
+}
+
+/**
+ * 水位线：贴顶栏下沿的 2px 横线。
+ * 手机上右脊消失，这条线是「信息不丢」的兜底。
+ */
+.topbar__water {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--specific-water, var(--ui-water));
+  transform-origin: left center;
+  opacity: 0.7;
+  transition: transform var(--motion-s) var(--ease-fluid);
+}

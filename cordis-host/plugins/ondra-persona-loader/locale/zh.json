@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 人设包",
+    "description": "只读扫描 ondra-persona-skills 下的人设包（.skill.zip），解出 meta.json 与 SKILL.md，注册可用人设并标出出厂与示例。人设包本体永不回写——它是产品资产，不是用户数据。"
+  }
+}

@@ -1,0 +1,343 @@
+/**
+ * 输入卡：一块玻璃。凹面在浅色下表达「可以落字」，深色下靠提亮。
+ */
+
+.composer {
+  position: relative;
+  flex: none;
+  padding: 12px 24px 12px;
+}
+
+/* 上沿谷线：输入区与消息流之间唯一的分隔。 */
+.composer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: min(var(--w-composer), calc(100% - 48px));
+  height: 0.5px;
+  transform: translateX(-50%);
+  background: linear-gradient(to right, transparent, var(--ui-line-strong) 18%, var(--ui-line-strong) 82%, transparent);
+}
+
+.composer__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--w-composer), 100%);
+  margin: 0 auto;
+  border-radius: var(--r-md);
+  /*
+   * 扁平输入框：纸上开的一个口。
+   *
+   * 用比纸更浅的实色 + 0.5px 边线，不加内阴影。旧的「凹面玻璃」在扁平
+   * 语言里会变成一片灰底疙瘩——因为凹陷阴影本来就是拟物手法。
+   */
+  background: var(--ui-bg-sheet);
+  border: var(--rule) solid var(--ui-line);
+  transition:
+    border-color var(--motion-f) var(--ease-fluid),
+    box-shadow var(--motion-f) var(--ease-fluid),
+    background-color var(--motion-f) var(--ease-fluid);
+}
+
+.composer__card:focus-within {
+  border-color: var(--ui-action);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--ui-shadow-well);
+}
+
+/* 焦点指示只有一层（§5.6）：环画在卡片上，输入框自己不画。 */
+.composer__input:focus,
+.composer__input:focus-visible {
+  outline: none;
+}
+
+/* ===========================================================================
+   附件行
+   =========================================================================== */
+
+.composer__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 10px 0;
+}
+
+.composer__attachment {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--ui-bg-sunken);
+}
+
+.composer__attachment-name {
+  display: block;
+  padding: 6px 8px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 缩略图：48 × 48 定方块，background-size cover 一行就够。 */
+.composer__attachment-thumb {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-xs);
+  background-size: cover;
+  background-position: center;
+}
+
+.composer__attachment-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: rgb(0 0 0 / 55%);
+  color: rgb(255 255 255 / 92%);
+}
+
+.composer__attachment-remove:hover {
+  background: rgb(0 0 0 / 72%);
+}
+
+/* ===========================================================================
+   输入行
+   =========================================================================== */
+
+.composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 9px 8px 7px 12px;
+}
+
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 140px;
+  padding: 4px 0;
+  font-size: var(--text-body);
+  line-height: 20px;
+  color: var(--ui-ink);
+}
+
+.composer__input::placeholder {
+  color: var(--ui-ink-4);
+}
+
+.composer__tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 2px;
+}
+
+.composer__tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-4);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.composer__tool:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink-2);
+}
+
+/* ===========================================================================
+   发送键与回声
+   =========================================================================== */
+
+.composer__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  background: var(--ui-action);
+  color: var(--ui-action-ink);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    transform var(--motion-f) var(--ease-fluid),
+    opacity var(--motion-f) var(--ease-fluid);
+}
+
+.composer__send:hover {
+  background: var(--ui-action-hover);
+}
+
+.composer__send:active {
+  transform: scale(0.94);
+}
+
+.composer__send[aria-disabled='true'] {
+  opacity: 0.34;
+}
+
+/**
+ * 回声：发送时从圆点向外扩一圈 1px 雾蓝线，`--motion-echo` 淡出。
+ * 它是**确认**：用户需要看到「话出去了」。
+ */
+.composer__echo {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--jade-700);
+  pointer-events: none;
+  animation: echo-out var(--motion-echo) var(--ease-exit) forwards;
+}
+
+@keyframes echo-out {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+/* ===========================================================================
+   字数 / 模型菜单
+   =========================================================================== */
+
+.composer__count {
+  position: absolute;
+  right: 14px;
+  bottom: -20px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--motion-f) var(--ease-fluid);
+}
+
+.composer__card:focus-within .composer__count {
+  opacity: 1;
+}
+
+.composer__model {
+  position: relative;
+}
+
+.composer__model-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.composer__model-button:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink-2);
+}
+
+/* 模型菜单：向上展开的玻璃片。 */
+.composer__model-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: var(--z-menu);
+  min-width: 180px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-glass-strong);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  animation: menu-in var(--motion-b) var(--ease-fluid);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.composer__model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+  text-align: left;
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.composer__model-item:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.composer__model-item[aria-checked='true'] {
+  color: var(--jade-700);
+  font-weight: var(--w-medium);
+}
+
+/* ===========================================================================
+   触屏
+   =========================================================================== */
+
+/**
+ * iOS Safari 在 input 字号 < 16px 时聚焦会放大页面且不缩回。
+ * 判据是 `any-pointer`（有没有触屏）不是 `pointer`（主指针）：
+ * iPad 接键盘后主指针变 fine，但用户随时可能抬手点屏幕。
+ */
+@media (any-pointer: coarse) {
+  .composer__input {
+    font-size: 1rem;
+  }
+}
+
+/* 生成中：发送键变停止键的视觉准备（由 data-busy 驱动）。 */
+.composer[data-busy] .composer__send {
+  background: var(--ui-bg-sunken);
+  color: var(--ui-ink-2);
+}
+
+/* 矮窗：压缩上下内距。 */
+@media (max-height: 560px) {
+  .composer {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}

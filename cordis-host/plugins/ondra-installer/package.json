@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-installer",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的清单制安装器：九步流水线，每组件独立 sha256，落盘前后各验一次，账本写在用户的 .ondra-bootstrap.json 里，最后跑一次 bootstrap-ok 自检。手册点名旧项目的病根是清单只有哈希、没有记账本、也没有自检命令，所以这三样是本包的主干。顺序上它把校验硬排在落盘之前：哈希不通过就一个字节都不写，否则目标目录先脏掉，回滚要么删掉找不回来的东西，要么留着坏文件等下次启动炸在更远的地方。覆盖也要单独一步：账本里有这条路径说明是我装的，允许升级；账本里没有而目标位置有同名文件，那是别人的东西，默认拒绝。记账是两阶段的，先记装到一半再记装好，这样进程在复制中途被杀，下次看到的是需要重装而不是从没装过。默认演练不写盘，因为安装是唯一会写用户目录的能力，不可逆操作要放到明确的第二次确认之后。路径全部默认空，空着就如实报缺清单、缺来源、缺目标，猜出来的目标目录会在用户机器上凭空长出一棵运行时树。装失败不自动回滚，回滚交给快照插件；归档件不解压，因为禁装依赖，本包如实报不支持而不是假装解开。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

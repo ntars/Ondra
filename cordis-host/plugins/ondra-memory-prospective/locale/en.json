@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra promises and to-dos",
+    "description": "Promises and to-dos are kept apart: a promise locks the original wording, enters memory under the 8000-hour promise baseline, is reminded 24 hours ahead, keeps a 24-hour grace window, and settles as kept or broken with a relationship delta proposal only. To-dos never enter the memory chain: at most three, auto-expired after three quiet days."
+  }
+}

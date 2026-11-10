@@ -1,0 +1,353 @@
+/**
+ * 基础层：重置、排版基线、通用控件、无障碍基础设施。
+ *
+ * 组件层不再重复定义这些，只做「在这个位置上长什么样」的增量。
+ */
+
+/* ===========================================================================
+   重置
+   =========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  font-size: 100%;
+  background: var(--ui-bg-canvas);
+  color-scheme: light dark;
+  /* 桌面端窗口不可整页滚动；禁下拉刷新与橡皮筋回弹。 */
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* 字体栈定义在 tokens.css，这里只引用——写两处就会走散。 */
+  font-family: var(--font-family);
+  font-size: var(--text-body);
+  font-weight: var(--w-regular);
+  line-height: var(--lh-body);
+  color: var(--ui-ink);
+  background: var(--ui-bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Windows / Linux 的字重补偿：font-weight 会被映射到静态实例，轴值落不到 450。 */
+[data-platform='win32'] body,
+[data-platform='linux'] body {
+  font-variation-settings: 'wght' 450;
+}
+
+/* 所有读数默认等宽数字：水位跳动时数字不左右抖动。 */
+[data-num],
+.spine__energy,
+.inspector__value,
+.composer__count,
+.settings__count,
+.raw__value {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-title);
+  line-height: var(--lh-title);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea {
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+textarea {
+  resize: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--jade-100);
+  color: var(--ink-1);
+}
+
+/* ===========================================================================
+   焦点
+   =========================================================================== */
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--jade-700);
+  outline-offset: 2px;
+}
+
+/* ===========================================================================
+   仅读屏
+   =========================================================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===========================================================================
+   通用按钮
+   =========================================================================== */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-field);
+  border: var(--rule) solid var(--ui-line);
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    border-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.button:hover {
+  background: var(--ui-bg-raise);
+  color: var(--ui-ink);
+}
+
+.button:active {
+  background: var(--ui-bg-sunken);
+}
+
+.button--primary {
+  background: var(--ui-action);
+  border-color: transparent;
+  color: var(--ui-action-ink);
+}
+
+.button--primary:hover {
+  background: var(--ui-action-hover);
+  color: var(--ui-action-ink);
+}
+
+.button--primary:active {
+  background: var(--ui-action-press);
+}
+
+.button--danger {
+  color: var(--ui-bad-ink);
+  background: var(--ui-bad);
+  border-color: transparent;
+}
+
+.button--ghost {
+  border-color: transparent;
+  color: var(--ui-ink-2);
+  background: transparent;
+}
+
+.button--ghost:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.button[aria-disabled='true'],
+.button:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ===========================================================================
+   开关
+   =========================================================================== */
+
+.control-switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
+  box-shadow: var(--ui-shadow-well);
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.control-switch[aria-checked='true'] {
+  background: var(--ui-action);
+  box-shadow: none;
+}
+
+.control-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-full);
+  background: var(--stone-0);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 24%);
+  transform: translateX(0);
+  transition: transform var(--motion-f) var(--ease-fluid);
+}
+
+.control-switch[aria-checked='true'] .control-switch-knob {
+  transform: translateX(16px);
+}
+
+/* ===========================================================================
+   滑杆
+   =========================================================================== */
+
+.control-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.control-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: linear-gradient(
+    to right,
+    var(--ui-action) var(--fill),
+    var(--ui-bg-sunken) var(--fill)
+  );
+}
+
+.control-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: var(--r-full);
+  background: var(--stone-0);
+  border: 0.5px solid var(--ui-line);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 22%);
+}
+
+.control-range:focus-visible::-webkit-slider-thumb {
+  outline: var(--focus-ring-width) solid var(--jade-700);
+  outline-offset: 2px;
+}
+
+/* ===========================================================================
+   分段
+   =========================================================================== */
+
+.control-segments {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-sunken);
+  box-shadow: var(--ui-shadow-well);
+}
+
+.control-segment {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: calc(var(--r-sm) - 2px);
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid),
+    box-shadow var(--motion-f) var(--ease-fluid);
+}
+
+.control-segment:hover {
+  color: var(--ui-ink-2);
+}
+
+.control-segment[aria-checked='true'],
+.control-segment[aria-selected='true'],
+.control-segment[data-on=''] {
+  color: var(--ui-ink);
+  background: var(--ui-bg-raised);
+  box-shadow: var(--ui-shadow-key);
+}
+
+/* ===========================================================================
+   减少动态效果的全局兜底
+   =========================================================================== */
+
+/**
+ * 循环动画与关键帧不受令牌控制，用 `!important` 压过——这是全项目唯一
+ * 放行处。过渡**不在这里一刀切**：位移类过渡由令牌控制（reduce 下 1ms），
+ * 颜色类过渡走 `--motion-f`（保持 120ms），§8.7「去位移、留颜色」。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

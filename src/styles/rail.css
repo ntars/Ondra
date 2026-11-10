@@ -1,0 +1,155 @@
+/**
+ * 左栏：功能入口。56px 竖条，40 命中区，图标 20。
+ *
+ * ## 为什么是 56 / 40 / 20
+ *
+ * 56 是 8pt 栅格的整数倍，扣掉左右各 8 只剩 40——正好是 Apple HIG 里
+ * 「大号工具栏按钮」的命中区，也刚好托住一枚 20px 的图标（比例 0.5）。
+ * 52 装不下 40，只能退到 32，图标就会显得浮在栏中间。
+ *
+ * ## 为什么没有分隔线
+ *
+ * 中栏是比左右两栏亮一档的「纸」（`--ui-bg-paper`），边界靠明度差已经
+ * 成立。再画一条线就是同一个信息说两遍，扁平界面尤其忌讳这种重复。
+ */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--w-rail);
+  gap: var(--s-2);
+  padding: 12px 0;
+  background: var(--ui-bg-canvas);
+}
+
+/**
+ * 组内必须显式 flex column。
+ *
+ * 原先只有 `.rail` 是 flex，`__group` 是个裸 div，里面的按钮是
+ * `inline-flex`——它们会按**行内流**排，一个 40 宽的按钮占满一行之后
+ * 靠 line-height 撑出间距，于是出现「第一个离第二个 32、第三个离第四个
+ * 60」这种不均匀的缝。截图上一眼就能看出来，但代码里没有任何一处写错。
+ */
+.rail__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rail__item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--rail-hit);
+  height: var(--rail-hit);
+  border-radius: var(--r-sm);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.rail__item:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.rail__item:active {
+  background: var(--ui-bg-active);
+}
+
+/**
+ * 选中三层：淡蓝底 + 内描边 + 蓝图标 + 左缘 2px 竖标。
+ *
+ * 内描边是扁平的替代品：没有投影可加，又不希望选中块只是一块淡色，
+ * 就用 1px 的半透明蓝把它的边界「扣」出来。
+ */
+.rail__item[aria-current='page'],
+.rail__item[aria-pressed='true'],
+.rail__item[data-active=''] {
+  background: var(--ui-bg-selected);
+  color: var(--jade-700);
+  box-shadow: inset 0 0 0 1px rgb(32 58 133 / 10%);
+}
+
+/**
+ * 竖标贴栏缘。
+ *
+ * 40 的按钮居中在 56 的栏里，左右各剩 8，所以 `left: -8px` 正好落在
+ * 栏的左边界上。旧值 -10 是按 52/32 算的，换栏宽后不改就会飘到栏外，
+ * 被 `.workspace` 的 `overflow: hidden` 裁掉——选中态于是「消失」。
+ */
+.rail__item[aria-current='page']::before,
+.rail__item[aria-pressed='true']::before,
+.rail__item[data-active='']::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  border-radius: var(--r-full);
+  background: var(--ui-action);
+  transform: translateY(-50%);
+  animation: tick-in var(--motion-b) var(--ease-fluid);
+}
+
+@keyframes tick-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scaleY(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+  }
+}
+
+/* 悬停浮签：唯一允许「浮起来」的元素，因为它必须离开栏才能被读到。 */
+.rail__label {
+  position: absolute;
+  left: 50px;
+  top: 50%;
+  padding: 4px 9px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sheet);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: 0 4px 12px -6px rgb(18 24 40 / 22%);
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--motion-f) var(--ease-fluid),
+    transform var(--motion-f) var(--ease-fluid);
+}
+
+.rail__item:hover .rail__label,
+.rail__item:focus-visible .rail__label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 触屏：命中区升到 44，栏宽不变（56 仍容得下）。 */
+@media (hover: none) {
+  .rail__item {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/**
+ * 设置固定底部。
+ *
+ * 旧样式表里只有注释写着「设置固定在底部（y = 532）」，规则本身从未存在过，
+ * 于是齿轮一直跟在第四个入口后面浮在栏中间。`margin-top: auto` 是唯一
+ * 不依赖窗口高度的做法：绝对定位写死 532，窗口一拉高就脱底。
+ */
+.rail__item--settings {
+  margin-top: auto;
+}

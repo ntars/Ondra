@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Chinese logs",
+    "description": "Two log layers for the same product: readable Chinese sentences for users and structured code logs for diagnosis, with size-based rotation and duplicate suppression."
+  }
+}

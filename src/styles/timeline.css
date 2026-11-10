@@ -1,0 +1,334 @@
+/**
+ * 时间线：消息流。正文 588 居中，用户消息左侧蓝色竖标，悬停时间沟槽。
+ */
+
+.timeline {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.timeline__scroll {
+  /* 布局约束由 .scrollarea 承担（scrollarea.css），这里只留语义。 */
+}
+
+.timeline__measure {
+  max-width: var(--w-column-text);
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* 空态垂直居中。 */
+.timeline__measure[data-empty] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+/**
+ * 开场。空会话时它是第一屏。
+ *
+ * 三件东西：标志、名字、一句邀请。竖排居中，间距 14 / 6 / 20 三段——
+ * 名字与标语靠得近（同一句话的两个部分），邀请单独留一段空白再出现
+ * （它是行动，不是描述）。
+ *
+ * 字重 300 而不是常规 400：22px 的中文粗一档就会抢走「安静」这个基调；
+ * MiSans 的可变字重在这里第一次有了用处。
+ */
+.timeline__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 28px;
+  text-align: center;
+}
+
+.timeline__empty-mark {
+  display: inline-flex;
+  margin-bottom: 14px;
+  opacity: 0.92;
+}
+
+.timeline__empty-title {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: var(--w-light);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ui-ink);
+}
+
+.timeline__empty-title-en {
+  margin-left: 8px;
+  font-size: 0.6875rem;
+  font-weight: var(--w-regular);
+  letter-spacing: 0.2em;
+  color: var(--ui-ink-4);
+  vertical-align: 0.3em;
+}
+
+.timeline__empty-slogan {
+  margin-top: 6px;
+  font-size: var(--text-caption);
+  letter-spacing: 0.01em;
+  color: var(--ui-ink-3);
+}
+
+.timeline__empty-hint {
+  margin-top: 20px;
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  color: var(--ui-ink-4);
+}
+
+/* ===========================================================================
+   消息
+   =========================================================================== */
+
+.message {
+  position: relative;
+  margin: 14px 0;
+}
+
+.message[data-role='user'] {
+  margin: 6px 0 10px -14px;
+  padding: 12px 16px 12px 14px;
+  background: var(--ui-bg-raised);
+  border-left: 2px solid var(--jade-700);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.message[data-role='user'] .message__body {
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.message__body {
+  font-size: var(--text-body);
+  line-height: var(--lh-body);
+  color: var(--ui-ink);
+  word-break: break-word;
+}
+
+/* 悬停时间沟槽：正文左 48px 处的一行小字。 */
+.message::after {
+  content: attr(data-time);
+  position: absolute;
+  left: -48px;
+  top: 22px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--motion-f) var(--ease-fluid);
+  pointer-events: none;
+}
+
+/* 容器窄到放不下沟槽时藏起时间戳。 */
+@container shell (max-width: 900px) {
+  .message::after {
+    display: none;
+  }
+}
+
+.message:hover::after {
+  opacity: 1;
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===========================================================================
+   消息操作
+   =========================================================================== */
+
+.message__actions {
+  position: absolute;
+  /*
+   * 三个按钮（复制 / 引用 / 删除）各 24px，间距 0 → 总宽 72。
+   * 右缘留在正文栏右侧 74：左边留 2 的呼吸，右边不越过滚动视口右缘
+   * （820 窗口下正文栏两侧的沟正是 74）。
+   *
+   * 上一版只有两个按钮（50 宽），`right: -58` 刚好够。加第三个之后
+   * 它压到了正文上——这条几何关系必须跟着按钮数一起改，改宽一点
+   * 比把按钮做小更符合点击目标下限（这里是 24 的图标键，再小就点不准）。
+   */
+  right: -74px;
+  top: 14px;
+  display: flex;
+  gap: 0;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity var(--motion-f) var(--ease-fluid),
+    transform var(--motion-f) var(--ease-fluid);
+  pointer-events: none;
+}
+
+.message[data-actions] .message__actions,
+.message:focus-within .message__actions {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.message__action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-4);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.message__action:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/*
+  删除的确认态：按钮由图标变成「确认」两个字，颜色换成故障色。
+
+  宽度用 min-width 而不是定宽：24px 装不下两个字，硬撑成 24 会溢出；
+  让它按内容变宽，操作条向右对齐、向左扩展，位置不跳。
+*/
+.message__action[data-armed] {
+  width: auto;
+  min-width: 24px;
+  padding: 0 6px;
+  background: var(--ui-bg-hover);
+  color: var(--ui-bad);
+}
+
+.message__action-text {
+  font-size: var(--text-micro);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   离开提示 / 内联错误 / 理由线
+   =========================================================================== */
+
+.reasonline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+  font-size: 0.6875rem;
+  color: var(--ui-ink-4);
+  user-select: none;
+}
+
+.reasonline__dot {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--amber-500);
+}
+
+.reasonline__text,
+.reasonline__why {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reasonline__undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: inherit;
+  color: var(--ui-ink-3);
+  border-radius: var(--r-xs);
+}
+
+.reasonline__undo:hover {
+  color: var(--ui-ink);
+}
+
+.inline-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bad-bg);
+  border-left: 2px solid var(--ui-bad);
+  font-size: 0.75rem;
+  line-height: var(--lh-caption);
+  color: var(--ui-ink);
+}
+
+.inline-error__text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.inline-error__action,
+.inline-error__retry {
+  flex: none;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-bad);
+}
+
+.inline-error__retry:hover {
+  text-decoration: underline;
+}
+
+/* 跳到最新。 */
+.timeline__jump {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-glass-strong);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  transition:
+    opacity var(--motion-f) var(--ease-fluid),
+    transform var(--motion-f) var(--ease-fluid);
+}
+
+.timeline__jump[hidden] {
+  display: none;
+}
+
+/**
+ * 离开提示：一行 11px 灰字居中（§12.9）。
+ */
+.timeline__absence {
+  margin: 10px 0;
+  text-align: center;
+  font-size: 0.6875rem;
+  color: var(--ui-ink-4);
+}

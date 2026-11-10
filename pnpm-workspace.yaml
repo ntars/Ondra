@@ -1,0 +1,26 @@
+# 工作区成员。空谷 2.0.1 只有四处需要被 pnpm 链接：
+#   1. 前端 UI 工程（src/，包名 @ondra/web）
+#   2. Cordis 宿主（cordis-host/）
+#   3. 宿主插件：新写的三个 + 迁入的 134 个空谷插件
+#   4. dsh 内核子进程（dsh-sidecar/）
+# Tauri 壳（src-tauri/）由 Cargo 管理，不进 pnpm 工作区。
+packages:
+  - 'src'
+  - 'cordis-host'
+  - 'cordis-host/plugins/*'
+  - 'dsh-sidecar'
+
+# 空谷的插件历史上把框架声明为私有 scope `@ntars/cordis`，该 scope 从未发布到
+# 公共 npm。官方 `cordis` 是它的唯一上游（MIT，同一仓库 cordiverse/cordis 的 rc 线），
+# 插件的 `import type { Context }` 正是官方导出的同名类型。
+#
+# 早期迁入的插件写的是 `workspace:~` 协议，需要工作区里真有这个包才能解析。
+# 因此这里两者同时存在：overrides 负责把任何 `@ntars/cordis` 请求重定向到官方包，
+# 新生成的插件清单统一写 `"*"` 而不是 `workspace:` 协议——后者表达的是
+# 「依赖工作区内的同名包」，而实际情况是「依赖一个被别名过的外部包」，
+# 写 `*` 才与事实相符。
+overrides:
+  '@ntars/cordis': 'npm:cordis@4.0.0-rc.12'
+
+minimumReleaseAgeExclude:
+  - vite@8.3.6

@@ -1,0 +1,70 @@
+# 依赖目录。pnpm 的 node_modules 使用符号链接与全局内容寻址存储，
+# 各工作区成员下都会出现，全部不入库。
+node_modules/
+.pnpm-store/
+
+# 构建产物
+dist/
+target/
+*.tsbuildinfo
+
+# TypeScript 编译输出。137 个插件包与宿主、内核都以 `tsc -b` 输出到各自
+# 的 lib/ 目录（共 3637 个文件、26 MB），源码在 src/，lib/ 由构建重新生成。
+# package.json 的 main 指向 lib/index.js，所以克隆后必须先 `pnpm run build`。
+cordis-host/lib/
+cordis-host/plugins/*/lib/
+dsh-sidecar/lib/
+
+# 发布产物（由 tools/bundle-release.mjs 从 bundle 目录搬运而来，不入库）
+releases/
+
+# Tauri 打包输出
+src-tauri/target/
+src-tauri/gen/
+
+# 官网静态输出（由 tools/build-site.mjs 生成）
+.site-dist/
+
+# 本地环境与密钥（绝不入库）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 系统与编辑器
+.DS_Store
+._*
+__MACOSX/
+.idea/
+.vscode/
+*.swp
+
+# 日志与运行时文件
+*.log
+logs/
+*.pid
+
+# MiSans 官方完整字体包（217MB）。
+# 多个原因不该入库：
+# 1. GitHub 单文件上限 100MB，超过直接推送失败；
+# 2. 每次克隆要多拉 217MB，而构建实际只用到 8.3MB 的子集；
+# 3. 字体许可是"随软件分发"，不是"随源码分发"，分包更清晰。
+# 界面用的子集（src/assets/fonts/MiSansVF.woff2）仍入库，克隆后即可构建。
+# 需要完整包时从官方下载即可，见 src/assets/fonts/LICENSE-MiSans.md。
+src/assets/fonts/official/
+
+# 用户数据目录（运行时产生，含会话与工作区）
+.ondra/
+
+# 打包期组装产物（Node 运行时 + 宿主 + 内核，约 134 MiB）。
+# 由 `pnpm run build:runtime` 现场生成，不需要入库。
+src-tauri/runtime/
+
+# 协作工具的工作目录（会话日志与本地记忆），属于个人工作状态，
+# 不构成项目内容，不入库。
+.workbuddy/
+
+# 开发期界面截图（`tools/shot.mjs` 的输出，880 KB）。
+# 没有被任何文档引用，随界面改版即过时，不入库。
+.shots/

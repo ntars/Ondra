@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory core",
+    "description": "Memory foundation for Ondra: a two-layer store (raw turns / extracted facts), an 11-class baseline lifespan formula, write-time scoring, four-state deletion with tombstones, archiving, and resurfacing candidates. It owns how long a memory lives, not which memory to recall."
+  }
+}

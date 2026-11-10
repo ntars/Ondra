@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-onboarding",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的首启引导状态机：把「四段首启」落成可判定的四段（检查运行环境 → 复用已装.ondra.→ 挑空闲端口 → 带 token 打开界面），每段必须带证据才算完，跳过只允许发生在唯一可选的那段。它同时是宣传片 01 章的验收基线：安装器标题走身份真源拼出「安装 空谷 Ondra 1.0」，进度百分比只算不写死（56% 是宣传片一帧，不是常量），状态行用规范原文两句，首条消息必须由当前人设主动发出且文案取当前人设名——名字没给就报 no-persona，绝不替人设签字。验收五条每条都是三值：过、不过、判不了，把判不了当成过是自欺，当成不过是误伤。它还吸收部署教程里五个高频新手坑，逐条给「下一步做什么」而不是复述现象，因为其中四个的共同点是报错不指向原因，第五个则完全不报错。它不渲染界面、不发消息、不装组件：渲染归界面层，发送归对话层，装组件归安装器，重复一份必然分叉。所有方法都不抛，首启期间任何一步失败都该被界面显示出来，而不是让宿主收到未捕获的 rejection。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

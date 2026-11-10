@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Expression Decide",
+    "description": "Turns a finished reply line into one of six expression tags by rules alone: cue words, punctuation and sentence shape. It answers only what her face should be while that line is said. It never inserts a marker into the text and never writes a state name into the prompt, because the internal vocabulary must not leak into what she says. When the line carries no cue it falls back to the current six-state reading from the emotion layer; when neither is available it returns a safe default and tells the caller that there was no basis for the face."
+  }
+}

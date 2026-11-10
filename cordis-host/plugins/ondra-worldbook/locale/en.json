@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra worldbook",
+    "description": "A six-layer worldbook selector with hard token buckets: 1600 tokens in total (L1 350 / L2 180 / L3 100 / L4 500 / L5 200 / L6 150), with no borrowing between layers. When a layer hits its limit the whole entry is dropped — text is never sliced. Always-on entries form a separate block that is frozen as the session prefix, and within-layer order is fixed by priority and registration order so the prefix never drifts with the current topic. Every dropped entry is reported with a reason instead of vanishing silently."
+  }
+}

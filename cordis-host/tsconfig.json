@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "lib",
+    "types": ["node"]
+  },
+  "include": ["index.ts", "src/**/*.ts"],
+  "references": [
+    { "path": "plugins/ondra-core" },
+    { "path": "plugins/desktop-bridge" },
+    { "path": "plugins/dsh-client" }
+  ]
+}

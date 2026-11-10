@@ -1,0 +1,3 @@
+- insert:
+    - id: ondra-store-sqlite
+      name: 'ondra-store-sqlite'

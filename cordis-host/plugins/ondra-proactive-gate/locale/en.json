@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Proactive Gate",
+    "description": "Whether a message waiting to be delivered may go out right now. Nine gates stand in one line: master switch and the group red line, circuit breaker and backoff, content red lines, quiet hours, daily budget, idle threshold, per-conversation cooldown, duplicate suppression, and a three-layer token bucket. A refusal has three consequences — an exhausted daily budget or a content red line is an irreversible drop, quiet hours and rate limits hand back a delay so the caller can reschedule, and a circuit trip means silence. State is truly persisted, because a counter reset on restart is a restart that bypasses anti-ban limits."
+  }
+}

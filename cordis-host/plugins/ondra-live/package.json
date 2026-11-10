@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-live",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的日期事实（手册 §1.7 / §4.5）：今天星期几、农历几号、是不是节气、有没有过节，全部本机算、不联网。农历一行算法都不自己写——只把 lunar-javascript / tyme4ts 接上、让两条分支互相对拍、没装包时老实退成「只有公历」。输出专供提示词易变段（手册 §8.5），绝不进冻结前缀。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

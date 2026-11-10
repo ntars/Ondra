@@ -1,0 +1,7 @@
+# 补丁语义（手册 §8.3-2）：insert 不带同级 id → 追加到根入口列表；
+# 入口自身的 id 就是命名空间（日志前缀、工具名、存储目录都靠它），
+# name 必须与安装后的包名完全一致。
+# 刻意不写 config：写一遍等于把默认值抄成第二份（§3.3-5 单一真源）。
+- insert:
+    - id: ondra-data-migrate
+      name: 'ondra-data-migrate'

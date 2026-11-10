@@ -1,0 +1,327 @@
+/**
+ * 对话框 / 快捷键总表 / Toast。
+ */
+
+/* ===========================================================================
+   对话框
+   =========================================================================== */
+
+.dialog {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* 扁平遮罩：纯色压暗，不虚化背景。模糊会把「下面还有内容」说成「下面已失效」。 */
+  background: rgb(13 16 23 / 42%);
+  animation: fade-in var(--motion-f) var(--ease-fluid);
+}
+
+.dialog__panel {
+  width: min(400px, 100%);
+  border-radius: var(--r-lg);
+  background: var(--ui-bg-glass-strong);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  padding: 22px;
+  animation: dialog-in var(--motion-b) var(--ease-fluid);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dialog__title {
+  font-size: var(--text-title);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.dialog__body {
+  margin-top: 8px;
+  font-size: var(--text-caption);
+  line-height: var(--lh-caption);
+  color: var(--ui-ink-2);
+}
+
+.dialog__extra {
+  margin-top: 10px;
+}
+
+.dialog__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+  cursor: pointer;
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* ===========================================================================
+   快捷键总表
+   =========================================================================== */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 44px 24px 44px;
+  /* 扁平遮罩：纯色压暗，不虚化背景。模糊会把「下面还有内容」说成「下面已失效」。 */
+  background: rgb(13 16 23 / 42%);
+  animation: fade-in var(--motion-f) var(--ease-fluid);
+}
+
+.sheet__panel {
+  position: relative;
+  pointer-events: auto;
+  width: min(560px, 100%);
+  height: min(70vh, 460px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-lg);
+  background: var(--ui-bg-glass-strong);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  animation: dialog-in var(--motion-b) var(--ease-fluid);
+}
+
+/* 底部渐隐：告诉用户「下面还有」。 */
+.sheet__panel::after {
+  content: '';
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  height: 27px;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: linear-gradient(to top, var(--ui-bg-sheet) 30%, transparent);
+  pointer-events: none;
+}
+
+.sheet__head {
+  flex: none;
+  padding: 18px 22px 12px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.sheet__title {
+  font-size: 1.0625rem;
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-title);
+  color: var(--ui-ink);
+}
+
+.sheet__note {
+  margin-top: 3px;
+  font-size: var(--text-label);
+  color: var(--ui-ink-4);
+}
+
+.sheet__scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.sheet__body {
+  padding: 8px 30px 20px 22px;
+}
+
+.sheet__group {
+  padding-top: 14px;
+}
+
+.sheet__group-title {
+  margin-bottom: 6px;
+  font-size: var(--text-micro);
+  font-weight: var(--w-regular);
+  letter-spacing: 0.16em;
+  color: var(--ui-ink-4);
+}
+
+.sheet__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 30px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.sheet__row-name,
+.sheet__name {
+  flex: 1;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+}
+
+.sheet__keys {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.sheet__plus {
+  font-size: 0.625rem;
+  color: var(--ui-ink-4);
+}
+
+/**
+ * 键帽：内凹面 + 底部一条实边——「键」的视觉语法。
+ * 不用投影：投影让它像浮起来的按钮，键帽是「嵌下去」的。
+ */
+.sheet__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--ui-bg-field);
+  box-shadow: 0 1px 0 var(--ui-line-strong);
+  font-family: var(--font-display);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-2);
+  line-height: 1;
+}
+
+.sheet__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-4);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.sheet__close:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/* ===========================================================================
+   Toast
+   =========================================================================== */
+
+.toast {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  max-width: min(420px, calc(100vw - 48px));
+  animation: toast-in var(--motion-b) var(--ease-fluid);
+}
+
+/*
+ * 提示条默认落在视口正中。有浮层时，「正中被面板压住」在最小窗口宽
+ * （820）下是必然的：提示条最大 420、x 200–620；设置面板 380、右贴
+ * Spine → x 440–820。两个区间相交，标题与三个选项卡正好在交叠区里。
+ *
+ * 所以避让的规则不是「往一边躲」，而是**落到剩下那块空地的正中**：
+ * 右浮层 → 空地是 `[0, 100vw - 面板宽]`；左抽屉 → 空地是
+ * `[rail + 抽屉宽, 100vw]`。方向反了会越避越压（见 `App.tsx` 那段注释）。
+ *
+ * 两条都同时收窄最大宽，不只是挪中心点：只挪的话，420 宽的提示条在窄窗
+ * 下仍会从浮层边缘探进去。`max-width` 还有第二个用处——触屏那份
+ * `compact.css` 给 `.toast` 写了 `width: calc(100% - 24px)`，居中挪到
+ * 半侧后它会直接顶出屏幕右缘，收紧上限正好把它压回去。
+ */
+:root[data-right-overlay] .toast {
+  left: calc((100vw - var(--w-settings)) / 2);
+  max-width: min(420px, calc(100vw - var(--w-settings) - 48px));
+}
+
+:root[data-left-overlay] .toast {
+  left: calc((100vw + var(--w-rail) + var(--w-drawer)) / 2);
+  max-width: min(420px, calc(100vw - var(--w-rail) - var(--w-drawer) - 48px));
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+/*
+ * 提示条本体。
+ *
+ * ## 类名曾经对不上，值得留一句
+ *
+ * 这里原本写的是 `.toast__panel` / `.toast__action`，而 `Toast.tsx` 渲染的是
+ * `.toast__body` / `.toast__close`。两边没有任何一处同时改过，于是提示条
+ * 长期以「裸文字 + 一个没有样式的叉」的形式显示：没有玻璃底、没有内边距、
+ * 没有圆角与投影。截图里看不太出来——它刚好浮在深色正文上，字还是读得清。
+ * 直到量它的宽高才露馅：40×25，正好是 24 的文字加 16 的图标，一个像素
+ * 的内边距都没有。
+ *
+ * 教训是断言只验「有没有」验不出这类漂移，所以 `check:ui` 现在还会量
+ * 提示条的盒宽（贴在正文旁边时它必须是那个带内边距的药丸）。
+ */
+.toast__body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  background: var(--ui-bg-glass-strong);
+  border: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+}
+
+.toast__text {
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+
+/*
+ * 关闭键。图标 16，命中区与图标同大——提示条是个小药丸，给 32 的按钮
+ * 会把高度撑到 40 以上，反而比正文还抢眼。
+ */
+.toast__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-4);
+  transition: color var(--motion-f) var(--ease-fluid);
+}
+
+.toast__close:hover {
+  color: var(--ui-ink);
+}
+
+/* 焦点环交给 `base.css` 的全局 `:focus-visible`，这里不另写一套。 */

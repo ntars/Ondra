@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 版本迁移",
+    "description": "空谷 Ondra 的幂等表结构迁移：以 user_version 为唯一真源，每条迁移一个事务，类型/主键/非空漂移走表重建。"
+  }
+}

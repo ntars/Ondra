@@ -1,0 +1,32 @@
+{
+  "name": "@ondra/cordis-plugin-dsh-client",
+  "version": "2.1.2",
+  "private": true,
+  "description": "封装 dsh 内核的 JSON-RPC 通信：进程生命周期管理与请求配对。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["lib"],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "dependencies": {
+    "@ondra/dsh-sidecar": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}

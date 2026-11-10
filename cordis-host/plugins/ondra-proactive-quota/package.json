@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-proactive-quota",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的主动节律（手册 §5.2 / §9.3）：她此刻还想不想说、今天还剩几句、是不是该退场了。额度档位（缓慢/标准/快速）、两次主动的最小间隔、性格化沉默（确定性抽签的放弃率）、连续无回应后的退场句，以及一键静音的入口。不判断「能不能发」（那是 ondra-proactive-gate），不重算额度衰减，不生成正文，不装定时器。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

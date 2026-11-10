@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Relationship Stage",
+    "description": "Seven-stage relationship arc: hostile, probing, crush, possessive, pathological, sacrifice, settled. Four gates block stage jumps (time, 0.06 step cap, monotonic ratchet, conflict-lock override to hostile); the stage itself is a ratchet. Three relationship dimensions decay with 240h/720h/8760h half-lives and familiarity is derived from interaction count. The five-stage legacy view and the six-band 0-1000 scale are read-only derivations; pathological and sacrifice stay out of the default UI."
+  }
+}

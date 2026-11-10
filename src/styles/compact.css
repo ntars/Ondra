@@ -1,0 +1,209 @@
+/**
+ * 窄屏与触屏。锚点在 layout.css 的 `.shell { container-type }`。
+ *
+ * 断点分工：819 管骨架形态（双脊收起、顶栏登场、单列），599 管密度。
+ */
+
+/* ===========================================================================
+   一、窄窗：双脊收起、顶栏登场（同一块里三件事必须同时发生）
+   =========================================================================== */
+
+@container shell (max-width: 819px) {
+  .shell {
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+
+  .titlebar {
+    display: none;
+  }
+
+  .topbar {
+    display: flex;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .rail,
+  .spine {
+    display: none;
+  }
+
+  .timeline__measure {
+    padding: 0 16px;
+  }
+
+  .message[data-role='user'] {
+    margin-left: -8px;
+  }
+
+  .composer {
+    padding: 8px 12px 10px;
+  }
+
+  .composer__card {
+    padding: 0;
+  }
+
+  .composer__row {
+    padding: 9px 8px 7px 12px;
+  }
+
+  .drawer__panel {
+    left: 0;
+    width: min(320px, 88vw);
+  }
+
+  .inspector {
+    width: min(300px, 86vw);
+  }
+
+  .settings {
+    width: 100%;
+    border-left: 0;
+  }
+
+  .pref__body {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+
+  .pref__nav {
+    padding: 10px 6px;
+  }
+
+  .pref__content {
+    padding: 16px 16px 24px;
+  }
+
+  .sheet {
+    padding: 32px 12px 12px;
+  }
+
+  .toast {
+    top: 56px;
+    width: calc(100% - 24px);
+  }
+
+  .toast__body {
+    justify-content: space-between;
+  }
+
+  .toast__text {
+    white-space: normal;
+  }
+}
+
+/* 再窄一档：压密度。 */
+@container shell (max-width: 599px) {
+  .shell {
+    grid-template-rows: 44px minmax(0, 1fr);
+  }
+
+  .topbar {
+    height: 44px;
+  }
+
+  .timeline__measure {
+    padding: 0 12px;
+  }
+
+  .composer {
+    padding: 6px 10px 8px;
+  }
+}
+
+/* ===========================================================================
+   二、触屏
+   =========================================================================== */
+
+/**
+ * 热区扩到 44：用绝对定位的 `::before` 扩命中区，不改按钮尺寸。
+ * 消息操作条 24px 的按钮直接做成 44 会顶破 28 高的行。
+ * 用 `pointer: coarse`（主指针是手指）而不是 `any-pointer`：
+ * 带触屏的 Windows 笔记本主指针是鼠标，不该放大热区。
+ */
+@media (pointer: coarse) {
+  .message__action::before,
+  .message__action::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+
+  .composer__attachment-remove::before {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+
+  .rail__item::before,
+  .drawer__row::before,
+  .settings__tab::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+
+  .composer__attachment-remove {
+    position: relative;
+  }
+
+  /* 软键盘让位：`--kb-h` 由 lib/viewport.ts 运行时写入。 */
+  .composer {
+    padding-bottom: calc(8px + var(--kb-h, 0px));
+    transition: padding-bottom var(--motion-b) var(--ease-fluid);
+  }
+}
+
+/**
+ * 触屏没有悬停：消息操作条常驻 40%，滚动时隐藏。
+ */
+@media (hover: none) {
+  .message__actions {
+    opacity: 0.4;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .timeline[data-scrolling] .message__actions {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .message::after {
+    display: none;
+  }
+
+  .settings__tab,
+  .settings__search,
+  .drawer__row,
+  .pref__choice,
+  .button {
+    min-height: 44px;
+  }
+
+  .control-segment {
+    height: 34px;
+    padding: 0 12px;
+  }
+
+  .control-switch {
+    width: 44px;
+    height: 26px;
+  }
+
+  .control-switch-knob {
+    width: 20px;
+    height: 20px;
+  }
+
+  .control-switch[aria-checked='true'] .control-switch-knob {
+    transform: translateX(18px);
+  }
+
+  /* 触屏不显示滚动条：拖动滑块的操作在手指下会被遮挡。 */
+  .scrollarea__thumb {
+    display: none;
+  }
+}

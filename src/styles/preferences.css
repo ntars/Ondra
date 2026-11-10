@@ -1,0 +1,281 @@
+/**
+ * 偏好设置（独立窗口）：160px 导航 + 内容区。
+ */
+
+.pref {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--ui-bg-canvas);
+}
+
+.pref__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 16px;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.pref__bar-title {
+  font-size: var(--text-title);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.pref__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+/* ===========================================================================
+   导航
+   =========================================================================== */
+
+.pref__nav {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 6px;
+  border-right: var(--rule) solid var(--ui-line-soft);
+}
+
+.pref__nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+  text-align: left;
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+/* 悬停可辨但不过火：>1.05 且 <1.35 的亮度差。 */
+.pref__nav-item:hover {
+  background: rgb(18 21 28 / 10%);
+  color: var(--ui-ink);
+}
+
+/* 选中项填充反色：全界面唯一用主色做整块底的地方。 */
+.pref__nav-item[aria-current='page'] {
+  color: var(--ui-action-ink);
+  font-weight: var(--w-medium);
+  background: var(--ui-action);
+  box-shadow: none;
+}
+
+.pref__nav-item[aria-current='page']::before {
+  content: none;
+}
+
+/* ===========================================================================
+   内容
+   =========================================================================== */
+
+.pref__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px 28px;
+}
+
+.pref__section {
+  margin-bottom: 26px;
+}
+
+.pref__section-title {
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink-4);
+  margin-bottom: 10px;
+}
+
+/* 选择组：上下一列，谷线分隔。 */
+.pref__choices {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sm);
+  border: var(--rule) solid var(--ui-line-soft);
+  background: var(--ui-bg-raise);
+  overflow: hidden;
+}
+
+.pref__choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.pref__choice + .pref__choice {
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.pref__choice:hover {
+  background: var(--ui-bg-hover);
+}
+
+.pref__choice[aria-checked='true'] {
+  background: var(--ui-bg-selected);
+}
+
+/* 选中记号：右侧 7px 雾蓝点。 */
+.pref__choice[aria-checked='true']::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  background: var(--jade-700);
+  transform: translateY(-50%);
+}
+
+.pref__choice-label {
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+}
+
+.pref__choice[aria-checked='true'] .pref__choice-label {
+  font-weight: var(--w-medium);
+}
+
+.pref__choice-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+}
+
+/* 行式设置（标签 + 控件）。 */
+.pref__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+}
+
+.pref__row + .pref__row {
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.pref__row-label {
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+}
+
+.pref__row-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+}
+
+.pref__slider {
+  flex: none;
+  width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pref__cues {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.pref__note {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-raise);
+  border: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-ink-3);
+}
+
+.pref__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: var(--text-caption);
+}
+
+.pref__facts dt {
+  color: var(--ui-ink-4);
+}
+
+.pref__facts dd {
+  color: var(--ui-ink-2);
+  word-break: break-all;
+}
+
+.pref__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pref__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 0 8px;
+  text-align: center;
+}
+
+.pref__brand-name {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: var(--w-light);
+  letter-spacing: var(--track-display);
+  color: var(--ui-ink-2);
+}
+
+.pref__brand-verse {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* 窄窗。 */
+@container shell (max-width: 599px) {
+  .pref__body {
+    grid-template-columns: 1fr;
+  }
+
+  .pref__nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px 10px;
+    border-right: 0;
+    border-bottom: var(--rule) solid var(--ui-line-soft);
+  }
+
+  .pref__nav-item {
+    width: auto;
+    white-space: nowrap;
+  }
+}

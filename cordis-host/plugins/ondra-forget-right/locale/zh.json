@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra 被遗忘权",
+    "description": "空谷 Ondra 的被遗忘权（L9 扩展池）：用户说「把这件事忘掉」时，把要清的地方一次数清——记忆正文（ondra-memory-core）、钉子（ondra-memory-audit）、图边（ondra-memory-graph）、向量（ondra-memory-vector）、待办与承诺（ondra-memory-prospective）、时间胶囊（ondra-time-capsule）、语感样本（ondra-lexicon）、日记（ondra-diary）、叙事日志（ondra-narrative-log）、数据库快照（ondra-snapshot），共十一面。能真删的删掉并逐面报「动了几条」，删不掉的如实说删不掉并尽量数出还剩多少（比如日记没有删除方法、快照里整份旧库还在）。两阶段：plan() 只读、只出清单；execute() 必须带 { confirm: 'forget' }，没有令牌的删除入口迟早会被某个循环顺手调用。任何一面失败、或本该删的却被跳过，complete 就是 false——被遗忘权只有「全对」与「没做到」两种结果，中间那档叫「还以为删干净了」。不直连任何数据表、不自己删文件（那样就绕过了服务边界）、不把只删了一半报成已清干净、不自动清空台词库（那会连带清掉别人说的话）、不做界面（L8 界面插件已下线，渲染归应用外壳）。"
+  }
+}

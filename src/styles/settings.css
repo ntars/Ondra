@@ -1,0 +1,292 @@
+/**
+ * 设置面板：右侧 380 玻璃片，含场景层（13 个旋钮）与原始层（全字段表）。
+ */
+
+.settings {
+  position: absolute;
+  right: var(--w-spine);
+  /*
+   * 上边界让出标题栏。
+   *
+   * 面板原先挂在 `.workspace` 里，那个容器本身就在标题栏下方，`top: 0`
+   * 自然是对的。挪到外层（让首页也能开设置）之后，定位容器变成 `.shell`
+   * ——它是 `container-type: inline-size`，因此**本身就是一个定位容器**，
+   * 上边界成了整窗顶端。`top: 0` 于是把面板推到标题栏底下，而标题栏是
+   * `--z-chrome: 80`、面板是 `--z-overlay: 20`，标题栏压在上面：
+   * 面板标题被盖掉，`elementFromPoint` 命中的是 titlebar。
+   *
+   * 用令牌而不是写死 44px：标题栏高度是布局常量，只该在 tokens.css 里定义一次。
+   */
+  top: var(--h-titlebar);
+  bottom: 0;
+  width: var(--w-settings);
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-glass);
+  border-left: var(--rule) solid var(--ui-line);
+  box-shadow: var(--ui-shadow-float);
+  animation: panel-in var(--motion-b) var(--ease-fluid);
+}
+
+.settings__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 52px;
+  padding: 0 14px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.settings__title {
+  flex: 1;
+  font-size: var(--text-title);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.settings__count {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分段标签：场景 / 原始。 */
+.settings__tabs {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+}
+
+.settings__tab {
+  position: relative;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.settings__tab:hover {
+  color: var(--ui-ink-2);
+}
+
+.settings__tab[aria-selected='true'] {
+  background: var(--ui-bg-raised);
+  color: var(--ui-ink);
+  font-weight: var(--w-medium);
+  box-shadow: var(--ui-shadow-key);
+}
+
+.settings__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 8px 12px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.settings__search {
+  flex: 1;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-field);
+  border: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  transition:
+    box-shadow var(--motion-f) var(--ease-fluid),
+    border-color var(--motion-f) var(--ease-fluid);
+}
+
+.settings__search:focus-visible {
+  border-color: transparent;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.settings__search::placeholder {
+  color: var(--ui-ink-4);
+}
+
+.settings__advanced {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-label);
+  color: var(--ui-ink-3);
+  transition: color var(--motion-f) var(--ease-fluid);
+}
+
+.settings__advanced:hover {
+  color: var(--ui-ink);
+}
+
+.settings__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.settings__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: 10px 14px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.settings__empty {
+  padding: 32px 0;
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-4);
+}
+
+/* ===========================================================================
+   场景层：13 个旋钮
+   =========================================================================== */
+
+.scene {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-raise);
+  border: var(--rule) solid var(--ui-line-soft);
+}
+
+.scene__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.scene__name {
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.scene__hint {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--text-label);
+  line-height: 1.5;
+  color: var(--ui-ink-3);
+}
+
+/* 引用式预演：改之前先看到效果的一句话。 */
+.scene__preview {
+  display: block;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--jade-200);
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+}
+
+.scene__control {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 120px;
+}
+
+.scene__value {
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===========================================================================
+   原始层：全字段表
+   =========================================================================== */
+
+.raw__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.raw__table th {
+  position: sticky;
+  top: 0;
+  padding: 6px 8px;
+  background: var(--ui-bg-sheet);
+  border-bottom: var(--rule) solid var(--ui-line-strong);
+  font-size: var(--text-micro);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink-4);
+  text-align: left;
+}
+
+.raw__table td {
+  padding: 6px 8px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+  vertical-align: top;
+}
+
+.raw__key {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.6875rem;
+  color: var(--ui-ink-2);
+  word-break: break-all;
+}
+
+.raw__value {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.6875rem;
+  color: var(--ui-ink-3);
+  word-break: break-all;
+}
+
+.raw__tag {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sunken);
+  font-size: 0.5625rem;
+  color: var(--ui-ink-3);
+}
+
+.raw__plugin {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* 模块层（插件字段密度）通用的少量样式并入 controls.css。 */
+.module__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 6px;
+}
+
+.module__title {
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+.module__hint {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}

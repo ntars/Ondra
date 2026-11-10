@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra forgetting audit",
+    "description": "Answers why she remembers something only vaguely: strength, half-life, remaining time, the three-band phrasing, and a per-record reason list. Supports pinning up to eight records and the four deletion modes: forget (writes a tombstone), seal, natural sinking, and revise. It only calls the memory core's public methods and never writes the memory table directly."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-emotion-stage",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的七阶关系弧：敌意→试探→心动(3天,.18,.15)→占有(14,.38,.32)→病态(30,.62,.30且trust≤.55)→献祭(45,.70,.45且需sacrifice)→落定(60,.75,.70)。四闸防跃迁（时间闸 / 步长闸 0.06 / 只升不降 / 冲突锁覆盖为敌意），阶段是棘轮；关系三维带 §3.4 半衰期（240h/720h/8760h），熟悉度由互动次数推导。五阶段与六段 0–1000 为只读派生，病态与献祭不进默认 UI。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

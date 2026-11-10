@@ -1,0 +1,406 @@
+/**
+ * 空谷 Ondra · 设计令牌
+ *
+ * ## 视觉语言：扁平 · 仪器面板
+ *
+ * 一句话：**把界面画成一台安静的仪器。**
+ *
+ * 上一版是「夜谷玻璃」（ShotX 的 Liquid Glass 转译）：半透明浮层、12px 模糊、
+ * 上沿高光。那套语言适合大窗口的媒体应用，但放进 820 × 580 的小窗里会出
+ * 两个真问题——模糊让 14px 的正文吃到背景的明暗差，笔画发糊；半透明让
+ * 「哪里是面、哪里是浮层」需要靠猜。
+ *
+ * 这一版换成扁平：**面的层级由明度差表达，边界的层级由 0.5px 线表达，
+ * 深度一律不靠投影。**「未来感」不来自发光和渐变，来自三件事：刻度对齐、
+ * 数字等宽、每一根线的粗细完全一致。
+ *
+ * 五条硬规矩，改任何组件前先读：
+ *
+ * 1. **三个面，不再多**。窗身（`--ui-bg-canvas`，左右两栏）／纸
+ *    （`--ui-bg-paper`，中栏阅读区）／凹（`--ui-bg-field`，输入与凹槽）。
+ *    面与面之间不加投影，只允许一条 0.5px 线或一档明度。
+ * 2. **只有浮层可以浮起来**。抽屉、对话框、浮签是唯一允许有投影的元素，
+ *    因为它们必须离开平面才能被读到。其余元素一律贴平面。
+ * 3. **雾蓝只有一处含义**：这里能按。暖蜜只有一处含义：她还在。
+ *    除此之外不引入第三种彩色，装饰不用色。
+ * 4. **夜谷不是纯黑**。深底取蓝灰相 `#0d1017`；纯黑在 OLED 上会与边框
+ *    融成一片，窗口边界消失。
+ * 5. **键帽与首页棱镜是唯一的装饰**。其余元素必须有功能理由才存在。
+ *
+ * ## 两层命名
+ *
+ * 第一层原始值：回答「这个颜色是多少」。
+ * 第二层 `--ui-*` 语义别名：回答「这个位置该用什么」。
+ * 组件只引用第二层。深色模式只切换第一层的指向，组件样式零改动。
+ */
+
+@font-face {
+  font-family: 'MiSans';
+  src: url('../assets/fonts/MiSansVF.woff2') format('woff2-variations');
+  font-weight: 150 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* ===========================================================================
+   一、原始值 · 浅色（晨雾谷）
+   =========================================================================== */
+
+:root {
+  /* 蓝相灰（220–230°），玻璃浮层透出的是雾而不是暗。 */
+  --stone-0: #f7f8fa;
+  --stone-1: #f1f3f7;
+  --stone-2: #e7eaf0;
+  --stone-3: #dbdfe7;
+  --mist: #e2e5eb;
+  --line: #ccd1db;
+
+  /* 蓝相墨，每级对最暗的纸（stone-3）验过对比度。 */
+  --ink-1: #12151c;
+  --ink-2: #454a58;
+  --ink-3: #565c6b;
+  --ink-4: #737a8a;
+
+  --static-ink-2: var(--ink-2);
+  --static-ink-3: var(--ink-3);
+  --static-ink-4: var(--ink-4);
+
+  /* 雾蓝：ShotX 长春花蓝 #5E86FF 压深到对纸面过 AA 的档位。 */
+  --jade-900: #121f4e;
+  --jade-800: #16275c;
+  --jade-700: #203a85;
+  --jade-200: #b9c6ee;
+  --jade-100: #dbe2f6;
+  --jade-50: #edf1fb;
+
+  /* 暖蜜：她的语义位，压低饱和避免在蓝灰底上读成「错误黄」。 */
+  --amber-700: #7c5619;
+  --amber-500: #a67c33;
+  --amber-200: #e6d0a8;
+  --amber-100: #f4ead6;
+  --amber-50: #faf4e8;
+
+  --green-600: #1a5c48;
+  --green-50: #e4f0ec;
+  --red-700: #a33042;
+  --red-50: #f8e9ec;
+
+  --water-cold: #6b7890;
+  --water-warm: #a67c33;
+
+  /*
+   * 浮层：**实色，不做玻璃**。
+   *
+   * 旧值带 82% 透明度 + 12px 模糊，是「液态玻璃」的语言。本轮统一改为
+   * 扁平：浮层靠明度与 0.5px 边线分层，不靠透出底下的东西。透明度在这
+   * 类 820 × 580 的小窗里只会让字变糊——正文字号 14px，隔一层半透明，
+   * 笔画会吃到背景的明暗差。
+   */
+  --glass: #f7f8fa;
+  --glass-strong: #f7f8fa;
+
+  --shadow-float: 0 10px 30px -14px rgb(18 24 40 / 20%), 0 1px 0 rgb(255 255 255 / 65%) inset;
+  --shadow-key: 0 1px 0 rgb(255 255 255 / 60%) inset, 0 1px 2px rgb(20 26 44 / 16%);
+  --shadow-well: 0 1px 0 rgb(18 24 40 / 8%) inset;
+
+  --focus-ring: rgb(32 58 133 / 28%);
+  --her-glow: rgb(166 124 51 / 20%);
+  --her-halo: rgb(166 124 51 / 10%);
+}
+
+/* ===========================================================================
+   二、原始值 · 深色（夜谷本体）
+   =========================================================================== */
+
+:root[data-theme='dark'] {
+  --stone-0: #141821;
+  --stone-1: #191e29;
+  --stone-2: #202734;
+  --stone-3: #28303f;
+  --mist: #0d1017;
+  --line: #2a3140;
+
+  --ink-1: #eef1f7;
+  --ink-2: #b0b8c8;
+  --ink-3: #8f98ab;
+  --ink-4: #78829a;
+
+  /* 主色反向：深底上浅雾蓝。 */
+  --jade-900: #e7edfc;
+  --jade-800: #d3ddf8;
+  --jade-700: #b8c8f4;
+  --jade-200: #33437e;
+  --jade-100: #273364;
+  --jade-50: #1c2649;
+
+  --amber-700: #e8c891;
+  --amber-500: #d6b274;
+  --amber-200: #4d3d22;
+  --amber-100: #3d311c;
+  --amber-50: #2c2415;
+
+  --green-600: #6fd3ae;
+  --green-50: #12291f;
+  --red-700: #ff9db0;
+  --red-50: #2e161c;
+
+  --water-cold: #8f9bb5;
+  --water-warm: #d6b274;
+
+  --glass: #1b212d;
+  --glass-strong: #1b212d;
+  /* 深色下纸面只比窗身亮三档：再亮就会浮成一块板。 */
+  --ui-bg-paper: #131824;
+
+  --shadow-float: 0 12px 34px -16px rgb(0 0 0 / 66%), 0 1px 0 rgb(255 255 255 / 5%) inset;
+  --shadow-key: 0 1px 0 rgb(255 255 255 / 10%) inset, 0 1px 2px rgb(0 0 0 / 44%);
+  --shadow-well: 0 1px 0 rgb(0 0 0 / 48%) inset;
+
+  --focus-ring: rgb(184 200 244 / 32%);
+  --her-glow: rgb(214 178 116 / 24%);
+  --her-halo: rgb(214 178 116 / 13%);
+
+  --ui-bg-hover: rgb(238 241 247 / 7%);
+  --ui-bg-active: rgb(238 241 247 / 11%);
+  --ui-line-soft: rgb(42 49 64 / 88%);
+
+  --ui-bg-raised: var(--stone-3);
+  --her-field-opacity: 0.22;
+  --her-field-opacity-dim: 0.16;
+  --ui-gate-highlight: transparent;
+}
+
+/* ===========================================================================
+   三、语义别名 · 组件只读这一层
+   =========================================================================== */
+
+:root {
+  --ui-bg-canvas: var(--mist);
+  --ui-bg-sheet: var(--stone-0);
+  --ui-bg-field: var(--stone-2);
+  --ui-bg-sunken: var(--stone-3);
+  --ui-bg-raise: var(--stone-1);
+  /* rgba 而非 color-mix：取色工具读不到 color() 形式。 */
+  --ui-bg-hover: rgb(18 21 28 / 5%);
+  --ui-bg-active: rgb(18 21 28 / 9%);
+  --ui-bg-selected: var(--jade-50);
+  --ui-bg-glass: var(--glass);
+  --ui-bg-glass-strong: var(--glass-strong);
+  /*
+   * 中栏阅读区：比框架亮一档，形成「一片纸夹在两条仪器框之间」。
+   * 直接在这里给色值而不另立原始名——`--paper` 之类的裸名会与色板
+   * 并存成两份真源，改一份漏一份且不报错（验收脚本专门拦这一类）。
+   */
+  --ui-bg-paper: #fcfdfe;
+  /* 模糊位一律 0：扁平材质不用毛玻璃，变量留着只为不改 60 处调用点。 */
+  --ui-glass-blur: 0px;
+
+  --ui-line: var(--line);
+  --ui-line-soft: rgb(204 209 219 / 62%);
+  --ui-line-strong: color-mix(in srgb, var(--ink-1) 22%, transparent);
+
+  --ui-ink: var(--ink-1);
+  --ui-ink-2: var(--ink-2);
+  --ui-ink-3: var(--ink-3);
+  --ui-ink-4: var(--ink-4);
+  --ui-ink-invert: var(--stone-0);
+  --ui-link: var(--jade-700);
+
+  --ui-action: var(--jade-700);
+  --ui-action-hover: var(--jade-800);
+  --ui-action-press: var(--jade-900);
+  --ui-action-ink: var(--stone-0);
+  --alias-state-business-primary: var(--ui-action);
+
+  --ui-her: var(--amber-500);
+  --ui-her-text: var(--amber-700);
+  --ui-her-bg: var(--amber-50);
+
+  --ui-good: var(--green-600);
+  --ui-good-bg: var(--green-50);
+  --ui-bad: var(--red-700);
+  --ui-bad-bg: var(--red-50);
+  --ui-bad-glow: rgb(163 48 66 / 16%);
+  --ui-warn: var(--amber-700);
+
+  --ui-water: var(--water-cold);
+
+  --ui-bg-raised: var(--stone-1);
+  --ui-bad-ink: #14080b;
+
+  --her-field: var(--jade-700);
+  --her-field-opacity: 0.34;
+  --her-field-opacity-dim: 0.5;
+
+  --ui-gate-highlight: rgb(255 255 255 / 72%);
+
+  --font-family:
+    'MiSans',
+    -apple-system,
+    BlinkMacSystemFont,
+    'PingFang SC',
+    'Noto Sans CJK SC',
+    'Source Han Sans SC',
+    'Microsoft YaHei',
+    sans-serif;
+
+  /* 品牌展示字（首页字标、键帽）：仅这两处投放。 */
+  --font-display: 'MiSans', var(--font-family);
+
+  --ui-shadow-float: var(--shadow-float);
+  --ui-shadow-key: var(--shadow-key);
+  --ui-shadow-well: var(--shadow-well);
+
+  /* --- 尺寸：820 × 580 基准，三栏 56 / 自适应 / 56 --- */
+  --h-titlebar: 44px;
+  /*
+   * 左右栏同宽 56。
+   *
+   * 为什么从 52 加到 56：52 减去 32 的按钮只剩 10px 边距，40px 的命中区
+   * （56 − 8 × 2）放不下；而 32px 的按钮在 820 宽的窗口里显得飘。56 让
+   * 「40 命中区 + 左右各 8」成立，也是 8pt 栅格的整数倍。
+   */
+  --w-rail: 56px;
+  --w-spine: 56px;
+  /* 栏内命中区：40 见方，图标 20，比例 0.5（Apple HIG 的工具栏节奏）。 */
+  --rail-hit: 40px;
+  --w-drawer: 320px;
+  --w-inspector: 300px;
+  --w-settings: 380px;
+  /*
+   * 中栏阅读列宽 560。
+   *
+   * 820 − 56 × 2 = 708 可用，减两侧 24 的内边距还有 660。中文正文一行
+   * 舒适区约 30–38 字，14px 下 560 正好落在 36 字；再宽就会出现「眼睛
+   * 从行尾找回行首」的疲劳。
+   */
+  --w-read: 560px;
+  --w-column-text: var(--w-read);
+  --w-composer: var(--w-read);
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* 圆角三档 16/10/6：玻璃面在 8px 下读成「切角」，10 才有磨圆触感。 */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-full: 999px;
+
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-lg);
+  --radius-panel: var(--r-lg);
+
+  --rule: 0.5px;
+  --line-width: 0.5px;
+  --focus-ring-width: 2px;
+
+  /* 运行时变量的默认值（JS 写入前的那一帧）。 */
+  --fill: 50%;
+  --len: 1500;
+  --specific-water: var(--water-cold);
+  --kb-h: 0px;
+
+  --text-display: 2.5rem;
+  --text-title: 0.9375rem;
+  --text-body: 0.875rem;
+  --text-caption: 0.75rem;
+  --text-label: 0.6875rem;
+  --text-micro: 0.625rem;
+
+  --lh-display: 1.1;
+  --lh-title: 1.4;
+  --lh-body: 1.78;
+  --lh-caption: 1.5;
+
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-light: 300;
+
+  --track-display: -0.035em;
+  --track-title: -0.01em;
+  --track-label: 0.09em;
+
+  /* 动效五档 + 回响，三条曲线。 */
+  --motion-0: 0ms;
+  --motion-f: 120ms;
+  --motion-b: 180ms;
+  --motion-s: 240ms;
+  --motion-e: 900ms;
+  --motion-fast: var(--motion-f);
+  --motion-base: var(--motion-b);
+  --motion-slow: var(--motion-s);
+  --motion-emphasis: var(--motion-e);
+  --motion-echo: 520ms;
+
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-breathe: ease-in-out;
+
+  --motion-duration: var(--motion-b);
+  --motion-duration-fast: var(--motion-f);
+  --motion-duration-slow: var(--motion-s);
+  --motion-curve: var(--ease-fluid);
+
+  --z-column: 0;
+  --z-spine: 10;
+  --z-overlay: 20;
+  --z-toast: 30;
+  --z-menu: 40;
+  --z-sheet: 50;
+  --z-dialog: 60;
+  --z-chrome: 80;
+}
+
+/* ===========================================================================
+   四、降级
+   =========================================================================== */
+
+/* 位移与循环 1ms（0ms 不派发 transitionend，浮层会卡住），颜色档保留 120ms。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-b: 1ms;
+    --motion-s: 1ms;
+    --motion-e: 1ms;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line-width: 1px;
+    --focus-ring-width: 3px;
+    --ui-line: var(--static-ink-4);
+    --ui-line-soft: var(--static-ink-3);
+    --alias-label-tertiary: var(--static-ink-3);
+    --alias-label-caption: var(--static-ink-3);
+    --alias-label-dimmed: var(--static-ink-3);
+    --alias-state-idle-primary: var(--static-ink-2);
+    --ui-ink-3: var(--static-ink-3);
+    --ui-ink-4: var(--static-ink-3);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --ui-bg-glass: var(--stone-0);
+    --ui-bg-glass-strong: var(--stone-0);
+    --ui-glass-blur: 0px;
+  }
+}
+
+/* 125%/150% 缩放下 0.5px 落非整数物理像素，限区间降级为 1px。 */
+@media (min-resolution: 1.1dppx) and (max-resolution: 1.9dppx) {
+  :root {
+    --line-width: 1px;
+  }
+}

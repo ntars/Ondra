@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra snapshots",
+    "description": "Memory snapshots for Ondra: consistent VACUUM INTO copies, KEEP=3 rotation, quick_check verification, and restore that never runs automatically."
+  }
+}

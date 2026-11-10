@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory dedupe",
+    "description": "A five-way write-time verdict before a memory is stored: add / merge / append / conflict / drop. One yardstick only — character-bigram containment 0.4 — merges go through revise (never forget), and a decision log answers why a memory never showed up."
+  }
+}

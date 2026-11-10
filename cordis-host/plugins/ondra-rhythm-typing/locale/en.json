@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra Typing Rhythm",
+    "description": "How many bubbles and how long to wait is computed elsewhere; actually waiting, sending, and being able to stop is done here. She is thinking before the first bubble, typing between bubbles, and not pretending to type during a long pause. Speak again mid-reply and the old turn steps aside — a late answer arriving after the new one is more jarring than a missing sentence."
+  }
+}

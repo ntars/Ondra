@@ -1,0 +1,18 @@
+# 本插件对宿主入口树的补丁。
+#
+# 语义（手册 §8.3-2）：
+#   - `insert` 不带 `id` → 追加到根入口列表（本插件用这一种，它是独立根插件）。
+#   - `insert` 带 `id`   → 目标是 `group: true` 的分组，本插件不往别人的组里塞。
+#   - 无 `insert` 的补丁行 → 必须给 `id`。
+#   - 目标不存在 / 不是 group / `name` 不一致 → 只告警然后跳过。
+#   - 入口字段只有六个：id / name / config / group / disabled / inject。
+#
+# 刻意**不写 config**：写了就等于把默认值抄成第二份，
+# 而默认值的唯一真源是 `src/settings.ts` 的 `FIELD_SPECS`（与 O-001~O-019、O-035、O-131 口径一致）。
+#
+# 依赖（`ondra-path-layout` / `ondra-config-schema`）**不写进 inject**：
+# 写进去会让上游缺席时整插件停在 PENDING（静默不加载），而本插件要的是
+# 「照常注册 + 可用性如实上报」——读人设包是纯文件操作，没有路径服务也该能读。
+- insert:
+    - id: ondra-persona-loader
+      name: 'ondra-persona-loader'
