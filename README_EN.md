@@ -31,6 +31,8 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 
 **Positioning in one sentence.** Ondra is an open-source AI companion application that can be deployed in one step and customised in depth. It gives a language model long-term memory, emotional rhythm and a way of speaking, and keeps all data on the user's own machine.
 
+**Where the project stands.** Ondra was indexed by XERJ on 29 October 2026, and on the same day the team's two original projects, NT-Sine and NT-Dpet, were merged and chartered as Ondra. The first public beta is planned for 12 November 2026. Core functionality is complete; the remaining work is integration and debugging.
+
 **Three boundaries of that positioning:**
 
 1. **It is a companionship tool, not a general assistant.** It does not write articles, does not generate code, and is not a question-answering productivity tool. The test for whether a feature belongs is whether it makes companionship feel more like companionship.
@@ -52,7 +54,7 @@ Ondra takes a different path for each of the two situations. Architecturally it 
 ### 2.2 Problems addressed
 
 1. **Change cost grows non-linearly with feature count.** When everything lives in one process, every new capability touches the main entry point and widens the regression surface. Maintaining 75 plugins by hand in a single process makes the impact of any change unpredictable.
-2. **A failing optional capability takes down the whole application.** One badly written network adapter can prevent startup. Channel plugins depend on external credentials and external networks, so their failure rate is inherently far higher than that of local features.
+2. **A failing optional capability takes down the whole application.** One badly written plugin can prevent startup. Plugins that need an external backend or external credentials — vision, the installer, the model gateway — fail far more often by nature than purely local features.
 3. **Interface evolution drags the lower layers along.** When interface and business logic are coupled, a single visual change requires a full build and signing cycle.
 4. **Third-party capabilities cannot be isolated.** Plugins share the process and its privileges, so one plugin's problem becomes everyone's problem.
 5. **The inference kernel cannot be upgraded independently.** When kernel and interface share a process, changing the model protocol forces a release of both.
@@ -137,7 +139,7 @@ This chapter has two parts. Section 3.1 describes the runtime skeleton that carr
 
 **The kernel's 18 methods** cover five domains: lifecycle, session (`create` / `get` / `list` / `archive` / `messages` / `deleteMessage` / `clear`), inference, tools and models (`list` / `select` / `configure` / `complete`). The handshake reports the capability list once, so callers can trim their interfaces accordingly rather than probing one method at a time.
 
-**How plugins are loaded.** `cordis-host/plugins/` holds 78 packages. Of these, 75 are declared in an explicit array inside `ondra-core`, loaded one at a time, each load wrapped in its own `try/catch` so a failure lands in the skipped list with its reason recorded. The other three belong to the assembly layer itself: `ondra-core` owns that member list, while `desktop-bridge` and `dsh-client` are mounted directly by the host entry and never enter the core array. None of the 132 imports another at code level; they discover each other entirely through service keys.
+**How plugins are loaded.** `cordis-host/plugins/` holds 78 packages. Of these, 75 are declared in an explicit array inside `ondra-core`, loaded one at a time, each load wrapped in its own `try/catch` so a failure lands in the skipped list with its reason recorded. The other three belong to the assembly layer itself: `ondra-core` owns that member list, while `desktop-bridge` and `dsh-client` are mounted directly by the host entry and never enter the core array. None of the 75 imports another at code level; they discover each other entirely through service keys.
 
 ---
 ### 3.2 Plugin Inventory
@@ -1196,7 +1198,7 @@ All six can be reproduced and verified. Each gives the name, the value, the impl
 - **Value**: it solves the problem that change cost grows non-linearly with feature count. With 75 plugins in one codebase, mutual imports would mean any signature change in a shared module breaks compilation across the whole repository, and the regression surface could never converge.
 - **Implementation**: there is not one cross-package import between plugins. Each plugin registers capabilities through `ctx.provide(key, implementation)` inside `apply(ctx, config)` and consumes upstream capabilities through `ctx.get(key)`. When the key is absent it neither throws nor waits; it skips that step and leaves one line in the log noting the missing upstream. Cordis handles service registration and dependency ordering, and a plugin does not know who consumes it.
 - **Difference**: common plugin systems declare dependencies with interfaces or a registry, so a mismatch is caught at compile time at the cost of a full rebuild for any change. This approach defers coupling to runtime, trading zero compile-time impact for graceful degradation. That trade presupposes every plugin has a working degradation path, which makes degradation an admission condition rather than an optional optimisation.
-- **Evidence**: `cordis-host/check-core.mjs` loads all 75 members one by one. Measured result: 75 of 75 succeeded, 0 skipped, in 227 milliseconds. Zero skips is itself the proof that each plugin can stand up without its upstream — a plugin hard-depending on one would fail at load time when the service could not be obtained.
+- **Evidence**: `cordis-host/check-core.mjs` loads all 75 members one by one. Measured result: 75 of 75 succeeded, 0 skipped, in about 200 milliseconds. Zero skips is itself the proof that each plugin can stand up without its upstream — a plugin hard-depending on one would fail at load time when the service could not be obtained.
 
 ### Highlight 2: Memory writing matters more than retrieval, so writing has a deterministic gate
 
@@ -1258,9 +1260,9 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 ### 5.2 Timeouts, retries, degradation and fault tolerance
 
-**The five-second hard limit on WeChat replies is met with a degraded line first.** The WeChat platform requires a response within five seconds and retries three times on timeout. This project sets the reply budget to 4400 milliseconds, the hard limit of 5000 minus round-trip time, and when no model reply is ready within budget it sends a short degraded line first and delivers the real reply later through the customer service message interface. The default degraded line is constrained: it must be short, must sound human and must not promise a specific time.
+**Plugins that need an external backend ship switched off.** `ondra-vision` is the only plugin in the repository whose `enable` defaults to false: it reads the screen and sends the screenshot to an external vision model, and both halves happen off this machine. Shipping it off lets "installed and ready" and "no screen reading without consent" hold at the same time; the other 34 plugins in the same menu are on by default.
 
-**The dedupe window covers the platform's retry behaviour.** When WeChat receives no response within five seconds it retries three times, and without recognising the retry one message would receive three answers. The dedupe window defaults to 1800000 milliseconds, or thirty minutes, which absorbs all three retries.
+**Duplicate writes are judged by containment rather than by a time window.** When the same fact is recorded a second time, the memory dedupe module decides by the containment of the two bodies: below 0.4 they are two different things and a new entry is created; at 0.95 or above they are near-identical, and novelty decides restatement versus supplement (at most 0.25 bigram share and at most 2 new bigrams counts as a restatement); in between, a slot-coverage line of 0.45 decides whether it is the same sentence with a different value. A time window fails across days, across devices and when catching up on notes, while containment does not depend on a clock. The candidate pool holds the most recent 200 entries and a scan is capped at 300 rows, since pairwise comparison is O(n²) and anything larger stalls.
 
 **Failures are attributed to eight classes, and argument errors are never retried automatically.** A failed tool call is not recorded vaguely as a failure but sorted into one of eight classes: tool missing, argument error, permission, timeout, network, not found, conflict or unknown. Each class has its own prescription, but the retry budget for argument errors is pinned to zero in the first line — retrying a wrong argument a hundred times gives the same result, and someone who does not know the password still cannot log in after a hundred attempts.
 
@@ -1278,7 +1280,7 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 **Tool schema gating.** The tool gate with 9 settings decides by deterministic rules which tools to expose this turn rather than putting every tool definition into the prompt at once. Tool definitions are the largest single consumer of context, and after gating only the subset the current intent might need is exposed.
 
-**Plugins load serially, never concurrently.** The 75 plugins are awaited one by one; measured at about 227 ms. Concurrent loading would let a dependent initialise before its dependency has registered its service, producing races that are hard to reproduce. Trading roughly 200 ms for the elimination of a whole class of intermittent failures is worthwhile.
+**Plugins load serially, never concurrently.** The 75 plugins are awaited one by one; measured at about 200 ms. Concurrent loading would let a dependent initialise before its dependency has registered its service, producing races that are hard to reproduce. Trading roughly 200 ms for the elimination of a whole class of intermittent failures is worthwhile.
 
 ### 5.4 Concurrency and data consistency
 
@@ -1326,7 +1328,7 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 **Almost every setting carries an explanation.** All 619 fields carry a non-empty `doc` (100%), averaging 36 characters and running up to 115. The fallback policy still stands: where a `doc` is missing the interface shows the field key instead of inventing a description. The descriptions come from the field declarations in the compiled output and share their source with the code, so the documentation cannot drift into saying on by default while the code says off.
 
-**Disabled plugins are shown too.** The 18 plugins that ship switched off appear in the plugin list with a grey dot rather than being hidden. A grey dot means installed but not switched on, which is a different thing from not installed, and hiding them would make users believe those capabilities do not exist.
+**Disabled plugins are shown too.** The single plugin that ships switched off (`ondra-vision`) appears in the plugin list with a grey dot rather than being hidden. A grey dot means installed but not switched on, which is a different thing from not installed, and hiding them would make users believe those capabilities do not exist.
 
 ### 5.8 Why certain defaults were chosen
 
@@ -1340,15 +1342,15 @@ This chapter records decisions that are not obvious. Each gives the concrete pra
 
 **The factory persona is 鲸鲸 and 夏柠柒 is the example pack.** Separating the two means that swapping the persona is a first-class operation from the first launch, rather than a hidden feature.
 
-**Plugins load serially rather than concurrently.** As described in 5.3, a hundred-odd milliseconds buys the elimination of a whole class of races.
+**Plugins load serially rather than concurrently.** As described in 5.3, about 200 ms buys the elimination of a whole class of races.
 
 **The emotion hormone dimension ships disabled.** It overlaps with six-state expression, and enabling both would put two descriptions of emotion in one turn. It is off not because it is poor but because two mechanisms describing the same thing should not be active at once.
 
 ### 5.9 Compatibility with older versions and across platforms
 
-**The old assembly declarations are kept for comparison.** All 133 patch files remain in the plugin directories but are no longer read, since assembly semantics have been transcribed into an explicit array in `ondra-core`. Keeping the old files supports comparison: when something goes wrong, one can check where the old patch said a plugin should be against where the new array puts it.
+**The old assembly declarations are kept for comparison.** 74 copies of `cordis.patch.yml` remain in the plugin directories but are no longer read, since assembly semantics have been transcribed into an explicit array in `ondra-core`. Keeping the old files supports comparison: when something goes wrong, one can check where the old patch said a plugin should be against where the new array puts it. That is one fewer than the member count because `ondra-memory-intake` was written against the explicit array from the start and never generated a patch file.
 
-**The private scope is redirected through a dependency alias.** Historically the first-party plugins declared the framework under a private scope that was never published to the public registry. This project redirects it to the official package version in the workspace configuration. This is a redirection at dependency resolution level; it modifies no Cordis source and changes no licence.
+**The private scope is redirected through a dependency alias.** Historically the first-party plugins declared the framework as `@ntars/cordis`, a scope that was never published to public npm. This project overrides that name in `pnpm-workspace.yaml` to point at the official `cordis@4.0.0-rc.12`. This is a redirect at dependency-resolution level; it modifies no Cordis source and changes no licence.
 
 **Time is accepted only as an instant from outside.** The study companion installs no timer and infers no elapsed time from file timestamps; it accepts only an instant passed in. A gap between two marks exceeding fifteen minutes is judged an interruption and contributes not a single second, because a resident timer keeps running while nobody watches and would produce the report of eight hours studied after the window was closed for eight hours.
 
@@ -1376,7 +1378,7 @@ Shipped with the application and part of the final installation package.
 | [React](https://github.com/facebook/react) | 19.3.1 | MIT | Interface rendering layer, depending on no UI component library |
 | [React DOM](https://github.com/facebook/react) | 19.3.1 | MIT | The browser rendering implementation of React |
 | [morphicons](https://github.com/guillermolg00/morphicons) | 2.0.2 | MIT | Morphing icon component used in the interface |
-| [lucide](https://github.com/lucide-icons/lucide) | 1.68.0 | ISC | Interface icon data. A uniform 24×24 grid with 1.6 stroke and rounded caps, wrapped semantically by `src/components/icons.tsx` |
+| [lucide](https://github.com/lucide-icons/lucide) | 1.68.0 | ISC | Interface icon data. A uniform 24×24 grid with 1.5 stroke and rounded caps, wrapped semantically by `src/components/icons.ts` |
 
 ### 6.2 Development dependencies
 
@@ -1421,10 +1423,6 @@ Seventeen components are MPL-2.0: five on the Rust side (`cssparser`, `cssparser
 `r-efi` declares its licence as MIT OR Apache-2.0 OR LGPL-2.1-or-later, meaning any one of the three. This project takes it under a permissive option and does not engage the LGPL terms.
 
 **No dependency has been modified.** Every third-party component is taken from an unmodified release. There is no `vendor/` directory in the project and no `[patch]` section in `Cargo.toml`.
-
-**The old assembly declarations are kept for comparison.** 74 copies of `cordis.patch.yml` remain in the plugin directories but are no longer read. The assembly semantics have been transcribed into an explicit array inside `ondra-core`. Keeping the old files serves one purpose: when something goes wrong, the old declaration of where a plugin claimed to belong can be compared against where the new array actually puts it. The count is two short of the member total because `ondra-memory-intake` and `ondra-theater` were written against the explicit array from the start and never generated a patch file.
-
-**The private scope is redirected through a dependency alias.** The first-party plugins historically declared the framework as `@ntars/cordis`, a scope that was never published to public npm. This project overrides that name in `pnpm-workspace.yaml` to point at the official `cordis@4.0.0-rc.12`. This is a redirect at dependency-resolution level; it does not modify Cordis source and does not change its licence.
 
 ---
 
@@ -1547,7 +1545,7 @@ Declared members: 75
 Enabled list:     75
 Loaded:           75
 Skipped:          0
-Elapsed:          227 ms
+Elapsed:          200 ms
 ```
 
 When anything is skipped, the reason is printed for each and the process exits with a non-zero code, so it can serve directly as a continuous-integration gate.
@@ -1701,7 +1699,7 @@ The kernel's 18 methods are called over JSON-RPC 2.0 framed as newline-delimited
 | `cordis-host/plugins/ondra-core/src/types.ts` | The assembly contract |
 | `cordis-host/plugins/dsh-client/` | Kernel subprocess lifecycle and request pairing |
 | `cordis-host/plugins/desktop-bridge/` | Desktop capability bridge |
-| `cordis-host/plugins/ondra-*/` | The first-party plugins, each its own package |
+| `cordis-host/plugins/ondra-*/` | 78 packages (75 loadable plugins plus the manifest and two bridges), each its own package |
 | `tools/prepare-plugins.mjs` | Generates the shared build configuration for migrated plugins |
 | `tools/build-site.mjs` | Collects website static files and strips macOS metadata |
 | `tools/smoke.mjs` | Three-layer smoke test |
@@ -1881,7 +1879,7 @@ The following figures were measured on Apple Silicon macOS with Node 22.22.2.
 | Front-end JS output | 365.86 KB, gzip 118.80 KB | `vite build` output, both chunks combined |
 | Front-end CSS output | 70.74 KB, gzip 11.49 KB | `vite build` output |
 | Front-end build time | About 2.1 seconds | `built in` line from `vite build` |
-| Plugin loading, 75 members | 75 of 75, 0 skipped, about 227 ms | `pnpm run check:core` |
+| Plugin loading, 75 members | 75 of 75, 0 skipped, about 200 ms | `pnpm run check:core` |
 | Kernel cold start to a usable handshake | Under 500 ms | Observed during the smoke test |
 | Host start to reporting ready | Under 2 seconds | Observed during the smoke test |
 | Full smoke test | Under 5 seconds | Includes 7 interface checks and two process exits |
@@ -1890,7 +1888,7 @@ The following figures were measured on Apple Silicon macOS with Node 22.22.2.
 
 **Of the 365 KB of JS, 12.65 KB is a lazily loaded `region` chunk** that is not on the critical path. The initial chunk is 361.98 KB (gzip 117.09 KB).
 
-**Why loading time accumulates serially rather than in parallel.** The 75 plugins are awaited one at a time. Concurrent loading would let a dependent initialise before its dependency has registered its service, producing intermittent service-not-found failures. Paying a measured 227 milliseconds to remove a whole class of hard-to-reproduce races is worthwhile.
+**Why loading time accumulates serially rather than in parallel.** The 75 plugins are awaited one at a time. Concurrent loading would let a dependent initialise before its dependency has registered its service, producing intermittent service-not-found failures. Paying a measured 200 milliseconds to remove a whole class of hard-to-reproduce races is worthwhile.
 
 **Two measured constraints on context consumption.** Tool definitions and raw tool output are the two largest consumers of context. The tool gate decides by intent which tools to expose this turn, and the browser module truncates page snapshots against a double budget of 4000 characters and 80 lines. Neither shows up as local runtime latency; both show up as token cost and response quality in model calls.
 
@@ -1971,7 +1969,7 @@ One real obstacle remains: `src-tauri/Cargo.toml` currently declares no `[lib]`,
 7. **No automatic updates.** The update flow is not implemented.
 8. **Plugin configuration reaches the interface only through three views.** The settings panel presents the 619 fields in a scene / module / raw layering, and the extension drawer lists all 78 packages with per-package switches (core-chain members greyed out). Corner fields that no top-level menu claims can only be edited as JSON in the raw layer.
 9. **Two strict type checks do not apply to migrated plugins.** The exact optional properties and unchecked indexed access options are enabled only in the host, the kernel, the front end and three newly written plugins. The 75 migrated plugins have them off, and the reason and the cost are described in 5.8.
-10. **The exact Windows installer size awaits verification.** The default NSIS window size cannot be set to an arbitrary pixel size in configuration, and a custom template is planned as described in 9.4, pending a build on Windows.
+10. **The exact 410 by 290 Windows installer size awaits verification.** The default NSIS window size cannot be set to an arbitrary pixel size in configuration, and a custom template is planned as described in 9.4, pending a build on Windows.
 11. **Voice input depends on system capability.** Voice input uses the Web Speech API, which may be unavailable in most desktop web views, in which case the button says the current environment does not support voice input.
 12. **The packaged desktop build depends on a local Node installation.** The bundle resources currently contain only the compiled host and kernel output, without the Node runtime or `node_modules`. The runtime Node path is located in system directories at startup. A machine with Node and the source `node_modules` can therefore run the app by double-clicking, while distributing it to a machine without Node fails. Producing a genuinely standalone package requires bundling the Node binary and both dependency trees into the app and redirecting the host entry and Node path to the resource directory.
 13. **The disk image is produced manually with `hdiutil`.** The bundling script shipped with the Tauri version in use fails on newer macOS because an unescaped bracket in a `grep` pattern breaks its parsing of `hdiutil` output, interrupting disk image creation. The application bundle itself is unaffected; the release flow wraps the bundle with `hdiutil create -srcfolder` after Tauri produces it, bypassing the script defect.
@@ -2042,7 +2040,11 @@ subtitle, grey rounded input — are each avoided deliberately.
 - **Motion rewritten**: five durations collapsed into four semantic names (`--dur-press/hover/panel/enter`)
   plus three curves (fluid, fluid-reverse, breathe) and `--ease-key` reserved for the send key. Only three
   things move: entrances (6–12px + fade), presses (0.92 scale / 90ms) and the water-level breath (0.82↔1).
-- **All 20 stylesheets rewritten**, and corner radii collapsed to three tiers (16 / 8 / 4).
+- **All 20 stylesheets rewritten**: skeleton (base / layout / titlebar / welcome), content (rail / spine /
+  timeline / composer / richtext), overlays (drawer / inspector / settings / preferences / dialog / sheet /
+  toast / controls / compact / dropzone / scrollarea).
+- **Corner radii collapsed to three tiers**, 16 / 8 / 4 (previously four; 10 and 8 are indistinguishable
+  on a 26-high control and only add a decision to make).
 
 **Three real defects fixed along the way**
 
