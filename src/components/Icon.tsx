@@ -3,7 +3,7 @@
  *
  * ## 为什么必须有这一层
  *
- * `docs/UI-DESIGN.md` §4.4 规定：业务代码只允许 `import { Icon } from
+ * 图标纪律：业务代码只允许 `import { Icon } from
  * './Icon.tsx'`，禁止直接引用 `morphicons/react` 或任何图标包。
  *
  * 理由不是「封装好看」，而是**参数必须只有一个真源**。图标有 5 个参数

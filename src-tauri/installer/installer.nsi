@@ -133,7 +133,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
   !define MUI_ICON "${INSTALLERICON}"
 !endif
 
-; 侧边配图**不启用**（§10.13）。
+; 侧边配图**不启用**。
 ;
 ; MUI_WELCOMEFINISHPAGE_BITMAP 会占掉窗口右侧固定 164 × 314 的一块。
 ; 410 宽减掉它只剩 246px 给内容区，中文一行放不下八个字。
@@ -171,7 +171,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
 
 ; ---------------------------------------------------------------------------
-; 页面序列：三页（docs/UI-DESIGN.md §10.13）
+; 页面序列：三页
 ;
 ;   欢迎与选项 → 安装进度 → 完成
 ;
@@ -464,7 +464,7 @@ Function RunMainBinary
 FunctionEnd
 
 ; ---------------------------------------------------------------------------
-; 窗口尺寸 410 × 290（docs/UI-DESIGN.md §10.13）
+; 窗口尺寸 410 × 290（96 DPI 基准，按 DPI 等比换算）
 ;
 ; ## 为什么不改 MUI 的内边距
 ;
@@ -480,7 +480,7 @@ FunctionEnd
 ; MUI2 没有提供「窗口尺寸」的宏，它按内边距 + 配图宽度反推。
 ; 直接 `SetWindowPos` 是唯一不依赖内部实现的做法。
 ; 用 `GetDpiForWindow` 取到的 DPI 等比放大，125% / 150% 下才不会把
-; 对话框撑成一小块（§10.13 的高 DPI 要求）。
+; 对话框撑成一小块。
 ; ---------------------------------------------------------------------------
 
 !macro ONGUIINIT_BODY
@@ -506,7 +506,7 @@ FunctionEnd
       ${EndIf}
     ${EndIf}
 
-    ; 410 × 290 是 96 DPI 基准（§10.13），按 DPI 等比换算。
+    ; 410 × 290 是 96 DPI 基准，按 DPI 等比换算。
     IntOp $2 $1 * 410
     IntOp $2 $2 / 96
     IntOp $3 $1 * 290

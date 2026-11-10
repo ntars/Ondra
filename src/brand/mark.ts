@@ -4,7 +4,7 @@
  * 品牌标志的图形数据。
  *
  * **不要手改这个文件。** 唯一真源是仓库根的 `icon.svg`，
- * 重新生成用 `node tools/gen-brand.mjs`（见 `docs/UI-DESIGN.md` §4.5）。
+ * 重新生成用 `node tools/gen-brand.mjs`。
  *
  * 这里只有几何，没有颜色：
  * 图标文件里的白底黑鱼是「应用图标」的配色，界面不能用它——

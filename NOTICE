@@ -1,4 +1,4 @@
-空谷 Ondra 2.0.1
+空谷 Ondra 2.2.1
 开源合规声明（NOTICE）
 ================================================================================
 
@@ -49,7 +49,7 @@ Copyright © 2024–2026 Ntarstudio（星玖工作室）. All Rights Reserved.
 一、本项目
 
   名称      空谷 Ondra
-  版本      2.0.1
+  版本      2.2.1
   版权方    Ntarstudio（星玖工作室）
   许可证    AGPL-3.0-only
   仓库      https://github.com/ntars/Ondra
@@ -752,14 +752,28 @@ Copyright © 2024–2026 Ntarstudio（星玖工作室）. All Rights Reserved.
    来源      自有原创设计。`icon.svg` 是唯一真源，各尺寸位图由它导出，
              不单独维护，避免多份图标渐渐不一致。
 
-2. 字体
-   本项目不打包、不分发任何字体文件。界面一律使用操作系统自带的系统字体
-   （macOS 为 SF Pro 与苹方，Windows 为 Segoe UI 与微软雅黑）。因此不存在
-   字体许可证问题。
+2. 字体：MiSans VF（随产物分发的唯一字体文件）
+   名称      MiSans VF（可变字体，wght 轴 150-700）
+   文件      src/assets/fonts/MiSansVF.woff2（8,760,604 字节）
+   版权方    小米科技有限责任公司（Xiaomi Inc.）
+   来源      https://hyperos.mi.com/font/zh/
+   授权      小米官方免费开放商用（非 OSI 标准开源许可证）。允许个人与
+             商业用途、允许在软件中嵌入、允许调整粗细与间距；不得改编
+             字形或二次开发、不得单独售卖或再许可字体文件；须在软件中
+             注明使用了 MiSans。条款页 https://hyperos.mi.com/font/zh/auth/
+   修改      由官方包内「可变字体/MiSansVF.ttf」做字符子集化生成 woff2，
+             仅保留界面所需字符范围；不改变字形轮廓、字重轴与 OpenType
+             特性。字符范围清单见 LICENSE-MiSans.md。
+   用途      界面全局字体，@font-face 定义在 src/styles/tokens.css；
+             系统字体栈仅作回退。官网落地页 index.html 不加载此文件。
+   披露文件  src/assets/fonts/LICENSE-MiSans.md（同时履行注明义务）
+   计数      非 npm / Rust 依赖，不计入上文 529 个组件的清单。
 
 3. 图标库
-   界面内使用的图标来自两个 npm 包（`lucide` 与 `morphicons`），已在上文
-   依赖清单中逐条披露。除此之外没有图标字体、没有独立分发的 SVG 素材包。
+   界面图标的**图形数据**来自 `lucide`（ISC），由 src/components/icons.ts
+   按语义包装；**渲染与形变**由 `morphicons`（MIT）的 MorphIcon 承担，
+   统一出口为 src/components/Icon.tsx。两者已在上文依赖清单中逐条披露。
+   除此之外没有图标字体、没有独立分发的 SVG 素材包。
 
 4. 算法与规范来源
 
@@ -889,6 +903,6 @@ Copyright © 2024–2026 Ntarstudio（星玖工作室）. All Rights Reserved.
 
 --------------------------------------------------------------------------------
 
-本文件最后更新：2026-11-06
-对应版本：2.0.1
+本文件最后更新：2026-11-10
+对应版本：2.2.1
 清单来源：src-tauri/Cargo.lock（442 条）、pnpm-lock.yaml（87 条）

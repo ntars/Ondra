@@ -41,8 +41,15 @@
     background-color var(--motion-f) var(--ease-fluid);
 }
 
+/*
+ * 焦点指示只有一层：3px 的环。卡片边框**不变色**。
+ *
+ * 原先还把 border-color 染成 --ui-action：深色下那是实色浅蓝，与 3px
+ * 半透明焦点环同色，两层叠在一起等于把「这里有焦点」说两遍，也让上面
+ * 「焦点指示只有一层」那句注释不成立。现在边框保持中性线色，焦点只由
+ * 那 3px 环表达——环仍清晰可见，只是不再有第二层实色描边。
+ */
 .composer__card:focus-within {
-  border-color: var(--ui-action);
   box-shadow: 0 0 0 3px var(--focus-ring), var(--ui-shadow-well);
 }
 
@@ -159,6 +166,10 @@
 .composer__tool:hover {
   background: var(--ui-bg-hover);
   color: var(--ui-ink-2);
+}
+
+.composer__tool:active {
+  background: var(--ui-bg-active);
 }
 
 /* ===========================================================================

@@ -3,7 +3,7 @@
  *
  * ## 为什么需要这一步
  *
- * `docs/UI-DESIGN.md` §4.5 定死了「品牌标志唯一真源是仓库根 `icon.svg`」。
+ * 品牌标志唯一真源是仓库根 `icon.svg`。
  * 界面上要内联画这个标志（Rail 顶部的品牌位、首页中央），但 SVG 文件不能
  * 直接内联进 TSX——那样等于把图形数据抄了第二份，改图标时必然漏。
  *
@@ -88,7 +88,7 @@ lines.push('/**')
 lines.push(' * 品牌标志的图形数据。')
 lines.push(' *')
 lines.push(' * **不要手改这个文件。** 唯一真源是仓库根的 `icon.svg`，')
-lines.push(' * 重新生成用 `node tools/gen-brand.mjs`（见 `docs/UI-DESIGN.md` §4.5）。')
+lines.push(' * 重新生成用 `node tools/gen-brand.mjs`。')
 lines.push(' *')
 lines.push(' * 这里只有几何，没有颜色：')
 lines.push(' * 图标文件里的白底黑鱼是「应用图标」的配色，界面不能用它——')

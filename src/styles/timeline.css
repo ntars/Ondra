@@ -202,6 +202,11 @@
   color: var(--ui-ink);
 }
 
+/* 按压态沿用同一档背景，不引入新的色值。 */
+.message__action:active {
+  background: var(--ui-bg-active);
+}
+
 /*
   删除的确认态：按钮由图标变成「确认」两个字，颜色换成故障色。
 
@@ -316,7 +321,23 @@
   color: var(--ui-ink-2);
   transition:
     opacity var(--motion-f) var(--ease-fluid),
-    transform var(--motion-f) var(--ease-fluid);
+    transform var(--motion-f) var(--ease-fluid),
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+/*
+ * 浮签是个按钮，原来只有默认态：鼠标移上去没有任何反馈，读起来像一段
+ * 静态标签。补 hover / active 两档，只换底色与字色，不动 transform——
+ * 那个 translateX(-50%) 承担居中，改它会让按钮在按下时横向跳一下。
+ */
+.timeline__jump:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.timeline__jump:active {
+  background: var(--ui-bg-active);
 }
 
 .timeline__jump[hidden] {

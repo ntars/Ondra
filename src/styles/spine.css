@@ -44,6 +44,11 @@
   background: rgb(18 24 40 / 3.5%);
 }
 
+/* 整条右脊是按钮，按压要看得出来；与左栏 .rail__item:active 同一档。 */
+.spine:active {
+  background: var(--ui-bg-active);
+}
+
 /**
  * 竖排标签。
  *
@@ -56,8 +61,10 @@
 .spine__caption {
   position: relative;
   margin-bottom: 12px;
-  font-size: var(--text-micro);
-  letter-spacing: 0.18em;
+  /* 右栏所有辅助文字统一 11px / 0.08em。原 0.18em 会把竖排的「此刻」
+     两字拉散，10px 在 820 × 580 的小窗里笔画发糊。 */
+  font-size: var(--text-label);
+  letter-spacing: 0.08em;
   color: var(--ui-ink-4);
   writing-mode: vertical-rl;
   text-orientation: upright;
@@ -197,15 +204,16 @@
 }
 
 .spine__mood {
-  font-size: var(--text-micro);
+  font-size: var(--text-label);
   letter-spacing: 0.08em;
   color: var(--ui-ink-2);
 }
 
 .spine__memory {
   margin-top: 6px;
-  /* 0.5625rem = 9px：56px 栏宽能容下「记忆 148」的唯一字号，再大就压边。 */
-  font-size: 0.5625rem;
+  /* 统一到 11px。9px 与设置原始层的 .raw__tag 是仅有的两处小字号，
+     中文笔画会糊；「记忆 148」约 45px，56px 栏宽装得下，不必单开一档。 */
+  font-size: var(--text-label);
   letter-spacing: 0.01em;
   color: var(--ui-ink-4);
   white-space: nowrap;
@@ -213,12 +221,12 @@
 
 /* 无数据/休息态：竖排，横排四字在 56px 里会折行。 */
 .spine__empty {
-  font-size: var(--text-micro);
+  font-size: var(--text-label);
   line-height: 1.5;
   color: var(--ui-ink-4);
   writing-mode: vertical-rl;
   text-orientation: upright;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
 /* 静音/今天安静：竖排胶囊。 */
@@ -227,11 +235,11 @@
   padding: 7px 3px;
   border-radius: var(--r-xs);
   background: var(--ui-her-bg);
-  font-size: var(--text-micro);
+  font-size: var(--text-label);
   color: var(--ui-her-text);
   writing-mode: vertical-rl;
   text-orientation: upright;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
 }
 
 /* 悬停浮签。 */

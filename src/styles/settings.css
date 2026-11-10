@@ -261,7 +261,8 @@
   padding: 1px 5px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-sunken);
-  font-size: 0.5625rem;
+  /* 与右栏记忆计数一同收敛：这是全项目仅有的另一处 9px。 */
+  font-size: var(--text-label);
   color: var(--ui-ink-3);
 }
 
