@@ -19,12 +19,11 @@
  *
  * | variant | 底板 | 图形 | 用在哪 |
  * | --- | --- | --- | --- |
- * | `tile` | 玄青实心 | 纸白 | 首页中央（大尺寸，需要一个实体感） |
- * | `line` | 透明 | 玄青描边 | Rail 顶部（小尺寸，与图标同语言） |
+ * | `tile` | 玄青实心 | 纸白 | 关于页等需要实体感处 |
+ * | `line` | 不画底板 | 玄青填充 | 空状态等小尺寸，与图标同语言 |
  *
- * `line` 变体把底板矩形当描边画，图形保持填充——两条路径共用同一个
- * 视窗与坐标，因此两个尺寸下的轮廓完全一致，不会出现「小图标与大图标
- * 不是同一个东西」的漂移。
+ * `line` 变体不画底板，只留图形——两处共用同一条路径与同一视窗，
+ * 因此轮廓完全一致，不会出现「小图标与大图标不是同一个东西」的漂移。
  */
 
 import { MARK_PATH_D, MARK_PATH_EVEN_ODD, MARK_PATH_TRANSFORM, MARK_PLATE_RX, MARK_VIEW_BOX } from '../brand/mark.ts'
@@ -32,7 +31,7 @@ import { MARK_PATH_D, MARK_PATH_EVEN_ODD, MARK_PATH_TRANSFORM, MARK_PLATE_RX, MA
 export type MarkVariant = 'tile' | 'line'
 
 export interface MarkProps {
-  /** 边长，单位 px。首页 64、Rail 24。 */
+  /** 边长，单位 px。空状态 32、关于页 48。 */
   size: number
   /** 外观。见文件头表格。 */
   variant?: MarkVariant
@@ -43,15 +42,21 @@ export interface MarkProps {
 /**
  * 渲染品牌标志。
  *
- * ## 为什么底板也画出来
+ * ## 为什么 line 变体不画底板
  *
  * `icon.svg` 的底板是一个白色圆角矩形（应用图标需要它才能在 Dock 里有形）。
  * 在界面里直接把白底贴上去，深色模式下会变成一个刺眼的白方块。所以：
  *
  * - `tile` 变体把底板填成玄青，图形用纸白——是一枚「印章」。
- * - `line` 变体把底板画成描边，图形保持填充——是一枚「线稿」。
+ * - `line` 变体**只画图形**，不画底板，也不画一圈描边。
  *
- * 两种都不是简单地把原图贴上去，这是「派生物」而非「复制品」的界线。
+ * 早先 line 变体把底板矩形当 1px hairline 描边画，浅色下 `--ui-action`
+ * 是 `#203a85`（近黑），于是 logo 四周多了一圈深色方框，图形退成框里的
+ * 填充物——观感是一枚「复选框」而不是一个标志；深底上又翻成亮框，明暗
+ * 两处语言不一致。描边宽度可以靠 `non-scaling-stroke` 压住，但「有框」
+ * 这件事本身就是多余的：品牌标志该由图形承担，不该由一个容器承担。
+ *
+ * 两种变体都不是简单地把原图贴上去，这是「派生物」而非「复制品」的界线。
  */
 export function Mark({ size, variant = 'line', label }: MarkProps): React.JSX.Element {
   const tile = variant === 'tile'
@@ -63,29 +68,10 @@ export function Mark({ size, variant = 'line', label }: MarkProps): React.JSX.El
       role={label === undefined || label === '' ? undefined : 'img'}
       {...(label === undefined || label === '' ? { 'aria-hidden': true } : { 'aria-label': label })}
     >
-      {/* 底板。tile 填实，line 只描边。 */}
-      <rect
-        x="0"
-        y="0"
-        width="24"
-        height="24"
-        rx={MARK_PLATE_RX}
-        fill={tile ? 'var(--ui-action)' : 'none'}
-        stroke={tile ? 'none' : 'var(--ui-action)'}
-        /*
-         * `non-scaling-stroke`：描边宽度不随 SVG 缩放。
-         *
-         * 不写它时，24 视窗里的 1.5 会在首页 72px 尺寸下放大成 **4.5px**——
-         * 那圈板框变成整枚标志里最重的东西，图形（鲸）退成框里的填充物，
-         * 观感是一枚「复选框」而不是一个标志。同一段代码在 Rail 的 24px
-         * 下又是细的，于是大小两处的语言不一致。
-         *
-         * 加上之后两处都是 1px 的 hairline，与全界面「只有一种线」的规则
-         * 对齐；标识的分量交回给图形本身。
-         */
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
+      {/* 底板只在 tile 变体出现；line 变体不画框，理由见文件头。 */}
+      {tile ? (
+        <rect x="0" y="0" width="24" height="24" rx={MARK_PLATE_RX} fill="var(--ui-action)" />
+      ) : null}
       {/* 鲸鱼。坐标与变换全部来自真源。 */}
       <path
         d={MARK_PATH_D}

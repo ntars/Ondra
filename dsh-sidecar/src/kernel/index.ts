@@ -23,7 +23,7 @@ import { RpcDispatcher, RpcHandlerError, stdoutSink } from '../rpc/dispatcher.js
 import { ChatAdapter, ECHO_MODEL_ID, type ModelProfile } from './models.js'
 import { DEFAULT_TITLE, FileSessionStore, type MemorySessionStore } from './sessions.js'
 import { ToolRegistry } from './tools.js'
-import type { KernelParts, SessionMessage, SessionStore } from './types.js'
+import type { ImportedMessage, KernelParts, SessionMessage, SessionStore } from './types.js'
 
 /** 内核版本，与根 `package.json` 保持一致。 */
 export const KERNEL_VERSION = '2.1.2'
@@ -171,6 +171,32 @@ export async function createKernel(
     const sessionId = readRequiredString(params, 'sessionId')
     await assertSession(sessionId)
     return { cleared: await sessions.clear(sessionId) }
+  })
+
+  /**
+   * 导入一段对话：建会话 + 批量写消息。
+   *
+   * ## 为什么整段放进内核而不是让宿主拼
+   *
+   * 「建会话」与「写消息」必须原子地落在同一个存储上：宿主若先
+   * `session.create` 再逐条 `session.importMessages`，两次调用之间
+   * 进程被中断，就会留下一个空会话。放在内核里，一次 RPC 完成两件事。
+   *
+   * ## 为什么要读回会话
+   *
+   * 标题在三处可能被改写（空标题回落占位、首轮自动命名、调用方指定），
+   * 只有存储知道最后是什么。返回 `session` 让宿主不必再查一次。
+   */
+  dispatcher.register(Method.SessionImport, async (params) => {
+    assertReady()
+    const title = readOptionalString(params, 'title') ?? ''
+    const workspace = readOptionalString(params, 'workspace') ?? ''
+    const raw = (params as Record<string, unknown>)['messages']
+    const messages = Array.isArray(raw) ? (raw as ImportedMessage[]) : []
+
+    const meta = await sessions.create(title, workspace)
+    const imported = await sessions.importMessages(meta.id, messages)
+    return { session: await sessions.get(meta.id), imported }
   })
 
   // -------------------------------------------------------------------------

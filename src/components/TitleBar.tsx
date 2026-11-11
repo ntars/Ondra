@@ -2,41 +2,36 @@
  * 标题栏。
  *
  * 高度固定 44px，横跨全宽。三个平台上它长得不一样，但语义一致：
- * 左边是窗口控制或菜单入口，中间是当前会话标题，右边是窗口三键。
+ * 左边是窗口控制或菜单入口，中间是**固定的应用名与版本号**，右边是窗口三键。
  *
  * ## 三个平台的差异
  *
- * | 平台 | 左侧 | 右侧 | 标题位置 |
- * | --- | --- | --- | --- |
- * | macOS | 系统红绿灯浮在内容上，留 76px 让位 | 无（系统提供） | 全窗水平居中 |
- * | Windows | 自绘菜单按钮 32×32 | 自绘三键 138×32 | 全窗水平居中 |
- * | Linux | 系统装饰 | 系统装饰 | 全窗水平居中 |
+ * | 平台 | 左侧 | 右侧 |
+ * | --- | --- | --- |
+ * | macOS | 自绘红绿灯浮在内容上，留 84px 让位 | 无 |
+ * | Windows | 自绘菜单按钮 32×32 | 自绘三键 138×32 |
+ * | Linux | 系统装饰 | 系统装饰 |
  *
- * ## 为什么标题是全窗居中而不是主列居中
+ * ## 为什么这里不放会话标题
  *
- * 规范 §2.4 的答案：主列居中需要知道 Rail 与 Spine 的宽度，而首页
- * 没有双脊。同一份标题栏在两种形态下居中于不同位置，切换时标题会
- * 横向跳一次。全窗居中在两个形态下位置一致。
+ * 上一版把当前会话标题放在标题栏正中。两个问题：
  *
- * 代价是标题的可用宽度只有全宽的 40%——超出就省略号。这是可接受的：
- * 会话标题是用户自己起的，太长本来也读不完。
+ * 1. 会话标题是**内容**，不是窗口身份。它随对话变，而窗口身份是恒定的
+ *    ——用户扫一眼标题栏是想确认"我现在在哪个应用里"。
+ * 2. 它在 820 宽的窗口里还要和两端控件抢位置，长标题必然省略号，
+ *    而用户真正需要完整标题的地方是会话抽屉（那里有全文与时间）。
  *
- * ## 为什么拖拽区不单独做一个条
- *
- * `data-tauri-drag-region` 可以直接标在标题栏容器上。单独做一条
- * 38px 的横条会让三栏整体下移，顶部凭空多一块空白，而那块空白
- * 又不能放任何东西。
+ * 所以这里固定成「空谷 Ondra + 版本号」。版本号放在这里也是有用的：
+ * 报问题、对更新日志、比对安装包，都要读它，而它原来藏在设置的第二层。
  */
 
 import { useCallback, useEffect, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconChevronDown } from './icons.ts'
 import { invokeShell } from '../lib/shell.ts'
-import { isWindows } from '../lib/platform.ts'
+import { isMac, isWindows } from '../lib/platform.ts'
 
 export interface TitleBarProps {
-  /** 会话标题。首页传空串，此时不显示标题。 */
-  title: string
   /** 打开浮层菜单（Windows 左上的菜单按钮）。 */
   onOpenMenu?: () => void
 }
@@ -164,9 +159,71 @@ function WindowControls(): React.JSX.Element {
   )
 }
 
+/**
+ * 红绿灯 hover 时浮出的符号。
+ *
+ * × − + 是平台约定图形，与界面图标不是一套语言，所以直接在 8px 网格里
+ * 画，不进 `icons.ts`。线宽 1.2 配 12px 圆点：系统原生用 1px，但系统
+ * 按钮有一圈描边分担视觉重量，自绘的纯色圆点需要稍粗一点才压得住。
+ */
+function TrafficGlyph({ kind }: { kind: 'close' | 'min' | 'zoom' }): React.JSX.Element {
+  return (
+    <svg className="traffic-lights__glyph" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+      {kind === 'close' ? <path d="M2 2l4 4M6 2L2 6" /> : null}
+      {kind === 'min' ? <path d="M2 4h4" /> : null}
+      {kind === 'zoom' ? <path d="M4 2v4M2 4h4" /> : null}
+    </svg>
+  )
+}
+
+/**
+ * macOS 自绘红绿灯。
+ *
+ * 系统那三个按钮已在 `src-tauri/src/window.rs` 里 `setHidden(true)`，
+ * 这里补上「看得见、点得动」的一层。点击仍走 `plugin:window|*` 命令：
+ * 关闭会经过壳里的 `intercept_close`，最小化与缩放交给系统，行为与
+ * 改版前一致。
+ *
+ * 整条标题栏是拖拽区，按钮必须显式退出，否则按下会变成拖窗口。
+ */
+function TrafficLights(): React.JSX.Element {
+  return (
+    <div className="traffic-lights" data-tauri-drag-region={false}>
+      <button
+        type="button"
+        className="traffic-lights__dot traffic-lights__dot--close"
+        aria-label="关闭"
+        onClick={() => { windowCommand('plugin:window|close') }}
+        data-tauri-drag-region={false}
+      >
+        <TrafficGlyph kind="close" />
+      </button>
+      <button
+        type="button"
+        className="traffic-lights__dot traffic-lights__dot--min"
+        aria-label="最小化"
+        onClick={() => { windowCommand('plugin:window|minimize') }}
+        data-tauri-drag-region={false}
+      >
+        <TrafficGlyph kind="min" />
+      </button>
+      <button
+        type="button"
+        className="traffic-lights__dot traffic-lights__dot--zoom"
+        aria-label="最大化"
+        onClick={() => { windowCommand('plugin:window|toggle_maximize') }}
+        data-tauri-drag-region={false}
+      >
+        <TrafficGlyph kind="zoom" />
+      </button>
+    </div>
+  )
+}
+
 /** 渲染标题栏。 */
-export function TitleBar({ title, onOpenMenu }: TitleBarProps): React.JSX.Element {
+export function TitleBar({ onOpenMenu }: TitleBarProps): React.JSX.Element {
   const windows = isWindows()
+  const mac = isMac()
 
   return (
     <header className="titlebar" data-tauri-drag-region>
@@ -174,7 +231,7 @@ export function TitleBar({ title, onOpenMenu }: TitleBarProps): React.JSX.Elemen
         /**
          * Windows 左上菜单按钮。
          *
-         * 与 macOS 红绿灯对称：那里占 76px，这里 46px（8 左边距 + 32 + 6 余量）。
+         * 与 macOS 红绿灯对称：那里占 84px，这里 46px（8 左边距 + 32 + 6 余量）。
          * 没有它，Windows 用户只能靠快捷键发现功能——而快捷键不可发现，
          * 这是 Windows 端「功能像被藏起来了」的常见原因。
          */
@@ -189,27 +246,18 @@ export function TitleBar({ title, onOpenMenu }: TitleBarProps): React.JSX.Elemen
         </button>
       ) : null}
 
-      {title === '' ? null : (
-        /*
-         * 标题被省略号截断时，悬停要能看到完整标题（§2.4）。
-         *
-         * 这里用原生 `title` 而不是自绘浮层：自绘要处理定位、避让窗口边缘、
-         * 与拖拽区冲突、焦点/触屏/读屏三套触发路径，而原生提示由系统绘制，
-         * 上述四件事系统已经做对了。§2.4 的原文只要求「悬停显示完整标题的
-         * 浮层提示」，没有指定必须自绘。
-         *
-         * `title` 同时给了读屏一条读出完整标题的路径——读屏会念 `title`
-         * 属性，而纯 CSS 浮层对读屏是不可见的。
-         *
-         * 代价：原生提示约 1 秒后才出现，且样式不可控。这两点都可接受：
-         * 它是**兜底**，不是主要信息通道（标题永远在界面上显示前 40%）。
-         */
-        <h1 className="titlebar__title" data-tauri-drag-region title={title}>
-          {title}
-        </h1>
-      )}
+      {/*
+        品牌牌：应用名 + 版本号。
+        固定，不随会话变化（见文件头）。`aria-label` 把两者连读成一句，
+        避免读屏念成「空谷 Ondra · v2.2.1」时中间那个点被念成"中点"。
+      */}
+      <div className="titlebar__brand" aria-label={`空谷 Ondra，版本 ${__APP_VERSION__}`}>
+        <span className="titlebar__name">空谷 Ondra</span>
+        <span className="titlebar__version">{__APP_VERSION__}</span>
+      </div>
 
       {windows ? <WindowControls /> : null}
+      {mac ? <TrafficLights /> : null}
     </header>
   )
 }

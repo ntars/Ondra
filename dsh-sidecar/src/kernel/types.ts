@@ -56,6 +56,27 @@ export interface SessionMessage {
 }
 
 /**
+ * 待导入的一条消息。
+ *
+ * ## 为什么不复用 {@link SessionMessage}
+ *
+ * `SessionMessage` 的 `id` 与 `createdAt` 是**存储自己发**的，导入方
+ * 提供的这两个值不能作数（id 会撞、时间可能来自另一台机器）。
+ * 单独一个类型让「哪些字段会被采纳」在类型上就写清楚：只有内容与角色，
+ * 时间可带（保留原始排序感），id 一律重新生成。
+ */
+export interface ImportedMessage {
+  /** 角色。 */
+  role: SessionMessage['role']
+  /** 正文。 */
+  content: string
+  /** 原始时间戳。缺省时用导入时刻。 */
+  createdAt?: number
+  /** 工具名（`role === 'tool'` 时才有）。 */
+  toolName?: string
+}
+
+/**
  * 会话存储接口。
  *
  * 定义成接口而非具体类：当前骨架用内存实现，正式版会换成持久化实现，
@@ -102,6 +123,12 @@ export interface SessionStore {
    * @returns 实际删掉的消息条数。
    */
   clear(sessionId: string): Promise<number>
+  /**
+   * 批量导入消息（迁移 / 恢复用）。
+   *
+   * @returns 实际写入的条数。
+   */
+  importMessages(sessionId: string, messages: readonly ImportedMessage[]): Promise<number>
 }
 
 /** 模型描述。只描述"是什么"，不含调用方式——调用方式由适配器负责。 */

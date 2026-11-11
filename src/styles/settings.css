@@ -1,32 +1,71 @@
 /**
- * 设置面板：右侧 380 玻璃片，含场景层（13 个旋钮）与原始层（全字段表）。
+ * 设置面板：一张浮在主界面之上的纸片。
+ *
+ * ## 构成
+ *
+ * ```
+ * .settings            全窗遮罩（从标题栏下沿开始）
+ *   .settings__pen      纸片：左导航 160 + 右内容
+ *     .pref__nav        分类（样式在 preferences.css）
+ *     .settings__main   标题 / 内容 / 底栏
+ * ```
+ *
+ * ## 为什么遮罩不盖标题栏
+ *
+ * 标题栏上有自绘红绿灯与拖拽区。盖住它等于：设置开着时窗口既不能拖、
+ * 也关不掉。所以遮罩与纸片都从 `--h-titlebar` 起算——它仍然是一个
+ * 「窗口里的浮层」，而不是一个假的全屏页面。
+ *
+ * ## 为什么纸片是固定上限而不是百分比
+ *
+ * 设置的内容是定长的（一列表单、一列导航），窗口拖大时让它跟着长只会
+ * 得到一片越来越空的纸。上限 760 × 540：够放下一屏表单，又不至于在
+ * 最小窗口（820 × 580）里贴边。`min()` 让它在更小的窗口里也能缩。
  */
 
 .settings {
   position: absolute;
-  right: var(--w-spine);
-  /*
-   * 上边界让出标题栏。
-   *
-   * 面板原先挂在 `.workspace` 里，那个容器本身就在标题栏下方，`top: 0`
-   * 自然是对的。挪到外层（让首页也能开设置）之后，定位容器变成 `.shell`
-   * ——它是 `container-type: inline-size`，因此**本身就是一个定位容器**，
-   * 上边界成了整窗顶端。`top: 0` 于是把面板推到标题栏底下，而标题栏是
-   * `--z-chrome: 80`、面板是 `--z-overlay: 20`，标题栏压在上面：
-   * 面板标题被盖掉，`elementFromPoint` 命中的是 titlebar。
-   *
-   * 用令牌而不是写死 44px：标题栏高度是布局常量，只该在 tokens.css 里定义一次。
-   */
-  top: var(--h-titlebar);
-  bottom: 0;
-  width: var(--w-settings);
+  inset: var(--h-titlebar) 0 0 0;
   z-index: var(--z-overlay);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  /*
+   * 遮罩只用一层薄黑，不做毛玻璃。
+   *
+   * 「改完立刻能看见」是设置该有的手感：调字号、换主题时背景就是正在用的
+   * 界面。但压得太薄（18%）会让背后的文字碎透出来，显得杂乱。
+   * 这里升到 30% 并加 2px 模糊：前后仍可分、背景仍可辨，但文字不再穿透。
+   */
+  background: rgb(0 0 0 / 30%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: settings-in var(--motion-b) var(--ease-fluid);
+}
+
+.settings__pen {
+  position: relative;
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  width: min(760px, 100%);
+  height: min(540px, 100%);
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--ui-bg-paper);
+  box-shadow: var(--ui-shadow-float);
+  /*
+   * 描边用 `--ui-line` 而不是 `--ui-line-soft`：纸片压在内容上，
+   * 深色主题下纸与背景都是深色，只靠阴影分不出边界。
+   */
+  border: var(--rule) solid var(--ui-line);
+  animation: pen-in var(--motion-b) var(--ease-fluid);
+}
+
+.settings__main {
   display: flex;
   flex-direction: column;
-  background: var(--ui-bg-glass);
-  border-left: var(--rule) solid var(--ui-line);
-  box-shadow: var(--ui-shadow-float);
-  animation: panel-in var(--motion-b) var(--ease-fluid);
+  min-width: 0;
+  min-height: 0;
 }
 
 .settings__head {
@@ -35,15 +74,38 @@
   align-items: center;
   gap: var(--s-2);
   height: 52px;
-  padding: 0 14px;
+  padding: 0 12px 0 24px;
   border-bottom: var(--rule) solid var(--ui-line-soft);
 }
 
 .settings__title {
   flex: 1;
+  min-width: 0;
   font-size: var(--text-title);
   font-weight: var(--w-medium);
   color: var(--ui-ink);
+}
+
+/*
+ * 滚动区。
+ *
+ * 六个静态页各自包一层：只有内容滚，标题栏与纸片边缘不动。
+ * 左右 24 是内容区的统一内边距，与标题的左缩进对齐——标题与正文
+ * 左边缘在一条竖线上，是这张纸片里唯一需要的对齐关系。
+ */
+.settings__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+}
+
+/* 插件参数页：分段控件与统计条固定，只有中间那段列表滚。 */
+.settings__plug {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .settings__count {
@@ -52,18 +114,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 分段标签：场景 / 原始。 */
+/* 分段标签：场景 / 模块 / 原始。 */
 .settings__tabs {
   flex: none;
   display: flex;
   gap: 2px;
-  padding: 8px 10px 0;
+  padding: 8px 24px 0;
 }
 
 .settings__tab {
   position: relative;
   height: 30px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: var(--r-sm) var(--r-sm) 0 0;
   font-size: var(--text-caption);
   color: var(--ui-ink-3);
@@ -77,7 +139,7 @@
 }
 
 .settings__tab[aria-selected='true'] {
-  background: var(--ui-bg-raised);
+  background: var(--ui-bg-raise);
   color: var(--ui-ink);
   font-weight: var(--w-medium);
   box-shadow: var(--ui-shadow-key);
@@ -88,14 +150,23 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 8px 12px;
-  border-bottom: var(--rule) solid var(--ui-line-soft);
+  padding: 8px 24px;
+  border-top: var(--rule) solid var(--ui-line-soft);
 }
 
 .settings__search {
-  flex: 1;
+  /*
+   * `flex: none` 不能省。
+   *
+   * 它原来写的是 `flex: 1`——那时父容器是普通块级，flex 不生效，
+   * 属于无害的死声明。三个层容器改成纵向 flex 来补子元素之间的呼吸后，
+   * 同一句 `flex: 1` 立刻变成**纵向拉伸**：28px 的搜索框会吃掉滚动区
+   * 剩下的全部高度，把下面的内容推没。
+   */
+  flex: none;
+  width: 100%;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-field);
   border: var(--rule) solid var(--ui-line-soft);
@@ -118,7 +189,7 @@
 .settings__advanced {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   height: 26px;
   padding: 0 8px;
   border-radius: var(--r-xs);
@@ -135,7 +206,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 4px 24px 12px;
 }
 
 .settings__foot {
@@ -144,8 +215,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2);
-  padding: 10px 14px;
+  padding: 8px 24px;
   border-top: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
 }
 
 .settings__empty {
@@ -155,14 +229,230 @@
   color: var(--ui-ink-4);
 }
 
+/*
+ * 关闭键。设置面板是浮层，头部的叉是**唯一**可靠的出口
+ * （Esc 是快捷方式，不是唯一手段）。
+ *
+ * 26 是全项目小图标钮的定值，与抽屉 / 侧写一致。
+ */
+.settings__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.settings__close:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.settings__close:active {
+  background: var(--ui-bg-active);
+}
+
+/*
+ * 读盘中的骨架：三条等宽横条。
+ *
+ * ## 为什么不用转圈
+ *
+ * 它表示的是"这里将出现一个**列表**"。转圈只说"在忙"，说不清忙完之后
+ * 会出现什么形状的东西；三条横条直接把"即将出现的是一行行设置"预告出来，
+ * 内容落位时不会跳。这是骨架屏相对转圈的唯一优势，不用它就白做了。
+ *
+ * 用 `--ui-bg-sunken` 而不是半透明白：它在两套主题下都对纸有明确的
+ * 明度差，且不依赖底下是什么。
+ */
+.settings__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.settings__skeleton > div {
+  height: 12px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sunken);
+}
+
+/* 三条长短不一：一样长会读成"三行正文"，看起来像已经加载完了。 */
+.settings__skeleton > div:nth-child(1) {
+  width: 72%;
+}
+
+.settings__skeleton > div:nth-child(2) {
+  width: 88%;
+}
+
+.settings__skeleton > div:nth-child(3) {
+  width: 56%;
+}
+
+/*
+ * 读盘失败。
+ *
+ * §7.6 的三段式：发生了什么（读不到设置）· 为什么（具体错误）·
+ * 下一步（重试按钮）。三段缺一不可——只说"读不到设置"会让人反复重启
+ * 应用，而错误原因往往就写在那里。
+ */
+.settings__failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.settings__failed-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+/*
+ * 原始错误文本用等宽字：它是宿主抛上来的字符串，里面常有路径与字段名，
+ * 比例字体会让斜杠和点号挤在一起、抄不出来。
+ */
+.settings__failed-detail {
+  margin: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: var(--text-label);
+  line-height: 1.6;
+  color: var(--ui-ink-3);
+  word-break: break-word;
+}
+
+/*
+ * 改动条的两段。
+ *
+ * 条本身（`.settings__bar`）已经存在，但里面两个子元素没有规则：
+ * 「撤销」是一个裸 `<button>`，会以系统灰底按钮出现，压在主色实底的
+ * 改动条里格外突兀；文字段则继承了 16px 默认字号，比面板里所有字都大。
+ */
+.settings__bar-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings__bar-undo {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  /* 它是"撤销一次操作"，属于可逆动作，用主色当字而不是当底： */
+  /* 主色实底留给"确认"这类不可逆动作，撤销不该与之同权。 */
+  font-size: var(--text-caption);
+  color: var(--ui-action-text);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    opacity var(--motion-f) var(--ease-fluid);
+}
+
+.settings__bar-undo:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+}
+
+.settings__bar-undo:disabled {
+  /* 0 项改动时按钮仍在（条本身就不显示了，这里是兜底）——降到 40%。 */
+  opacity: 0.4;
+}
+
+/*
+ * 无段字段的补充说明（§5.13 的 `ondra-memory-intake`）。
+ *
+ * 它是主计数句后面的一个括号补充，所以另起一行、降一档字号、
+ * 用更浅的墨：读的时候可以跳过，但需要时能找到。
+ */
+.settings__count-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 原始层底部的只读声明。
+ *
+ * 这句话在防一件事：用户翻到 1116 个字段的表，会想直接在这里改。
+ * 所以要明确说"这一层只读"，并指出正确的入口。
+ *
+ * 上下各一条发丝线把它与表格分开——它是注脚，不是表格的一部分。
+ */
+.settings__note {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-micro);
+  line-height: 1.6;
+  color: var(--ui-ink-4);
+}
+
+/* 纸片出现：从 98% 微放大，配合遮罩淡入。 */
+@keyframes pen-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes settings-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/*
+ * 减少动态偏好：纸片直接出现。
+ *
+ * 位移类动画在这里是纯装饰（它不传达任何状态变化），所以整段关掉，
+ * 而不是按 §11 的规矩压到 1ms——1ms 的缩放会闪一帧，比不动更难受。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .settings,
+  .settings__pen {
+    animation: none;
+  }
+}
+
 /* ===========================================================================
    场景层：13 个旋钮
    =========================================================================== */
 
-.scene {
+/*
+ * 场景层的一项：一张可读的卡。
+ *
+ * ## 它原来叫 `.scene`，而 TSX 里早就是 `.scene__item`
+ *
+ * 这是本轮发现的第三对"改了名字没改样式"。后果不是"样子不好看"：
+ * 13 个旋钮**全部失去卡片边界**（圆角、底色、描边一起没了），每项内部的
+ * 标题、控件、说明、预演挤成一条没有分隔的长列表——一张 820×580 的窗里
+ * 13 段连续文字，读的人找不到"这一个旋钮到这里结束"。
+ *
+ * 卡片是这一层唯一的层级手段：扁平语言不用投影分层，只靠"一块比纸略深
+ * 的面 + 一条描边"把它从背景里摘出来。摘不出来，13 项就成了一整块。
+ *
+ * ## 编号用 BEM 元素名而不是另起一个前缀
+ *
+ * `scene__item` 本来就是 `.scene` 块下的项，用 `__item` 比裸 `.scene` 更
+ * 准确：`.scene` 这个名字听起来像"整个场景层"，实际它管的是"一项"。
+ */
+.scene__item {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: column;
   padding: 12px;
   margin-bottom: 8px;
   border-radius: var(--r-sm);
@@ -170,17 +460,51 @@
   border: var(--rule) solid var(--ui-line-soft);
 }
 
-.scene__info {
-  flex: 1;
-  min-width: 0;
+/*
+ * 插件没装载的项（`data-missing`）。
+ *
+ * 压到 0.55 与模块层的停用段同一档——两种"改不了"必须是同一种观感，
+ * 否则用户会以为其中一种是坏了。里面那只开关也一并压住，因为
+ * 组件虽然渲染了它，后端字段却不存在，点了不会生效。
+ */
+.scene__item[data-missing] {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
+/*
+ * 项头：名字在左、控件在右（开关类控件的唯一安身处）。
+ *
+ * 数字/枚举/时间区间的控件不进这一行——它们需要各自一整行，
+ * 和名字挤在一起会把滑杆压到 60px 宽。
+ */
+.scene__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 22px;
+}
+
+/*
+ * 项名。一段唯一的主语，给正文档而不是 caption：
+ * 这一层是给"不想懂参数的人"用的，名字必须比参数值更显眼。
+ */
 .scene__name {
-  font-size: var(--text-caption);
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-body);
   font-weight: var(--w-medium);
   color: var(--ui-ink);
 }
 
+/*
+ * 说明。挂在名字下方，是"这一项管什么"的一句话。
+ *
+ * 3px 的上间距没有吸附到八级栅格，是有意的：它属于"发丝级结构间距"
+ * （§11.1 的 1/2/3 豁免），作用是把说明从名字的行高里"摘出来"而不
+ * 造成一段真正的留白。改成 4px 会让名字与说明读成两个平行的段落。
+ */
 .scene__hint {
   display: block;
   margin-top: 3px;
@@ -189,29 +513,305 @@
   color: var(--ui-ink-3);
 }
 
-/* 引用式预演：改之前先看到效果的一句话。 */
+/*
+ * 预演块：改之前先看到效果的一句话。
+ *
+ * 左缘那条 2px 的浅主色线是"引用"的语法（与消息里的引用、Markdown 的
+ * 引用块同一支色）。它要说的不是"这是重点"，而是"这句话是**别人说的**"
+ * ——预演文案是规则算出来的，不是她的原话，底部那行免责声明也是这个意思。
+ */
 .scene__preview {
   display: block;
-  margin-top: 6px;
-  padding: 5px 8px;
-  border-left: 2px solid var(--jade-200);
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-left: 2px solid var(--ui-accent-soft);
   font-size: var(--text-label);
   color: var(--ui-ink-2);
 }
 
+/*
+ * 预演正文。继承了 `.scene__preview` 的字号与颜色，只补段落自身的重置：
+ * `<p>` 默认带 1em 上下外边距，两个 `<p>` 并排会撑出 24px 的空档，
+ * 而这两行是紧挨着读的一句话 + 一句注解。
+ */
+.scene__preview-text {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+}
+
+/*
+ * 免责声明："示例只演参数的影响，不是她会说的话"。
+ *
+ * 比正文浅一档、小一档，因为它是**限定语**而不是内容。但它不能省：
+ * 用户看到一段很像她会说的话的句子，会以为那就是她要说的。
+ */
+.scene__preview-note {
+  margin: 4px 0 0;
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 控件槽（数字滑杆 / 时间区间用）。
+ *
+ * 它在卡片里独占一行、靠右对齐：控件本体 `width: 100%`，所以槽本身要
+ * 撑满；`align-items: flex-end` 让内部的读数行贴右，与开关类的右侧边缘
+ * 对齐——13 项里"控件都在同一条竖线上"是这一层唯一的秩序感来源。
+ */
 .scene__control {
-  flex: none;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  min-width: 120px;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
 }
 
-.scene__value {
-  font-size: var(--text-label);
-  color: var(--ui-ink-2);
+/*
+ * 分段控件（选项 ≤4 时）。
+ *
+ * `.control-segments` 已经是 `inline-flex` 且自带凹槽底，所以这里只做
+ * 一件事：在靠右的卡片布局里**对齐到右边缘**。不加会贴着左边，
+ * 与上面的名字左对齐，看起来像另一段文字。
+ *
+ * 单颗 `.scene__segment` 与开关的 `.scene__switch*` 没有独立规则，
+ * 因为组件同时挂了 `.control-segment` / `.control-switch` / `-knob`，
+ * 视觉由 `base.css` 那套通用控件完整提供。它们列在 `check:ui` 的
+ * `CLASS_OK` 里，理由写在那儿——**不为凑断言写空规则**。
+ */
+.scene__segments {
+  align-self: flex-end;
+  margin-top: 8px;
+}
+
+/*
+ * 开关（布尔项）。
+ *
+ * `.control-switch` 已给出 38 × 22 的轨道，但它在 `.scene__head`
+ * 这个 flex 行里会被长名字压窄，所以这里补 `flex: none`。
+ */
+.scene__switch {
+  flex: none;
+}
+
+/*
+ * 项的元信息行："默认 3 · 已改"这类。
+ *
+ * 放在最底部、`margin-top: auto` 不需要——卡片是纵向 flex 且内容自然
+ * 生长，直接给上间距即可。字号与说明同档但更浅：元信息是**可查**而非
+ * **要读**的内容。
+ */
+.scene__meta {
+  margin: 8px 0 0;
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-ink-4);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 三层的容器。
+ *
+ * ## 这不是空规则：它修的是搜索框撑不满
+ *
+ * `.settings__search` 只有 `flex: 1`，没有 `width`。父容器若是普通块级，
+ * `flex` 不生效，`<input>` 就退回浏览器默认的约 20 字符宽——在 380 宽的
+ * 面板里搜索框只占中间一小截，右边一大片空白。改成纵向 flex 后，
+ * 默认的 `align-items: stretch` 会把它撑满整行。
+ *
+ * `gap: 8px` 补的是搜索框与计数句之间的呼吸：全局重置把 margin 清零了，
+ * 原先两者是紧贴的。三层用同一个值，切层时不会跳。
+ */
+.settings__scene,
+.settings__module,
+.settings__raw {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * 场景层的列表。用 `<ul>` 是语义选择（它确实是一个项的集合），
+ * 显式重置一遍列表符号与缩进：全局 `ul { list-style: none }` 已经做过，
+ * 但这一层依赖它撑开 13 张卡片，写在这里是为了让"列表不该有圆点"
+ * 这件事在离使用处最近的地方仍然成立。
+ */
+.scene__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ===========================================================================
+   场景层的控件实体（滑杆锚点、读数、24h 横轴、起止时间）
+   =========================================================================== */
+
+/*
+ * ## 这一整块原来不存在
+ *
+ * `SceneLayer.tsx` 用了 20 个 `scene__*` 类名，样式表里只有 `scene__info` /
+ * `name` / `hint` / `preview` / `control` / `value` 六条。于是设置页里最复杂
+ * 的三个控件——滑杆的快捷档位、读数、作息横轴——全部以**浏览器默认样式**
+ * 渲染：按钮是系统灰渐变矩形，横轴不存在（`div` 没有尺寸），时间输入是两个
+ * 裸系统控件。
+ *
+ * 这类缺陷的隐蔽性在于：功能全部可用（值能调、能提交），只是"看起来不像
+ * 这个应用的一部分"。任何只验功能的断言都发现不了，只有"类名有没有对应
+ * 样式"这种结构性断言才拦得住。
+ */
+
+/* 快捷档位：一排小药丸，选中的那个是实底。 */
+.scene__anchors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.scene__anchor {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-field);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
+  font-size: var(--text-label);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.scene__anchor:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/* 选中档位用主色实底：它与滑杆位置是同一个值的两种表示，必须能对上。 */
+.scene__anchor[aria-pressed='true'] {
+  background: var(--ui-action);
+  box-shadow: none;
+  color: var(--ui-action-ink);
+}
+
+/* 读数行：左边刻度说明、右边当前值。 */
+.scene__readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.scene__scale {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-label);
+  color: var(--ui-ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene__number {
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 作息：24 小时横轴 ------------------------------------------------ */
+
+/*
+ * 横轴是一条 4px 的轨道，两端对齐一天。休息区间画成实色段。
+ *
+ * 为什么不用两个滑杆：§5.13 已经论证过——「作息」是一个区间，拆成两个
+ * 独立滑杆就变成了"两个数字"，读者要在脑子里做减法才知道睡了多久。
+ */
+.scene__clock {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
+}
+
+.scene__clock-rest {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-full);
+  background: var(--ui-action);
+}
+
+/* 6 小时一格：0 / 6 / 12 / 18 / 24 五个刻度，最后一条贴右端不画。 */
+.scene__clock-tick {
+  position: absolute;
+  top: -2px;
+  width: var(--rule);
+  height: 8px;
+  background: var(--ui-ink-4);
+  opacity: 0.5;
+}
+
+.scene__clock-tick:last-child {
+  display: none;
+}
+
+.scene__times {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.scene__time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scene__time-label {
+  font-size: var(--text-label);
+  color: var(--ui-ink-4);
+}
+
+.scene__time-input {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-field);
+  border: var(--rule) solid var(--ui-line-soft);
+  font-family: inherit;
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.scene__time-input:focus-visible {
+  border-color: var(--ui-focus);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.scene__time-dash {
+  padding-bottom: 4px;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-4);
+}
+
+/* 跨零点说明：一行小字，比正文轻一档，但不弱化成提示条。 */
+.scene__note {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: 1.5;
+  color: var(--ui-ink-3);
+}
+
+/* 警告档的说明（取值超出常规区间时的温和提醒，不是错误）。 */
+.scene__hint--warn {
+  color: var(--ui-ink-2);
 }
 
 /* ===========================================================================
@@ -226,7 +826,7 @@
 .raw__table th {
   position: sticky;
   top: 0;
-  padding: 6px 8px;
+  padding: 8px 8px;
   background: var(--ui-bg-sheet);
   border-bottom: var(--rule) solid var(--ui-line-strong);
   font-size: var(--text-micro);
@@ -237,7 +837,7 @@
 }
 
 .raw__table td {
-  padding: 6px 8px;
+  padding: 8px 8px;
   border-bottom: var(--rule) solid var(--ui-line-soft);
   vertical-align: top;
 }
@@ -258,7 +858,7 @@
 
 .raw__tag {
   display: inline-block;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-sunken);
   /* 与右栏记忆计数一同收敛：这是全项目仅有的另一处 9px。 */
@@ -273,12 +873,74 @@
   color: var(--ui-ink-4);
 }
 
+/*
+ * 「类型」列。
+ *
+ * 它是 `number / boolean / enum / string / json` 五个英文词，不是给人
+ * 通读的散文，所以用等宽字并对齐成一小列——五种宽度不一的词按比例字体
+ * 排下来，右边缘会参差不齐。
+ */
+.raw__kind {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: var(--text-label);
+  color: var(--ui-ink-4);
+  white-space: nowrap;
+}
+
+/*
+ * 「默认」列比「当前」列浅一档。
+ *
+ * 两列数字并排时，如果同色同重，眼睛会分不清哪一列是"现在生效的"。
+ * 当前值用 `--ui-ink-3`，默认值降到 `--ui-ink-4`——这个差值刚好够
+ * 扫视时把注意力落在左边那一列。
+ */
+.raw__value--muted {
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 「段」列里的跳转按钮。
+ *
+ * 段 id 是可点的（跳到模块层并带上搜索词），所以它必须看起来像**链接**
+ * 而不是纯文本——否则没人会去点它。用主色当字（`--ui-action-text`），
+ * 这是全项目"可点文字"的统一语汇。
+ */
+.raw__section {
+  white-space: nowrap;
+}
+
+.raw__jump {
+  font-size: var(--text-label);
+  color: var(--ui-action-text);
+  text-align: left;
+  transition: color var(--motion-f) var(--ease-fluid);
+}
+
+.raw__jump:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/*
+ * 分页条。
+ *
+ * 两个按钮居中、上下留白——它是表格之后的**结束标记**。
+ * 贴左会让它看起来像还漏了内容。
+ */
+.raw__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 0 0;
+}
+
 /* 模块层（插件字段密度）通用的少量样式并入 controls.css。 */
 .module__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 0 6px;
+  padding: 12px 0 8px;
 }
 
 .module__title {
@@ -290,4 +952,169 @@
 .module__hint {
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
+}
+
+/*
+ * 段头右侧的计数：「12 项 · 已改 3」。
+ *
+ * 它是**可跳过**的信息，但不能省——用户在折叠状态下要能一眼看出
+ * "这一段里我改过东西没有"。字号降一档、用 `--ui-ink-4`，
+ * 读的时候眼睛可以滑过去，需要时能找到。
+ */
+.module__meta {
+  flex: none;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 「展开 N 项高级」。
+ *
+ * §5.13 要求高级字段**按段**记忆展开状态，而不是全局开关。这个按钮就是
+ * 那件事的唯一入口，所以它必须看起来像"可以按"：小药丸、有边、有 hover。
+ * 原来它是一个裸 `<button>`——系统灰底，夹在字段流里像一段误入的表单。
+ */
+.module__advance {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 24px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-field);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.module__advance:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+/* 展开中：改成实底，让"现在是展开的状态"不依赖文字去读。 */
+.module__advance[aria-pressed='true'] {
+  background: var(--ui-bg-sunken);
+  box-shadow: none;
+  color: var(--ui-ink-2);
+}
+
+/*
+ * 字段头（键名那一行）。
+ *
+ * 组件把键名单独包了一层 `.field__head`，本意是"这一行只放标题，
+ * 元数据挪到控件下方"（见 `ModuleLayer.tsx` 的长注释）。但样式表里没有
+ * 这个类名，`<div>` 默认块级、无间距——恰好也能用，唯一缺的是
+ * 「键名与控件之间的呼吸」。补 4px：键名是等宽小字，控件是 26 高的
+ * 盒子，两者贴在一起会像同一个控件的两半。
+ */
+.field__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+/*
+ * 竖排控件槽（字符串输入与 JSON 文本域）。
+ *
+ * `.field__control` 是 `flex + align-items: center`，横排用。文本输入与
+ * 文本域需要**占满整行**、且校验提示要落在它们下方，横排会把它压成
+ * 只剩几十像素宽。`--stack` 就是那一路的覆盖。
+ */
+.field__control--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/*
+ * 分段（枚举 ≤4 项）。
+ *
+ * 单颗 `.field__segment` 没有独立规则：组件在它上面同时挂了
+ * `.control-segment`，轨道、圆角、选中态全由 `base.css` 的通用控件给。
+ * 它列在 `check:ui` 的 `CLASS_OK` 里，理由写在那儿。
+ *
+ * 外壳 `.field__segments` 在 `controls.css` 里给了 `display: flex` +
+ * `flex-wrap`，与 `.control-segments` 的 `inline-flex` 叠用时以后加载的
+ * 为准（`controls.css` 在 `base.css` 之后），所以枚举项多时能自动换行——
+ * 这是刻意的：模块层的枚举值可能很长，不换行会撑破 380 的面板。
+ */
+/*
+ * 元信息行：「当前 3 · 默认 3 · 已改」。
+ *
+ * 它在控件下方，是这一项"改没改、原来是什么"的唯一交代。组件注释里
+ * 说明过为什么挪到下方：放在标题右侧时，12px 字在 360 宽的抽屉里
+ * 会折行，折了就一项都读不全。
+ */
+.field__meta {
+  margin: 4px 0 0;
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 「下次启动生效」。
+ *
+ * §6.6 的兜底规则是"猜不到就按即时生效"，只有路径类字符串会提示重启。
+ * 所以这句是真信息，不是免责声明——它要能被看到，但不能与校验失败的
+ * 红色同级。用主色当字：它是"注意"，不是"错误"。
+ */
+.field__restart {
+  margin: 4px 0 0;
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-action-text);
+}
+
+/*
+ * 停用标注（§6.7 / §10「插件未装载」）。
+ *
+ * ## 这两条规则曾经不存在
+ *
+ * `ModuleLayer.tsx` 早就渲染了 `data-inactive` 与 `.module__off`，但样式表里
+ * **一条都没有**。于是「插件已停用，改了不生效」以裸文字出现在字段区，
+ * 与正常提示毫无区别；`data-inactive` 也没有任何视觉效果——停用的插件
+ * 看起来完全能调。
+ *
+ * 这正是 §6.7 点名要防的那类缺陷：「不允许看起来还能调——那是最容易让人
+ * 失去信任的一类」。
+ *
+ * ## 为什么用整块 opacity 而不是逐个改色
+ *
+ * 停用段里可能有滑杆、分段、开关、文本域四种控件，逐个改色要写十几条规则
+ * 且容易漏。`opacity` 一次压住全部，包括控件自带的底色与描边——**降的是
+ * 整块的"存在感"**，而不是某几个属性。0.55 是分界：再高读不出"停用"，
+ * 再低正文就过不了可读性（纯文字块对纸 8.9 × 0.55 ≈ 4.9，仍过 AA）。
+ *
+ * 注意：只在**段级**压，不压 `.module__off` 那句提示本身——提示是解释，
+ * 必须和正常文字一样清楚，否则用户看不出为什么调不动。
+ */
+.module[data-inactive] .module__body {
+  opacity: 0.55;
+  /* 停用态不许被点：视觉上已经"淡了"，还要保证真的动不了。 */
+  pointer-events: none;
+}
+
+/*
+ * 提示条：一行小字，左侧一条细竖线，与错误/警告区同一套语法。
+ *
+ * 竖线用 `--ui-ink-4` 而不是 `--ui-warn`——后者只在浅色块里定义（`amber-700`），
+ * 深色块没有覆盖，沿用会在 `#211E29` 上读不出颜色。这里不需要"警告"的
+ * 语义重量：停用不是错误，只是"这段现在不参与"，用墨色线更准确。
+ */
+.module__off {
+  display: block;
+  margin: 0 0 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--ui-ink-4);
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-ink-3);
 }

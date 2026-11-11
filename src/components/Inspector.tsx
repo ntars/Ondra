@@ -27,25 +27,40 @@ import { SnapshotBlock } from './SnapshotBlock.tsx'
 import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
 import type { BondStats, MemoryItem, MoodState } from '../lib/types.ts'
 
-/** 一条双极轨道的读数，`value` 落 −1..1。 */
-interface Dial {
-  key: string
-  label: string
-  /** −1..1。 */
-  value: number
-  /** 读数文案，如 `+0.30`。 */
-  text: string
-}
-
 /**
  * 把 −1..1 的数写成带符号的两位小数。
- *
  * 统一两位小数而不是按需截断：一列读数的小数位不一致时，
  * 小数点对不齐，扫视会一顿一顿的（§5.8 要求 `tabular-nums` 也是同一原因）。
  */
 function signed(value: number): string {
   const fixed = value.toFixed(2)
   return value > 0 ? `+${fixed}` : fixed
+}
+
+/**
+ * 一条双极轨道的三种状态。
+ *
+ * ## 为什么不能只留「有值 / 没值」两种
+ *
+ * 张力这一路现在**恒为 `undefined`**（`App.tsx` 传 `tension={undefined}`，
+ * 后端还没给这个数）。原来的写法是 `tension ?? 0` + `signed(...)`，
+ * 于是空态渲染成 **`+0.00`**——一个看起来精确、实际是编的读数。
+ *
+ * 「张力刚好在正中间」和「张力根本没测到」是两件完全不同的事，
+ * 画成一样就是撒谎。心情那一档同理：`mood.mood` 在无数据时是占位值，
+ * 映射出的 `−1.00` 也不是真的。
+ *
+ * 所以三个状态必须分开：
+ *
+ * - `value` 有数 → 画轨道、给读数；
+ * - `value` 是 `undefined` → **整行不出现**（不是画成 0）；
+ * - 整体 `hasData` 为 false → 整组显示引导句。
+ */
+interface Dial {
+  key: string
+  label: string
+  /** −1..1。undefined 表示这一路没有数据。 */
+  value: number | undefined
 }
 
 export interface InspectorProps {
@@ -70,8 +85,6 @@ export interface InspectorProps {
   hasData: boolean
   /** 关闭。 */
   onClose(): void
-  /** 打开设置（1116 项插件参数的三层面板）。 */
-  onOpenSettings(): void
 }
 
 /**
@@ -91,7 +104,6 @@ export function Inspector({
   tension,
   hasData,
   onClose,
-  onOpenSettings,
 }: InspectorProps): React.JSX.Element {
   /*
    * 关闭时把焦点还给触发它的 Spine 按钮（§9.5「关闭浮层 → 回到触发元素」）。
@@ -106,11 +118,20 @@ export function Inspector({
    * 双极轨道。心情与张力都是 −1..1 的对称量，精力是 0..1 的单极量。
    *
    * 心情从 0–100 映射到 −1..1：中点 50 是「平静」。
+   *
+   * ## `hasData` 与 `tension` 各自管各自的
+   *
+   * `hasData` 为 false 时整组走引导句，此时不该构造出任何数——所以整个
+   * `dials` 数组只在有数据时才建。而 `tension` 是另一层：即便有数据，
+   * 它也**可能这一路没有感知值**（现在恒为 `undefined`）。那就不渲染这一行，
+   * 而不是拿 0 顶上。
    */
-  const dials: Dial[] = [
-    { key: 'mood', label: '心情', value: (mood.mood - 50) / 50, text: signed((mood.mood - 50) / 50) },
-    { key: 'tension', label: '张力', value: tension ?? 0, text: signed(tension ?? 0) },
-  ]
+  const dials: Dial[] = hasData
+    ? [
+        { key: 'mood', label: '心情', value: (mood.mood - 50) / 50 },
+        { key: 'tension', label: '张力', value: tension },
+      ]
+    : []
 
   return (
     <aside className="inspector" role="dialog" aria-label="侧写">
@@ -127,24 +148,26 @@ export function Inspector({
           <h3 className="inspector__caption">此刻</h3>
           {hasData ? (
             <>
-              {dials.map((dial) => (
-                <div className="inspector__row" key={dial.key}>
-                  <span className="inspector__label">{dial.label}</span>
-                  <span className="inspector__track" aria-hidden="true">
-                    {/* 双极：负值从中点向左填，正值向右。 */}
-                    <span
-                      className="inspector__fill inspector__fill--bipolar"
-                      style={{
-                        transform: `scaleX(${String(Math.abs(dial.value))})`,
-                        transformOrigin: dial.value < 0 ? 'right center' : 'left center',
-                        left: dial.value < 0 ? 'auto' : '50%',
-                        right: dial.value < 0 ? '50%' : 'auto',
-                      }}
-                    />
-                  </span>
-                  <span className="inspector__value">{dial.text}</span>
-                </div>
-              ))}
+              {dials.map((dial) =>
+                dial.value === undefined ? null : (
+                  <div className="inspector__row" key={dial.key}>
+                    <span className="inspector__label">{dial.label}</span>
+                    <span className="inspector__track" aria-hidden="true">
+                      {/* 双极：负值从中点向左填，正值向右。 */}
+                      <span
+                        className="inspector__fill inspector__fill--bipolar"
+                        style={{
+                          transform: `scaleX(${String(Math.abs(dial.value))})`,
+                          transformOrigin: dial.value < 0 ? 'right center' : 'left center',
+                          left: dial.value < 0 ? 'auto' : '50%',
+                          right: dial.value < 0 ? '50%' : 'auto',
+                        }}
+                      />
+                    </span>
+                    <span className="inspector__value">{signed(dial.value)}</span>
+                  </div>
+                ),
+              )}
               {/* 精力是单极量，单独一行，避免与双极轨道共用同一套刻度。 */}
               <div className="inspector__row">
                 <span className="inspector__label">精力</span>
@@ -243,17 +266,17 @@ export function Inspector({
       </div>
 
       {/*
-       * 底部「全部设置」入口（§5.13：检查器设置从检查器底部进入）。
+       * 这里曾经有一个底栏，装一个「全部设置」按钮。
        *
-       * 与 Rail 底部齿轮不是同一件事：齿轮开偏好设置（主题、语言、模型），
-       * 这里开 1116 项插件参数。两者分成两个入口，是因为用户找它们时
-       * 想的是两件不同的事——"改这个应用"与"改她"。
+       * 删掉的理由不是它不好看，是它**已经重复**：设置合并成一个面板之后，
+       * 那个按钮和 Rail 底部的齿轮打开的是同一个 `.settings`，只差落在哪一页
+       * （外观 / 插件参数）。一站之内两个「设置」入口，用户看到的是两次同样的
+       * 动作，却要猜它们是不是同一处——这正是合并设置要消掉的那种猜疑。
+       *
+       * 插件参数仍然可达：Rail 齿轮 → 左侧导航「插件参数」，或扩展抽屉里
+       * 某个包的「配置」直接定位到那一段。后者是**上下文入口**，不是第二个
+       * 总入口，所以留着。
        */}
-      <footer className="inspector__foot">
-        <button type="button" className="inspector__all" onClick={onOpenSettings}>
-          全部设置
-        </button>
-      </footer>
     </aside>
   )
 }

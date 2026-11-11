@@ -114,9 +114,16 @@ a {
   text-decoration: none;
 }
 
+/**
+ * 文字选区。
+ *
+ * 原来直接引用原始色名（当时的 `--jade-100`，现在是 `--accent-100`），
+ * 属于**越层**——组件只该读语义层。
+ * 改走 `--ui-selection`：值先取同一个，零视觉变化；将来换主色只改令牌一处。
+ */
 ::selection {
-  background: var(--jade-100);
-  color: var(--ink-1);
+  background: var(--ui-selection);
+  color: var(--ui-ink);
 }
 
 /* ===========================================================================
@@ -128,7 +135,8 @@ a {
 }
 
 :focus-visible {
-  outline: var(--focus-ring-width) solid var(--jade-700);
+  /* 焦点环是**图形**不是文字，走 --ui-focus（与 --ui-action 判据不同，见 tokens.css）。 */
+  outline: var(--focus-ring-width) solid var(--ui-focus);
   outline-offset: 2px;
 }
 
@@ -158,7 +166,7 @@ a {
   justify-content: center;
   gap: var(--s-2);
   height: 32px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-field);
   border: var(--rule) solid var(--ui-line);
@@ -245,13 +253,24 @@ a {
   width: 18px;
   height: 18px;
   border-radius: var(--r-full);
-  background: var(--stone-0);
+  background: var(--ui-knob);
   box-shadow: 0 1px 2px rgb(0 0 0 / 24%);
   transform: translateX(0);
   transition: transform var(--motion-f) var(--ease-fluid);
 }
 
+/*
+ * 打开时：钮滑过去，并改用反字色。
+ *
+ * 浅色下轨道是 `#191919`，钮白；深色下轨道是 `#ECECEC`，钮必须近黑。
+ * 默认的 `--ui-knob` 跟纸走（服务未选中的凹槽），深色下它也是亮的——
+ * 压在白轨道上会**整个消失**，只剩一条 1px 阴影，看起来像开关坏了。
+ *
+ * 关掉态的钮仍走 `--ui-knob`：那条轨道是 `--ui-bg-sunken`，深色下是
+ * `#333333`，亮钮正好。整个界面只有这一处必须按状态分叉取色。
+ */
 .control-switch[aria-checked='true'] .control-switch-knob {
+  background: var(--ui-action-ink);
   transform: translateX(16px);
 }
 
@@ -285,13 +304,22 @@ a {
   height: 14px;
   margin-top: -5px;
   border-radius: var(--r-full);
-  background: var(--stone-0);
+  background: var(--ui-knob);
   border: 0.5px solid var(--ui-line);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 22%);
+  /*
+   * 一圈纸色的缝，把拇指从填充段里"切"出来。
+   *
+   * 黑白方案下深色的填充段是 `#ECECEC`，拇指也是 `#ECECEC`——两块同色的
+   * 圆叠在一起，只剩 0.5px 的线在分它们，读起来像"填充段末端有点毛边"，
+   * 而不像一个能拖的把手。1.5px 的纸色外环在深色里是 `#1E1E1E`，绕拇指
+   * 一圈深缝；在浅色里是 `#F7F7F7`，压在黑填充上同样成立。这条在旧配色
+   * （绿填充）下不需要，是强调退成黑白之后才暴露的。
+   */
+  box-shadow: 0 0 0 1.5px var(--ui-bg-paper), 0 1px 3px rgb(0 0 0 / 22%);
 }
 
 .control-range:focus-visible::-webkit-slider-thumb {
-  outline: var(--focus-ring-width) solid var(--jade-700);
+  outline: var(--focus-ring-width) solid var(--ui-focus);
   outline-offset: 2px;
 }
 

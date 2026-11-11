@@ -212,28 +212,36 @@ async function checkTokenLayer() {
   /*
    * --- 4. 圆角收敛值 ---
    *
-   * §4.3 只允许三档：16 / 8 / 4。§11.2 的落地要求是把旧变量**赋新值**
-   * 而不是删除——删了会让引用处回落到 `0`（直角），那是最容易被误认为
-   * 「设计改了」的一类缺陷。
+   * 权威在 **§11.2 圆角三档：4 / 8 / 12**。（旧注释引的 §4.3 其实是
+   * 「滚动跟随」，与本条无关——引错章节比不引更坏，会让人照着错的去改。）
    *
-   * 注意 `--radius-sm` 是 **8px 而不是 4px**：旧档位里 `sm` 是 8，
-   * 收敛时它并入 8 这一档；4px 由 `--radius-xs` 承担。写成 4 是照着
-   * 「sm 应该最小」的直觉猜的，不是规范原文。
+   * 落地要求是把旧变量**赋新值**而不是删除——删了会让引用处回落到 `0`
+   * （直角），那是最容易被误认为「设计改了」的一类缺陷。
+   *
+   * `--radius-sm` 与 `--radius-md` 同为 **8px** 不是笔误：`--r-md` 与
+   * `--r-sm` 在规格里就是同一档的两个语义名（md 用于卡片与浮层，sm 用于
+   * 按钮行），旧值 10 时也已同值。`--radius-xl` / `--radius-panel` 并到
+   * 最大档 12，与 `--radius-lg` 同值。
    *
    * ## 为什么要穿 var 链
    *
    * 重写后圆角收成一套短名（`--r-xs/sm/md/lg`），旧名作为别名指向它们
    * （`--radius-lg: var(--r-lg)`）。只读字面值会把合法的别名判成「不是
-   * 16px」。这里解一层 var 再比——判据仍是「最终算出来是不是那三档」，
+   * 12px」。这里解一层 var 再比——判据仍是「最终算出来是不是那三档」，
    * 一个像素都没松。
+   *
+   * ## 两处要同时改
+   *
+   * `check-ui` 的静态规格里另有一条同义断言（四档必须是 4/8/8/12）。
+   * 两处都改才算改完——只改一处会留下一条恒绿的死断言，比没有更误导。
    */
   const radiusWant = [
-    ['--radius-panel', '16px'],
-    ['--radius-xl', '16px'],
-    ['--radius-lg', '16px'],
-    ['--radius-md', '10px'],
-    ['--radius-sm', '10px'],
-    ['--radius-xs', '6px'],
+    ['--radius-panel', '12px'],
+    ['--radius-xl', '12px'],
+    ['--radius-lg', '12px'],
+    ['--radius-md', '8px'],
+    ['--radius-sm', '8px'],
+    ['--radius-xs', '4px'],
   ]
   /** 解一层 `var(--x)`；不是 var 就原样返回。 */
   const deref = (value) => {
@@ -247,7 +255,7 @@ async function checkTokenLayer() {
     if (match === null) radiusBad.push(`${name} 不存在`)
     else if (deref(match[1]) !== want) radiusBad.push(`${name} 为 ${deref(match[1])}，应为 ${want}`)
   }
-  ok('圆角六变量收敛为 16 / 10 / 6 三档', radiusBad.length === 0,
+  ok('圆角六变量收敛为 4 / 8 / 12 三档', radiusBad.length === 0,
     '圆角不收敛会让面板与卡片看起来不是同一套体系', radiusBad.join('; '))
 
   /*
@@ -266,11 +274,12 @@ async function checkTokenLayer() {
     '气泡令牌残留会让「消息无气泡」这条决定随时被推翻')
 
   /*
-   * --- 6. 业务主色指向品牌蓝，全界面只有一套主色 ---
+   * --- 6. 业务主色指向强调令牌，全界面只有一套强调 ---
    *
    * 上一版这条断言是「全项目无蓝色」（暖纸 + 玄青时代的裁决）。后来
    * 配色一度改成蓝白，蓝色成了主色，这条按字面执行就永远红；重写后
-   * 主色回到谷青，名字也换成了 `--ui-action`。
+   * 名字换成了 `--ui-action`，再后来强调本身退成了**黑白**——
+   * 判据仍然不绑色相，绑的是"指向同一处"。
    *
    * 但它防的那个问题**仍然存在**，而且换色后更值得防：最容易混进来的
    * 不是某个具体色相，是**第二套主色**——比如顺手写一个 `#10b981` 的
@@ -281,13 +290,15 @@ async function checkTokenLayer() {
    * 中性灰绿（墨色、线色、石色）不算：它们的饱和度低，是"底"不是"色"。
    */
   /*
-   * 允许两种写法：直接指向 `--ui-action`（推荐），或一个与之等值的
-   * 旧别名。判据是「能不能顺着 var 追到主令牌」，而不是「字面写的是
-   * 哪个名字」——名字会变，指向关系不该变。
+   * 只认一个名字：`--ui-action`。
+   *
+   * 这里曾经放行 `--jade-*`（当时的原始色名），是给"语义层还没收编完"
+   * 留的过渡口子。强调退成黑白之后原始档改叫 `--accent-*`，那个口子
+   * 既没有对象也没有理由——留着只会让下一个人以为"指向原始色名也行"。
    */
   const biz = /--alias-state-business-primary:\s*var\(\s*(--[a-z0-9-]+)\s*\)/.exec(tokensBare)
   const bizTarget = biz === null ? '' : biz[1]
-  ok('业务主色指向唯一的当前主令牌', biz !== null && (/--ui-action/.test(bizTarget) || /--jade-/.test(bizTarget)),
+  ok('业务主色指向唯一的当前主令牌', biz !== null && /^--ui-action$/.test(bizTarget),
     '业务主色若指向别的色系，界面会出现第二个主色',
     biz === null ? '未找到或未指向某个 var' : `指向 ${bizTarget}`)
 
@@ -1129,14 +1140,26 @@ async function checkShellConfig() {
     `${String(main?.minWidth)}×${String(main?.minHeight)}`)
 
   /*
-   * --- 2. macOS 红绿灯垂直中心落在 22 ---
+   * --- 2. macOS 自绘红绿灯的几何与系统按钮隐藏 ---
    *
-   * 标题栏 44px 高，中心是 22。红绿灯按钮本身 12px，所以 `y` 应为
-   * 16（16 + 12/2 = 22）。写成 22 会让按钮整体偏下 6px。
+   * 红绿灯不再由 AppKit 画：`window.rs` 把三个 standardWindowButton 设成
+   * hidden，前端在 `.traffic-lights` 里自绘。因此这里验的**不是**
+   * `tauri.conf.json` 的 `trafficLightPosition`——系统按钮已不可见，那个
+   * 值是死配置，已删除；留着它再断言 y=16 是一条验不到实物的假断言。
+   *
+   * 改验三件真正决定观感的事：
+   *   ① 圆点 12px、组间距 8px（中心距 20px，与系统按钮同节奏）；
+   *   ② top 16px → 圆点中心 16 + 6 = 22，落在 44px 标题栏正中；
+   *   ③ 系统按钮确实 setHidden，否则会与自绘圆点叠成两对。
    */
-  const tl = main?.trafficLightPosition
-  ok('红绿灯 y = 16（中心落在 22）', tl?.y === 16,
-    '44px 标题栏中心是 22，红绿灯 12px 高，故 y 必须是 16', `${String(tl?.y)}`)
+  const layoutCss = await read(join(REPO, 'src/styles/layout.css'))
+  const windowRs = await read(join(REPO, 'src-tauri/src/window.rs'))
+  const tlTopGap = /\.traffic-lights\s*\{[^}]*top:\s*16px[^}]*gap:\s*8px/s.test(layoutCss)
+  const tlDot = /\.traffic-lights__dot\s*\{[^}]*width:\s*12px[^}]*height:\s*12px/s.test(layoutCss)
+  const tlHidden = windowRs.includes('setHidden(true)')
+  ok('自绘红绿灯 12px / 中心 y=22，且系统按钮已隐藏', tlTopGap && tlDot && tlHidden,
+    '圆点 12 配 top 16 才让中心落在 22；系统按钮不藏会叠成两对红绿灯',
+    `top16+gap8=${String(tlTopGap)} dot12=${String(tlDot)} hidden=${String(tlHidden)}`)
 
   /*
    * --- 3. 深色启动无白帧的双保险 ---
@@ -1274,28 +1297,40 @@ async function checkPlatformFidelity() {
     '三键须贴窗口右缘（§2.3），单键 46 宽 × 3 = 138')
 
   /*
-   * --- 2. 标题位置与平台无关 ---
+   * --- 2. 标题栏固定显示品牌牌 ---
    *
-   * §13 原文是「两端标题文字位置像素级一致（主列中心 x = 406）」。
-   * 真正要守的是**前半句**：位置不因平台让位而偏移。后半句那个 406
-   * 是旧方案的坐标，实现时改成了全窗居中（410），理由写在 `TitleBar.tsx`
-   * 的文件头——首页没有双脊，主列居中会让标题在形态切换时横向跳一次。
+   * 需求：标题栏**固定**显示「空谷 Ondra」与版本号。
    *
-   * 判据是「绝对定位 + 自身位移」，而不是 flex 居中：flex 居中夹在
-   * 左右占位（76px 红绿灯 / 46 + 138 三键）之间，两端会算出不同中心。
+   * ## 为什么原来的两条断言没有了
+   *
+   * 上一版把会话标题绝对定位在全窗正中，配了 `text-overflow: ellipsis` 与
+   * `title={title}` 兜底，断言守的是那套形态。那是"内容占据窗口身份位"的
+   * 做法：标题随对话变，而用户扫一眼标题栏想确认的是"我在哪个应用里"。
+   * 换成品牌牌之后，被守护的对象本身消失了——不留空断言，也不把旧判据
+   * 硬套到新元素上（那会变成"为了绿而绿"）。
+   *
+   * ## 现在守三件事
+   *
+   * 1. 文字在代码里是**常量**，且带版本号——不是从 props 流进来的会话标题。
+   * 2. 两段都 `nowrap`：名字长度固定，省略号在这里没有对象，折行才是风险。
+   * 3. 左对齐在控件之后，不绝对定位居中——居中会读成「文档标题」。
    */
-  const titleBlock = /\.titlebar__title\s*\{([^}]*)\}/.exec(titlebar)?.[1] ?? ''
-  ok('标题用绝对定位全窗居中（不受两端让位影响）',
-    /position:\s*absolute/.test(titleBlock)
-      && /left:\s*50%/.test(titleBlock)
-      && /translateX\(-50%\)/.test(titleBlock),
-    '用 flex 居中会被红绿灯 76px 与三键 138px 的占位推偏，两端标题位置不一致',
-    titleBlock.slice(0, 60))
-  ok('标题溢出用省略号，且带 title 属性兜底完整标题',
-    /text-overflow:\s*ellipsis/.test(titleBlock)
-      && /white-space:\s*nowrap/.test(titleBlock)
-      && /title=\{title\}/.test(titleTsx),
-    '§2.4 要求「省略号截断 + 悬停显示完整标题」，缺 title 属性则长标题永远读不全')
+  const brandBlock = /\.titlebar__brand\s*\{([^}]*)\}/.exec(titlebar)?.[1] ?? ''
+  const nameBlock = /\.titlebar__name\s*\{([^}]*)\}/.exec(titlebar)?.[1] ?? ''
+  const versionBlock = /\.titlebar__version\s*\{([^}]*)\}/.exec(titlebar)?.[1] ?? ''
+  ok('标题栏显示固定品牌名与版本号',
+    /titlebar__brand/.test(titlebar) && /空谷 Ondra/.test(titleTsx) && /__APP_VERSION__/.test(titleTsx),
+    '需求：标题栏固定显示「空谷 Ondra」和版本号，不随会话标题变',
+    brandBlock.slice(0, 60))
+  ok('品牌牌是常量，不接会话标题',
+    !/titlebar__title/.test(titleTsx) && !/props\.title/.test(titleTsx),
+    '会话标题属于内容，不属于窗口身份；完整标题在会话抽屉里读')
+  ok('品牌名与版本号都不折行',
+    /white-space:\s*nowrap/.test(nameBlock) && /white-space:\s*nowrap/.test(versionBlock),
+    '两段的长度都是固定的，折行只会在窄窗里发生——那比截断更难看')
+  ok('品牌牌左对齐（不绝对定位居中）',
+    !/position:\s*absolute/.test(brandBlock),
+    '居中会让它读成「文档标题」，左对齐才是铭牌')
 
   /*
    * --- 3. 双击标题栏交给系统 ---
@@ -1787,7 +1822,7 @@ async function checkDoc() {
  *
  * | 原序号 | 条目 | 为什么可以机器化 |
  * | --- | --- | --- |
- * | 2 | 红绿灯垂直中心 22 | `trafficLightPosition.y === 16` 已在第 3 条断言 |
+ * | 2 | 红绿灯垂直中心 22 | 自绘圆点 12px + top 16px 可算（平台保真第 2 条，同时验系统按钮已隐藏） |
  * | 3 | Windows 三键中心 22 | `top + height / 2` 可算（平台保真第 1 条） |
  * | 4 | 标题位置像素级一致 | 判据是「不因平台让位偏移」，绝对定位可查（第 2 条） |
  * | 6 | 双击标题栏交给系统 | 判据是**代码里没有** `onDoubleClick`（第 3 条） |

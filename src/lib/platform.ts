@@ -81,7 +81,7 @@ export function markPlatform(): void {
     window.matchMedia('(hover: none) and (pointer: coarse)').matches ? 'touch' : 'pointer'
 }
 
-/** 是否 macOS。红绿灯由系统绘制，界面只需让位。 */
+/** 是否 macOS。红绿灯由前端自绘（系统按钮已在壳侧隐藏），界面需留 76px 让位。 */
 export function isMac(): boolean {
   return getPlatform() === 'darwin'
 }

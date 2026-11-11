@@ -1,37 +1,22 @@
 /**
- * 偏好设置（独立窗口）：160px 导航 + 内容区。
+ * 设置面板里的表单原语（行、单选组、说明、滑杆、试听、事实表…）。
+ *
+ * ## 类名前缀为什么还叫 `pref__`
+ *
+ * 它取自上一版的「偏好设置」独立窗口，而那个窗口已经不在了。改名要动
+ * 四百行样式与三张自检网，换不来任何用户可见的收益——名字只是样式命名
+ * 空间，语义由这段注释承担。
+ *
+ * 分工：`settings.css` 管**壳**（遮罩、纸片、导航列、内容区、三段结构），
+ * 这个文件管**料**（一行设置长什么样、说明卡片长什么样）。
+ *
+ * ## 容器查询为什么删了
+ *
+ * 上一版这里有一条 `@container shell (max-width: 599px)`，把 160px 竖排
+ * 导航在窄窗里折成横排。那条规则服务的是**整窗就是设置**的形态；
+ * 现在是浮层，最小窗口 820 宽，纸片永远有 760 可用，永远不会触发。
+ * 留着它只会让下一个人以为窄屏还有另一套布局要维护。
  */
-
-.pref {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--ui-bg-canvas);
-}
-
-.pref__bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  height: 44px;
-  padding: 0 16px;
-  -webkit-app-region: drag;
-  app-region: drag;
-  user-select: none;
-}
-
-.pref__bar-title {
-  font-size: var(--text-title);
-  font-weight: var(--w-medium);
-  color: var(--ui-ink);
-}
-
-.pref__body {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-}
 
 /* ===========================================================================
    导航
@@ -40,7 +25,15 @@
 .pref__nav {
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 6px;
+  padding: 12px 8px;
+  /*
+   * 导航列比纸片暗一档（浅色 #ededed / 深色 #141414）。
+   *
+   * 这是整个面板唯一的层级手段：面板不分标题栏、不画投影，只靠
+   * 「左深右浅」把导航和内容分开。两者差值很小（1.09），但配合右侧
+   * 那条发丝线，边界是清楚的——差值再大就会读成两块独立的面。
+   */
+  background: var(--ui-bg-canvas);
   border-right: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -51,7 +44,7 @@
   gap: 8px;
   width: 100%;
   height: 30px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: var(--r-sm);
   font-size: var(--text-caption);
   color: var(--ui-ink-2);
@@ -61,9 +54,15 @@
     color var(--motion-f) var(--ease-fluid);
 }
 
-/* 悬停可辨但不过火：>1.05 且 <1.35 的亮度差。 */
+/*
+ * 悬停可辨但不过火：>1.05 且 <1.35 的亮度差。
+ *
+ * 上一版这里写的是固定的 `rgb(18 21 28 / 10%)`——一个为旧配色调的
+ * 冷黑。换主题后它在深色面板上几乎没有效果（深底叠一层近黑），
+ * 于是"悬停"在深色模式下等于不存在。改用语义令牌，两套主题各自成立。
+ */
 .pref__nav-item:hover {
-  background: rgb(18 21 28 / 10%);
+  background: var(--ui-bg-hover);
   color: var(--ui-ink);
 }
 
@@ -86,11 +85,11 @@
 .pref__content {
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 22px 28px;
+  padding: 16px 24px 32px;
 }
 
 .pref__section {
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 
 .pref__section-title {
@@ -98,7 +97,7 @@
   font-weight: var(--w-medium);
   letter-spacing: var(--track-label);
   color: var(--ui-ink-4);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 /* 选择组：上下一列，谷线分隔。 */
@@ -115,9 +114,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 16px;
   text-align: left;
   transition: background-color var(--motion-f) var(--ease-fluid);
 }
@@ -134,16 +133,22 @@
   background: var(--ui-bg-selected);
 }
 
-/* 选中记号：右侧 7px 雾蓝点。 */
+/*
+ * 选中记号：右侧一颗雾蓝点。
+ *
+ * `right` 必须与 `.pref__choice` 的左右内距同值（16）。原来写 14：
+ * 行内文字离右边框 16，记号离右边框 14，两道内距差 2px。2px 小到
+ * 说不出哪里不对，但整列上下扫一眼，那颗点在竖向上的"边缘线"是斜的。
+ */
 .pref__choice[aria-checked='true']::after {
   content: '';
   position: absolute;
-  right: 14px;
+  right: 16px;
   top: 50%;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--r-full);
-  background: var(--jade-700);
+  background: var(--ui-action);
   transform: translateY(-50%);
 }
 
@@ -168,12 +173,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 9px 0;
+  gap: 16px;
+  padding: 8px 0;
 }
 
 .pref__row + .pref__row {
   border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+/*
+ * 行内文字块：标签 + 说明两行。
+ *
+ * TSX 把两者包了一层 `.pref__row-text` 负责"占满剩余宽度、可收缩"，
+ * 但这条规则从没写过。没有它，`flex` 容器里这块不会收缩，长说明会把
+ * 右侧控件挤出容器（实测在 160px 导航 + 长文案时控件被推到不可见区）。
+ */
+.pref__row-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .pref__row-label {
@@ -188,25 +205,175 @@
   color: var(--ui-ink-3);
 }
 
+/*
+ * 小节标题（"主题""语言""字号"）。
+ *
+ * 与 `.pref__section-title` 是同一档，但那个类名是更早的写法，TSX 现在
+ * 用的是 `__heading`。两条都留着没有意义——统一到 `__heading`，旧名删除。
+ */
+/*
+ * 小节标题。
+ *
+ * 上 24、下 8：下 8 是标题与它那一组控件的绑定，上 24 是它与上一组的分隔。
+ * 原来只写了下 8，上边是 0——于是紧跟在说明块后面的小节标题（「她的声音」
+ * 就落在「这一档音量只影响这三个音…」下面）几乎是贴着那块灰底起笔的，
+ * 读起来像那句话的一部分。段与段之间的呼吸由 `margin-bottom` 单边提供，
+ * 一旦上一段没有下边距，两道空隙就直接归零。
+ *
+ * 第一个标题不加 24：它是这一页的起笔，上面有面板标题与分隔线，再加一段
+ * 空隙会让"这一页说什么"被推得离标题太远。
+ */
+.pref__heading {
+  margin: 24px 0 8px;
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink-3);
+  letter-spacing: 0.02em;
+}
+
+.pref__heading:first-child {
+  margin-top: 0;
+}
+
+/* 字号预览：一段真实句子按当前比例排出来。 */
+.pref__sample {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-raise);
+  border: var(--rule) solid var(--ui-line-soft);
+}
+
+.pref__sample-text {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.75;
+  color: var(--ui-ink-2);
+}
+
+.pref__sample-meta {
+  display: block;
+  margin-top: 8px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 音量：标签一行、滑杆一行，两行竖排。
+ *
+ * ## 原来是横排，而横排把滑杆压成了 0 宽
+ *
+ * 旧写法是 `display: flex; align-items: center; width: 180px`，两个子项
+ * ——`.pref__slider-head`（`width: 100%`）与滑杆（`flex: 1`）——并排。
+ * 180 的容器里，head 先按 100% 拿走 180，再叠上 8px 的 `gap`，总宽就超了：
+ * 两边一起收缩（`flex-shrink` 默认 1），head 收到 172、**滑杆收到 0**。
+ * 实测 `getBoundingClientRect()` 的宽度就是 0——轨道长度为零，只剩下
+ * 一个拇指的圆圈浮在那里，谁也不知道那是个音量条。
+ *
+ * 竖排之后两行各自吃满宽度，滑杆自然就是「整条」的长度；顺便也解决了
+ * 另一件事：head 里是「音量 —— 60」的左右两端对齐，它本来就该占满一行，
+ * 而不是被挤在 180px 的角落。
+ */
 .pref__slider {
-  flex: none;
-  width: 180px;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .pref__cues {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   margin-top: 4px;
+}
+
+/*
+ * 单个试听按钮：名字在上、说明在下。
+ *
+ * 三个音各自可听是"三种音"这个说法唯一的证据。原来只写了容器
+ * （`.pref__cues` 的 font-size/color），按钮本身没有样式——三块裸文字并排，
+ * 看不出可点，也没有悬停反馈，用户根本不会去按。
+ */
+.pref__cue {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-field);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
+  text-align: left;
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.pref__cue:hover {
+  background: var(--ui-bg-hover);
+}
+
+/* 提示音关掉时三个按钮一并失效：视觉降一档，点击由 onClick 挡住。 */
+.pref__cue[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pref__cue[aria-disabled='true']:hover {
+  background: var(--ui-bg-field);
+}
+
+.pref__cue-name {
+  font-size: var(--text-label);
+  color: var(--ui-ink-2);
+}
+
+.pref__cue-hint {
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 音量滑杆那一行：标签在左、读数在右。 */
+.pref__slider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.pref__slider-readout {
+  font-size: var(--text-label);
+  color: var(--ui-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 说明块里的强调。
+ *
+ * `pref__note` 的正文是 `--ui-ink-3`（比正文浅一档，因为它是解释而不是内容）。
+ * 真正要紧的那半句——「当前这一段会被归档」——必须比周围的解释重，
+ * 否则整段读下来像一句免责声明。做法只有两步：字色提到 ink-2、字重 500，
+ * 不引新颜色：强调靠**层级**，不靠红黄。
+ */
+.pref__note strong {
+  font-weight: var(--w-medium);
+  color: var(--ui-ink-2);
+}
+
+/* 但提示音关闭时整条滑杆降一档，表明"现在调它没用"。 */
+.pref__slider[data-off] {
+  opacity: 0.45;
 }
 
 .pref__note {
-  margin-top: 14px;
-  padding: 10px 12px;
+  margin-top: 16px;
+  padding: 12px 12px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-raise);
   border: var(--rule) solid var(--ui-line-soft);
@@ -215,10 +382,98 @@
   color: var(--ui-ink-3);
 }
 
+/*
+ * 带警告语义的说明——只有一处用途：通知权限被系统拒绝时的那段指引。
+ *
+ * ## 为什么用左竖线而不是整块换底色
+ *
+ * `--ui-bad-bg` 是浅红的实底色。整块铺红会让那一屏里唯一的红色落在
+ * **一段本可以读完的指引**上，读者的第一反应是"出错了"，而事实是
+ * "有个开关在系统里关着，去打开就好"。左竖线保留了"这里有异常"的
+ * 提示，又不会把整段读成错误报告。
+ *
+ * 底色仍用 `--ui-bg-raise`（与普通 note 相同）：异常感由竖线与字色承担，
+ * 不需要第二个信号。§5.6 的"焦点指示只有一层"是同一个道理——同一种
+ * 状态不用两种视觉同时说。
+ *
+ * ## 竖线为什么不用纯红
+ *
+ * `--ui-bad` 在深色下是 `#ff9db0`（亮粉），当 2px 竖线够醒目；但它同时
+ * 是"校验失败"的字色，用在这里会让"权限被拒"与"输入格式错了"看起来
+ * 是同一类问题。这里用 `--ui-warn`（两套主题都定义过），语义是
+ * "需要注意，但不是错误"。
+ */
+.pref__note--warn {
+  padding-left: 12px;
+  border-left: 2px solid var(--ui-warn);
+}
+
+/*
+ * 权限申请失败时的那一行（`role="alert"`）。
+ *
+ * 与 note 的区别：note 是**解释**，error 是**刚刚发生的事**。所以它
+ * 不要卡片底色（卡片会让它读成一块静态说明），只要红字 + 一个足够
+ * 显眼的位置。`role="alert"` 已经保证读屏会立刻念出来，视觉上不需要
+ * 再加粗体或背景——那会变成两个信号说同一件事。
+ */
+.pref__error {
+  margin: 8px 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-bad);
+}
+
+/*
+ * 文字链接（仓库地址等）。
+ *
+ * 它在一个 `<dd>` 里，本来是一个裸 `<button>`：深灰字、无下划线、
+ * 与旁边的版本号长得完全一样，没人会想到它能点。
+ *
+ * 下划线是这里的必需品而不是装饰：颜色差在这个尺寸上不够可靠
+ * （WCAG 1.4.1 要求"不能只靠颜色区分链接"）。
+ */
+.pref__link {
+  font-size: var(--text-caption);
+  color: var(--ui-action-text);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--ui-line);
+  text-underline-offset: 2px;
+  transition: text-decoration-color var(--motion-f) var(--ease-fluid);
+}
+
+.pref__link:hover {
+  text-decoration-color: currentColor;
+}
+
+/*
+ * 外链指示符：仓库地址点开即跳系统浏览器，加一个 ↗ 让"这是站外链接"
+ * 一眼可辨（WCAG 1.4.1：不能只靠颜色区分链接）。
+ */
+.pref__link::after {
+  content: ' \2197';
+  font-size: 0.85rem;
+}
+
+/*
+ * 音量滑杆本体。
+ *
+ * `.control-range` 已经给了轨道、拇指与填充渐变，所以这里只需要**宽度**。
+ * `flex: 1` 只在横排里才有意义，而 `.pref__slider` 现在是竖排——留着它
+ * 无害（列向子项上 `flex` 作用于主轴高度），宽度由列容器的 `stretch` 给。
+ *
+ * `min-width: 0` 保留：它防的是另一种塌法——`input[type=range]` 的默认
+ * 固有宽度在窄容器里会让父级撑破，而不是缩回。
+ */
+.pref__range {
+  flex: 1;
+  min-width: 0;
+}
+
 .pref__facts {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 6px 14px;
+  gap: 8px 16px;
   font-size: var(--text-caption);
 }
 
@@ -234,29 +489,30 @@
 .pref__action {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .pref__brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 26px 0 8px;
+  gap: 8px;
+  padding: 24px 0 8px;
   text-align: center;
 }
 
 .pref__brand-name {
   font-family: var(--font-display);
-  font-size: var(--text-title);
+  font-size: 1.25rem;
   font-weight: var(--w-light);
   letter-spacing: var(--track-display);
   color: var(--ui-ink-2);
 }
 
-.pref__brand-verse {
-  font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+.pref__brand-slogan {
+  margin-top: 4px;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
 }
 
 /* 窄窗。 */
@@ -269,7 +525,7 @@
     display: flex;
     gap: 4px;
     overflow-x: auto;
-    padding: 8px 10px;
+    padding: 8px 12px;
     border-right: 0;
     border-bottom: var(--rule) solid var(--ui-line-soft);
   }
@@ -279,3 +535,258 @@
     white-space: nowrap;
   }
 }
+
+/*
+ * 一组动作按钮（导出、导入）。
+ *
+ * ## 为什么竖向排列、左对齐、各自等宽到内容为止
+ *
+ * 三个「导出」是三种不同粒度（这一段 / 这一段可读版 / 全部），它们不是
+ * 一条流水线上的先后步骤，横排会读成「先按这个再按那个」。竖排 + 8px
+ * 间隔读起来是一份清单，用户可以只挑一个按。
+ */
+/*
+ * 动作清单：横排、可折行。
+ *
+ * 原来是竖排 `column` + `align-items: flex-start`。三条导出动作宽度各不相同
+ * （150 / 140 / 90），竖排时右缘参差，像随手贴上去的三张便签；而它们其实是
+ * 一组平级选项，平铺在一行里才读得出"三个格式挑一个"。
+ *
+ * `flex-wrap` 不是保险，是必要的：窗口窄下来或者字号调大之后，三个按钮
+ * 加起来会超过 550，那时应当折行而不是挤成三截。
+ */
+.pref__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+/*
+ * 动作成功后的回执（"已存到 /Users/…/Downloads/xxx.json"）。
+ *
+ * 与 `.pref__error` 同一档字号、同一位置，只有颜色不同——两者是同一个槽位
+ * 的两种结果。它不复用 note 的卡片底：回执是一句**刚发生的事**，
+ * 不是一段**要读的说明**，做成卡片会让它看起来像可以留在那里的内容。
+ */
+.pref__receipt {
+  margin: 8px 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+  word-break: break-all;
+}
+
+/*
+ * 权限清单（G1）。
+ *
+ * 每行：左为名称 + 用途说明，右为状态 + 管理入口。状态文字在「需要用户处理」
+ * 时转成提醒色，与页面其余说明区分开——权限问题不是普通的「要读的说明」，
+ * 而是「该去系统设置看一下」的提示。
+ */
+.perm__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.perm__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.perm__item + .perm__item {
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.perm__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.perm__name {
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+.perm__purpose {
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+}
+
+.perm__state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+.perm__status {
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+}
+
+.perm__status--warn {
+  color: var(--ui-warn);
+  font-weight: 600;
+}
+
+/*
+ * 备份清单（G4）。
+ *
+ * 与权限清单同构但更轻：左为时间 + 路径，右为「回滚到此份」。路径是技术信息，
+ * 用最小的字号、次要色，不抢「何时」的视线。
+ */
+.backup__list,
+.kb__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.backup__item,
+.kb__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.backup__item + .backup__item,
+.kb__item + .kb__item {
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.backup__text,
+.kb__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.backup__time {
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+.backup__path {
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--ui-ink-3);
+  word-break: break-all;
+}
+
+.kb__ops {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.kb__title {
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+.kb__tag {
+  align-self: flex-start;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+  background: var(--ui-bg-hover);
+  border-radius: var(--r-xs);
+  padding: 1px 8px;
+}
+
+.kb__body {
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
+ * 知识库编辑器（G5）。
+ *
+ * 三个字段竖排：标题、分类、内容。内容用多行文本，因为知识正文通常不止一行。
+ * 与列表共享同一档字号，编辑态不会显得比阅读态「重」。
+ */
+.kb__editor {
+  margin-top: 16px;
+  padding: 16px;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-sm);
+}
+
+.kb__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kb__label {
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+}
+
+.kb__input,
+.kb__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--text-body);
+  color: var(--ui-ink);
+  background: var(--ui-bg-paper);
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  padding: 8px 12px;
+}
+
+.kb__input:focus,
+.kb__textarea:focus {
+  outline: none;
+  border-color: var(--ui-action);
+}
+
+.kb__textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/*
+ * 权限放宽的常驻警告（U4）。
+ *
+ * 与 `.pref__error` 不同：它不是一次操作的结果，而是「当前正处于高风险档位」
+ * 的持续提示。用提醒色但不带错误态的强烈红，避免和真正的报错混在一起。
+ */
+.pref__warn {
+  margin: 12px 0 0;
+  padding: 12px;
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-warn);
+  background: color-mix(in srgb, var(--ui-warn) 10%, transparent);
+  border-radius: var(--r-xs);
+}
+

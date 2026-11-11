@@ -26,7 +26,9 @@
   flex-direction: column;
   align-items: center;
   width: var(--w-spine);
-  padding: 14px 0 16px;
+  /* U2：上下一档加到 24px，让这组仪表离窗口上下缘都有呼吸，
+     原先 16px 在小窗里几乎贴边。 */
+  padding: 24px 0;
   /*
    * 整组垂直居中，而不是「标签顶天、读数立地」。
    *
@@ -60,7 +62,7 @@
  */
 .spine__caption {
   position: relative;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   /* 右栏所有辅助文字统一 11px / 0.08em。原 0.18em 会把竖排的「此刻」
      两字拉散，10px 在 820 × 580 的小窗里笔画发糊。 */
   font-size: var(--text-label);
@@ -108,13 +110,14 @@
   height: 100%;
   max-height: 300px;
   min-height: 96px;
-  margin: 0 0 16px;
+  margin: 0 0 24px;
 }
 
 .spine__well {
   position: absolute;
   inset: 0;
-  border-radius: 4px;
+  /* 8 宽的轨道取 4 = 全圆角药丸（内圆角极限是宽度一半）。 */
+  border-radius: var(--r-xs);
   background: rgb(18 24 40 / 7%);
   box-shadow: inset 0 0 0 0.5px rgb(18 24 40 / 8%);
   overflow: hidden;
@@ -149,17 +152,13 @@
   pointer-events: none;
 }
 
-/* 中线（50%）加长：给「一半」一个可读的锚点。 */
-.spine__track::after {
-  content: '';
-  position: absolute;
-  left: -13px;
-  top: 50%;
-  width: 9px;
-  height: 0.5px;
-  background: var(--ui-ink-4);
-  opacity: 0.5;
-}
+/*
+ * 原先中线（50%）那条加长横线已去掉（U2）。
+ *
+ * 它本意是给「一半」一个锚点，但四分刻度已经表达了这个信息；一根孤立、
+ * 更长、颜色更实的横线，读者只会以为水位在这里被截断或有一条基准线。
+ * 说不清含义的记号，删掉比解释便宜。
+ */
 
 .spine__fill {
   position: absolute;
@@ -196,6 +195,18 @@
   line-height: 1.25;
 }
 
+/**
+ * 水位图例（U2）。
+ *
+ * 只有一个数字时读者不知道它在说什么；补一行「精力」把量名说清楚，
+ * 心情仍由颜色 + 词各表达一次。字号与其它辅助文字统一到 11px。
+ */
+.spine__unit {
+  font-size: var(--text-label);
+  letter-spacing: 0.08em;
+  color: var(--ui-ink-4);
+}
+
 .spine__energy {
   font-size: 0.9375rem;
   font-weight: var(--w-regular);
@@ -210,7 +221,7 @@
 }
 
 .spine__memory {
-  margin-top: 6px;
+  margin-top: 12px;
   /* 统一到 11px。9px 与设置原始层的 .raw__tag 是仅有的两处小字号，
      中文笔画会糊；「记忆 148」约 45px，56px 栏宽装得下，不必单开一档。 */
   font-size: var(--text-label);
@@ -232,7 +243,7 @@
 /* 静音/今天安静：竖排胶囊。 */
 .spine__muted {
   margin-top: auto;
-  padding: 7px 3px;
+  padding: 8px 3px;
   border-radius: var(--r-xs);
   background: var(--ui-her-bg);
   font-size: var(--text-label);
@@ -248,7 +259,7 @@
   right: 52px;
   top: 50%;
   transform: translateY(-50%) translateX(4px);
-  padding: 4px 9px;
+  padding: 4px 8px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-sheet);
   border: var(--rule) solid var(--ui-line);

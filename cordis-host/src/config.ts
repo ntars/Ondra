@@ -53,7 +53,7 @@ export type PermissionLevel = 'full' | 'workspace' | 'chat'
 
 /** 默认配置。 */
 function defaultConfig(): HostConfig {
-  return { currentModel: '', profiles: [], permission: 'full' }
+  return { currentModel: '', profiles: [], permission: 'workspace' }
 }
 
 /**

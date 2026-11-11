@@ -1,12 +1,14 @@
 /**
  * 前端入口。
  *
- * ## 一份产物，两个窗口
+ * ## 只有一棵树
  *
- * 壳用 `index.html#preferences` 打开偏好设置窗口（`src-tauri/src/preferences.rs`），
- * 这里按 hash 决定渲染哪一棵树。**不建第二个 HTML 入口**：那会让
- * `vite` 多一个 `rollupOptions.input`、Tauri 多一处 `frontendDist` 配置，
- * 而两个入口各自引一遍样式——令牌就成了两份，深色模式必然不同步。
+ * 上一版有两棵树：主界面与偏好设置窗口，由 `#preferences` 这个 hash
+ * 决定渲染哪一棵。两者是**两个 WebView 文档**，所以偏好要跨窗口广播、
+ * 连接信息要补发、样式要各自引一遍。
+ *
+ * 设置改为主界面上的一个浮层之后，那一切都不需要了：一个文档、一棵树、
+ * 一份令牌。这个文件因此回到「装好全局前置，然后挂载」这一件事。
  *
  * ## 初始化顺序
  *
@@ -18,7 +20,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
-import { Preferences } from './components/Preferences.tsx'
 /**
  * 样式顺序在这里定。
  *
@@ -72,8 +73,8 @@ markPlatform()
  * 偏好层（主题与字号）也要在挂载前落地。
  *
  * `index.html` 的内联脚本只处理主题：它必须早于样式表，只能内联一小段。
- * 字号与「跨窗口同步」两条只能在模块里接——把内联脚本撑大到能读三份
- * 存储、还要注册广播监听，会变成一段没人愿意维护的第二实现。
+ * 字号与「跟随系统」两条只能在模块里接——把内联脚本撑大到能读三份存储、
+ * 还要挂 `matchMedia` 监听，会变成一段没人愿意维护的第二实现。
  */
 startPreferences()
 
@@ -102,8 +103,8 @@ installVisibilityTracking()
  * 软键盘遮挡高度（§10.8）。
  *
  * 与可见性跟踪同理：它写的是根节点上的 CSS 变量，谁都能读，
- * 所以模块级装一次就够，不必等某个组件挂载。iOS 上键盘可以在
- * 任何时刻弹出（包括偏好窗口），装在组件里会漏掉一半场景。
+ * 所以模块级装一次就够，不必等某个组件挂载。键盘可以在任何时刻弹出
+ * （包括设置浮层展开时），装在组件里会漏掉一半场景。
  */
 installViewportTracking()
 
@@ -123,42 +124,13 @@ if (container === null) {
 }
 
 /**
- * 当前窗口是不是偏好设置窗口。
+ * 挂载。
  *
- * 用 hash 判而不是查窗口 label：后者要等壳注入 `__TAURI__` 才有，
- * 而首帧就该决定渲染哪棵树。hash 在解析 HTML 时就已确定。
- *
- * ## 为什么要订阅 `hashchange`
- *
- * 壳内的偏好窗口是**独立的 WebView 文档**，hash 从一开始就是
- * `#preferences`，永远不变。但在浏览器里（`pnpm dev:web`）只有一个
- * 文档，「开偏好设置」只能靠改 hash。若不监听，按 `Cmd/Ctrl + ,`
- * 会得到「什么都没发生」——比报错更让人困惑。
- *
- * 订阅之后，浏览器里的表现与壳内一致：同一份组件、同一套样式，
- * 只是从第二窗口搬到了整页。`check:ui` 也靠这条路径验它。
+ * `StrictMode` 在开发态会双调用 effect，用于暴露副作用清理缺失。
+ * 生产构建自动失效，不影响运行。
  */
-let isPreferences = globalThis.location.hash === '#preferences'
-
-/** 挂载点。两棵树共用，切换时整棵替换。 */
-const root = createRoot(container)
-
-/** 按当前 hash 渲染对应的树。 */
-function renderRoot(): void {
-  root.render(
-    // StrictMode 在开发态会双调用 effect，用于暴露副作用清理缺失。
-    // 生产构建自动失效，不影响运行。
-    <StrictMode>
-      {isPreferences ? <Preferences /> : <App />}
-    </StrictMode>,
-  )
-}
-
-globalThis.addEventListener('hashchange', () => {
-  const next = globalThis.location.hash === '#preferences'
-  if (next === isPreferences) return
-  isPreferences = next
-  renderRoot()
-})
-
-renderRoot()
+createRoot(container).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)

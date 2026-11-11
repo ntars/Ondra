@@ -31,6 +31,17 @@ serde_json = "1"
 # 用 tokio 而不是手写线程，避免自己实现唤醒与超时。
 tokio = { version = "1", features = ["process", "io-util", "sync", "time", "rt-multi-thread", "macros"] }
 
+# macOS 自绘红绿灯：需要把系统的三个 standardWindowButton 藏掉。
+# 按 target 分条件声明，Windows / Linux 构建不会拉进 AppKit 依赖。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSWindow", "NSButton", "NSView", "NSResponder"] }
+
+# 进程组信号：退出时要把宿主与它拉起的 dsh-sidecar 一起收掉。
+# 只声明 kill(2) 需要的常量与函数，不引 nix——为一个信号拉一整套绑定不值得。
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [profile.release]
 # 安装包体积优先：桌面应用不需要调试符号，LTO 与 strip 能显著缩小二进制。
 codegen-units = 1

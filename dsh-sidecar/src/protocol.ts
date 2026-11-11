@@ -176,6 +176,14 @@ export const Method = {
    * 清空是真的把消息删掉。返回 `{ cleared: 删除条数 }`。
    */
   SessionClear: 'session.clear',
+  /**
+   * 会话：批量导入消息（迁移 / 恢复）。
+   *
+   * 与 `session.create` 分开而不是给它加一个 `messages` 参数：建会话是
+   * 高频轻操作（清空全部就建一条），导入是低频重操作（一次几百条 + 一次
+   * 落盘）。合成一个方法会让每次建会话都多一次"要不要写消息"的判断。
+   */
+  SessionImport: 'session.import',
 
   /**
    * 推理：发起一轮对话。返回本轮最终答复。

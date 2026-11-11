@@ -35,7 +35,7 @@ const TIERS: ReadonlyArray<{
   hint: string
 }> = [
   { tier: 'auto', label: '可自动修', hint: '不损失任何数据' },
-  { tier: 'confirm', label: '需要你确认', hint: '不可逆' },
+  { tier: 'confirm', label: '需确认', hint: '不可逆' },
   { tier: 'advise', label: '建议别人修', hint: '不归这里' },
 ]
 

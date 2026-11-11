@@ -1198,8 +1198,22 @@ async function main(): Promise<void> {
     await ctx.fiber.dispose()
   })()
 
-  // 父进程关闭管道即表示壳退出了，此时必须跟着退出，否则成为孤儿进程。
+  /*
+   * 父进程关闭管道即表示壳退出了，此时必须跟着退出，否则成为孤儿进程。
+   *
+   * ## `resume()` 不是可有可无的一行
+   *
+   * Node 的 `process.stdin` 默认是**暂停**的可读流：只挂 `end` 监听不会让它
+   * 开始读，EOF 就永远到不了。于是「壳死了、管道关了、宿主还在跑」——
+   * 这条监听写了等于没写（实测：`kill` 掉壳之后宿主与内核都还活着）。
+   *
+   * 而这条通道是**唯一**在壳被强杀时还起作用的一条：`kill -9`、活动监视器
+   * 的「强制退出」、系统注销都不给任何进程执行清理代码的机会，能依靠的只剩
+   * 管道 EOF。`SIGTERM` 那条监听在 `kill -9` 面前同样无效，所以两者都要有。
+   */
+  process.stdin.resume()
   process.stdin.on('end', () => { void stop().finally(() => { process.exit(0) }) })
+  process.stdin.on('close', () => { void stop().finally(() => { process.exit(0) }) })
   process.on('SIGTERM', () => { void stop().finally(() => { process.exit(0) }) })
   process.on('SIGINT', () => { void stop().finally(() => { process.exit(0) }) })
 }
@@ -1479,6 +1493,126 @@ function buildRoutes(
     const client = getDsh(ctx)
     await client.call('session.archive', { id: request.params.id })
     return { body: { ok: true } }
+  })
+
+  /*
+   * -------------------------------------------------------------------------
+   * 导出与导入（迁移 / 恢复）
+   * -------------------------------------------------------------------------
+   *
+   * ## 会话本来就是明文
+   *
+   * 落盘是 `sessions/<uuid>.json`，一个会话一个文件、内容是未压缩的 JSON
+   * （见 `FileSessionStore`）。也就是说"迁移"本来只需要拷目录。界面缺的
+   * 不是"明文"，而是**两个可执行的出口**：一份人能读的 Markdown（贴给别人、
+   * 存档、search），和一份能原样倒回来的 JSON（恢复）。
+   *
+   * 所以这两条路由不加密、不打包、不加专有字段——导出的 JSON 就是会话
+   * 文件本身的形状，用户用文本编辑器打开能直接看懂。
+   *
+   * ## 为什么格式化在宿主做
+   *
+   * 界面手里只有当前这一段的消息，归档段它根本没见过。要让"导出全部"
+   * 成立，格式化必须发生在能列出全部会话的地方，也就是这里。
+   */
+
+  /** 会话导出（JSON + Markdown 同时给，界面按需保存一种）。 */
+  routes.set('GET /api/export/session/:id', async (request: RouteRequest) => {
+    const client = getDsh(ctx)
+    const id = request.params.id ?? ''
+    const meta = await client.call('session.get', { id }) as SessionExportMeta
+    const rows = await client.call('session.messages', { sessionId: id })
+    const messages = normalizeExportMessages(rows)
+    const payload: SessionPayload = {
+      format: 1,
+      exportedAt: Date.now(),
+      id: typeof meta.id === 'string' ? meta.id : id,
+      title: typeof meta.title === 'string' ? meta.title : '',
+      createdAt: typeof meta.createdAt === 'number' ? meta.createdAt : 0,
+      updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : 0,
+      workspace: typeof meta.workspace === 'string' ? meta.workspace : '',
+      messages,
+    }
+    return { body: { session: payload, markdown: renderSessionMarkdown(payload) } }
+  })
+
+  /** 全部会话导出（含归档段）。一条 JSON，能整包倒回来。 */
+  routes.set('GET /api/export/all', async () => {
+    const client = getDsh(ctx)
+    const list = await client.call('session.list', { includeArchived: true })
+    const metas = Array.isArray(list) ? list as SessionExportMeta[] : []
+    const sessions: SessionPayload[] = []
+    for (const meta of metas) {
+      if (typeof meta.id !== 'string') continue
+      const rows = await client.call('session.messages', { sessionId: meta.id })
+      sessions.push({
+        format: 1,
+        exportedAt: Date.now(),
+        id: meta.id,
+        title: typeof meta.title === 'string' ? meta.title : '',
+        createdAt: typeof meta.createdAt === 'number' ? meta.createdAt : 0,
+        updatedAt: typeof meta.updatedAt === 'number' ? meta.updatedAt : 0,
+        workspace: typeof meta.workspace === 'string' ? meta.workspace : '',
+        messages: normalizeExportMessages(rows),
+      })
+    }
+    return { body: { format: 1, exportedAt: Date.now(), sessions } }
+  })
+
+  /**
+   * 导入一段对话。
+   *
+   * ## 为什么先归档当前段
+   *
+   * 单会话制：应用里同时只有一段对话。恢复一份旧对话必然要给它腾位置，
+   * 而**直接清空等于销毁**。归档是唯一既不丢数据、又让旧段不出现在界面上
+   * 的做法——用户后悔时还能在数据目录里找到那一份。
+   *
+   * ## 为什么接受 `session` 也接受裸对象
+   *
+   * 用户可能保存的是导出接口的整个响应（`{session, markdown}`），也可能
+   * 只保存了其中一个文件。两种都认，比让用户猜"该存哪个"友好。
+   */
+  routes.set('POST /api/import', async (request: RouteRequest) => {
+    const client = getDsh(ctx)
+    const body = (request.body ?? {}) as Record<string, unknown>
+    const candidate = body.session ?? body
+    const payload = normalizeImportPayload(candidate)
+    if (payload === undefined) {
+      return { status: 400, body: { error: '这个文件里没有可恢复的会话（需要 messages 数组）' } }
+    }
+
+    const current = await readCurrentSession(ctx)
+    let archivedId = ''
+    if (current !== null && typeof current.id === 'string') {
+      await client.call('session.archive', { id: current.id })
+      archivedId = current.id
+    }
+
+    let workspace = ''
+    try {
+      workspace = await ensureWorkspace(Date.now())
+    } catch (error) {
+      process.stderr.write(`[host] 导入时建立工作区失败：${String(error)}\n`)
+    }
+
+    const result = await client.call('session.import', {
+      title: payload.title,
+      workspace,
+      messages: payload.messages,
+    }) as { session?: { id?: unknown }; imported?: unknown }
+    const createdId = typeof result.session?.id === 'string' ? result.session.id : ''
+    if (createdId !== '') {
+      resetVoiceGate(ctx)
+      beginOralSession(ctx, createdId)
+    }
+    return {
+      body: {
+        session: result.session ?? null,
+        imported: typeof result.imported === 'number' ? result.imported : 0,
+        archivedId,
+      },
+    }
   })
 
   /**
@@ -3461,6 +3595,153 @@ function createShellInvoker(): (command: string, args?: Record<string, unknown>)
   return async (command: string): Promise<unknown> => {
     throw new Error(`壳命令通道尚未接通：${command}`)
   }
+}
+
+/* ==========================================================================
+   导出 / 导入：形状与格式化
+   ========================================================================== */
+
+/** 内核返回的会话元信息里，导出真正用得到的那几项。 */
+interface SessionExportMeta {
+  id?: unknown
+  title?: unknown
+  createdAt?: unknown
+  updatedAt?: unknown
+  workspace?: unknown
+}
+
+/**
+ * 导出文件里的一条消息。
+ *
+ * 字段名与落盘文件（`sessions/<uuid>.json` 的 `messages`）**逐字相同**：
+ * 用户拿到的 JSON 和磁盘上那份是同一种东西，不需要再学一套格式。
+ * 唯一不带的是 `id`——恢复时会重新生成（理由见 `importMessages`）。
+ */
+interface ExportedMessage {
+  role: string
+  content: string
+  createdAt: number
+  toolName?: string
+}
+
+/** 一段可迁移的对话。 */
+interface SessionPayload {
+  format: number
+  exportedAt: number
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  workspace: string
+  messages: ExportedMessage[]
+}
+
+/**
+ * 把内核返回的原始行收窄成可导出的消息。
+ *
+ * 逐字段判类型而不是直接断言：这些数据来自磁盘文件，用户手工编辑过是常态，
+ * 而一个 `content` 是 `null` 的消息会让整个导出文件在恢复时炸掉。
+ */
+function normalizeExportMessages(rows: unknown): ExportedMessage[] {
+  if (!Array.isArray(rows)) return []
+  const out: ExportedMessage[] = []
+  for (const row of rows) {
+    if (typeof row !== 'object' || row === null) continue
+    const item = row as Record<string, unknown>
+    if (typeof item.content !== 'string') continue
+    const role = typeof item.role === 'string' ? item.role : 'user'
+    out.push({
+      role,
+      content: item.content,
+      createdAt: typeof item.createdAt === 'number' ? item.createdAt : 0,
+      ...(typeof item.toolName === 'string' ? { toolName: item.toolName } : {}),
+    })
+  }
+  return out
+}
+
+/** 两位补零。 */
+function pad2(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+/**
+ * 时间戳 → `2026-11-11 18:30`。
+ *
+ * 不用 `toLocaleString`：它依赖运行时的 ICU 与系统区域，同一份会话在不同
+ * 机器上导出的时间格式会不一样，而导出文件是给人归档用的，格式应当稳定。
+ */
+function stamp(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '时间未知'
+  const date = new Date(ms)
+  return (
+    `${String(date.getFullYear())}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+    `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+  )
+}
+
+/** 角色在导出的 Markdown 里的称呼。 */
+const ROLE_LABEL: Record<string, string> = {
+  user: '我',
+  assistant: '她',
+  system: '系统',
+  tool: '工具',
+}
+
+/**
+ * 渲染成人能读的 Markdown。
+ *
+ * 目标是**贴到任何地方都不失真**：标题一行、元信息一行、每条消息一个
+ * 二级标题 + 正文。不用表格、不用 HTML、不依赖任何渲染器扩展。
+ * 工具消息收进围栏代码块——它的内容是 JSON，直接铺在正文里会淹没对话。
+ */
+function renderSessionMarkdown(payload: SessionPayload): string {
+  const lines: string[] = []
+  const title = payload.title.trim() === '' ? '未命名会话' : payload.title.trim()
+  lines.push(`# ${title}`, '')
+  const meta = [
+    `导出时间：${stamp(payload.exportedAt)}`,
+    `开始于：${stamp(payload.createdAt)}`,
+    `共 ${String(payload.messages.length)} 条消息`,
+  ]
+  if (payload.workspace !== '') meta.push(`工作区：${payload.workspace}`)
+  lines.push(`> ${meta.join(' · ')}`, '')
+
+  for (const message of payload.messages) {
+    const label = ROLE_LABEL[message.role] ?? message.role
+    const suffix = message.role === 'tool' && message.toolName !== undefined ? `（${message.toolName}）` : ''
+    lines.push(`## ${label}${suffix} · ${stamp(message.createdAt)}`, '')
+    if (message.role === 'tool') {
+      lines.push('```json', message.content, '```')
+    } else {
+      lines.push(message.content)
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 把任意形状的导入文件收窄成「标题 + 消息」。
+ *
+ * 三种形态都认：
+ *
+ * | 用户存下的文件 | 形状 |
+ * | --- | --- |
+ * | 完整导出响应 | `{ session: { messages }, markdown }` |
+ * | 只存了 session 那一段 | `{ format, title, messages }` |
+ * | 直接拷了数据目录里的会话文件 | `{ version, title, messages, id }` |
+ *
+ * 认不出就返回 `undefined`，由调用方回 400 给一句人话——比抛异常好，
+ * 因为"选错了文件"是最常见的失败，它不该看起来像服务坏了。
+ */
+function normalizeImportPayload(value: unknown): { title: string; messages: ExportedMessage[] } | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const record = value as Record<string, unknown>
+  const messages = normalizeExportMessages(record.messages)
+  if (messages.length === 0) return undefined
+  const title = typeof record.title === 'string' ? record.title : ''
+  return { title, messages }
 }
 
 void main().catch((error: unknown) => {

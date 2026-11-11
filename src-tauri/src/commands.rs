@@ -8,6 +8,7 @@
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use tauri::Manager;
 
 use crate::host::HostState;
 use crate::AppState;
@@ -317,42 +318,6 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 打开偏好设置窗口（§5.13）。
-///
-/// # 为什么由前端发起而不是壳自己弹
-///
-/// 三个入口里有两条在前端：`Cmd/Ctrl + ,` 与 Rail 底部齿轮。
-/// 壳自己弹会让「按 Cmd+, 打开的是什么」变成两处判断——
-/// 一处在前端的快捷键表，一处在这里。
-#[tauri::command]
-pub async fn open_preferences(app: tauri::AppHandle) -> Result<(), String> {
-    crate::preferences::open(&app);
-    Ok(())
-}
-
-/// 关掉偏好设置窗口。
-#[tauri::command]
-pub async fn close_preferences(app: tauri::AppHandle) -> Result<(), String> {
-    crate::preferences::close(&app);
-    Ok(())
-}
-
-/// 把偏好广播到其他窗口。
-///
-/// `from` 由前端传窗口自己的 label。不在这里自己查：Tauri 2 的
-/// 命令签名里取「发起调用的窗口」要额外一个 `WebviewWindow` 参数，
-/// 而那个参数的 label 在 `WebviewUrl::App` 带 hash 时不一定等于
-/// 我们在 builder 里设的那个——传进来是唯一确定的做法。
-#[tauri::command]
-pub async fn broadcast_preferences(
-    app: tauri::AppHandle,
-    from: String,
-    prefs: String,
-) -> Result<(), String> {
-    crate::preferences::broadcast(&app, &from, &prefs);
-    Ok(())
-}
-
 /// 把静音状态写到托盘菜单上（§12.10、§12.12）。
 ///
 /// # 为什么状态在前端，文字在壳
@@ -391,4 +356,552 @@ pub async fn open_log_dir(app: tauri::AppHandle) -> Result<String, String> {
     let target = dir.to_string_lossy().to_string();
     reveal_in_folder(target.clone()).await?;
     Ok(target)
+}
+
+/// 在内置浏览器里打开一个白名单地址。
+///
+/// # 为什么白名单之外是错误，而不是「悄悄交给系统浏览器」
+///
+/// 悄悄转交会让白名单形同虚设：用户点一个链接，有时在应用里开、有时跳出去，
+/// 而他无法从行为上预判是哪一种。明确失败 + 一句可读的原因，至少是诚实的。
+/// 应用自己那几个链接（官网、仓库、下载页）都在白名单里，走不到这条路。
+#[tauri::command]
+pub async fn open_browser(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    crate::browser::open(&app, &url)
+}
+
+/// 把导出的文本写进下载目录，并在文件管理器里高亮它。
+///
+/// # 为什么不做「另存为」对话框
+///
+/// 那需要引一个对话插件（Tauri 的 `dialog` 插件），而本项目一直避免为单一
+/// 功能加插件。更重要的是：导出的用途是「带走一份」，落到最容易被找到的
+/// 位置（下载目录）再当场打开它所在的文件夹，比让用户在树形目录里选路径
+/// 少两步操作，也不容易存到一个自己都忘了的地方。
+///
+/// # 文件名为什么要在壳里再洗一遍
+///
+/// 名字由前端拼（含日期与标题），而标题是用户输入的自由文本——里面可能有
+/// `/`、换行、`:`。直接拼进路径会写到别的目录里去，或者在某些文件系统上
+/// 直接失败。这里把分隔符与控制字符一律换成 `-`。
+#[tauri::command]
+pub async fn save_export(
+    app: tauri::AppHandle,
+    filename: String,
+    content: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .download_dir()
+        .map_err(|error| format!("取不到下载目录：{error}"))?;
+    std::fs::create_dir_all(&dir).map_err(|error| format!("下载目录不可写：{error}"))?;
+
+    let path = dir.join(sanitize_filename(&filename));
+    std::fs::write(&path, content).map_err(|error| format!("写入失败：{error}"))?;
+
+    let target = path.to_string_lossy().to_string();
+    reveal_in_folder(target.clone()).await?;
+    Ok(target)
+}
+
+/// 洗掉文件名里不能用的字符。
+///
+/// 只处理「会让写入跑到别处」与「会让某些文件系统拒绝」的两类字符，
+/// 不做任何美化：中文、空格、括号、破折号都原样保留，用户看到的就是
+/// 他自己那段话的标题。
+fn sanitize_filename(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
+            // 控制字符（含换行与制表）：文件名里出现它们，Finder 与资源
+            // 管理器都会显示成怪符号或者直接打不开。
+            ch if ch.is_control() => '-',
+            ch => ch,
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.').to_string();
+    if trimmed.is_empty() {
+        "ondra-export".to_string()
+    } else {
+        trimmed
+    }
+}
+
+/// 选一个文件并读回它的文本内容。
+///
+/// 导入走这条路而不是让前端读文件：WebView 里没有文件系统权限，
+/// 而为一个「偶尔用一次」的功能打开它，等于给页面永久开了整台机器的读权限。
+#[derive(Serialize)]
+pub struct PickedText {
+    /// 用户选中的路径。用于回显「从哪儿导入的」。
+    pub path: String,
+    /// 文件内容（UTF-8）。
+    pub content: String,
+}
+
+/// 选择并读取一个 JSON 文件。
+///
+/// @returns 用户取消时 `None`——取消是正常行为，不是错误。
+#[tauri::command]
+pub async fn open_import() -> Result<Option<PickedText>, String> {
+    if !cfg!(target_os = "macos") {
+        return Err("当前平台的导入尚未实现".to_string());
+    }
+    let paths = pick_macos(
+        false,
+        false,
+        &["json".to_string()],
+        Some("选择要恢复的对话文件"),
+    )?;
+    let Some(path) = paths.into_iter().next() else {
+        return Ok(None);
+    };
+  let content = std::fs::read_to_string(&path).map_err(|error| format!("读不到这个文件：{error}"))?;
+  Ok(Some(PickedText { path, content }))
+}
+
+/// 取走尚未处理的深度链接（`ondra://…`）。
+///
+/// 前端在挂载时调用一次：冷启动点链接时，系统会在页面就绪之前就把链接交给
+/// 壳，那时监听还没建立。壳先把它们攒在 `AppState::deep_links` 里，这里一次
+/// 性交出去并清空——清空是必须的，否则每次刷新页面都会重复触发同一批链接。
+#[tauri::command]
+pub fn take_deep_links(state: tauri::State<'_, AppState>) -> Vec<String> {
+  match state.deep_links.lock() {
+    Ok(mut pending) => std::mem::take(&mut *pending),
+    Err(_) => Vec::new(),
+  }
+}
+
+/// 应用数据目录（会话、记忆、世界书、知识库、配置、偏好都在这里）。
+///
+/// 所有「碰磁盘」的命令都从这里取路径，不各自拼。取不到时回落到配置目录——
+/// 总比给一个不存在的路径好。
+fn app_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+  app.path()
+    .app_data_dir()
+    .map_err(|error| format!("取不到数据目录：{error}"))
+}
+
+/// 当前 Unix 秒。
+fn now_secs() -> i64 {
+  std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|duration| duration.as_secs() as i64)
+    .unwrap_or(0)
+}
+
+/// 递归复制目录，跳过 `skip` 中列出的直接子项名。
+///
+/// 跳过项用来避免把「备份目录本身」或「将要写回的源」又复制一遍，造成嵌套。
+fn copy_dir_excluding(src: &Path, dst: &Path, skip: &[&str]) -> std::io::Result<()> {
+  std::fs::create_dir_all(dst)?;
+  for entry in std::fs::read_dir(src)? {
+    let entry = entry?;
+    let name = entry.file_name();
+    let name_str = name.to_string_lossy();
+    if skip.iter().any(|item| *item == name_str.as_ref()) {
+      continue;
+    }
+    let src_path = entry.path();
+    let dst_path = dst.join(&name);
+    if entry.file_type()?.is_dir() {
+      copy_dir_excluding(&src_path, &dst_path, skip)?;
+    } else {
+      std::fs::copy(&src_path, &dst_path)?;
+    }
+  }
+  Ok(())
+}
+
+/// 读一个 JSON 数组文件，不存在或解析失败时返回空数组。
+///
+/// 面向「知识库 / 模型提供商」这类以文件为单一真源的小清单：
+/// 读不到不是异常，是「还没有任何条目」。
+fn read_json_array(app: &tauri::AppHandle, name: &str) -> Vec<serde_json::Value> {
+  let Ok(dir) = app_data_dir(app) else {
+    return Vec::new();
+  };
+  match std::fs::read_to_string(dir.join(name)) {
+    Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
+    Err(_) => Vec::new(),
+  }
+}
+
+/// 写一个 JSON 数组文件（带目录创建）。
+fn write_json_array(app: &tauri::AppHandle, name: &str, items: &[serde_json::Value]) -> Result<(), String> {
+  let dir = app_data_dir(app)?;
+  std::fs::create_dir_all(&dir).map_err(|error| format!("创建数据目录失败：{error}"))?;
+  let text = serde_json::to_string_pretty(items).map_err(|error| format!("序列化失败：{error}"))?;
+  std::fs::write(dir.join(name), text).map_err(|error| format!("写入失败：{error}"))
+}
+
+/// 应用数据目录路径。
+///
+/// 隐私页要能把它显示出来并「在访达中显示」。前端不能自己拼这个路径——
+/// 不同平台位置不同，且它可能还没被创建。
+#[tauri::command]
+pub async fn app_data_path(app: tauri::AppHandle) -> Result<String, String> {
+  let dir = app_data_dir(&app)?;
+  std::fs::create_dir_all(&dir).map_err(|error| format!("创建数据目录失败：{error}"))?;
+  Ok(dir.to_string_lossy().to_string())
+}
+
+/// 打开 macOS 系统设置的某一隐私面板。
+///
+/// # 为什么只做 macOS
+///
+/// Windows / Linux 没有统一的「隐私与安全性」深层链接协议。当前目标平台是
+/// macOS，给其它平台返回一个明确的「暂不支持」比静默无反应诚实。
+#[tauri::command]
+pub async fn open_settings_pane(pane: String) -> Result<(), String> {
+  if !cfg!(target_os = "macos") {
+    return Err("当前平台暂不支持直接打开系统设置".to_string());
+  }
+  let url = match pane.as_str() {
+    "microphone" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+    "camera" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera",
+    "files" => "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+    "notifications" => "x-apple.systempreferences:com.apple.preference.notifications",
+    _ => "x-apple.systempreferences:com.apple.preference.security",
+  };
+  std::process::Command::new("open")
+    .arg(url)
+    .status()
+    .map_err(|error| format!("无法打开系统设置：{error}"))?;
+  Ok(())
+}
+
+/// 一个备份的元信息。
+#[derive(Serialize)]
+pub struct BackupInfo {
+  /// 以 Unix 秒命名的目录名，同时是排序键。
+  pub id: String,
+  /// 创建时间（Unix 秒），便于前端格式化。
+  pub created_at: i64,
+  /// 备份目录的绝对路径。
+  pub path: String,
+}
+
+/// 创建一次整库快照。
+///
+/// # 为什么是「整库复制」而不是「导出 JSON」
+///
+/// 备份要能回滚到那一刻的**全部**状态——会话、记忆、世界书、知识库、
+/// 模型提供商、配置。只导会话 JSON 会丢掉其余所有。整库复制牺牲一点体积，
+/// 换来「恢复后和当时一模一样」。复制时跳过 `backups` 自身，避免嵌套。
+#[tauri::command]
+pub async fn backup_create(app: tauri::AppHandle) -> Result<BackupInfo, String> {
+  let data = app_data_dir(&app)?;
+  let secs = now_secs();
+  let id = secs.to_string();
+  let dest = data.join("backups").join(&id);
+  copy_dir_excluding(&data, &dest, &["backups"]).map_err(|error| format!("创建备份失败：{error}"))?;
+  let manifest = serde_json::json!({
+    "id": id,
+    "created_at": secs,
+    "app_version": env!("CARGO_PKG_VERSION"),
+  });
+  let _ = std::fs::write(dest.join("manifest.json"), serde_json::to_string_pretty(&manifest).unwrap_or_default());
+  Ok(BackupInfo {
+    id,
+    created_at: secs,
+    path: dest.to_string_lossy().to_string(),
+  })
+}
+
+/// 列出全部备份（按创建时间倒序）。
+#[tauri::command]
+pub async fn backup_list(app: tauri::AppHandle) -> Result<Vec<BackupInfo>, String> {
+  let dir = app_data_dir(&app)?.join("backups");
+  if !dir.is_dir() {
+    return Ok(Vec::new());
+  }
+  let mut out: Vec<BackupInfo> = Vec::new();
+  if let Ok(entries) = std::fs::read_dir(&dir) {
+    for entry in entries.flatten() {
+      if !entry.file_type().map(|file_type| file_type.is_dir()).unwrap_or(false) {
+        continue;
+      }
+      let id = entry.file_name().to_string_lossy().to_string();
+      /*
+       * 只认本命令创建的目录：名字必须是正的 Unix 秒。
+       *
+       * `backups/` 还会被别的功能用到（例如 `snapshots/`）。把它们列成备份，
+       * 用户会看到一条 1970-01-01 的记录，点「回滚」则会把整库倒进一个
+       * 来路不明的目录——宁可少列，也不能列错。
+       */
+      let Ok(stamp) = id.parse::<i64>() else {
+        continue;
+      };
+      if stamp <= 0 {
+        continue;
+      }
+      let created_at = std::fs::read_to_string(entry.path().join("manifest.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|value| value.get("created_at").and_then(|created| created.as_i64()))
+        /* 目录名本身就是创建时刻；manifest 丢了也照样能排出正确时间。 */
+        .unwrap_or(stamp);
+      out.push(BackupInfo {
+        id,
+        created_at,
+        path: entry.path().to_string_lossy().to_string(),
+      });
+    }
+  }
+  out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+  Ok(out)
+}
+
+/// 回滚到某个备份。
+///
+/// 把快照内容整库写回数据目录（同样跳过 `backups`）。这是覆盖式恢复：
+/// 与导入会话不同，这里**不归档**当前数据，因为备份的意义就是「整库回到那一刻」。
+/// 调用方（设置页）应在回滚前提示用户此操作会覆盖当前全部数据。
+#[tauri::command]
+pub async fn backup_restore(app: tauri::AppHandle, id: String) -> Result<(), String> {
+  let src = app_data_dir(&app)?.join("backups").join(&id);
+  if !src.is_dir() {
+    return Err("找不到这个备份".to_string());
+  }
+  let data = app_data_dir(&app)?;
+  copy_dir_excluding(&src, &data, &["backups"]).map_err(|error| format!("恢复失败：{error}"))
+}
+
+/// 列出知识库条目（用户可管理的版本，区别于内核自带的「世界书」插件）。
+#[tauri::command]
+pub async fn kb_list(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+  Ok(read_json_array(&app, "kb.json"))
+}
+
+/// 新增或更新一条知识库条目。
+///
+/// 有 `id` 则按 `id` 覆盖，无 `id` 则生成新 `id`。`created_at` 只在首次写入，
+/// 之后保留——这是「什么时候建的」而不是「什么时候改的」。
+#[tauri::command]
+pub async fn kb_upsert(app: tauri::AppHandle, entry: serde_json::Value) -> Result<serde_json::Value, String> {
+  let mut items = read_json_array(&app, "kb.json");
+  let id = entry
+    .get("id")
+    .and_then(|value| value.as_str())
+    .map(str::to_string)
+    .unwrap_or_else(|| format!("kb-{}", now_secs()));
+  let mut merged = entry.clone();
+  merged["id"] = serde_json::Value::String(id.clone());
+  merged["updated_at"] = serde_json::Value::Number(now_secs().into());
+  let created = entry
+    .get("created_at")
+    .and_then(|value| value.as_i64())
+    .unwrap_or_else(now_secs);
+  merged["created_at"] = serde_json::Value::Number(created.into());
+  items.retain(|item| item.get("id").and_then(|value| value.as_str()) != Some(id.as_str()));
+  items.push(merged.clone());
+  write_json_array(&app, "kb.json", &items)?;
+  Ok(merged)
+}
+
+/// 删除一条知识库条目。
+#[tauri::command]
+pub async fn kb_delete(app: tauri::AppHandle, id: String) -> Result<(), String> {
+  let mut items = read_json_array(&app, "kb.json");
+  items.retain(|item| item.get("id").and_then(|value| value.as_str()) != Some(id.as_str()));
+  write_json_array(&app, "kb.json", &items)
+}
+
+/// 列出用户添加的自定义模型提供商。
+#[tauri::command]
+pub async fn providers_list(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+  Ok(read_json_array(&app, "providers.json"))
+}
+
+/// 新增或更新一个提供商。
+#[tauri::command]
+pub async fn providers_upsert(app: tauri::AppHandle, entry: serde_json::Value) -> Result<serde_json::Value, String> {
+  let mut items = read_json_array(&app, "providers.json");
+  let id = entry
+    .get("id")
+    .and_then(|value| value.as_str())
+    .map(str::to_string)
+    .unwrap_or_else(|| format!("prov-{}", now_secs()));
+  let mut merged = entry.clone();
+  merged["id"] = serde_json::Value::String(id.clone());
+  items.retain(|item| item.get("id").and_then(|value| value.as_str()) != Some(id.as_str()));
+  items.push(merged.clone());
+  write_json_array(&app, "providers.json", &items)?;
+  Ok(merged)
+}
+
+/// 删除一个提供商。
+#[tauri::command]
+pub async fn providers_remove(app: tauri::AppHandle, id: String) -> Result<(), String> {
+  let mut items = read_json_array(&app, "providers.json");
+  items.retain(|item| item.get("id").and_then(|value| value.as_str()) != Some(id.as_str()));
+  write_json_array(&app, "providers.json", &items)
+}
+
+/// 语音转写的结果。成功与失败都走正常返回（前端据此给提示），不抛错——
+/// 「没装本地模型」是预期状态，不是异常。
+#[derive(Serialize)]
+pub struct TranscribeResult {
+  /// 是否成功拿到文字。
+  pub ok: bool,
+  /// 转写文字（成功时）。
+  pub text: String,
+  /// 失败原因（失败时）。
+  pub reason: Option<String>,
+}
+
+/// 在 PATH 里找一个名为 `name` 的可执行文件（语音识别后端）。
+fn which_program(name: &str) -> Option<PathBuf> {
+  if let Ok(path) = std::env::var("PATH") {
+    for dir in path.split(':') {
+      let candidate = Path::new(dir).join(name);
+      if candidate.is_file() {
+        return Some(candidate);
+      }
+    }
+  }
+  None
+}
+
+/// 把录音转写成文字。
+///
+/// # 为什么是「尽力而为」
+///
+/// 真正的离线识别需要一个本机模型（whisper.cpp / openai-whisper 等），
+/// 而它不在安装包内。命令先写出临时文件、再找本机是否有可用的识别后端：
+/// 有则调用，没有则明确告诉前端「未安装本地语音模型」——而不是假装失败。
+/// 音频以 `Vec<u8>` 传入（Tauri 会把前端的 `Uint8Array` 直接映射过来），
+/// 省掉 base64 往返。
+#[tauri::command]
+pub async fn transcribe_audio(audio: Vec<u8>) -> Result<TranscribeResult, String> {
+  if audio.is_empty() {
+    return Ok(TranscribeResult {
+      ok: false,
+      text: String::new(),
+      reason: Some("没有收到音频数据".to_string()),
+    });
+  }
+  let tmp = std::env::temp_dir().join(format!("ondra-stt-{}.webm", now_secs()));
+  std::fs::write(&tmp, &audio).map_err(|error| format!("写入临时音频失败：{error}"))?;
+
+  let Some(whisper) = which_program("whisper") else {
+    let _ = std::fs::remove_file(&tmp);
+    return Ok(TranscribeResult {
+      ok: false,
+      text: String::new(),
+      reason: Some("未检测到本地语音模型（whisper）。请先在系统中安装本地语音识别，再使用语音输入。".to_string()),
+    });
+  };
+
+  let output = std::process::Command::new(&whisper)
+    .arg(&tmp)
+    .arg("--output-format")
+    .arg("txt")
+    .arg("--fp16")
+    .arg("False")
+    .output();
+  let _ = std::fs::remove_file(&tmp);
+
+  match output {
+    Ok(result) if result.status.success() => Ok(TranscribeResult {
+      ok: true,
+      text: String::from_utf8_lossy(&result.stdout).to_string().trim().to_string(),
+      reason: None,
+    }),
+    Ok(result) => Ok(TranscribeResult {
+      ok: false,
+      text: String::new(),
+      reason: Some(String::from_utf8_lossy(&result.stderr).to_string()),
+    }),
+    Err(error) => Ok(TranscribeResult {
+      ok: false,
+      text: String::new(),
+      reason: Some(format!("调用语音识别失败：{error}")),
+    }),
+  }
+}
+
+/// 更新检查结果。
+#[derive(Serialize)]
+pub struct UpdateInfo {
+  /// 当前安装版本。
+  pub current: String,
+  /// 远端最新版本（去前缀 `v`）。
+  pub latest: String,
+  /// 最新版本的发布页地址。
+  pub url: String,
+  /// 版本说明。
+  pub notes: String,
+  /// 是否有可用更新。
+  pub available: bool,
+}
+
+/// 比较两个 `主.次.修` 版本号，判断 `latest` 是否比 `current` 新。
+fn is_newer(latest: &str, current: &str) -> bool {
+  let parse = |version: &str| -> Vec<i64> {
+    version
+      .trim_start_matches('v')
+      .split('.')
+      .map(|part| part.parse::<i64>().unwrap_or(0))
+      .collect()
+  };
+  let left = parse(latest);
+  let right = parse(current);
+  for index in 0..left.len().max(right.len()) {
+    let l = left.get(index).copied().unwrap_or(0);
+    let r = right.get(index).copied().unwrap_or(0);
+    if l != r {
+      return l > r;
+    }
+  }
+  false
+}
+
+/// 检查更新。
+///
+/// # 为什么用 `curl` 子进程而不是 HTTP 客户端
+///
+/// 项目刻意不引 `reqwest`，仅为「查一下最新版本」增加一个 TLS 栈不划算。
+/// macOS / Windows 都自带 `curl`，用它拉取 GitHub Releases 的最新发布信息，
+/// 解析 `tag_name` 与 `body`。网络不可达时返回明确错误，由前端引导用户去仓库看。
+#[tauri::command]
+pub async fn check_update() -> Result<UpdateInfo, String> {
+  let current = env!("CARGO_PKG_VERSION").to_string();
+  let url = "https://api.github.com/repos/ntars/Ondra/releases/latest";
+  let output = std::process::Command::new("curl")
+    .args(["-sS", "--max-time", "10", "-H", "Accept: application/vnd.github+json", "-H", "User-Agent: ondra", url])
+    .output();
+  match output {
+    Ok(result) if result.status.success() => {
+      let value: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap_or(serde_json::Value::Null);
+      let latest = value
+        .get("tag_name")
+        .and_then(|tag| tag.as_str())
+        .unwrap_or("")
+        .trim_start_matches('v')
+        .to_string();
+      let notes = value
+        .get("body")
+        .and_then(|body| body.as_str())
+        .unwrap_or("")
+        .to_string();
+      let release_url = value
+        .get("html_url")
+        .and_then(|html_url| html_url.as_str())
+        .unwrap_or("https://github.com/ntars/Ondra/releases")
+        .to_string();
+      Ok(UpdateInfo {
+        current: current.clone(),
+        latest: latest.clone(),
+        url: release_url,
+        notes,
+        available: is_newer(&latest, &current),
+      })
+    }
+    _ => Err("无法连接到更新服务器，请稍后重试或前往仓库查看更新。".to_string()),
+  }
 }

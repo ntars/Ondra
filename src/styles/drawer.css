@@ -48,7 +48,7 @@
   align-items: center;
   gap: var(--s-2);
   height: 52px;
-  padding: 0 14px;
+  padding: 0 16px;
   border-bottom: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -59,15 +59,67 @@
   color: var(--ui-ink);
 }
 
+/*
+ * 关闭键。
+ *
+ * 抽屉头部一直有这个按钮，样式表里却没有 `drawer__close`——它回落到
+ * 浏览器默认 `<button>`：浅灰底、1px 系统边框、16px 的叉在里面居中
+ * 得靠默认内距碰运气。放进 52 高的头里，它是唯一一个「有框的」元素，
+ * 看上去像从别的应用借来的。
+ *
+ * 26 是全局小图标钮的定值（标题栏、侧写、偏好页都用 26），
+ * 与 `.drawer__title` 的字号是同一档呼吸。
+ */
+.drawer__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.drawer__close:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.drawer__close:active {
+  background: var(--ui-bg-active);
+}
+
+/*
+ * 空状态与读盘中的一句话。
+ *
+ * 三种场合共用：会话统计「说一句话，这里就开始记账」、扩展清单
+ * 「正在读扩展清单」与「没找到「xxx」」、以及读盘失败时的故障文案。
+ *
+ * 它们都不是错误（失败也只是一句陈述，不用警告色），所以颜色取
+ * `--ui-ink-3`——比正文浅一档，比占位符深一档。行高 1.6 是因为
+ * 故障文案可能换行到两行，1.6 的行距才不像挤在一起。
+ */
+.drawer__empty {
+  margin: 0;
+  padding: 12px 12px;
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-ink-3);
+}
+
 .drawer__search {
   flex: none;
-  padding: 10px 14px 6px;
+  padding: 12px 16px 8px;
 }
 
 .drawer__search-input {
   width: 100%;
   height: 30px;
-  padding: 0 10px;
+  padding: 0 8px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-sm);
   background: var(--ui-bg-field);
@@ -90,16 +142,16 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 10px 14px;
+  padding: 8px 12px 16px;
 }
 
 .drawer__row {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: var(--r-sm);
   text-align: left;
   transition: background-color var(--motion-f) var(--ease-fluid);
@@ -137,7 +189,8 @@
 
 .drawer__row[aria-current='page'] .drawer__row-title {
   font-weight: var(--w-medium);
-  color: var(--jade-700);
+  /* 当文字用 → action-text。 */
+  color: var(--ui-action-text);
 }
 
 .drawer__row-time {
@@ -152,7 +205,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -192,7 +245,7 @@
   align-items: center;
   gap: var(--s-2);
   height: 52px;
-  padding: 0 14px;
+  padding: 0 16px;
   border-bottom: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -203,15 +256,46 @@
   color: var(--ui-ink);
 }
 
+/*
+ * 关闭键。与抽屉头部同一个规格：26 的方钮、r-xs 圆角、ink-3 起手。
+ *
+ * 这两处（`.drawer__close` / `.inspector__close`）故意各写一遍而不合并成
+ * 一条选择器：它们是两个独立面板的头，日后再调其中一个不该带歪另一个。
+ * 26 这个数在全局有六处（标题栏、偏好页、设置、侧写、抽屉、日志），
+ * 若要统一改，应该收成令牌，而不是靠选择器合并。
+ */
+.inspector__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-3);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.inspector__close:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink);
+}
+
+.inspector__close:active {
+  background: var(--ui-bg-active);
+}
+
 .inspector__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px;
+  padding: 16px;
 }
 
 .inspector__group {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .inspector__caption {
@@ -226,11 +310,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 5px 0;
+  gap: 12px;
+  padding: 4px 0;
 }
 
-.inspector__key {
+/*
+ * 行内的标签（"心情" "张力" "精力" 与亲近度的各维度）。
+ *
+ * 它原来叫 `.inspector__key`，TSX 重构时改成了 `__label`，**样式表没跟着改**。
+ * 于是这条规则成了死规则，而标签本身回落到浏览器默认 16px 黑字——侧写里
+ * 每一行都是"大字标签 + 小字数值"，层级整个反过来。这类缺陷肉眼很难归因：
+ * 界面看着"有点乱"，但没人会想到是类名对不上。
+ *
+ * `check:ui` 现在有一条 2.8 守着它（组件用的 BEM 类名必须有对应规则）。
+ */
+.inspector__label {
   font-size: var(--text-caption);
   color: var(--ui-ink-3);
 }
@@ -241,55 +335,163 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 量条：一段 3px 的横槽， bipolar 时从中间向两边。 */
+/*
+ * 空态（"还没测到" "聊两句就有了" "暂时读不出来"）。
+ *
+ * 三处空态文案不同但形态相同：一行小字，比正文轻一档。没有样式时它是
+ * 16px 的默认段落，比周围的 caption 还显眼——空态抢了正文的注意力，
+ * 正好与"没有数据"这个事实相反。
+ */
+.inspector__empty {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  color: var(--ui-ink-4);
+}
+
+/* 关系阶段名（"刚认识" "熟了" 这类）：它是这一段唯一的主语，给正文档。 */
+.inspector__stage {
+  margin: 0 0 8px;
+  font-size: var(--text-body);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+}
+
+/*
+ * 「她此刻在做什么」那一行（§7.2 第四段）。
+ *
+ * 它是这一段唯一的内容，没有标签、没有图标，就一句话。默认样式的 `<p>`
+ * 会带 1em 上下外边距，在 16px 的组距里再撑出 16，整段像被推开。
+ * `margin: 0` 交给 `.inspector__group` 管节奏。
+ *
+ * 字号取正文而不是 caption：这句话是"她"的唯一直接陈述，
+ * 比旁边的记忆条目更该被读到。空态时那句话是「安静待着」，
+ * 由组件替换文字，样式不变——空态不该长得像故障。
+ */
+.inspector__activity {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.6;
+  color: var(--ui-ink-2);
+}
+
+/* 记忆列表：三条封顶，每条名字在上、时间在下。 */
+.inspector__memories {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector__memory {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inspector__memory-text {
+  font-size: var(--text-caption);
+  line-height: 1.55;
+  color: var(--ui-ink-2);
+  /* 记忆可能很长，两行截断——三条列表不能把侧写撑成一整屏。 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inspector__memory-time {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 量条：一段 3px 的横槽，bipolar 时从中间向两边。
+ *
+ * ## 槽必须先有宽度，否则整条量条根本不存在
+ *
+ * 它原来是「height: 3px + 圆角 + 底色」，没有任何宽度声明。而行是
+ * `display: flex; justify-content: space-between`——flex 项若不写
+ * `flex`，宽度由内容决定，而槽里只有一个**绝对定位**的子元素，
+ * 绝对定位不参与内容尺寸计算。于是槽宽 = 0，填充宽也 = 0。
+ *
+ * 结果不是"量条看起来不对"，是**三条量条一行像素都不画**：心情、张力、
+ * 精力三行只剩下左边的标签和右边的读数，中间是一片空白。而读数恒为
+ * `+0.00` / `−1.00`（§7.2 记录的没接线问题），于是这一整段在视觉上
+ * 只剩两个数字，谁也看不出"少了点东西"。
+ *
+ * `flex: 1` + `min-width: 0`：前者让槽吃掉标签与读数之间的全部余量，
+ * 后者防止长标签把槽压成负宽（flex 项的默认 `min-width: auto`
+ * 会以内容为下限，这里内容为空，加了更安全）。
+ *
+ * ## 去掉 margin-top: 4px
+ *
+ * 行是 `align-items: center`，槽本来就垂直居中。再加 4 的下外边距式
+ * 偏移会让它比文字基线低 4px，三条槽一起偏，看起来像没对齐表格。
+ * 垂直位置交给 flex 的居中，别用外边距二次修正。
+ */
 .inspector__track {
   position: relative;
+  flex: 1;
+  min-width: 0;
   height: 3px;
-  margin-top: 5px;
   border-radius: var(--r-full);
   background: var(--ui-bg-sunken);
   overflow: hidden;
 }
 
+/*
+ * 填充。绝对定位铺满整槽，用 `scaleX` 表达比例（§7.2 与脊的 `scaleY`
+ * 同一个理由：变换走合成层，改 width 每帧重排）。
+ *
+ * `width: 100%` 与 `right: 0` 都是必需的：只写 `left: 0` 时绝对定位的
+ * 宽度仍然按内容算 = 0。
+ */
 .inspector__fill {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
+  width: 100%;
   border-radius: inherit;
   background: var(--ui-action);
-}
-
-.inspector__fill[data-bipolar] {
-  left: 50%;
   transform-origin: left center;
+  transition: transform var(--motion-f) var(--ease-fluid);
 }
 
-.inspector__all {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: var(--r-xs);
-  font-size: var(--text-label);
-  color: var(--ui-ink-3);
-  transition:
-    background-color var(--motion-f) var(--ease-fluid),
-    color var(--motion-f) var(--ease-fluid);
+/*
+ * 双极：负值从中点向左填，正值向右（§7.2）。
+ *
+ * 组件在 `style` 里给 `left/right` 与 `transformOrigin` 打了内联值，
+ * 所以这里只补宽度——半个槽。**半宽 + 内联的 50% 锚点** 才让中点
+ * 落在正中央：填满时正好盖住一半，`scaleX(0.5)` 是四分之一。
+ *
+ * 原来这条叫 `.inspector__fill[data-bipolar]`，靠属性选择器匹配。
+ * 但组件从来没有输出过 `data-bipolar` 属性——它输出的是
+ * `inspector__fill--bipolar` 这个 BEM 修饰类。属性版是死规则，
+ * 于是双极填充会铺满整槽：负值时向左填也会盖过中点，读起来像"超额"。
+ */
+.inspector__fill--bipolar {
+  width: 50%;
 }
 
-.inspector__all:hover {
-  background: var(--ui-bg-hover);
-  color: var(--ui-ink);
-}
+/*
+ * 侧写底栏（`.inspector__foot` / `.inspector__all`）的规则已删。
+ *
+ * 它只服务于那个「全部设置」按钮，而按钮与 Rail 齿轮重复——同一个设置面板
+ * 的两个入口。删按钮时样式一起删，不留一条没有节点的死规则：留着它，
+ * 下一个人会以为检查器还该有个底栏。
+ */
 
 /* 记忆列表：与会话行同一密度。 */
 .drawer__memory {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 9px 10px;
+  padding: 8px 12px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -315,8 +517,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin: 2px 0 10px;
-  padding: 10px 11px 11px;
+  margin: 2px 0 12px;
+  padding: 12px 12px 12px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
   background: var(--ui-bg-raise);
@@ -339,7 +541,7 @@
 .health__run {
   flex: none;
   height: 24px;
-  padding: 0 9px;
+  padding: 0 8px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-sm);
   background: transparent;
@@ -387,8 +589,8 @@
 .health__group-head {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  padding-top: 5px;
+  gap: 8px;
+  padding-top: 4px;
 }
 
 .health__group-label {
@@ -418,7 +620,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 5px 0;
+  padding: 4px 0;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -434,7 +636,7 @@
   flex: none;
   height: 20px;
   min-width: 26px;
-  padding: 0 6px;
+  padding: 0 4px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-xs);
   background: transparent;
@@ -458,7 +660,7 @@
 .health__fix-all {
   align-self: flex-start;
   height: 28px;
-  padding: 0 11px;
+  padding: 0 12px;
   border: var(--rule) solid transparent;
   border-radius: var(--r-sm);
   background: var(--ui-action);
@@ -500,8 +702,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin: 2px 0 10px;
-  padding: 10px 11px 11px;
+  margin: 2px 0 12px;
+  padding: 12px 12px 12px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
   background: var(--ui-bg-raise);
@@ -524,7 +726,7 @@
 .dream__run {
   flex: none;
   height: 24px;
-  padding: 0 10px;
+  padding: 0 8px;
   border: var(--rule) solid transparent;
   border-radius: var(--r-sm);
   background: var(--ui-action);
@@ -583,7 +785,7 @@
 .dream__again {
   align-self: flex-start;
   height: 24px;
-  padding: 0 9px;
+  padding: 0 8px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-sm);
   background: transparent;
@@ -610,7 +812,7 @@
 }
 
 .dream__cards-head {
-  padding-top: 5px;
+  padding-top: 4px;
   font-size: var(--text-label);
   font-weight: var(--w-medium);
   color: var(--ui-ink-2);
@@ -625,7 +827,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 5px 0;
+  padding: 4px 0;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -657,8 +859,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin: 2px 0 10px;
-  padding: 10px 11px 11px;
+  margin: 2px 0 12px;
+  padding: 12px 12px 12px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
   background: var(--ui-bg-raise);
@@ -697,7 +899,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 0;
+  padding: 4px 0;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -705,7 +907,7 @@
   flex: 1;
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -749,7 +951,7 @@
   flex: none;
   height: 20px;
   min-width: 26px;
-  padding: 0 6px;
+  padding: 0 4px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-xs);
   background: transparent;
@@ -790,11 +992,11 @@
 .drawer__samples {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .drawer__sample {
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-left: 1px solid var(--ui-line);
   font-size: var(--text-label);
   color: var(--ui-ink-3);
@@ -836,7 +1038,7 @@
 /* 状态徽标：描边、无底色。它不是按钮，别做得像能点。 */
 .sess__badge {
   flex: none;
-  padding: 1px 7px;
+  padding: 3px 8px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-full);
   font-size: var(--text-micro);
@@ -859,7 +1061,7 @@
   flex-direction: column;
   gap: 3px;
   margin: 0;
-  padding: 9px 10px;
+  padding: 8px 12px;
   background: var(--ui-bg-raise);
 }
 
@@ -907,7 +1109,7 @@
 .sess__foot {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   padding-top: 4px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
@@ -968,7 +1170,7 @@
 }
 
 .logp__section {
-  padding: 10px 0 12px;
+  padding: 12px 0 12px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -981,7 +1183,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .logp__title {
@@ -1036,8 +1238,31 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 6px 0;
+  padding: 8px 0;
   border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+/*
+ * 系统日志项。
+ *
+ * 通道日志项左边是一枚 16px 的通道徽标（`.logp__badge`），系统日志项
+ * 左边是一枚 4px 的级别点（`.logp__dot`）。父级 `.logp__item` 的 gap 是
+ * 8px，于是两种日志的**文字左边缘差 4px**：
+ *   通道 = 16 + 8 = 24，系统 = (4+4+4) + 8 = 20。
+ * 两个 section 上下叠在同一个抽屉里，文字没对齐会读成"这两列不是一套"。
+ *
+ * 补法不是去改 `.logp__dot` 的全局外边距（那会影响它的语义尺寸），
+ * 而是在系统项里把点的右外边距从 4 加到 8，让占位凑成 16。
+ *
+ * 上下间距同时收一档：系统日志每条只有一行、条数多，与带展开详情的
+ * 通道日志用同一密度会让一屏里塞不下几条。
+ */
+.logp__item--system {
+  padding: 4px 0;
+}
+
+.logp__item--system .logp__dot {
+  margin-right: 8px;
 }
 
 .logp__item:first-child {
@@ -1109,9 +1334,9 @@
   flex: none;
   width: 4px;
   height: 4px;
-  margin-top: 7px;
-  margin-left: 6px;
-  margin-right: 6px;
+  margin-top: 8px;
+  margin-left: 4px;
+  margin-right: 4px;
   border-radius: var(--r-full);
   background: var(--ui-ink-4);
 }
@@ -1157,7 +1382,7 @@
 }
 
 .logp__text {
-  margin: 4px 0 0 15px;
+  margin: 4px 0 0 16px;
   padding-left: 8px;
   border-left: var(--rule) solid var(--ui-line-soft);
   font-size: var(--text-label);
@@ -1202,7 +1427,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 0 2px 4px;
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
@@ -1245,7 +1470,7 @@
 .ext__line {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -1260,7 +1485,7 @@
 
 .ext__tag {
   flex: none;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-sunken);
   font-size: 0.625rem;
@@ -1316,7 +1541,7 @@
 .ext__config {
   margin-left: auto;
   height: 20px;
-  padding: 0 7px;
+  padding: 0 8px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-xs);
   background: transparent;
@@ -1388,14 +1613,14 @@
 
 .inspector__fold {
   border-top: var(--rule) solid var(--ui-line-soft);
-  padding-top: 10px;
+  padding-top: 12px;
 }
 
 .inspector__fold-head {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: var(--text-label);
   letter-spacing: var(--track-label);
   color: var(--ui-ink-4);

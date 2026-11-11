@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react'
-import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
+import { useModalFocus } from '../lib/useModalFocus.ts'
 
 export interface DialogProps {
   /** 标题。一句话，不带句号。 */
@@ -62,9 +62,6 @@ export interface DialogProps {
   extra?: React.ReactNode
 }
 
-/** 可聚焦元素的选择器（与 Drawer 保持一致）。 */
-const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-
 /**
  * 渲染一个居中对话框。
  *
@@ -86,72 +83,26 @@ export function Dialog({
   /** 主按钮。初始焦点落在这里。 */
   const confirmRef = useRef<HTMLButtonElement | null>(null)
 
-  /*
-   * 关闭时把焦点还给触发它的元素（§9.5）。
-   *
-   * 原先这里自己记 `restoreTo` 并在清理函数里还——四处浮层各写一遍，
-   * 迟早有一处漏掉 `isConnected` 判断。收进 `useRestoreFocus` 之后
-   * 抽屉 / 检查器 / 设置 / 总表 / 对话框共用同一份实现。
-   *
-   * 必须写在下面那个聚焦 effect 之前：先记来处，再搬焦点。
-   */
-  useRestoreFocus(true)
-
   /** 退出本层：优先用 `onDismiss`，没给就退回 `onCancel`。 */
   const dismiss = useCallback((): void => {
     if (onDismiss !== undefined) onDismiss()
     else onCancel?.()
   }, [onCancel, onDismiss])
 
-  /**
-   * 键盘：Esc 取消、Tab 循环。
-   *
-   * 用 `capture` 阶段监听：背后的业务快捷键（比如 Esc 关抽屉）
-   * 也挂在 `window` 上，不抢在它们前面，随便按一下 Esc 会连带关掉两层。
+  /*
+   * 焦点还原、Tab 循环、Esc 关闭——三件事都在这个钩子里（`useModalFocus`）。
+   * 设置面板用的是同一份实现，所以两处的行为不可能各自漂开。
    */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        dismiss()
-        return
-      }
-      if (event.key !== 'Tab') return
+  useModalFocus(panelRef, dismiss)
 
-      const nodes = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE)
-      if (nodes === undefined || nodes.length === 0) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
-
-      // 焦点在框外（比如刚打开还没定位）时，Tab 一律拉回框内第一个。
-      if (!panelRef.current?.contains(document.activeElement)) {
-        event.preventDefault()
-        first?.focus()
-        return
-      }
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last?.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first?.focus()
-      }
-    }
-
-    globalThis.addEventListener('keydown', onKeyDown, true)
-    /*
-     * 初始焦点落在主按钮上。
-     *
-     * 不能用 `querySelector(FOCUSABLE)`——那取到的是 DOM 顺序里的第一个，
-     * 也就是 `extra` 插槽里的勾选框。用户打开这个框是要做决定，
-     * 焦点停在一个可选项上，按 Enter 什么都不会发生。
-     */
-    confirmRef.current?.focus()
-
-    return () => {
-      globalThis.removeEventListener('keydown', onKeyDown, true)
-    }
-  }, [dismiss])
+  /*
+   * 初始焦点落在主按钮上。
+   *
+   * 不能用 `querySelector(FOCUSABLE)`——那取到的是 DOM 顺序里的第一个，
+   * 也就是 `extra` 插槽里的勾选框。用户打开这个框是要做决定，
+   * 焦点停在一个可选项上，按 Enter 什么都不会发生。
+   */
+  useEffect(() => { confirmRef.current?.focus() }, [])
 
   /** 点遮罩取消，点框内不取消。 */
   const onScrimClick = useCallback((event: React.MouseEvent<HTMLDivElement>): void => {

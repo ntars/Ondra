@@ -34,7 +34,16 @@ import type { VoiceState } from '../lib/api.ts'
 import { getSettings, saveSetting } from '../lib/settings.ts'
 
 /** 通道名翻成人话。`none` 单独说，因为它是「没有任何一条通道」而不是「某条坏了」。 */
-function engineText(engine: string): string {
+function engineText(engine: string | undefined): string {
+  /*
+   * 三个空值都要拦，且各给一句话。
+   *
+   * `undefined` 不是假想的：接口类型把 `engine` 写成 `string`，可它来自
+   * 宿主另一侧的 JSON——某个版本漏了这个字段，`（${engineText(undefined)}）`
+   * 就会在界面上印出「（undefined）」。用户在设置页看到这个词，第一反应
+   * 是"软件坏了"，而真相可能只是"通道没报上来"。
+   */
+  if (engine === undefined || engine === '') return '通道未报'
   if (engine === 'macos-say') return '系统语音'
   if (engine === 'edge-tts') return 'Edge TTS'
   if (engine === 'gpt-sovits') return 'GPT-SoVITS'
@@ -111,7 +120,7 @@ export function VoiceCard(): React.JSX.Element {
    */
   const note = voice === undefined
     ? '正在读语音状态…'
-    : voice.note !== ''
+    : typeof voice.note === 'string'
       ? voice.note
       : ''
 

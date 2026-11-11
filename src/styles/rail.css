@@ -52,6 +52,20 @@
     color var(--motion-f) var(--ease-fluid);
 }
 
+/*
+ * 四个入口的图形数据来自 lucide 的四个不同图标，各自的 path 在 24×24
+ * 视窗里留白不同。这里把渲染盒显式锁成 20×20 的块级盒：无论上游图标
+ * 数据的 viewBox 怎么写，四枚图标都落在同一个方格里、由父级 flex 居中，
+ * 不会出现「某一枚比别的宽半个像素」。display:block 顺带去掉 inline
+ * 元素基线带来的那几像素下沉。
+ */
+.rail__item > svg {
+  display: block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
 .rail__item:hover {
   background: var(--ui-bg-hover);
   color: var(--ui-ink);
@@ -71,7 +85,8 @@
 .rail__item[aria-pressed='true'],
 .rail__item[data-active=''] {
   background: var(--ui-bg-selected);
-  color: var(--jade-700);
+  /* 当**文字**用 → 走 action-text，不走 action（当底那一档）。见 tokens.css 注释。 */
+  color: var(--ui-action-text);
   box-shadow: inset 0 0 0 1px rgb(32 58 133 / 10%);
 }
 
@@ -113,7 +128,7 @@
   position: absolute;
   left: 50px;
   top: 50%;
-  padding: 4px 9px;
+  padding: 4px 8px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-sheet);
   border: var(--rule) solid var(--ui-line);

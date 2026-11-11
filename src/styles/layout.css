@@ -41,28 +41,150 @@
 }
 
 :root[data-platform='darwin'] .titlebar {
-  /* 红绿灯中心在 y=22，左侧让出 76px：12 + 52 + 12。 */
-  padding-left: 76px;
+  /*
+   * 84 不吸附到八级栅格——它是**几何结果**不是留白。
+   *
+   * 红绿灯组宽 52（3 × 12 圆点 + 2 × 8 间隙），左边距 20（macOS 标准
+   * 窗口按钮的左边距），再留 12 的呼吸：20 + 52 + 12 = 84。
+   *
+   * 上一版用 12 + 52 + 12 = 76。改成 20 是因为参照的微信窗口里那三个圆
+   * 离边缘更远：12 的位置读起来像"贴在角上"，而系统窗口从来不是那样。
+   */
+  padding-left: 84px;
 }
 
 /**
- * 标题：全窗水平居中，与两端占位完全解耦。
- * 左右占位不对称（macOS 76px / Windows 46+138），flex 居中会被推偏。
+ * macOS 自绘红绿灯（§2.4）。
+ *
+ * 系统那三个按钮由 `window::hide_system_traffic_lights()` 藏掉，这里接管。
+ * 定位按几何算：44px 标题栏中心是 22，圆点 12px，所以 top = 16；
+ * 组宽 52 与 `.titlebar` 的 84px 让位对齐，left = 20。
+ *
+ * 不写死容器宽度：用 flex 的 gap 让 52 自己算出来。写 `width: 52px`
+ * 会让一个不在八级栅格上的数字进样式表，还得为它开白名单。
  */
-.titlebar__title {
+.traffic-lights {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translateX(-50%) translateY(-50%);
-  max-width: 46%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  top: 16px;
+  left: 20px;
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.traffic-lights__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  /* 系统窗口按钮用默认光标，不用手型——它不是网页链接。 */
+  cursor: default;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.traffic-lights__dot--close {
+  background: var(--ui-traffic-close);
+}
+
+.traffic-lights__dot--min {
+  background: var(--ui-traffic-min);
+}
+
+.traffic-lights__dot--zoom {
+  background: var(--ui-traffic-zoom);
+}
+
+/**
+ * hover 符号：macOS 的约定是**整组一起浮出**，不是只亮鼠标底下那一个。
+ * 所以选择挂在容器上，而不是 `.dot:hover`。符号画在亮色圆点上，用固定
+ * 的深灰即可，不随主题反相。
+ */
+.traffic-lights__glyph {
+  opacity: 0;
+  stroke: rgb(0 0 0 / 55%);
+  stroke-width: 1.2;
+  fill: none;
+  transition: opacity var(--motion-f) var(--ease-fluid);
+}
+
+.traffic-lights:hover .traffic-lights__glyph {
+  opacity: 1;
+}
+
+/**
+ * 窗口失焦：三个圆一起变灰，hover 符号也不再出现。
+ *
+ * 这是 macOS 的约定，不是装饰。不做的话，切到别的应用后窗口看起来
+ * 仍然是"正在用的那个"——而用户接着会疑惑为什么打字没反应。
+ * 用 `data-window-blurred`（挂在 `.shell` 上）而不是 `:focus-within`：
+ * 后者在点进 WebView 内部的输入框时也成立，但窗口失焦时 Tim 未必
+ * 收到 blur（不同 WebView 实现不一致），壳层面的标记才是确定的。
+ */
+.shell[data-window-blurred] .traffic-lights__dot {
+  background: var(--ui-traffic-idle);
+}
+
+.shell[data-window-blurred] .traffic-lights__glyph {
+  opacity: 0;
+}
+
+.shell[data-window-blurred] .traffic-lights:hover .traffic-lights__glyph {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .traffic-lights__glyph {
+    transition: none;
+  }
+}
+
+/**
+ * 品牌牌：应用名 + 版本号，固定不动。
+ *
+ * 不绝对定位居中：那一块要跟两端的控件抢位置，而且居中后它读起来像
+ * 「文档标题」——它不是，它是窗口身份。左对齐在控件之后，读起来是
+ * 一块铭牌，扫视时不需要找。
+ */
+.titlebar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar__name {
   font-size: var(--text-caption);
   font-weight: var(--w-medium);
-  letter-spacing: 0.02em;
-  color: var(--ui-ink-3);
-  pointer-events: none;
+  letter-spacing: 0.01em;
+  color: var(--ui-ink-2);
+  white-space: nowrap;
+}
+
+/*
+ * 版本号。
+ *
+ * 用 10px（--text-micro）而不是 11px：它必须比应用名明显小一档，
+ * 否则两者会读成并列的两个名字。底色用 raise、描边用 soft——
+ * 一颗最小的徽标，同时**左右各留 8px 内距**，字不贴边。
+ */
+.titlebar__version {
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-raise);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--ui-ink-4);
+  white-space: nowrap;
 }
 
 .titlebar__menu {
@@ -181,10 +303,50 @@
   word-break: break-all;
 }
 
+/**
+ * 启动骨架（§12.13）。
+ *
+ * ## 它原来是一个 bug，不是设计
+ *
+ * 这里只有 `background` + `border-radius`，**没有任何布局规则**。而
+ * `App.tsx` 的启动态是 `.skeleton` 包三个裸 `div`——三个 div 高度都是 0，
+ * 于是 `.skeleton` 自己被网格撑满整块工作区，把 `--ui-bg-sunken` 整片
+ * 画出来：深色下是整窗一块紫板，浅色下是整窗一块灰蓝。看起来像"加载背景
+ * 有色差"，实际是"骨架块塌了、背景露出来了"。
+ *
+ * 没有任何检查网覆盖启动态（`check:ui` 跑的是已进入主界面之后的状态），
+ * 所以这个 bug 一直没被发现。
+ *
+ * ## 现在的形状：三条竖块，与真实三栏对齐
+ *
+ * 56 / 1fr / 56 三列，与 `.rail` / 主列 / `.spine` 同宽。左块通栏高，
+ * 中块留上下内缩（像消息区），右块通栏高。**不给主色**——骨架不该有强调，
+ * 强调会让它在启动的一瞬间抢走注意力。
+ */
 .skeleton {
-  border-radius: var(--r-xs);
+  display: grid;
+  grid-template-columns: var(--w-rail) minmax(0, 1fr) var(--w-spine);
+  gap: 0;
+  padding: 0;
+  background: var(--ui-bg-canvas);
+  overflow: hidden;
+}
+
+.skeleton > div {
   background: var(--ui-bg-sunken);
   animation: skeleton-pulse 1.6s var(--ease-breathe) infinite;
+}
+
+/* 中块：留出上下各 24 的内缩，读起来像"一片纸"，不像整块色板。 */
+.skeleton > div:nth-child(2) {
+  margin: 24px;
+  border-radius: var(--r-sm);
+}
+
+/* 左右两块是栏，不需要圆角。 */
+.skeleton > div:nth-child(1),
+.skeleton > div:nth-child(3) {
+  border-radius: 0;
 }
 
 @keyframes skeleton-pulse {
@@ -200,7 +362,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--r-lg);
-  border: 1.5px dashed var(--jade-200);
+  border: 1.5px dashed var(--ui-accent-soft);
   background: var(--ui-bg-glass);
   font-size: var(--text-body);
   color: var(--ui-ink-2);

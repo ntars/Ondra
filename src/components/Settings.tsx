@@ -1,324 +1,209 @@
 /**
- * 设置（三层：场景 / 模块 / 原始）。
+ * 设置面板（唯一的一个）。
  *
- * ## 三层是同一个面板的三个深度，不是三个窗口
+ * ## 为什么只有一个设置
  *
- * §5.13：切换层用顶部分段控件，**不换窗口**。当前层记忆在会话内保持，
- * 重启后回到场景层（因为多数人只需要场景层）。
+ * 上一版有两个入口指向两处界面：Rail 齿轮与 `Cmd/Ctrl + ,` 打开**独立窗口**
+ * （主题、语言、字号、声音、通知、发送方式、权限、更新、关于，九页），
+ * 检查器底部的「全部设置」打开**主界面右栏的三层面板**（1116 项插件参数）。
  *
- * ## 为什么挂在检查器底部而不是独立窗口
+ * 两者的管辖范围确实不同，但用户看到的是「设置」两个字配两套界面、
+ * 两种左侧导航、两种行高。他不知道自己该进哪一个，也没法知道——
+ * 「改这个应用」与「改她」是我们内部的划分，不是他的。
  *
- * 偏好设置（主题、语言、字号）是独立窗口 560×480，那是另一件事。
- * 这 1116 项是插件参数，用户改它们时往往正在看会话——独立窗口会让
- * "改一下、回来看、再改一下"变成反复切换窗口。
+ * 现在只有一处：一个悬浮在主界面之上的面板，左侧一列分类，右侧一页内容。
+ * 入口只剩两个，落页不同，且都不是「第二个设置按钮」：
  *
- * ## 撤销粒度是「一次打开」
+ * | 入口 | 落在 |
+ * | --- | --- |
+ * | `Cmd/Ctrl + ,`、Rail 齿轮 | 外观 |
+ * | 扩展抽屉里某个包的「配置」 | 插件参数 · 模块（带上段 id） |
  *
- * 打开时把用户层拍一份快照。撤销 = 把所有与快照不同的键写回原值、
- * 快照里没有的键删掉。不是"每一步"——逐字节撤销需要维护一条操作栈，
- * 而用户的心智单位是"我刚才那一阵乱调"。
+ * 检查器底部那个「全部设置」删掉了：设置合并之后它和齿轮开的是同一个面板，
+ * 站在右侧面板底部再摆一个「设置」，只会让人怀疑两处是不是同一处。
+ * 插件参数仍然可达——齿轮进来点左侧导航的「插件参数」，或从扩展抽屉
+ * 某个包的「配置」直接落到那一段（那是上下文入口，不是第二个总入口）。
+ *
+ * ## 为什么是悬浮而不是独立窗口
+ *
+ * 独立窗口是「另一个界面」：它有自己的任务栏项、自己的层级、关掉之后
+ * 主窗口还在原处。设置看一眼就能关，它该像一张纸压在会话上，而不是
+ * 另开一张桌子。悬浮层的另一个好处是**改完立刻能看见**——调字号、调主题
+ * 时，背景就是正在用的界面（遮罩只压 18%，还看得见）。
+ *
+ * ## 为什么遮罩不盖标题栏
+ *
+ * 标题栏上有一整套自绘红绿灯与拖拽区。盖住它等于：设置打开时窗口既不能
+ * 拖、也关不掉。所以面板与遮罩都从标题栏下沿开始——它仍然是一个
+ * 「窗口里的浮层」，而不是一个假的全屏页面。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconClose } from './icons.ts'
-import { SceneLayer } from './SceneLayer.tsx'
-import { ModuleLayer } from './ModuleLayer.tsx'
-import { RawLayer } from './RawLayer.tsx'
-import { getSettings, saveSetting } from '../lib/settings.ts'
-import { useRestoreFocus } from '../lib/useRestoreFocus.ts'
-import type { SettingsSection } from '../lib/settingTypes.ts'
-import type { SceneValues } from '../lib/scenes.ts'
+import { useModalFocus } from '../lib/useModalFocus.ts'
+import { SettingsAbout } from './SettingsAbout.tsx'
+import { SettingsAppearance } from './SettingsAppearance.tsx'
+import { SettingsBackup } from './SettingsBackup.tsx'
+import { SettingsData } from './SettingsData.tsx'
+import { SettingsKnowledge } from './SettingsKnowledge.tsx'
+import { SettingsNotify } from './SettingsNotify.tsx'
+import { SettingsPermissions } from './SettingsPermissions.tsx'
+import { SettingsPlugins } from './SettingsPlugins.tsx'
+import { SettingsPrivacy } from './SettingsPrivacy.tsx'
+import { SettingsSound } from './SettingsSound.tsx'
+import { SettingsTalk } from './SettingsTalk.tsx'
 
-/** 三层的名字。顺序即渲染顺序：浅 → 深。 */
-const TABS = [
-  { key: 'scene', label: '场景' },
-  { key: 'module', label: '模块' },
-  { key: 'raw', label: '原始' },
-] as const
+/** 面板的分类。顺序即导航顺序：从「看得见」到「看不见」。 */
+export type SettingsPage = 'appearance' | 'sound' | 'notify' | 'talk' | 'data' | 'backup' | 'plugins' | 'permissions' | 'privacy' | 'knowledge' | 'about'
 
-type TabKey = typeof TABS[number]['key']
+interface PageEntry {
+  key: SettingsPage
+  label: string
+}
+
+/**
+ * 七个分类。
+ *
+ * 合并时把原来的九页压成七页：「主题」「字号」「语言」三页合成「外观」，
+ * 因为它们回答的是同一个问题（这个界面看起来什么样），而分三页只会让
+ * 想调大字号的人先点两次才发现入口。「更新」并进「关于」——它本来就是
+ * 关于页最后那一条。
+ *
+ * `插件参数` 保持独立：它管的是 1116 项插件字段，与其余六页不是一个量级，
+ * 混进「对话」或「外观」里会让那一页长到没法读。
+ */
+const PAGES: PageEntry[] = [
+  { key: 'appearance', label: '外观' },
+  { key: 'sound', label: '声音' },
+  { key: 'notify', label: '通知' },
+  { key: 'talk', label: '对话' },
+  { key: 'data', label: '数据' },
+  { key: 'backup', label: '备份' },
+  { key: 'plugins', label: '插件参数' },
+  { key: 'permissions', label: '权限' },
+  { key: 'privacy', label: '隐私' },
+  { key: 'knowledge', label: '知识库' },
+  { key: 'about', label: '关于' },
+]
 
 export interface SettingsProps {
-  /**
-   * 打开时直接定位到的配置段 id。
-   *
-   * 扩展抽屉的「配置」会带它进来：用户点的就是某个包，进来还要在六十多个
-   * 段里再找一遍，等于让上一步白点。定位方式与「原始层跳到模块层」完全一致
-   * ——把搜索词填成段 id，模块层按段 id 过滤后正好只剩那一段。
-   */
+  /** 打开时落在哪一页。默认外观。 */
+  initialPage?: SettingsPage
+  /** 打开时直接定位到的配置段（只有插件参数页认）。 */
   initialSection?: string
+  /** 当前会话 id。数据页的导出需要它。 */
+  sessionId?: string
+  /** 导入成功后让主界面重读当前会话。 */
+  onImported(): void
   onClose(): void
 }
 
-/** 渲染设置面板。 */
-export function Settings({ initialSection, onClose }: SettingsProps): React.JSX.Element {
-  /*
-   * 关闭时把焦点还给触发它的元素（§9.5）。
-   *
-   * 条件渲染，恒传 `true`。设置有三个入口：`Cmd/Ctrl + ,`（此时焦点在
-   * 文档某处）、检查器底部的「全部设置」（焦点在那个按钮上）、
-   * 将来的偏好窗口。三者都由钩子统一处理，不各写一遍。
-   */
-  useRestoreFocus(true)
-
-  const [tab, setTab] = useState<TabKey>('scene')
-  const [sections, setSections] = useState<SettingsSection[]>([])
-  const [user, setUser] = useState<SceneValues>({})
-  const [totals, setTotals] = useState({ sections: 0, fields: 0, unregistered: 0 })
-  /** 加载态。首屏用骨架，之后不再显示骨架（避免"换个骨架再换回来"）。 */
-  const [phase, setPhase] = useState<'loading' | 'ready' | 'failed'>('loading')
-  const [error, setError] = useState('')
+export function Settings({
+  initialPage = 'appearance',
+  initialSection,
+  sessionId,
+  onImported,
+  onClose,
+}: SettingsProps): React.JSX.Element {
+  const [page, setPage] = useState<SettingsPage>(initialPage)
+  const panelRef = useRef<HTMLDivElement | null>(null)
 
   /**
-   * 打开时的用户层快照。撤销回到这里。
+   * 外部落点变化时切页。
    *
-   * 用 ref 而不是 state：它只在撤销时被读，从不参与渲染。
-   * 放 state 会多一次无意义的 re-render，也让"快照"看起来像界面数据。
+   * `page` 是面板自己的状态（用户在左侧导航里点来点去），但有两种外部来源
+   * 会改落点：深度链接（面板已开时再收到 `ondra://settings/xxx`）、扩展抽屉
+   * 里换一个包的「配置」。只把 `initialPage` 当初始值的话，这两种情况都会
+   * 表现为「什么也没发生」——面板开着，链接却像没生效。
+   *
+   * 只在 `initialPage` 真的变了才同步，因此不会抢掉用户自己的导航。
    */
-  const snapshot = useRef<SceneValues>({})
-
-  /** 搜索词在模块层与「从场景层跳过去」之间共享。 */
-  const [query, setQuery] = useState('')
-
-  const load = useCallback(async (): Promise<void> => {
-    setPhase('loading')
-    try {
-      const data = await getSettings()
-      setSections(data.sections)
-      setUser(data.user)
-      setTotals(data.totals)
-      snapshot.current = structuredClone(data.user)
-      /*
-       * 带了段 id 就定位过去。
-       *
-       * 在「数据到手之后」定位，而不是挂载时：模块层要拿到 `sections`
-       * 才能过滤，提前设一个搜不到的词，界面会先闪一帧空列表。
-       */
-      if (initialSection !== undefined && initialSection !== '') {
-        setQuery(initialSection)
-        setTab('module')
-      }
-      setPhase('ready')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '读不到设置')
-      setPhase('failed')
-    }
-  }, [initialSection])
-
   useEffect(() => {
-    void load()
-  }, [load])
+    setPage(initialPage)
+  }, [initialPage])
 
   /**
-   * 写一个字段。
+   * 点遮罩关闭。
    *
-   * ## 为什么先改本地再发请求
-   *
-   * 滑杆松手到宿主回包之间有几十毫秒。等回包再更新界面，读数会"弹回去
-   * 再跳过来"，看起来像没生效。先乐观更新，失败时回滚并报错。
-   *
-   * ## 为什么失败要回滚
-   *
-   * 不滚的话，界面显示"已改 45 天"，文件里还是 30 天。下次启动变回去，
-   * 用户会认为"这个设置存不住"——而真正的原因是那一次写入失败了。
+   * 用 `mousedown` 而不是 `click`：在遮罩上按下、拖到面板里松手，`click`
+   * 会记在遮罩上（两个事件的 target 不同），于是「想选中面板里一段文字」
+   * 会变成「把面板关了」。
    */
-  const onWrite = useCallback(async (section: string, key: string, value: unknown): Promise<void> => {
-    const previous = user[section]?.[key]
-    const hadPrevious = previous !== undefined
+  const onScrimDown = useCallback((event: React.MouseEvent<HTMLDivElement>): void => {
+    if (event.target === event.currentTarget) onClose()
+  }, [onClose])
 
-    setUser((current) => {
-      const bucket = { ...current[section] }
-      if (value === undefined) delete bucket[key]
-      else bucket[key] = value
-      const next = { ...current }
-      if (Object.keys(bucket).length === 0) delete next[section]
-      else next[section] = bucket
-      return next
-    })
+  useModalFocus(panelRef, onClose)
 
-    try {
-      await saveSetting(section, key, value)
-    } catch (caught) {
-      // 回滚到写入前的状态。用函数式更新，避免闭包里的旧 user 覆盖掉
-      // 用户在等待期间做的另一次改动。
-      setUser((current) => {
-        const bucket = { ...current[section] }
-        if (hadPrevious) bucket[key] = previous
-        else delete bucket[key]
-        const next = { ...current }
-        if (Object.keys(bucket).length === 0) delete next[section]
-        else next[section] = bucket
-        return next
-      })
-      setError(caught instanceof Error ? caught.message : '写入失败')
-    }
-  }, [user])
-
-  /** 与快照相比改了几项。 */
-  const changedCount = useMemo(() => {
-    let count = 0
-    const sectionsSeen = new Set([...Object.keys(user), ...Object.keys(snapshot.current)])
-    for (const section of sectionsSeen) {
-      const now = user[section] ?? {}
-      const before = snapshot.current[section] ?? {}
-      const keys = new Set([...Object.keys(now), ...Object.keys(before)])
-      for (const key of keys) {
-        if (now[key] !== before[key]) count += 1
-      }
-    }
-    return count
-  }, [user])
-
-  /**
-   * 撤销：把所有与快照不同的键写回去。
+  /*
+   * 初始焦点落在**当前页**的导航项上。
    *
-   * 逐个 `await`：并发写同一个 JSON 文件会产生互相覆盖的 rename，
-   * 结果是文件里只落下了最后一批。串行虽慢（每秒几十次写），
-   * 但撤销是一次性动作，用户感觉不到。
+   * 不是第一个，也不是关闭键：用户打开设置时最可能的下一步是换一页，
+   * 焦点落在导航里，方向键与回车立刻可用。落在关闭键上会让人误以为
+   * 打开它只是为了关掉。
    */
-  const onUndo = useCallback((): void => {
-    const target = snapshot.current
-    const current = user
-    void (async () => {
-      const sectionsSeen = new Set([...Object.keys(current), ...Object.keys(target)])
-      for (const section of sectionsSeen) {
-        const now = current[section] ?? {}
-        const before = target[section] ?? {}
-        const keys = new Set([...Object.keys(now), ...Object.keys(before)])
-        for (const key of keys) {
-          if (now[key] === before[key]) continue
-          await onWrite(section, key, before[key])
-        }
-      }
-    })()
-  }, [onWrite, user])
+  useEffect(() => {
+    panelRef.current?.querySelector<HTMLElement>('.pref__nav-item[aria-current="page"]')?.focus()
+  }, [])
+
+  const entry = PAGES.find((item) => item.key === page)
 
   return (
-    <aside className="settings" role="dialog" aria-label="设置">
-      <header className="settings__head">
-        <h2 className="settings__title">设置</h2>
-        <button type="button" className="settings__close" aria-label="关闭设置" onClick={onClose}>
-          <Icon icon={IconClose} size={16} />
-        </button>
-      </header>
-
-      {/*
-       * 三层切换。放在标题下方，不换窗口（§5.13）。
-       *
-       * 用 `role="tablist"`：这三者确实是 tab 语义（同一内容区的三种深度），
-       * 读屏会念"场景，选项卡，1/3"，比一串按钮清楚。
-       */}
-      <div className="settings__tabs" role="tablist" aria-label="设置深度">
-        {TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            className="settings__tab"
-            aria-selected={tab === item.key}
-            onClick={() => { setTab(item.key) }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="settings__body">
-        {phase === 'loading' ? (
-          <div className="settings__skeleton" aria-label="正在读取设置">
-            <div /><div /><div />
-          </div>
-        ) : null}
-
-        {phase === 'failed' ? (
-          <div className="settings__failed">
-            <p className="settings__failed-title">读不到设置</p>
-            <p className="settings__failed-detail">{error}</p>
-            <button type="button" className="button button--ghost" onClick={() => { void load() }}>
-              重试
+    <div className="settings" role="presentation" onMouseDown={onScrimDown}>
+      <div className="settings__pen" role="dialog" aria-modal="true" aria-label="设置" ref={panelRef}>
+        {/*
+          左导航。160px 是与主界面 Rail 同一套秩序的一部分：细窄、纯文字、
+          选中项用主色实底——整个应用只有这一处用主色铺整块底。
+        */}
+        <nav className="pref__nav" aria-label="设置分类">
+          {PAGES.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="pref__nav-item"
+              aria-current={item.key === page ? 'page' : undefined}
+              onClick={() => { setPage(item.key) }}
+            >
+              {item.label}
             </button>
-          </div>
-        ) : null}
+          ))}
+        </nav>
 
-        {phase === 'ready' ? (
-          <>
-            {tab === 'scene' ? (
-              <SceneLayer
-                sections={sections}
-                user={user}
-                onWrite={onWrite}
+        <div className="settings__main">
+          <header className="settings__head">
+            <h2 className="settings__title">{entry?.label ?? '设置'}</h2>
+            <button type="button" className="settings__close" aria-label="关闭设置" onClick={onClose}>
+              <Icon icon={IconClose} size={16} />
+            </button>
+          </header>
+
+          {page === 'appearance' ? <div className="settings__scroll"><SettingsAppearance /></div> : null}
+          {page === 'sound' ? <div className="settings__scroll"><SettingsSound /></div> : null}
+          {page === 'notify' ? <div className="settings__scroll"><SettingsNotify /></div> : null}
+          {page === 'talk' ? <div className="settings__scroll"><SettingsTalk /></div> : null}
+          {page === 'about' ? <div className="settings__scroll"><SettingsAbout /></div> : null}
+          {page === 'permissions' ? <div className="settings__scroll"><SettingsPermissions /></div> : null}
+          {page === 'privacy' ? <div className="settings__scroll"><SettingsPrivacy /></div> : null}
+          {page === 'knowledge' ? <div className="settings__scroll"><SettingsKnowledge /></div> : null}
+          {page === 'backup' ? <div className="settings__scroll"><SettingsBackup /></div> : null}
+          {page === 'data' ? (
+            <div className="settings__scroll">
+              {/*
+                条件展开而不是传 undefined：项目开了 `exactOptionalPropertyTypes`，
+                可选属性不接受显式 undefined。
+              */}
+              <SettingsData
+                {...(sessionId === undefined ? {} : { sessionId })}
+                onImported={onImported}
               />
-            ) : null}
-
-            {tab === 'module' ? (
-              <ModuleLayer
-                sections={sections}
-                user={user}
-                onWrite={onWrite}
-                query={query}
-                onQueryChange={setQuery}
-              />
-            ) : null}
-
-            {tab === 'raw' ? (
-              <RawLayer
-                sections={sections}
-                user={user}
-                onJump={(sectionId) => {
-                  // 切到模块层并把搜索框填成段 id：模块层按段 id 过滤，
-                  // 跳过去正好只剩那一段。比"只切层不定位"少一次手动搜索。
-                  setQuery(sectionId)
-                  setTab('module')
-                }}
-              />
-            ) : null}
-          </>
-        ) : null}
-      </div>
-
-      {/*
-       * 改动条：本次改动 N 项 + 撤销。
-       *
-       * ## 为什么放在滚动区外、统计条之上
-       *
-       * 第一版把它放在场景层内部并 `position: sticky; bottom: 0`。sticky 会在
-       * 文档流里保留原占位，同时把它视觉上推到底部——结果每次滚动都压住下面
-       * 一行的分段控件，截图里「她多主动」的三段按钮被整条盖住，看得见摸不着。
-       *
-       * 提到面板级还有第二个理由：模块层改值同样计入 `changedCount`，而它原来
-       * 只挂在场景层，用户在模块层改了半天看不到"改了几项"与"撤销"。
-       *
-       * 撤销粒度是"一次打开设置"，不是"每一步"（§5.13）。
-       */}
-      {phase === 'ready' && changedCount > 0 ? (
-        <div className="settings__bar">
-          <span className="settings__bar-text">本次改动 {changedCount} 项</span>
-          <button type="button" className="settings__bar-undo" disabled={changedCount === 0} onClick={onUndo}>
-            撤销
-          </button>
+            </div>
+          ) : null}
+          {page === 'plugins' ? (
+            <SettingsPlugins {...(initialSection === undefined ? {} : { initialSection })} />
+          ) : null}
         </div>
-      ) : null}
-
-      {/*
-       * 底部统计。只在就绪后显示——加载中显示 0 段 0 字段会被当成真实结果。
-       *
-       * 三个数分开说：段数、可调字段数、来源未登记的段数。第三个不为 0 时
-       * 必须显示，否则用户会在模块层看到一段没有标题的字段却说不清它从哪来。
-       *
-       * ## 措辞（本轮修正）
-       *
-       * 第三个数原来写「N 段未注册」。「注册」是配置文件与插件加载的
-       * 内部说法，用户读到的是「有个东西没登记上，是不是坏了」。
-       * 它要解释的其实只有一件事：**这几段暂时没有出处**。
-       */}
-      {phase === 'ready' ? (
-        <footer className="settings__foot">
-          <span>{totals.sections} 个配置段</span>
-          <span>{totals.fields} 个字段</span>
-          {totals.unregistered === 0 ? null : <span>{totals.unregistered} 段来源未登记</span>}
-        </footer>
-      ) : null}
-    </aside>
+      </div>
+    </div>
   )
 }

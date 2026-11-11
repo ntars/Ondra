@@ -80,7 +80,12 @@ export function OralCard(): React.JSX.Element {
   }
 
   const stats = state?.stats
-  const note = state === undefined ? '正在读状态…' : state.note
+  /*
+   * `state.note` 也要设防。类型写的是 `string`，但它跨了一次 JSON——
+   * 宿主漏字段时 `note === ''` 不成立，界面会渲染出一个**空的带边框说明块**
+   * （`.pref__note` 有底色有描边，空的时候是一块谁也说不出用途的灰片）。
+   */
+  const note = state === undefined ? '正在读状态…' : (typeof state.note === 'string' ? state.note : '')
 
   return (
     <>

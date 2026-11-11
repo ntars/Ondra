@@ -151,7 +151,15 @@ fn hide<R: Runtime>(app: &AppHandle<R>) {
 ///
 /// 不走 `window.close()`：那会再次触发 `CloseRequested`，绕回拦截逻辑，
 /// 形成「要退出 → 被问要不要退出」的循环。
+///
+/// # 为什么退出前要同步收一次宿主
+///
+/// `app.exit(0)` 之后进程就不再跑我们的代码了。若把"收宿主"交给
+/// `RunEvent::ExitRequested`，那条路径只能 `block_on`——主线程被阻塞，
+/// 用户看到的是"点了退出，窗口卡住几秒才消失"。这里在退出之前用同步信号
+/// 收掉整组（约 120ms），`ExitRequested` 里再来一次是幂等的空操作。
 pub fn quit<R: Runtime>(app: &AppHandle<R>) {
+    crate::shutdown(app);
     app.exit(0);
 }
 
@@ -204,3 +212,95 @@ pub fn apply_close_choice<R: Runtime>(app: &AppHandle<R>, action: CloseAction, r
         CloseAction::Quit => quit(app),
     }
 }
+
+/// 隐藏 macOS 系统红绿灯，把窗口按钮交给前端自绘（§2.4）。
+///
+/// ## 为什么必须动 AppKit
+///
+/// `TitleBarStyle::Overlay` 下系统一定会画三个按钮，`trafficLightPosition`
+/// 只能挪位置——按钮的直径、描边、渐变、hover 时浮出的 `× − +` 符号全都
+/// 由 AppKit 决定，CSS 碰不到。要按参考应用做成 12px 纯色圆点，只有两条路：
+/// 自绘并隐藏系统按钮，或者接受系统原样。这里选前者。
+///
+/// ## 为什么用 setHidden 而不是把按钮挪出可视区
+///
+/// 把 `trafficLightPosition` 设成窗口外的坐标也能让按钮看不见，但那是靠
+/// 几何裁剪：窗口 becomeKey、切换全屏、系统重新布局标题栏时，AppKit 会
+/// 把按钮摆回默认位置，于是三个原生按钮突然又冒出来。`setHidden(true)`
+/// 是 NSView 的持久属性，重布局不会把它翻回来。
+///
+/// ## 为什么只处理传进来的这一个窗口
+///
+/// 上一版遍历 `NSApp.windows()`。那时只有一个窗口，看不出问题；加入内置
+/// 浏览器窗口（用系统装饰、需要真的红绿灯）之后，主窗口获得焦点就会把
+/// 浏览器窗口的按钮一起藏掉——表现为那个窗口再也关不掉。按窗口收窄是
+/// 唯一不会互相干扰的写法。
+///
+/// ## 不在主线程就什么都不做
+///
+/// `setHidden` 是 UI 操作，必须主线程。`setup` 与窗口事件回调都在主线程，
+/// 这个分支只防万一；真走到这里，系统按钮没藏掉而前端仍会自绘，界面上会
+/// 露出两对按钮——那是需要修的故障，不是可接受的降级。
+///
+/// ## 为什么要一个小 trait
+///
+/// 主窗口在 `setup` 里拿到的是 `WebviewWindow`，窗口事件回调里拿到的是
+/// `Window`（那是另一个类型，不是它的父类）。两者各有自己的 `ns_window()`，
+/// 且**都只在 macOS 上存在**。没有这层抽象，三个调用点就得各自写一遍
+/// `#[cfg(target_os = "macos")]`，读代码要分平台理解主流程。
+pub trait NativeWindow {
+    /// 原生 NSWindow 指针。非 macOS 或取不到时为空指针。
+    fn native_handle(&self) -> *mut std::ffi::c_void;
+}
+
+/// 给两种窗口类型各实现一次。
+///
+/// 用宏而不是写两遍：两个实现体逐字相同，唯一的差别是 `Self` 的类型。
+macro_rules! impl_native_window {
+    ($ty:ty) => {
+        impl<R: Runtime> NativeWindow for $ty {
+            fn native_handle(&self) -> *mut std::ffi::c_void {
+                #[cfg(target_os = "macos")]
+                let handle = self.ns_window().unwrap_or(std::ptr::null_mut());
+                #[cfg(not(target_os = "macos"))]
+                let handle = std::ptr::null_mut();
+                handle
+            }
+        }
+    };
+}
+
+impl_native_window!(tauri::Window<R>);
+impl_native_window!(tauri::WebviewWindow<R>);
+
+#[cfg(target_os = "macos")]
+pub fn hide_system_traffic_lights<W: NativeWindow>(window: &W) {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSWindow, NSWindowButton};
+
+    if MainThreadMarker::new().is_none() {
+        return;
+    }
+    let handle = window.native_handle();
+    if handle.is_null() {
+        return;
+    }
+
+    // SAFETY: `ns_window()` 返回的是本进程内一个活的 NSWindow 指针，
+    // 且当前已在主线程（上面刚判过），符合 AppKit 的线程要求。
+    let ns_window: &NSWindow = unsafe { &*handle.cast::<NSWindow>() };
+
+    for kind in [
+        NSWindowButton::CloseButton,
+        NSWindowButton::MiniaturizeButton,
+        NSWindowButton::ZoomButton,
+    ] {
+        if let Some(button) = ns_window.standardWindowButton(kind) {
+            button.setHidden(true);
+        }
+    }
+}
+
+/// 非 macOS 上系统窗口按钮由 Windows 自绘三键 / Linux 装饰接管，无需处理。
+#[cfg(not(target_os = "macos"))]
+pub fn hide_system_traffic_lights<W: NativeWindow>(_window: &W) {}

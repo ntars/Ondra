@@ -25,7 +25,7 @@
   background: var(--ui-bg-glass-strong);
   border: var(--rule) solid var(--ui-line);
   box-shadow: var(--ui-shadow-float);
-  padding: 22px;
+  padding: 24px;
   animation: dialog-in var(--motion-b) var(--ease-fluid);
 }
 
@@ -54,7 +54,7 @@
 }
 
 .dialog__extra {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .dialog__check {
@@ -67,11 +67,79 @@
   cursor: pointer;
 }
 
+/*
+ * 复选框：自己画，不用系统控件。
+ *
+ * ## 为什么要自己画
+ *
+ * 裸的 `<input type="checkbox">` 由系统绘制，长相跟着 **`color-scheme`**
+ * 走，不跟着我们的令牌走。`html` 上写的是 `color-scheme: light dark`，
+ * 而 JS 在挂载后把它改成具体的一档——两者之间存在一个窗口，更重要的是：
+ * 系统配色是*用户的*选择，不是*应用的*主题。
+ *
+ * 实测过它的后果：浅色主题的「关掉窗口，她还在」弹窗里，出现一个
+ * **深灰色实心方块**。那是一枚未勾选的框（深色配色下的默认外观），
+ * 但在一张白纸上看，它和"已勾选"长得一模一样——用户会以为「以后不再问」
+ * 已经勾上了，于是关窗后再也见不到这个提示。
+ *
+ * ## 画法
+ *
+ * `appearance: none` 拆掉系统外观，再补三层：16 × 16 的圆角框、
+ * 勾选时的实底、以及一个用两条边旋转 45° 拼出的勾。三样都读语义令牌，
+ * 所以在两套主题下各自成立。
+ */
+.dialog__check input[type='checkbox'] {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  border: var(--rule) solid var(--ui-line-strong);
+  border-radius: var(--r-xs);
+  background: var(--ui-bg-sheet);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    border-color var(--motion-f) var(--ease-fluid);
+}
+
+.dialog__check input[type='checkbox']:hover {
+  border-color: var(--ui-ink-4);
+}
+
+.dialog__check input[type='checkbox']:checked {
+  background: var(--ui-action);
+  border-color: var(--ui-action);
+}
+
+/* 勾：一个只有右边与下边的方块，转 45° 就是勾。 */
+.dialog__check input[type='checkbox']:checked::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  /* 视觉居中：勾的重心偏右下，往上提 1px 才落在框的正中。 */
+  margin-top: -2px;
+  border: solid var(--ui-action-ink);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.dialog__check input[type='checkbox']:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* 焦点指示只有一层（§5.6）：框本身泛光，文字不再另画。 */
+.dialog__check:has(input:focus-visible) {
+  color: var(--ui-ink-2);
+}
+
 .dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 /* ===========================================================================
@@ -85,7 +153,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 44px 24px 44px;
+  padding: 48px 24px 48px;
   /* 扁平遮罩：纯色压暗，不虚化背景。模糊会把「下面还有内容」说成「下面已失效」。 */
   background: rgb(13 16 23 / 42%);
   animation: fade-in var(--motion-f) var(--ease-fluid);
@@ -120,7 +188,7 @@
 
 .sheet__head {
   flex: none;
-  padding: 18px 22px 12px;
+  padding: 16px 24px 12px;
   border-bottom: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -143,15 +211,35 @@
 }
 
 .sheet__body {
-  padding: 8px 30px 20px 22px;
+  padding: 8px 32px 24px 24px;
 }
 
 .sheet__group {
-  padding-top: 14px;
+  padding-top: 16px;
+}
+
+/*
+ * 快捷键清单（`<dl>`）。
+ *
+ * 组件用的是 `<dl>` + 每行一个 `<div class="sheet__row">` 包 `<dt>/<dd>`。
+ * `<dl>` 与 `<dd>` 都带浏览器默认外边距：前者上下各 1em，后者左侧 40px。
+ * 没有这条规则时，整张清单会先往下掉 16px，然后每一行的键帽组相对
+ * 名称右移 40px——而 `.sheet__row` 的 `gap: 12px` 已经管了横向间距，
+ * 两种间距叠在一起，键帽会飘到面板右侧，看起来像没对齐的两列。
+ *
+ * 只在这里重置，不改全局 `dl/dd`：项目里还有别处用定义列表
+ * （偏好页的 `.pref__facts` 是 grid 布局），一刀切会把它也推平。
+ */
+.sheet__list {
+  margin: 0;
+}
+
+.sheet__list .sheet__keys {
+  margin: 0;
 }
 
 .sheet__group-title {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: var(--text-micro);
   font-weight: var(--w-regular);
   letter-spacing: 0.16em;
@@ -195,8 +283,8 @@
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  padding: 0 5px;
-  border-radius: 4px;
+  padding: 0 4px;
+  border-radius: var(--r-xs);
   background: var(--ui-bg-field);
   box-shadow: 0 1px 0 var(--ui-line-strong);
   font-family: var(--font-display);
@@ -290,8 +378,8 @@
 .toast__body {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
+  gap: 12px;
+  padding: 8px 16px;
   border-radius: var(--r-md);
   background: var(--ui-bg-glass-strong);
   border: var(--rule) solid var(--ui-line);

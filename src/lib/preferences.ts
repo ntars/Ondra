@@ -1,26 +1,28 @@
 /**
- * 偏好设置（§5.13 第一层）的数据层。
+ * 偏好设置（§5.13）的数据层。
  *
- * ## 为什么必须有这一个文件
+ * ## 为什么这一个文件同时管「存」与「生效」
  *
- * 偏好设置是**独立窗口**，与主窗口是两个 WebView 文档。两个文档都要知道
- * 「现在是深色还是浅色」「字号是大是小」，却没有任何一条 React 状态能跨过去。
- * 若各存一份，深色窗口点一下、主窗口不动，用户会认为设置没生效。
+ * 偏好有三个消费方：`App`（主题与发送方式）、`Composer`（Enter 的行为）、
+ * `sound.ts` / `notify.ts`（声音与通知的开关）。它们分散在不同的组件里，
+ * 若各自读一份 `localStorage`，就必然出现「这一处改了、那一处没跟上」。
  *
  * 所以三件事收到这里，且只在这里定义一次：
  *
- * | 偏好 | 生效方式 | 为什么要跨窗口 |
- * | --- | --- | --- |
- * | 主题 | `data-theme` + `color-scheme` | 主窗口要立刻换色 |
- * | 字号 | `html` 的 `font-size` 百分比 | 主窗口要立刻重排 |
- * | 发送方式 | 由 `Composer` 读 | 主窗口下一次按 Enter 就要按新规则 |
+ * | 偏好 | 生效方式 |
+ * | --- | --- |
+ * | 主题 | `data-theme` + `color-scheme` |
+ * | 字号 | `html` 的 `font-size` 百分比 |
+ * | 发送方式 | 由 `Composer` 读 |
  *
- * ## 为什么用「磁盘 + 广播」两条腿
+ * ## 为什么只有「磁盘」一条腿
  *
- * `localStorage` 负责**重启后还在**，但它不保证跨窗口同步——两个窗口是否
- * 共用同一个存储区取决于各平台 WebView 的实现，不能拿它当通信手段。
- * 实时同步走壳的广播事件（`preferences-changed`），那条路是确定的。
- * 两者都写，任一条失效时另一条仍成立。
+ * 上一版设置是独立窗口，两个 WebView 文档各有一份内存副本，必须再由壳
+ * 转发一次广播才能对齐（`preferences-changed` + `broadcast_preferences`）。
+ * 现在设置是主界面上的浮层，同一个文档、同一个模块级变量——广播整条链路
+ * 连同它带来的「别把自己发的再收回来」判断一起删掉了。
+ *
+ * 剩下的这条腿仍然必要：`localStorage` 负责**重启后还在**。
  *
  * ## 为什么主题要「解析后」才写进 `data-theme`
  *
@@ -32,7 +34,6 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import { invokeShell, isDesktopShell, listenShell } from './shell.ts'
 import type { ThemeMode } from './api.ts'
 
 /** 界面字号档位。百分比相对浏览器基准字号，因此系统放大仍叠加生效。 */
@@ -57,6 +58,21 @@ export interface Preferences {
    * 声音是应用自己出的声，通知是系统替他提醒；关掉一个不影响另一个。
    */
   notify: boolean
+  /**
+   * 当前选用的自定义模型提供商 id（§G3）。
+   *
+   * 空串表示使用内置的三档预设来源。非空时指向用户在「对话」页添加的
+   * 某个 OpenAI 兼容端点。实际推理路由由宿主按此值切换——偏好只负责
+   * 「选了哪一个」，不负责「怎么连」。
+   */
+  provider: string
+  /**
+   * 是否启用语音输入（§G2）。
+   *
+   * 默认关闭。开启后输入框出现麦克风按钮，可录音并转写为文字。
+   * 麦克风授权由系统在首次使用时请求；本机需装有本地语音识别模型才能真正转写。
+   */
+  voiceInput: boolean
 }
 
 /** 出厂默认值。 */
@@ -88,6 +104,8 @@ const DEFAULTS: Preferences = {
    * 的人，通知最坏是让一屋子人看到你的屏幕。
    */
   notify: false,
+  provider: '',
+  voiceInput: false,
 }
 
 /**
@@ -110,6 +128,8 @@ const KEY_SEND = 'ondra.sendMode'
 const KEY_SOUND = 'ondra.sound'
 const KEY_VOLUME = 'ondra.soundVolume'
 const KEY_NOTIFY = 'ondra.notify'
+const KEY_PROVIDER = 'ondra.provider'
+const KEY_VOICE = 'ondra.voiceInput'
 
 /** 当前偏好。模块级单例：两个窗口各持一份内存副本，靠广播对齐。 */
 let current: Preferences = { ...DEFAULTS }
@@ -184,6 +204,8 @@ export function loadPreferences(): Preferences {
      * 改它属于另一件事，不在本轮范围内混着动。
      */
     notify: read(KEY_NOTIFY) === undefined ? DEFAULTS.notify : read(KEY_NOTIFY) === 'on',
+    provider: read(KEY_PROVIDER) ?? DEFAULTS.provider,
+    voiceInput: read(KEY_VOICE) === 'on',
   }
   return current
 }
@@ -219,11 +241,18 @@ export function applyPreferences(next: Preferences): void {
 /**
  * 改一项偏好。
  *
+ * ## 为什么不再有「广播到其他窗口」
+ *
+ * 上一版有两个窗口（主界面 + 独立偏好窗口），两边各有自己的 JS 文档与
+ * 内存副本，改一项必须由壳转发一次才能对齐。现在设置是主界面上的一个
+ * 浮层，同一个文档、同一份 `current`——广播这件事整个消失了。
+ *
+ * 顺带消失的还有三个由此而生的东西：`broadcast_preferences` 命令、
+ * `preferences-changed` 监听、以及「别把自己发的再收回来」那条判断。
+ *
  * @param patch 要改的字段。
- * @param options.broadcast 是否通知其他窗口。默认通知；
- *   收到广播的那个窗口传 `false`，否则两个窗口会来回弹。
  */
-export function setPreferences(patch: Partial<Preferences>, options?: { broadcast?: boolean }): void {
+export function setPreferences(patch: Partial<Preferences>): void {
   const next: Preferences = { ...current, ...patch }
   current = next
 
@@ -233,75 +262,11 @@ export function setPreferences(patch: Partial<Preferences>, options?: { broadcas
   write(KEY_SOUND, next.sound ? 'on' : 'off')
   write(KEY_VOLUME, String(next.soundVolume))
   write(KEY_NOTIFY, next.notify ? 'on' : 'off')
+  write(KEY_PROVIDER, next.provider)
+  write(KEY_VOICE, next.voiceInput ? 'on' : 'off')
 
   applyPreferences(next)
   notify()
-
-  if (options?.broadcast !== false) broadcast(next)
-}
-
-/**
- * 把偏好送到其他窗口。
- *
- * 失败不提示：广播丢了最坏的结果是「另一个窗口要下次打开才对」，
- * 而弹一条「同步失败」会把一件几乎无害的事说成故障。
- */
-function broadcast(next: Preferences): void {
-  if (!isDesktopShell()) return
-  void invokeShell<null>('broadcast_preferences', {
-    from: currentWindowLabel(),
-    prefs: JSON.stringify(next),
-  }).catch(() => {
-    /* 见函数注释：不提示 */
-  })
-}
-
-/**
- * 本窗口的 label。
- *
- * 主窗口 `main`、偏好窗口 `preferences`（见 `src-tauri/src/preferences.rs`）。
- * 广播时带上它，壳才能把「发信人」排除在收信名单外——否则两个窗口
- * 会互相回发，形成一条永不停止的来回。
- *
- * 判据是 hash 而不是 `window.label`：后者要等壳注入 `__TAURI__`，
- * 而这个判断可能在页面极早期发生。hash 在解析 HTML 时就确定了。
- */
-function currentWindowLabel(): string {
-  return globalThis.location.hash === '#preferences' ? 'preferences' : 'main'
-}
-
-/**
- * 接收别的窗口发来的偏好。
- *
- * 只落盘并应用，**不再广播**——否则两个窗口会无限对发。
- */
-export function adoptPreferences(raw: unknown): void {
-  if (typeof raw !== 'string') return
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return
-  }
-  if (parsed === null || typeof parsed !== 'object') return
-  const shaped = parsed as Partial<Preferences>
-  setPreferences(
-    {
-      theme: pick(shaped.theme, ['system', 'light', 'dark'] as const, current.theme),
-      fontScale: pick(shaped.fontScale, ['small', 'standard', 'large'] as const, current.fontScale),
-      sendMode: pick(shaped.sendMode, ['queue', 'interrupt'] as const, current.sendMode),
-      // 广播来的声音两项也要收：偏好窗口改音量、主窗口立刻生效，
-      // 否则用户得重启才听得到自己刚调的那一档。
-      sound: typeof shaped.sound === 'boolean' ? shaped.sound : current.sound,
-      soundVolume: typeof shaped.soundVolume === 'number'
-        ? Math.min(100, Math.max(0, Math.round(shaped.soundVolume)))
-        : current.soundVolume,
-      // 通知开关同样要跨窗口同步：偏好窗口打开它，主窗口下一次隐藏时
-      // 就该生效，不能等重启。
-      notify: typeof shaped.notify === 'boolean' ? shaped.notify : current.notify,
-    },
-    { broadcast: false },
-  )
 }
 
 /** 订阅偏好变化。返回取消订阅函数。 */
@@ -320,13 +285,10 @@ export function usePreferences(): Preferences {
   return useSyncExternalStore(subscribePreferences, getPreferences, getPreferences)
 }
 
-/** 广播事件的载荷类型。与壳发来的字符串一一对应。 */
-export type PreferencesPayload = string
-
 /**
- * 启动偏好层。在 `main.tsx` 调用一次，两个窗口都调。
+ * 启动偏好层。在 `main.tsx` 调用一次。
  *
- * 做三件事：读盘并应用、跟随系统主题的变化、接收其他窗口的广播。
+ * 做两件事：读盘并应用、跟随系统主题的变化。
  */
 export function startPreferences(): void {
   applyPreferences(loadPreferences())
@@ -343,12 +305,4 @@ export function startPreferences(): void {
       if (current.theme === 'system') applyPreferences(current)
     })
   }
-
-  /*
-   * 接收其他窗口的广播。
-   *
-   * 壳在 `preferences.rs` 里把发信窗口排除掉，所以这里不必再判
-   * 「是不是我自己发的」——判一次反而多一个可能与壳不一致的分支。
-   */
-  listenShell<string>('preferences-changed', (payload) => { adoptPreferences(payload) })
 }

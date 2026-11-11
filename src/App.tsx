@@ -40,7 +40,7 @@ import { toPlainText } from './components/RichText.tsx'
 import { Composer } from './components/Composer.tsx'
 import { ShortcutSheet } from './components/ShortcutSheet.tsx'
 import { Settings } from './components/Settings.tsx'
-import { requestPreferences } from './components/Preferences.tsx'
+import type { SettingsPage } from './components/Settings.tsx'
 import { usePreferences } from './lib/preferences.ts'
 import { formatClock, isMuted, muteFor, unmute, useMuted } from './lib/mute.ts'
 import { absenceHint } from './lib/absence.ts'
@@ -91,7 +91,7 @@ function Chrome(props: {
 }): React.JSX.Element {
   return (
     <>
-      <TitleBar title={props.title} />
+      <TitleBar />
       <TopBar
         title={props.title}
         mood={props.mood}
@@ -117,19 +117,28 @@ function Shell(): React.JSX.Element {
   /**
    * 设置面板是否展开。
    *
-   * ## 为什么设置也是 workspace 里的一个覆盖层而不是独立窗口
+   * ## 只有一个设置
    *
-   * §5.13 把设置分成两层：偏好设置是独立窗口（主题、语言、字号），
-   * 检查器设置是主列右侧的覆盖层，宽 300。后者管 619 项插件参数，
-   * 用户改它时往往正在看会话——独立窗口会让「改一下、回来看」变成反复切窗。
+   * 上一版是两个：独立窗口（主题、语言、字号…）与主列右侧的三层面板
+   * （1116 项插件参数）。用户看到的是「设置」两个字配两套界面，而他
+   * 没法知道该进哪一个——「改这个应用」与「改她」是我们的划分，不是他的。
+   * 现在只有这一个浮层，且只有两个入口：Rail 底部齿轮 / `Cmd+,` 落外观页，
+   * 扩展抽屉里某个包的「配置」落插件参数那一段。
    */
   const [settings, setSettings] = useState(false)
+  /**
+   * 打开设置时落在哪一页。
+   *
+   * 与 `settingsAt` 分开：一个是"哪一页"，一个是"那页里的哪一段"。
+   * 合成一个对象会让「只换页不定位」也必须显式清段，容易忘。
+   */
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>('appearance')
   /**
    * 打开三层面板时要定位到的配置段。
    *
    * 只有扩展抽屉的「配置」会设它——那里用户点的就是某个包，打开面板还要
-   * 自己在 60 多个段里再找一遍，等于让上一步白点。其它入口（检查器底部的
-   * 「全部设置」）必须把它清空，否则会莫名停在上一段的搜索词上。
+   * 自己在 60 多个段里再找一遍，等于让上一步白点。Rail 齿轮与 `Cmd+,`
+   * 必须把它清空，否则会莫名停在上一段的搜索词上。
    */
   const [settingsAt, setSettingsAt] = useState<string | undefined>(undefined)
   /** 窗口是否失焦。失焦时呼吸暂停、水位降不透明度（§12.9）。 */
@@ -198,32 +207,35 @@ function Shell(): React.JSX.Element {
   }, [])
 
   /*
-   * 检查器设置的打开动作没有单独的函数。
+   * 打开设置的入口只有两个，且都不在这里判「先关谁」——各自先收干净再开。
    *
-   * 它只有一个入口（检查器底部「全部设置」），那条路径在 `Inspector`
-   * 的 `onOpenSettings` 里一并处理，把「先关检查器再开面板」写成两步。
-   * 曾经这里有一个 `openSettings` 供 `Cmd+,` 复用，现在那条键改指
-   * 偏好窗口，这个函数就没有调用者了——留着会让下一个人以为
-   * 哪里还能进到三层面板。
+   * | 入口 | 落在 |
+   * | --- | --- |
+   * | `Cmd/Ctrl + ,`、Rail 底部齿轮 | 外观 |
+   * | 扩展抽屉里某个包的「配置」 | 插件参数 · 模块（带上段 id） |
+   *
+   * 检查器底部曾经第三个「全部设置」按钮，与 Rail 齿轮开的是同一个面板，
+   * 只差落页。一个站里两个「设置」入口，用户得先猜它们是不是同一处，
+   * 猜错了还会以为「改了这边那边没变」——合并设置就是为了消掉这个猜疑，
+   * 所以那个按钮连同 `inspector__foot` 一起删了。
    */
 
   /**
-   * 打开偏好设置窗口（§5.13）。
+   * 打开设置面板（`Cmd/Ctrl + ,`、Rail 齿轮）。
    *
-   * ## 为什么它不再复用 `openSettings`
+   * ## 为什么这个入口落「外观」页
    *
-   * 上一版把 `Cmd/Ctrl + ,` 接到 `openSettings`，而那是检查器设置的
-   * 三层面板（121 段 / 1116 项插件参数）。用户按 `Cmd+,` 期待换深浅色，
-   * 得到的是一千多项插件参数——**两个入口指向了同一件事，其中一件还
-   * 没做**。现在按 §5.13 分开：
-   *
-   * | 入口 | 打开什么 |
-   * | --- | --- |
-   * | `Cmd/Ctrl + ,`、Rail 齿轮 | 偏好设置独立窗口 |
-   * | 检查器底部「全部设置」 | 三层面板（1116 项） |
+   * `Cmd+,` 与齿轮在用户心里是「改这个应用」：换深浅色、调字号、关提示音。
+   * 上一版这里开的是独立窗口，另一处入口开的是三层面板——同一件事两个界面。
+   * 现在只有一个面板，落页按「用户点它时想干什么」定：总入口看外观，
+   * 扩展抽屉里的「配置」直接进插件参数那一段。
    */
   const openPreferences = useCallback((): void => {
-    requestPreferences()
+    setDrawer(undefined)
+    setInspector(false)
+    setSettingsPage('appearance')
+    setSettingsAt(undefined)
+    setSettings(true)
   }, [])
 
   /** 偏好层。发送方式与主题都要读它。 */
@@ -335,11 +347,22 @@ function Shell(): React.JSX.Element {
         } else if (panel === 'settings') {
           setDrawer(undefined)
           setInspector(false)
+          setSettingsPage('plugins')
+          setSettingsAt(undefined)
           setSettings(true)
         } else if (panel === 'shortcuts') {
           setSheetOpen(true)
         } else if (panel === 'preferences') {
-          requestPreferences()
+          /*
+           * 名字保留是为了让调试脚本不必改：它现在开的是同一个面板的
+           * 「外观」页——两个面板合并之后，`preferences` 与 `settings`
+           * 的差别只剩"落在哪一页"。
+           */
+          setDrawer(undefined)
+          setInspector(false)
+          setSettingsPage('appearance')
+          setSettingsAt(undefined)
+          setSettings(true)
         } else if ((drawerKeys as readonly string[]).includes(panel)) {
           setInspector(false)
           setSettings(false)
@@ -640,12 +663,45 @@ function Shell(): React.JSX.Element {
       const until = muteFor()
       toast(`静音到 ${formatClock(until)}`)
     })
+    /*
+     * 深度链接（G8）。外部以 `ondra://settings/<页>` 或 `ondra://<页>` 唤起，
+     * 壳把原始 URL 通过 `deep-link` 事件转来。认出是已知设置页就直接打开它，
+     * 认不出则静默忽略——一个无效链接不该把用户弹进一个空面板。
+     */
+    const openFromUrl = (url: string) => {
+      const stripped = url.replace(/^ondra:\/\//i, '')
+      const segments = stripped.split('/').filter(Boolean)
+      const target = segments[1] ?? segments[0] ?? ''
+      const known: SettingsPage[] = [
+        'appearance', 'sound', 'notify', 'talk', 'data', 'backup',
+        'plugins', 'permissions', 'privacy', 'knowledge', 'about',
+      ]
+      const page = known.find((candidate) => candidate === target)
+      if (page !== undefined) {
+        setSettingsPage(page)
+        setSettings(true)
+      }
+    }
+    const offDeep = listenShell<string>('deep-link', openFromUrl)
+
+    /*
+     * 冷启动时系统会在页面就绪之前就把链接交给壳，那一次广播必然错过。
+     * 所以挂载后主动取一次壳里攒下的链接；取走即清空，不会重复触发。
+     */
+    void invokeShell<string[]>('take_deep_links')
+      .then((pending) => {
+        for (const url of pending ?? []) openFromUrl(url)
+      })
+      .catch(() => {
+        // 不在壳内（纯浏览器预览）时没有这条命令，忽略即可。
+      })
 
     return () => {
       offClose()
       offDegraded()
       offDrawer()
       offMute()
+      offDeep()
     }
   }, [toast])
 
@@ -660,7 +716,7 @@ function Shell(): React.JSX.Element {
     setClosing(false)
     void invokeShell<null>('resolve_close', { action, remember: rememberClose }).catch((caught: unknown) => {
       console.error('关闭方式未能生效', caught)
-      toast({ text: '没能关掉窗口，再试一次', tone: 'error' })
+      toast({ text: '窗口关闭失败，请重试', tone: 'error' })
     })
   }, [rememberClose, toast])
 
@@ -820,7 +876,7 @@ function Shell(): React.JSX.Element {
        */
       const count = event.dataTransfer?.files.length ?? 0
       if (count > 0) {
-        toast({ text: `还不能直接接收文件，用加号选吧（${String(count)} 个）`, tone: 'error' })
+        toast({ text: `暂不支持直接接收文件，请通过加号选择（${String(count)} 个）`, tone: 'error' })
       }
     }
 
@@ -908,7 +964,7 @@ function Shell(): React.JSX.Element {
      */
     return (
       <div className="shell">
-        <TitleBar title="" />
+        <TitleBar />
         <div className="fatal">
           <p className="fatal__title">没能连接上后台服务</p>
           <p className="fatal__detail">{state.error ?? '未知原因'}</p>
@@ -948,7 +1004,7 @@ function Shell(): React.JSX.Element {
      */
     return (
       <div className="shell">
-        <TitleBar title="" />
+        <TitleBar />
         <div className="skeleton">
           <div />
           <div />
@@ -1075,6 +1131,7 @@ function Shell(): React.JSX.Element {
               */
               setDrawer(undefined)
               setInspector(false)
+              setSettingsPage('plugins')
               setSettingsAt(sectionId)
               setSettings(true)
             }}
@@ -1092,12 +1149,6 @@ function Shell(): React.JSX.Element {
               tension={undefined}
               hasData={state.mood.label !== undefined && state.mood.label !== ''}
               onClose={() => { setInspector(false) }}
-              onOpenSettings={() => {
-                setInspector(false)
-                // 这里进的是「全部设置」总入口，不该继承扩展抽屉上次定位的段。
-                setSettingsAt(undefined)
-                setSettings(true)
-              }}
             />
           ) : null}
 
@@ -1124,8 +1175,11 @@ function Shell(): React.JSX.Element {
       */}
       {settings ? (
         <Settings
+          initialPage={settingsPage}
           /* 条件展开而不是传 undefined：项目开了 exactOptionalPropertyTypes。 */
           {...(settingsAt === undefined ? {} : { initialSection: settingsAt })}
+          {...(state.sessionId === undefined ? {} : { sessionId: state.sessionId })}
+          onImported={() => { void state.reload() }}
           onClose={() => {
             setSettings(false)
             setSettingsAt(undefined)
@@ -1159,7 +1213,7 @@ function Shell(): React.JSX.Element {
       */}
       {closing ? (
         <Dialog
-          title="关掉窗口，她还在"
+          title="关闭窗口后，应用仍在后台运行"
           confirmLabel="隐藏到托盘"
           cancelLabel="退出应用"
           onConfirm={() => { resolveClose('hide') }}
@@ -1173,11 +1227,11 @@ function Shell(): React.JSX.Element {
                 checked={rememberClose}
                 onChange={(event) => { setRememberClose(event.target.checked) }}
               />
-              记住我的选择，以后不再问
+              记住此选择，以后不再询问
             </label>
           }
         >
-          空谷会继续在托盘里待着，点一下图标就能回来。想在托盘菜单里彻底退出，选「退出」。
+          空谷将继续驻留于菜单栏托盘：点击托盘图标即可恢复窗口。如需完全退出，请选择「退出应用」，或在托盘菜单中选择「退出」。
         </Dialog>
       ) : null}
     </div>

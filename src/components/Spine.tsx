@@ -121,6 +121,8 @@ export function Spine({
       type="button"
       className="spine"
       aria-label="查看侧写"
+      /* 悬停时浏览器原生的即刻说明：水位是精力，颜色是心情（U2 的图例补齐）。 */
+      title="精力水位，颜色表示心情；点击查看侧写"
       aria-expanded={inspectorOpen}
       data-resting={resting ? '' : undefined}
       data-busy={busy ? '' : undefined}
@@ -155,6 +157,13 @@ export function Spine({
         <span className="spine__empty">{resting ? '休息中' : '尚无读数'}</span>
       ) : (
         <span className="spine__readout">
+          {/*
+            水位图例（U2）。
+
+            原先只有一个裸数字「62」，用户无从判断它是什么的量。这里补一行
+            「精力」，把数字与它正在表达的东西对上；心情仍由颜色 + 文字各说一遍。
+          */}
+          <span className="spine__unit">精力</span>
           <span className="spine__energy">{Math.round(energy)}</span>
           <span className="spine__mood">{moodWord(mood)}</span>
           {memoryCount > 0 ? <span className="spine__memory">记忆 {memoryCount}</span> : null}

@@ -3,7 +3,7 @@
  *
  * ## 职责
  *
- * 48px 竖条：三个抽屉入口 + 一个设置。点击入口就地展开抽屉，不改主列宽度、
+ * 56px 竖条：三个抽屉入口 + 一个设置。点击入口就地展开抽屉，不改主列宽度、
  * 不重排正文（§3.4）。
  *
  * ## 三个抽屉，不是一个列表
@@ -158,6 +158,8 @@ export function Rail({ active, onToggle, onOpenSettings }: RailProps): React.JSX
               data-rail-item
               className="rail__item"
               aria-label={item.label}
+              /* 悬停即有系统原生提示（U3）：自绘标签要等动画，原生提示是即时的。 */
+              title={item.label}
               aria-expanded={selected}
               aria-pressed={selected}
               tabIndex={index === focusIndex || (active === undefined && index === 0) ? 0 : -1}
@@ -179,6 +181,7 @@ export function Rail({ active, onToggle, onOpenSettings }: RailProps): React.JSX
         type="button"
         className="rail__item rail__item--settings"
         aria-label="偏好设置"
+        title="偏好设置"
         onClick={onOpenSettings}
       >
         <Icon icon={IconSettings} size={20} />

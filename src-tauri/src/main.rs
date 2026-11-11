@@ -12,14 +12,14 @@
 // 在非测试构建里隐藏 Windows 的控制台窗口（release 打包时不弹黑框）。
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod browser;
 mod commands;
 mod host;
-mod preferences;
 mod tray;
 mod window;
 
 use std::sync::Arc;
-use tauri::{Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, Runtime, WindowEvent};
 
 use host::HostManager;
 
@@ -34,7 +34,33 @@ pub struct AppState {
     pub tray_icon: Option<tauri::tray::TrayIcon<tauri::Wry>>,
     /// 托盘里「静音 1 小时」那一项的手柄。改文案靠它。
     pub mute_item: Option<Arc<tray::MuteItem<tauri::Wry>>>,
+    /// 待处理的深度链接（`ondra://…`）。
+    ///
+    /// 系统可能在窗口还没加载完页面时就把链接递进来（冷启动点链接必定如此），
+    /// 那时前端还没有注册监听，事件发出去就是石沉大海。所以这里先攒着，
+    /// 等前端就绪后主动取一次（`take_deep_links`），之后的事件照常走监听。
+    pub deep_links: std::sync::Mutex<Vec<String>>,
 }
+
+/// 退出前的同步收尾。
+///
+/// # 为什么是同步的
+///
+/// 它被两条路调用：`window::quit()`（用户在确认框里选「退出」）与
+/// `RunEvent::ExitRequested`（系统让他退出，比如 `Cmd+Q`、注销、关机）。
+/// 后者发生的那一刻主线程已经在推进退出流程，再 `block_on` 一个异步
+/// 关闭就等于把事件循环按住——旧实现正是这样，用户点退出后窗口僵住
+/// 三秒才消失。
+///
+/// 这里改走 `HostManager::terminate()`：SIGTERM → 120ms → SIGKILL，
+/// 整组收，总耗时约 120ms。重复调用是安全的（进程组 id 已被换出）。
+pub fn shutdown<R: Runtime>(app: &AppHandle<R>) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    state.host.terminate();
+}
+
 
 fn main() {
     tauri::Builder::default()
@@ -62,6 +88,13 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize::new(820.0, 580.0))));
                 let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(820.0, 580.0)));
+
+                // 红绿灯改由前端自绘（§2.4）：先把系统那三个藏掉，否则会叠在
+                // 自绘圆点下面，出现"两对按钮"。
+                //
+                // 只处理主窗口：内置浏览器窗口（`browser.rs`）要的是系统原生
+                // 三个按钮，一起藏掉它就没法关了。
+                window::hide_system_traffic_lights(&window);
             }
 
             // 在后台启动宿主，不阻塞窗口显示。
@@ -110,6 +143,7 @@ fn main() {
                 host: manager,
                 tray_icon,
                 mute_item,
+                deep_links: std::sync::Mutex::new(Vec::new()),
             });
 
             Ok(())
@@ -124,12 +158,57 @@ fn main() {
             commands::resolve_close,
             commands::show_main_window,
             commands::open_log_dir,
-            commands::open_preferences,
-            commands::close_preferences,
-            commands::broadcast_preferences,
             commands::set_tray_muted,
+            commands::open_browser,
+            commands::save_export,
+            commands::open_import,
+            commands::app_data_path,
+            commands::open_settings_pane,
+            commands::backup_create,
+            commands::backup_list,
+            commands::backup_restore,
+            commands::kb_list,
+            commands::kb_upsert,
+            commands::kb_delete,
+            commands::providers_list,
+            commands::providers_upsert,
+            commands::providers_remove,
+            commands::transcribe_audio,
+            commands::check_update,
+            commands::take_deep_links,
         ])
         .on_window_event(|window, event| {
+            /*
+             * 系统红绿灯的运行时兜底（§2.4）。
+             *
+             * `setHidden(true)` 是持久属性，但两件事会绕过它：新建窗口在
+             * 登记进 `NSApp.windows()` 之前漏掉一次，以及 macOS 切换全屏、
+             * 系统重新布局标题栏时可能重建按钮容器。
+             *
+             * 因此挑两个窗口生命周期里必然会发生的事件再收一遍。三个按钮的
+             * 开销是微秒级，换来的是「任何时刻都不会露出第二对红绿灯」。
+             *
+             * 只认主窗口：内置浏览器窗口用的是系统红绿灯，藏掉它就关不掉了
+             * ——那正是上一版遍历 `NSApp.windows()` 时踩到的坑。
+             */
+            let relayout = match event {
+                WindowEvent::Focused(true) => true,
+                WindowEvent::Resized(_) => true,
+                _ => false,
+            };
+            if relayout && window.label() == "main" {
+                window::hide_system_traffic_lights(window);
+            }
+
+            /*
+             * 内置浏览器的工具栏注入不在这里做。
+             *
+             * `tauri::WindowEvent` 没有 `PageLoad` 变体（它属于 Webview 事件），
+             * 而 `tauri::Window` 也没有 `eval`。工具栏改在 `browser.rs` 创建窗口时
+             * 用 `WebviewWindowBuilder::on_page_load` 注册，那里拿到的是
+             * `WebviewWindow`，可以 `eval`，也天然只作用于浏览器窗口。
+             */
+
             /*
              * 关闭不是退出（§2.1、§2.7）。
              *
@@ -185,14 +264,52 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Tauri 应用初始化失败")
         .run(|app_handle, event| {
-            if let RunEvent::ExitRequested { .. } = event {
-                // 退出前必须收掉宿主，否则会留下孤儿进程。
-                // 这里用阻塞等待：退出流程本身是同步的，此刻再交回异步运行时
-                // 已经来不及了。
-                if let Some(state) = app_handle.try_state::<AppState>() {
-                    let host = state.host.clone();
-                    tauri::async_runtime::block_on(async move { host.stop().await });
+            /*
+             * 深度链接（G8）。外部以 `ondra://...` 唤起时，macOS 把 URL 交给
+             * 进程并触发 `RunEvent::Opened`。把它原样转给前端：前端按路径
+             * 打开对应设置页或会话。协议本身已在 `tauri.conf.json` 的
+             * `CFBundleURLTypes` 中登记。
+             *
+             * ## 为什么用 emit 而不是让壳直接改状态
+             *
+             * 链接能指向「设置·某页」「某会话」等只有前端才懂的目标。
+             * 壳只负责把 URL 交出去，路由逻辑留在前端——与「业务逻辑在宿主、
+             * 壳只做 OS 边界」的分工一致。
+             */
+            if let RunEvent::Opened { urls } = &event {
+                for url in urls {
+                    let text = url.to_string();
+                    /*
+                     * 两条路都走：先入队，再广播。
+                     *
+                     * 冷启动时前端还没注册监听，广播会丢——入队让它在就绪后
+                     * 取得到；已经在运行时前端早已注册，广播即时生效，不必
+                     * 等下一次轮询。前端取走即清空，因此不会重复触发。
+                     */
+                    if let Some(state) = app_handle.try_state::<AppState>() {
+                        if let Ok(mut pending) = state.deep_links.lock() {
+                            pending.push(text.clone());
+                        }
+                    }
+                    let _ = app_handle.emit("deep-link", text);
                 }
+            }
+
+            if let RunEvent::ExitRequested { .. } = event {
+                /*
+                 * 退出前必须收掉宿主与它拉起的整组进程，否则会留下孤儿。
+                 *
+                 * ## 为什么这里不再 `block_on(host.stop())`
+                 *
+                 * 那是上一版的做法，也是"点退出会卡一会儿"的来源：
+                 * `block_on` 会按住主线程，窗口在那一刻已经不再重绘，
+                 * 用户看到的是应用僵住三秒才消失。
+                 *
+                 * `shutdown` 走同步信号（TERM → 120ms → KILL），整组一次收掉。
+                 * 在 `quit()` 里已经收过一次，这里再来一次是幂等空操作——
+                 * 但 `Cmd+Q` 与注销走的是这条路，不经过我们的命令，所以两处都要有。
+                 */
+                shutdown(app_handle);
             }
         });
 }

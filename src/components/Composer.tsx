@@ -33,11 +33,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
-import { IconClose, IconChevronDown, IconPlus, IconSend } from './icons.ts'
+import { IconClose, IconChevronDown, IconMic, IconPlus, IconSend } from './icons.ts'
 import { Dialog } from './Dialog.tsx'
 import { CONFIRM_LIMIT, imagesOf, toPastedImages } from '../lib/paste.ts'
 import type { Attachment } from '../lib/types.ts'
 import type { ModelDescriptor } from '../lib/api.ts'
+import { usePreferences } from '../lib/preferences.ts'
+import { invokeShell } from '../lib/shell.ts'
 
 /**
  * 单条上限：底部行出现计数的阈值，也是发送前确认的阈值。
@@ -55,6 +57,17 @@ const SOFT_LIMIT = CONFIRM_LIMIT
  * 20px 行高在 14 与 15 两个字号下都是中文的舒适值。
  */
 const LINE = 20
+
+/**
+ * textarea 的上内距，与 `composer.css` 里 `.composer__input` 的
+ * `padding-top` 必须同值。
+ *
+ * 为什么写在这里而不是读 computed style：这条 effect 在每次输入时都跑，
+ * 每帧一次 `getComputedStyle` 会把它的开销从「算一次数」变成「触发布局」。
+ * 两处同值的代价是改一处要记得改另一处——所以两处都留了指向对方的注释，
+ * 并且 `check:ui` 有一条断言拿实测几何去对。
+ */
+const PAD_TOP = 8
 
 /** 最多展开 3 行，超出内部滚动（§5.6）。 */
 const MAX_ROWS = 3
@@ -134,6 +147,67 @@ export function Composer({
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
+  /** 语音输入（G2）。仅在设置开启时显示麦克风按钮。 */
+  const prefs = usePreferences()
+  const [recording, setRecording] = useState(false)
+  const [voiceNote, setVoiceNote] = useState('')
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+  /** 录音结束时可能已输入新文字，用 ref 取最新草稿拼接。 */
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  /** 开始录音并转写。 */
+  const startVoice = useCallback(async (): Promise<void> => {
+    setVoiceNote('')
+    if (typeof MediaRecorder === 'undefined' || navigator.mediaDevices?.getUserMedia === undefined) {
+      setVoiceNote('当前环境不支持录音')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const recorder = new MediaRecorder(stream)
+      chunksRef.current = []
+      recorder.ondataavailable = (event: BlobEvent): void => {
+        if (event.data.size > 0) chunksRef.current.push(event.data)
+      }
+      recorder.onstop = async (): Promise<void> => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        stream.getTracks().forEach((track) => { track.stop() })
+        setVoiceNote('识别中…')
+        try {
+          const bytes = Array.from(new Uint8Array(await blob.arrayBuffer()))
+          const result = await invokeShell<{ ok: boolean; text: string; reason?: string | null }>(
+            'transcribe_audio',
+            { audio: bytes },
+          )
+          if (result.ok && result.text !== '') {
+            const base = valueRef.current
+            onChange(base + (base !== '' && !base.endsWith(' ') ? ' ' : '') + result.text)
+            setVoiceNote('')
+          } else {
+            setVoiceNote(result.reason ?? '识别失败')
+          }
+        } catch (caught) {
+          setVoiceNote(caught instanceof Error ? caught.message : '语音识别失败')
+        }
+      }
+      recorderRef.current = recorder
+      recorder.start()
+      setRecording(true)
+    } catch (caught) {
+      setVoiceNote(caught instanceof Error ? caught.message : '无法访问麦克风')
+    }
+  }, [onChange])
+
+  /** 停止录音（触发转写）。 */
+  const stopVoice = useCallback((): void => {
+    recorderRef.current?.stop()
+    setRecording(false)
+  }, [])
+
   /** 把节点同时挂进本地 ref 与上层的 ref。 */
   const attachInput = useCallback((node: HTMLTextAreaElement | null): void => {
     inputRef.current = node
@@ -183,7 +257,15 @@ export function Composer({
     const node = inputRef.current
     if (node === null) return
     node.style.height = 'auto'
-    const max = LINE * MAX_ROWS + 12
+    /*
+     * 封顶 = 三行文字 + textarea 自己的上内距。
+     *
+     * `scrollHeight` 把 padding 算在内，所以这里的常数必须与
+     * `composer.css` 里 `.composer__input` 的 `padding-top` 同值（8）——
+     * 旧值是 12，多出的 4px 让三行状态下框底比文字低一档，最后一行
+     * 下面空出一条谁也说不出原因的缝。
+     */
+    const max = LINE * MAX_ROWS + PAD_TOP
     node.style.height = `${String(Math.min(node.scrollHeight, max))}px`
   }, [value])
 
@@ -350,7 +432,7 @@ export function Composer({
           className="composer__input"
           value={value}
           rows={1}
-          placeholder="说点什么…"
+          placeholder="输入消息…"
           aria-label="输入消息"
           onChange={(event) => { onChange(event.target.value) }}
           onKeyDown={onKeyDown}
@@ -368,6 +450,22 @@ export function Composer({
           >
             <Icon icon={IconPlus} size={16} />
           </button>
+
+          {prefs.voiceInput ? (
+            <button
+              type="button"
+              className={recording ? 'composer__mic composer__mic--on' : 'composer__mic'}
+              aria-label={recording ? '停止录音' : '语音输入'}
+              aria-pressed={recording}
+              title={recording ? '停止录音' : '语音输入'}
+              onClick={recording ? stopVoice : () => { void startVoice() }}
+            >
+              <Icon icon={IconMic} size={16} />
+            </button>
+          ) : null}
+          {voiceNote === '' ? null : (
+            <span className="composer__voice-note" aria-live="polite">{voiceNote}</span>
+          )}
 
           {/*
             模型名。点击展开候选。没有可选模型时显示「未选择」并指向设置
@@ -392,7 +490,7 @@ export function Composer({
             {menuOpen ? (
               <div className="composer__model-menu" role="menu">
                 {models.length === 0 ? (
-                  <p className="composer__model-empty">还没有可用的模型，去设置里加一个</p>
+                  <p className="composer__model-empty">尚无可用模型，请在设置中添加</p>
                 ) : (
                   models.map((model) => (
                     <button
@@ -429,7 +527,7 @@ export function Composer({
           */}
           {busy ? (
             <button type="button" className="composer__stop" onClick={onStop}>
-              先别说
+              停止
             </button>
           ) : (
             /*
@@ -456,7 +554,7 @@ export function Composer({
               </button>
               {empty ? (
                 <span className="sr-only" id="composer-send-hint">
-                  写点什么才能发送
+                  请先输入内容再发送
                 </span>
               ) : null}
             </>
@@ -488,18 +586,18 @@ export function Composer({
       */}
       {pending === undefined ? null : (
         <Dialog
-          title="这条有点长"
-          confirmLabel="照这样发"
-          cancelLabel="再改改"
+          title="消息篇幅较长"
+          confirmLabel="仍然发送"
+          cancelLabel="返回修改"
           onConfirm={() => {
             setPending(undefined)
             deliver()
           }}
-          /* Esc 与「再改改」都只是关掉这个框，草稿原样留在输入框里。 */
+          /* Esc 与「返回修改」都只是关掉这个框，草稿原样留在输入框里。 */
           onCancel={() => { setPending(undefined) }}
           onDismiss={() => { setPending(undefined) }}
         >
-          这条有 {pending.text.length} 个字，对方读到一半可能就跟不上了。拆成两条通常更好读。
+          本消息共 {pending.text.length} 个字，篇幅较长，拆成两条发送通常更便于阅读。
         </Dialog>
       )}
     </div>

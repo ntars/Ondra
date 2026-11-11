@@ -23,7 +23,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { SessionMessage, SessionMeta, SessionStore } from './types.js'
+import type { ImportedMessage, SessionMessage, SessionMeta, SessionStore } from './types.js'
 
 /** 会话文件的当前格式版本。将来改结构时据此迁移，而不是靠猜字段。 */
 const FILE_VERSION = 1
@@ -127,6 +127,26 @@ export class MemorySessionStore implements SessionStore {
     body.length = 0
     meta.updatedAt = Date.now()
     return removed
+  }
+
+  async importMessages(sessionId: string, messages: readonly ImportedMessage[]): Promise<number> {
+    const body = this.bodies.get(sessionId)
+    const meta = this.metas.get(sessionId)
+    if (body === undefined || meta === undefined) throw new Error(`会话不存在：${sessionId}`)
+    let count = 0
+    for (const message of messages) {
+      if (!isRole(message.role) || typeof message.content !== 'string') continue
+      body.push({
+        id: randomUUID(),
+        role: message.role,
+        content: message.content,
+        createdAt: typeof message.createdAt === 'number' ? message.createdAt : Date.now(),
+        ...(typeof message.toolName === 'string' ? { toolName: message.toolName } : {}),
+      })
+      count += 1
+    }
+    if (count > 0) meta.updatedAt = Date.now()
+    return count
   }
 }
 
@@ -289,6 +309,45 @@ export class FileSessionStore implements SessionStore {
     meta.updatedAt = Date.now()
     await this.persist(sessionId)
     return removed
+  }
+
+  /**
+   * 批量导入消息（迁移 / 恢复）。
+   *
+   * ## 为什么一次写盘而不是逐条 append
+   *
+   * `append` 每调一次都会整文件重写一遍。导出一段几百轮的对话就是几百次
+   * 重写，既慢，又让「写到一半失败」留下半段会话。这里先在内存里拼好、
+   * 一次 `persist`，失败就是零条。
+   *
+   * ## 为什么 id 必须重新生成
+   *
+   * 导出文件来自另一台机器，那边的消息 id 与本机无关。原样写进来会让
+   * 界面里出现两条 id 相同的消息（React key 冲突、删除按 id 换算会取错），
+   * 而这种冲突不会报错，只表现为"删了一条，另一条不见了"。
+   */
+  async importMessages(sessionId: string, messages: readonly ImportedMessage[]): Promise<number> {
+    const body = this.bodies.get(sessionId)
+    const meta = this.metas.get(sessionId)
+    if (body === undefined || meta === undefined) throw new Error(`会话不存在：${sessionId}`)
+
+    let count = 0
+    for (const message of messages) {
+      if (!isRole(message.role) || typeof message.content !== 'string') continue
+      body.push({
+        id: randomUUID(),
+        role: message.role,
+        content: message.content,
+        createdAt: typeof message.createdAt === 'number' ? message.createdAt : Date.now(),
+        ...(typeof message.toolName === 'string' ? { toolName: message.toolName } : {}),
+      })
+      count += 1
+    }
+    if (count > 0) {
+      meta.updatedAt = Date.now()
+      await this.persist(sessionId)
+    }
+    return count
   }
 
   /**

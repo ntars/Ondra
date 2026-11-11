@@ -1996,6 +1996,71 @@ The bar is simple: **once any row above has been walked through manually on its 
 
 ## 16. Changelog
 
+### 2.2.1 Addendum · One settings surface, one brand plate, one inset net (2026-11-11, spec v4.0.0)
+
+Eight of the nine requests this round were "it works, but it does not feel right". The fixes came in three layers: remove a whole surface, replace the palette, and add a net that finds this class of defect by itself.
+
+**Structure: there is one settings surface.** There used to be a separate settings window (`preferences.rs` + `Preferences.tsx` + a `#preferences` route + cross-window broadcasting) plus several settings entries inside the main window. Different scopes, same word for the user: "there are two settings". The separate window is gone. Settings is now a 760 × 504 sheet floating over the main window: `role="dialog"` + `aria-modal`, seven pages in a left nav, and a scrim with `inset: var(--h-titlebar) 0 0 0` so the title bar stays exposed — **the main window is still alive underneath, and the traffic lights and brand name are still clickable**. That is the line between "a sheet" and "another screen".
+
+**The title bar is now a fixed brand plate.** It used to show the current session title (centred, ellipsised). Under the single-session model that string never changes, yet it held the most expensive horizontal strip in the window. It is now「空谷 Ondra」plus a version badge: `nowrap`, not absolutely centred, pinned by four `check:acceptance` assertions.
+
+**The accent is now monochrome.** After the blue-white and purple-black themes were judged "not actually good-looking", the palette went to WeChat green; one round later the green was judged wrong too — **it was the only chromatic colour in the UI**. Primary buttons, links, selected rows, progress bars and switches all hung off the same green, so "accent" turned into "green everywhere", which is no accent at all. It is now black and white: `#191919` in the light theme (17.4:1 under white text), `#ECECEC` in the dark theme (13.9:1 under dark text), with the raw scale renamed `--jade-*` → `--accent-*`.
+
+Changing the accent exposed three spots where **one value has to serve two different backgrounds** — none of them a palette bug, none a geometry bug: the hard-coded white inverse text vanished on the now-light dark-theme button; the switch knob (which follows paper, so it is bright in dark mode) became **the same colour** as the white track; the slider thumb sat on a fill of its own colour and read as a frayed end. Fixed by overriding `--ui-action-ink` in the dark block, by switching the on-state knob to the inverse ink, and by giving the thumb a 1.5px paper-coloured ring. A new assertion walks every on-state switch and measures knob-vs-track contrast **in both themes** — measuring only the current theme would miss the dark-mode hole whenever the suite happens to run in light mode. `check:contrast` at 66/66.
+
+**The composer was missing one axis of padding.** In the screenshot the placeholder「说点什么…」sat right on the left border. Measured: the textarea's `padding-left` was **0** — and that value *is* the entire distance between the text and the card's left edge, while the plus button on the row below sat 12px in. Inside one 560px card the two lines started 12px apart. The previous pass had raised only the top padding (4→8), which was the wrong axis: vertical was already fine. Left padding is now 12px, sharing a vertical line with the toolbar, and the card height is still 76 (`1 + 20 + 30 + 8 + 8 + 8 + 1`).
+
+**Turning "many UI detail problems" into a probe.** `check:ui` gained an inset probe: walk every bounded box (a border or a non-transparent background), take the `Range` rect of its first text node, and measure the distance to all four edges; anything under 6px horizontally or 3px vertically is a suspect. It runs in five states: main window, session, extension drawer, dialog, settings panel. Every real defect it reported on the first pass shares one root cause — a value that crossed a JSON boundary:
+
+- The sound page printed "她说完的话会念出来（**undefined**）": `engineText(undefined)` returned `undefined` straight through.
+- Three cards each rendered a **bordered, filled block with no text at all**: `note === ''` was false (the value was `undefined`), so `<p class="pref__note">` rendered anyway.
+- The volume slider measured **0px wide**: `.pref__slider` was a row and `.pref__slider-head { width: 100% }` squeezed the `flex: 1` slider to nothing, leaving a single thumb floating.
+- The data page printed `**当前这一段会被归档**`: a JSX literal never goes through Markdown rendering.
+
+**Three consistency fixes alongside**: the four data-page actions were "one bordered button + two ghost buttons", which read as plain text in a vertical list — now all `.button`, laid out in a wrapping row; two sound-page section headings had the same words as the card title right below them (「提示音」over「提示音」, 「朗读」over「朗读」) — renamed to scope words (音效 / 她的声音) with a 24px top margin added; and the code block's language badge shared the top-right corner with the copy button, which covered the `SH` on hover — the badge now fades out instead.
+
+**Custom checkbox.** A bare `<input type="checkbox">` takes its appearance from `color-scheme`, not from our tokens. In a light-theme dialog that produced a dark filled square — an **unchecked** box that looks exactly like a checked one on white paper, so users would assume「以后不再问」was already ticked. It is now drawn with `appearance: none`: a 16 × 16 rounded box plus a check mark.
+
+**Three non-visual changes shipped in the same round**: quitting no longer `block_on`s the host shutdown (a 3-second stall) — it calls a synchronous `terminate()` and reaps the whole process group; sessions export and import as plain JSON (four actions on the data page); and there is a built-in browser (host allow-list plus `on_navigation` handing off-site links to the system browser).
+
+`check:ui` **383/383**, `check:acceptance` **90/90**, `check:contrast` **66/66**. Details in `docs/UI-SPEC.md` §13.6.
+
+### 2.2.1 addendum — self-drawn traffic lights (2026-11-11, spec v3.9.0)
+
+Pixel-level sampling of the two reference apps produced a counter-intuitive result: **QQ uses the native macOS traffic lights** (foreground red `(229,128,117)`, almost identical to Ondra's `(230,129,119)` before the change); WorkBuddy is the one that draws its own `(230,101,90)`. All three use 12px dots at 20px centre spacing — the real difference was **position**: Ondra's dots were centred at y=**13.5**, while the centre of a 44px title bar is 22, i.e. 8.5px too high.
+
+AppKit owns the diameter, stroke, gradient and hover glyphs of the native buttons; CSS cannot touch them. Changing size, shape or colour therefore requires drawing them in the frontend and hiding the system ones.
+
+- `src-tauri/src/window.rs` uses `objc2-app-kit` to call `setHidden(true)` on the close / miniaturize / zoom `standardWindowButton` of every window in `NSApp.windows()`. The dependency is declared under `target.'cfg(target_os = "macos")'`, so Windows and Linux builds are unaffected. It runs once in `setup` and once after the preferences window is created. `setHidden` is used rather than moving `trafficLightPosition` off-screen because the latter relies on geometric clipping and AppKit can lay the buttons back out.
+- `TrafficLights` in `TitleBar.tsx` renders on macOS only: 12px flat dots, gap 8 (20px centre spacing), top 16 (centre lands on 22), left 12. Colours come from the WorkBuddy sample `#e6655a / #f2bd4d / #61c053` and do not switch with the theme; hovering the group reveals `× − +`. Clicks still go through `plugin:window|*`, and closing still passes through `intercept_close`.
+- **The preferences window shows no traffic lights at all**: the system three are hidden by the shell and the self-drawn group only belongs to the main window's title bar. The 76px offset in `preferences.css` and its `check-ui` GEOMETRY entry were removed — which also fixes an old mismatch where the window builder never set `traffic_light_position` while the CSS assumed 18,16.
+- The now-dead `trafficLightPosition` in `tauri.conf.json` was deleted, and the old `y = 16` acceptance assertion now checks the self-drawn geometry plus the fact that the system buttons are hidden, instead of asserting a value nothing renders.
+
+**Trade-off:** self-drawing loses AppKit's button context menu, the green button's full-screen gesture, and the automatic grey-out when the window loses focus. The green button now calls `toggle_maximize`. Neither reference app implements the grey-out, so neither does this version.
+
+All three check suites pass: `check:ui` 374/374, `check:acceptance` 88/88, `check:contrast` 66/66. See `docs/UI-SPEC.md` §13.5.
+
+### 2.2.1 addendum — structural UI completion (2026-11-11, spec v3.8.0)
+
+**This pass fixed "was it drawn at all", not "does it look nice".** A new static assertion in `check:ui` (2.8) requires every BEM class name used by a component to have a corresponding CSS rule. It reported **62 silent gaps** at once: those elements were fully functional (values could be changed and submitted), they were simply rendered with browser defaults. The previous 369/369 all-green run could not catch any of them, because the three check suites only verify token definitions, spacing grid, and contrast — never whether a component's class name actually landed in a stylesheet.
+
+Handled in three groups rather than writing a rule for every name:
+
+1. **47 received real styles**: composer attach / spacer / stop / empty model menu; drawer and inspector close buttons, empty state, bipolar gauge, footer; settings close, skeleton, failure state, change bar; module-layer field header, metadata, advanced toggle, section count; raw-layer kind column, jump link, pager; scene-layer card, list, header, preview, metadata; preference warning / error / link; shortcut sheet; day separator; "replying" dots.
+2. **8 were registered in an exception table with reasons**: 7 *companion classes* (`pref__switch*`, `scene__switch-knob`, `scene__segment`, `scene__range`, `field__segment`) already carry a `control-*` class from `base.css` that supplies the complete visual; `module__body` is managed by a parent descendant selector. **No empty rule was written just to satisfy the assertion** — a rule containing only a comment would degrade the check into "does this string exist".
+3. **2 were spacing violations introduced by the new styles**: one snapped to 8px; one is the 76px traffic-light offset in the preferences window, registered in the `GEOMETRY` allowlist (same `12 + 52 + 12` origin as the main window).
+
+**Four "rule exists but nothing is drawn" defects surfaced along the way**, more serious than a missing class name:
+
+- The three inspector gauges drew **not a single pixel**: the track had no `flex: 1` inside a flex row and its only child was absolutely positioned, so track width collapsed to 0; the fill also had no width; and `.inspector__fill[data-bipolar]` was dead — the component only ever emits a `--bipolar` class.
+- The 13 scene-layer items had no card boundary at all: the stylesheet called it `.scene`, the TSX had long since moved to `.scene__item`.
+- The two day-separator rules did not exist, leaving a bare 16px black line of text.
+- The three "replying" dots were zero-sized inline elements, so users saw an empty message.
+
+**Adding styles introduced a regression, caught by self-review**: after the three layer containers became column flexboxes, the existing `flex: 1` on `.settings__search` started acting on the vertical axis and compressed the 28px input to 17px. Changing it to `flex: none; width: 100%` restored 28px / 360px on re-measurement. This is why the pass ended with real browser `getBoundingClientRect` measurements (track 278.2x3, bipolar fill 83.5, day rule 135x0.5, dot 4x4, card 360x70.4) instead of relying on "looks right".
+
+**Verification**: after `build:web`, `check:ui` **374/374**, `check:acceptance` **88/88**, `check:contrast` **66/66**, zero failures; 132 tokens, 0 undefined. Spec updated to `docs/UI-SPEC.md` v3.8.0 (new §13.4, §14 steps 7 and 8 completed).
+
 ### 2.2.1 addendum (2026-11-10)
 
 **A conformance pass against the established 820x580 / 410x290 / three-column 56-flex-56 spec, plus a detail cleanup.** The spec was already fully in place (window size in `tauri.conf.json`, installer size in `installer.nsi`, the three columns in `layout.css` and `tokens.css`, the morphicons engine in `Icon.tsx`, the MiSans embedding in the `@font-face` rule of `tokens.css`). No skeleton was rebuilt; only verifiable drift was fixed:
@@ -2007,6 +2072,7 @@ The bar is simple: **once any row above has been walked through manually on its 
 5. **Documentation wording.** Item 10 of chapter 15 called the 410x290 custom template "planned" when it is already implemented; it now reads "implemented, awaiting a real-machine check".
 6. **Compliance notice back to facts.** Section 6 of NOTICE and chapter 20 claimed that no font file is bundled or distributed and that the interface uses only system fonts, which directly contradicted the 8.8 MB MiSans file shipped with the build. They now register the font name, copyright holder, grant terms, subset ranges and disclosure file; the stale `2.0.1` in the NOTICE header and footer is brought to `2.2.1`.
 7. **Press states completed.** The "jump to latest" pill had only a resting state, so hovering it gave no feedback and it read as a static label. The right spine, composer tool buttons and message actions also lacked `:active`. All four now have hover / active tiers built only from the existing `--ui-bg-hover` / `--ui-bg-active` tokens, with no change to sizes or `transform` — the pill's `translateX(-50%)` does the centring and moving it would make the button jump sideways.
+8. **Mark and type detail cleanup.** The `line` variant of `Mark` drew a `--ui-action` outline around the logo (`#203a85`, nearly black, in light mode), reducing the glyph to a filling inside a box — its own comment already called the result "a checkbox rather than a mark". `line` now draws only the glyph with no plate, while `tile` keeps the dark-blue seal. The landing page logo drops the dark theme's heavy `rgba(0,0,0,.5/.6)` shadow and inverts into the `#000` background instead, so both themes show only the glyph. In Preferences, `.pref__brand-slogan` never matched the CSS `.pref__brand-verse`, so the slogan rendered as bare 16px text and outranked the 15px product name; the class is now aligned, the name is 20px and the slogan 12px, and the empty-state English name moves from 11px / 0.2em to 12px / 0.12em. Composer row padding is symmetric at 12px left and right, while the textarea's top padding goes 4→8px and bottom 4→0 — the vertical total is unchanged, so the 76px card height and its assertion stay intact, but the placeholder moves from 8.5px to 12.5px below the top border and no longer crowds the line. Session badges go from 1px to 3px vertical padding. All four rail icons now share an explicit 20×20 SVG box, the "48px column" comment is corrected to 56px, and the three tray icon sizes were regenerated and byte-compared against the `icon.svg` source.
 
 The design spec, audience and brand tone are also recorded in a root `.impeccable.md` as design context for later UI work.
 

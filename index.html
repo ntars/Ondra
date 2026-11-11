@@ -78,7 +78,13 @@
   .hero { padding: 72px 0 44px; text-align: center; }
   .mark {
     display: block; width: 84px; height: 84px; margin: 0 auto 26px;
-    border-radius: 19px; box-shadow: var(--shadow-lg);
+    border-radius: 19px;
+  }
+  /* 深色下把白底黑鱼反相成黑底白鱼：底板融进 #000 背景，只剩图形。
+     深色版 --shadow-lg 是 rgba(0,0,0,.5/.6) 的浓黑投影，会在 logo 四周
+     糊出一圈黑边；扁平语言里不该给标志加阴影或描边。 */
+  @media (prefers-color-scheme: dark) {
+    .mark { filter: invert(1); }
   }
   .eyebrow {
     font-size: 12px; letter-spacing: .08em; text-transform: uppercase;

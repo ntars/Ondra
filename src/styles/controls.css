@@ -9,7 +9,7 @@
 .field__key {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 0.6875rem;
   color: var(--ui-ink-2);
@@ -20,7 +20,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 5px;
+  margin-top: 4px;
 }
 
 .field__range {
@@ -48,7 +48,7 @@
 .field__json {
   width: 100%;
   min-height: 28px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-field);
   border: var(--rule) solid var(--ui-line-soft);
@@ -83,7 +83,12 @@
 .field__json:focus,
 .field__select:focus,
 .field__number:focus {
-  border-color: var(--jade-200);
+  /*
+   * 焦点边界走 --ui-focus（图形 3:1 判据），不走 --ui-action（文字 4.5 判据）。
+   * 原来这里写的是原始色名（当时的 `--jade-200`，现在是 `--accent-200`），
+   * 越层，且对凹面只有 1.43。
+   */
+  border-color: var(--ui-focus);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
@@ -110,7 +115,7 @@
   display: inline-flex;
   align-items: center;
   height: 20px;
-  padding: 0 6px;
+  padding: 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
   color: var(--ui-ink-4);

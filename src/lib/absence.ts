@@ -59,14 +59,14 @@ export function absenceText(ms: number): string {
   const minutes = Math.floor(ms / 60_000)
   // 不足一分钟不该走到这里（调用方已按 10 分钟阈值拦过），
   // 但兜一句总比返回「你离开了 0 分钟」好。
-  if (minutes < 1) return '你离开了一小会儿'
-  if (minutes < 60) return `你离开了 ${String(minutes)} 分钟`
+  if (minutes < 1) return '离开片刻'
+  if (minutes < 60) return `离开 ${String(minutes)} 分钟`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) {
     const rest = minutes % 60
     return rest === 0
-      ? `你离开了 ${String(hours)} 小时`
-      : `你离开了 ${String(hours)} 小时 ${String(rest)} 分`
+      ? `离开 ${String(hours)} 小时`
+      : `离开 ${String(hours)} 小时 ${String(rest)} 分`
   }
   const days = Math.floor(hours / 24)
   return `你离开了 ${String(days)} 天`

@@ -567,6 +567,75 @@ function serve(settings, plugins) {
       return json(response, { ok: true, restartRequired: true })
     }
 
+    /*
+     * --- 四条诊断（设置里的声音四张卡） ------------------------------
+     *
+     * ## 为什么这四条必须显式桩，不能靠兜底
+     *
+     * 兜底是 `{ ok: true }`——一个**形状对、内容空**的对象。四个卡都会把它
+     * 当成「读到了状态」：`voice.engine` 是 undefined，于是界面上出现
+     * 「她说完的话会念出来（undefined）」；`state.note` 也是 undefined，
+     * 于是 `note === ''` 不成立，渲染出一个**空的带边框说明块**。
+     *
+     * 两处都是真缺陷（组件不设防），但它们是靠这条兜底才显形的：不桩就是
+     * 拿一个宿主永远不会返回的形状去验界面。所以这里按真实回执补齐字段，
+     * 让测试验的是线上真正会发生的那种渲染。
+     */
+    if (path === '/api/diagnostics/voice') {
+      return json(response, {
+        ttsLoaded: true, gateLoaded: true, enabled: true, ttsAvailable: true,
+        engine: 'macos-say', gateAvailable: true, note: '',
+        gateStats: {
+          decisions: 12, spoken: 7, blocked: { 'too-short': 3, cooldown: 2 },
+          streak: 0, lastSpokenAt: now - 4000,
+        },
+        ttsStats: { calls: 7, ok: 7, failures: 0, played: 7, cacheFiles: 6 },
+      })
+    }
+    if (path === '/api/diagnostics/oral') {
+      return json(response, {
+        loaded: true, enabled: true, available: true, expressReady: true, note: '',
+        stats: {
+          turns: 9, messages: 14, habits: 3, incompletes: 2, particles: 5,
+          puncts: 11, skipped: 2, pools: 6, sessions: 1, expressErrors: 0,
+        },
+      })
+    }
+    if (path === '/api/diagnostics/rhythm') {
+      return json(response, {
+        loaded: { rhythm: true, typing: true, breath: true },
+        available: { rhythm: true, typing: true, breath: true },
+        disabled: [], note: '',
+        rhythm: {
+          turns: 9, messages: 21, cappedTurns: 0, overflowTurns: 0, longPauses: 4,
+          selfCorrections: 1, avgMessages: 2.3, avgChars: 34,
+        },
+        typing: {
+          runs: 9, sent: 21, aborted: 0, superseded: 1, degraded: 0, failed: 0,
+          active: 0, avgElapsedMs: 2400,
+        },
+        breath: {
+          stats: { takes: 3, deniedQuota: 1, deniedDuplicate: 0, presences: 3 },
+          quota: {
+            used: 3, cap: 6, remaining: 3,
+            actions: [{ id: 'rain', text: '说一句「雨停了」', used: 1 }],
+          },
+        },
+        host: { holds: 9, lastHoldMs: 40, lastPieces: 2, skipped: 0 },
+      })
+    }
+    if (path === '/api/diagnostics/filter') {
+      return json(response, {
+        loaded: true, enabled: true, available: true, note: '',
+        pending: ['去重合并', '章节标题重排'],
+        stats: {
+          runs: 9, lastRemoved: 2, lastNeedsRegenerate: false, reviews: 9,
+          steers: 1, roundLimited: 0,
+          sources: { persona: true, stage: true, express: true, gateway: true },
+        },
+      })
+    }
+
     if (path.startsWith('/api/')) return json(response, { ok: true })
     const file = join(ROOT, normalize(path === '/' ? 'index.html' : path).replace(/^(\.\.[/\\])+/, ''))
     if (!file.startsWith(ROOT) || !existsSync(file)) { response.writeHead(404).end('not found'); return }
@@ -889,6 +958,257 @@ async function checkStaticSpecs() {
     problems.push('base.css 的 :focus-visible 没有读 --focus-ring-width，焦点环不受令牌控制')
   }
 
+  /*
+   * --- 2.5 启动骨架必须真的排成三栏 ---
+   *
+   * ## 守的是一个真实发生过的 bug
+   *
+   * `.skeleton` 曾经**只有 `background` 与 `border-radius`，没有任何布局
+   * 规则**，而 `App.tsx` 的启动态是它包三个裸 `div`。三个 div 高度都是 0，
+   * 容器自己被网格撑满整块工作区，把 `--ui-bg-sunken` 整片画出来——深色下
+   * 是整窗一块紫板，浅色下是整窗一块灰蓝。
+   *
+   * 它没被任何断言发现，因为主流程只测"进入主界面之后"的状态。启动态一旦
+   * 塌掉，用户看到的第一屏就是错的，而这恰恰是**最容易被漏掉、也最伤第一
+   * 印象**的一屏。
+   *
+   * 判据取三条，都是结构性的、不依赖具体像素：
+   *   1. `.skeleton` 必须有 `display: grid`（否则三个子块不会并排）；
+   *   2. 网格模板必须含 `var(--w-rail)` 与 `var(--w-spine)`（与真实两栏同宽，
+   *      这样骨架和主界面不会在切换时"跳一下"）；
+   *   3. 必须给 `.skeleton > div` 设过背景（否则子块是透明的，等于没画）。
+   */
+  const layout = await read(join(root, 'styles/layout.css'))
+  const skeletonRule = /\.skeleton\s*\{([^}]*)\}/.exec(layout)?.[1] ?? ''
+  if (!/display:\s*grid/.test(skeletonRule)) {
+    problems.push('.skeleton 没有 display: grid——三个骨架块会塌成 0 高，容器自己铺满整块工作区')
+  }
+  if (!/var\(--w-rail\)/.test(skeletonRule) || !/var\(--w-spine\)/.test(skeletonRule)) {
+    problems.push('.skeleton 的网格没有对齐 --w-rail / --w-spine，启动态与主界面切换时会跳一下')
+  }
+  if (!/\.skeleton\s*>\s*div\s*\{[^}]*background:/.test(layout)) {
+    problems.push('.skeleton > div 没设背景——三个骨架块是透明的，等于没画')
+  }
+
+  /*
+   * --- 2.6 圆角只许走令牌，且四档必须是 4 / 8 / 8 / 12 ---
+   *
+   * ## 为什么这条要看源码而不是看渲染
+   *
+   * 圆角在渲染期只有一个 computed 值，`check:ui` 里那几十条 `border-radius`
+   * 断言全是**逐元素抽查**：确认框是 `--r-lg`、模型项是 `--r-xs`……每加一个
+   * 元素就得补一条。这挡不住"某个新写的组件直接敲 `border-radius: 8px`"——
+   * 它渲染出来是对的，看起来也是对的，直到哪天规格改成 12 才发现它没跟着动。
+   *
+   * 所以这里直接从源码扫：组件样式里凡出现**纯数字**圆角都算违规，
+   * 只有三种例外——`0`、`50%`（正圆）、`inherit`（子元素继承父级圆角）。
+   * 本轮就靠它找出 4 处漏网的硬编码（键帽、行内代码、代码块、水位轨道）。
+   *
+   * 另一半是验四档的**具体数值**。规格 §11.2 写死 4 / 8 / 12，而
+   * `--r-md` 与 `--r-sm` 同值是刻意设计（卡片与控件两个语义名共档），
+   * 所以这里比的是四档的完整映射，不是"四档互不相同"。
+   */
+  const tokenText = stripTokens
+  const radiusMap = {}
+  for (const [, name, value] of tokenText.matchAll(/(--r-[a-z]+)\s*:\s*([^;]+);/g)) {
+    radiusMap[name] = value.trim()
+  }
+  const wantRadius = { '--r-xs': '4px', '--r-sm': '8px', '--r-md': '8px', '--r-lg': '12px' }
+  for (const [name, want] of Object.entries(wantRadius)) {
+    const got = radiusMap[name]
+    if (got === undefined) problems.push(`tokens.css 缺圆角令牌 ${name}（§11.2 要求 ${want}）`)
+    else if (got !== want) problems.push(`${name} 是 ${got}，§11.2 要求 ${want}`)
+  }
+
+  for (const file of files) {
+    if (file.endsWith('/tokens.css')) continue
+    const text = await read(file)
+    for (const match of text.matchAll(/border-radius:\s*([^;]+);/g)) {
+      const value = match[1].trim()
+      if (/var\(--(r|radius)-/.test(value)) continue
+      if (value === '0' || value === '50%' || value === 'inherit') continue
+      // 四值简写里可能有 `var(...) 0 var(...) 0`，逐个分量看。
+      const parts = value.split(/\s+/)
+      const bad = parts.filter((p) => p !== '0' && p !== '50%' && p !== 'inherit' && !/var\(--(r|radius)-/.test(p))
+      if (bad.length > 0) {
+        problems.push(`${short(file)} 硬编码圆角 ${value}——圆角只许走 --r-xs/sm/md/lg（0 / 50% / inherit 除外）`)
+      }
+    }
+  }
+
+  /*
+   * --- 2.7 间距只许落在八级栅格上，三档发丝值豁免 ---
+   *
+   * §11.1 的八级是 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64。本轮实测有 **161 处**
+   * 不在栅格上（10px 占 42 处、6px 26 处、14px 22 处），而 §13.3 早已把它
+   * 写成验收项——**没有任何脚本在验它**，于是验收项变成了一句愿望。
+   *
+   * ## 三档发丝值为什么必须豁免
+   *
+   * `1px`：`.sess__grid` 用 `gap: 1px` 露出底色当分隔线，改成 0 线就没了，
+   *        改成 4 会裂成一条沟。它不是留白，是**用间隙画的线**。
+   * `2px`：分段控件 `.control-segments` 的 `padding: 2px` 必须比轨道间隙
+   *        (`gap: 2px`) 一致，两者都是"衬垫"而非"留白"。
+   * `3px`：20px 高以下小标签的呼吸量。3 与 4 在这个尺寸读不出差别，
+   *        但 4 会把 `.sess__badge` 顶成 26 高。
+   *
+   * 换句话说：**八级管布局留白，这九档管发丝结构**。硬把发丝吸附会让
+   * 分隔线消失、衬垫错位，这比"没落在栅格上"严重得多。
+   *
+   * ## 一处几何值也豁免
+   *
+   * `layout.css` 的 `padding-left: 84px` 是红绿灯让位：20 + 52 + 12，
+   * 算式与理由写在规则里。它由红绿灯组的宽度推出来，不是人为选定的
+   * 留白量，改小会把标题压到圆点上。上一版是 76（12 + 52 + 12），
+   * 圆点离边缘从 12 挪到 20 之后跟着变成 84。
+   *
+   * 白名单里只留这一条。设置改为浮层之后，那片界面不再有自己的标题栏，
+   * 也就没有第二处需要为红绿灯让位——旧记录已随那个窗口一起删掉，
+   * 不留在表里当一条永远命不中的记录。
+   *
+   * 这类值挂在 `GEOMETRY` 白名单里，且要求同一行附近有注释说明来历——
+   * 白名单不是为了绕过检查，是为了让"为什么它特殊"留在代码里。
+   */
+  const GRID8 = new Set([0, 4, 8, 12, 16, 24, 32, 48, 64])
+  const HAIRLINE = new Set(['1px', '2px', '3px'])
+  const GEOMETRY = new Set([
+    'styles/layout.css:padding-left:84px',
+  ])
+  const SPACING = /(?:^|[;{\s])((?:padding|margin|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left))?)\s*:\s*([^;}]+);/g
+
+  for (const file of files) {
+    if (file.endsWith('/tokens.css')) continue
+    const text = await read(file)
+    for (const match of text.matchAll(SPACING)) {
+      const [, prop, rawValue] = match
+      for (const token of rawValue.trim().split(/\s+/)) {
+        if (!/^\d+px$/.test(token)) continue
+        if (HAIRLINE.has(token)) continue
+        if (GRID8.has(Number(token.slice(0, -2)))) continue
+        if (GEOMETRY.has(`${short(file)}:${prop}:${token}`)) continue
+        problems.push(
+          `${short(file)} 的 ${prop}: ${token} 不在八级栅格上`
+          + `（§11.1；发丝 1/2/3px 与几何推算值除外，后者请加进 GEOMETRY 并注明来历）`,
+        )
+      }
+    }
+  }
+
+  /*
+   * --- 2.8 组件里用到的 BEM 类名，样式表必须有对应规则 ---
+   *
+   * ## 守的是一个已经发生的静默缺失
+   *
+   * `ModuleLayer.tsx` 早就渲染了 `data-inactive` 与 `.module__off`，但样式表
+   * 里**一条规则都没有**。于是「插件已停用，改了不生效」以裸文字出现，与正常
+   * 提示毫无区别；`data-inactive` 也没有任何视觉效果——**停用的插件看起来
+   * 完全能调**，正是 §6.7 点名要防的那类缺陷。
+   *
+   * 它逃过所有检查的原因很朴素：断言验的是"该出现的东西出现了"，而这里
+   * 缺的是"样式规则"，界面上既有文字也在正确位置，肉眼完全不觉得缺什么。
+   *
+   * ## 判据只取 `block__element` 与 `block__element-modifier` 两类
+   *
+   * 纯 form 类名（`.button`、`.field`）常由多层组合复用，且很多元素只用基础类
+   * 不写自有规则（例如 `.module` 只是一个容器 div，靠子元素排版），强行要求
+   * 每个类都有规则会产生大量误报。**双下划线是"我自定义了这个部件"的强信号**，
+   * 拿它当判据误报率为零，命中率足够。
+   *
+   * 例外表 `CLASS_OK` 收三类：① 只作为标记位给 JS 读、本来就不需要样式的；
+   * ② 由别的文件统一定义、但类名前缀不属于该文件的；③ **搭档类**——
+   * 同一个元素上同时挂了 `control-*` 通用控件类，视觉由 `base.css` 完整
+   * 提供，BEM 名只是"这是哪个页面的哪个控件"的语义标记。
+   *
+   * 第 ③ 类最容易出错：为让这条断言变绿而给它们写一个只有注释、
+   * 没有声明的空规则，是**自欺**——断言从"有没有样式"退化成
+   * "有没有这个字符串"。所以宁可把类名列在这里、写明理由，
+   * 也不在样式表里留占位。
+   */
+  const CLASS_OK = new Set([
+    // `data-*` 之外纯做语义标记、样式由父级后代选择器统一给的
+    'module__body', // 由 `.module[data-inactive] .module__body` 统一管，不单独定义
+
+    // 搭档类：元素上同时有 `control-*`，视觉由 base.css 完整提供。
+    // 逐个核对过组件源码，确认不是"漏写样式"而是"本来就不需要"。
+    'pref__switch', // 挂 `control-switch`（Preferences / FilterCard / 三张卡片共 5 处）
+    'pref__switch--voice', // 修饰位，无独立视觉；选中态由 `[aria-checked]` 管
+    'pref__switch-knob', // 挂 `control-switch-knob`，含位移 16px 的过渡
+    'scene__switch-knob', // 同上，SceneLayer 的布尔项
+    'scene__segment', // 挂 `control-segment`（轨道底 + 选中态）
+    'scene__range', // 挂 `control-range`（轨道渐变 + 拇指 + 填充比例）
+    'field__segment', // 挂 `control-segment`，ModuleLayer 枚举 ≤4 项
+  ])
+
+  const cssClassSet = new Set()
+  for (const file of files) {
+    /*
+     * 类名里**允许连字符**：`composer__attachment-name` 是一段名字，
+     * 第一版写成 `[a-z0-9]+` 会在 `attachment` 处断掉，于是把已经存在的
+     * 规则全判成"缺失"——一个只会误报的正则比没有检查更糟。
+     */
+    for (const m of (await read(file)).matchAll(/\.([a-z][a-z0-9-]*(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)/g)) {
+      cssClassSet.add(m[1])
+    }
+  }
+
+  const tsxRoot = new URL('../src/components/', import.meta.url).pathname
+  const { readdir: readdirC } = await import('node:fs/promises')
+  const components = (await readdirC(tsxRoot)).filter((n) => n.endsWith('.tsx'))
+  const missing = new Map()
+  for (const name of components) {
+    const src = await readFile(join(tsxRoot, name), 'utf8')
+    /*
+     * 只在 `className=` 的右侧取类名，两种写法：
+     *   ① `className="a b"` —— 直接取字面量
+     *   ② `className={ ... }` —— 取花括号内所有引号字面量（三元两支都算）
+     *
+     * 上一版在**整个文件**里扫引号，把 `data-*`、`aria-label`、组件 prop
+     * 里的字符串也当成类名，于是 `composer__attach`（三元截断）和
+     * `composer__attachment--image`（`--image` 后缀其实由 `attachment` +
+     * `data-image` 表达）都被误报。误报比漏报更伤——它会让人开始怀疑整条断言。
+     */
+    const chunks = []
+    for (const m of src.matchAll(/className=(?:"([^"]*)"|\{)/g)) {
+      if (m[1] !== undefined) {
+        chunks.push(m[1])
+        continue
+      }
+      /*
+       * `className={ ... }` 的花括号要**配平**之后再取，不能用非贪婪
+       * `[\s\S]*?\}`：三元里出现 `}`（例如对象字面量或嵌套插值）时会提前
+       * 截断，把 `composer__attachment--image` 截成 `composer__attach`。
+       * 一个永远报着不存在类名的断言，会让人开始不信所有断言。
+       */
+      const open = m.index + m[0].length - 1
+      let depth = 0
+      let end = open
+      for (let i = open; i < src.length; i += 1) {
+        if (src[i] === '{') depth += 1
+        else if (src[i] === '}') {
+          depth -= 1
+          if (depth === 0) { end = i; break }
+        }
+      }
+      const inner = src.slice(open + 1, end)
+      for (const lit of inner.matchAll(/'([^']*)'|"([^"]*)"|`([^`$]*)`/g)) {
+        chunks.push(lit[1] ?? lit[2] ?? lit[3] ?? '')
+      }
+    }
+    for (const raw of chunks) {
+      for (const token of raw.split(/\s+/)) {
+        if (!/^[a-z][a-z0-9-]*__[a-z0-9-]+(?:--[a-z0-9-]+)?$/.test(token)) continue
+        if (cssClassSet.has(token) || CLASS_OK.has(token)) continue
+        if (!missing.has(token)) missing.set(token, name)
+      }
+    }
+  }
+  for (const [token, where] of missing) {
+    problems.push(
+      `${where} 用了 .${token}，但样式表里没有这条规则`
+      + `（组件用了类名却没写样式，元素会以浏览器默认样式出现；确认后加进 CLASS_OK 并写明理由）`,
+    )
+  }
+
   // --- 3. 字号单位与基准 ---
   for (const file of files) {
     const text = await read(file)
@@ -1003,6 +1323,133 @@ async function checkTrayAssets() {
   return problems.length === 0
 }
 
+/**
+ * 内衬探针：找「文字贴在有边界容器的边上」的地方。
+ *
+ * ## 为什么要有它
+ *
+ * 「输入框里的字贴着边框」是一条肉眼缺陷，但它的成因是**一个** CSS 值写错，
+ * 而全项目有几百个容器。靠人逐个读样式表去找，找到的永远是"这次注意到的
+ * 那一个"。这里反过来做：把「有边界的盒子」和「盒子里的第一个字」的几何
+ * 关系量出来，凡是文字离边小于 6px 的，都当成嫌疑报出来。
+ *
+ * ## 判据为什么是 6px
+ *
+ * 八级栅格里最小的呼吸是 4px（发丝级），它给的是「两个元素之间」而不是
+ * 「文字与线之间」——线是硬的，4px 读起来仍然是贴的。6px 是能看出留白的
+ * 下限，接近 8px 但留 2px 给行盒自带的行距。实际用在卡片上的值都是 8 或 12。
+ *
+ * ## 它不判什么
+ *
+ * 不管对齐（那是 `对齐` 那一节的事），也不管命中区尺寸。只回答一句：
+ * 这个盒子里的字，离盒子的线有多远。
+ */
+const INSET_PROBE = `(() => {
+  const insets = []
+  const skip = new Set(['SCRIPT', 'STYLE', 'SVG', 'HTML', 'BODY'])
+  const label = (node) => {
+    const id = node.id === '' ? '' : '#' + node.id
+    const cls = [...node.classList].slice(0, 2).map((name) => '.' + name).join('')
+    return node.tagName.toLowerCase() + id + cls
+  }
+  const alphaOf = (color) => {
+    const rgba = /^rgba?\\(([^)]*)\\)$/.exec(color)
+    if (rgba === null) return color === 'transparent' ? 0 : 1
+    const parts = rgba[1].split(/[,/]/).map((part) => part.trim())
+    return parts.length < 4 ? 1 : parseFloat(parts[3])
+  }
+  for (const node of document.querySelectorAll('body *')) {
+    if (skip.has(node.tagName)) continue
+    const style = getComputedStyle(node)
+    if (style.display === 'none' || style.visibility === 'hidden') continue
+    const border = Math.min(
+      parseFloat(style.borderTopWidth) || 0,
+      parseFloat(style.borderLeftWidth) || 0,
+      parseFloat(style.borderBottomWidth) || 0,
+      parseFloat(style.borderRightWidth) || 0,
+    )
+    const edge = border >= 0.4
+    const filled = alphaOf(style.backgroundColor) >= 0.05
+    if (!edge && !filled) continue
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+    let text = walker.nextNode()
+    while (text !== null && (text.textContent ?? '').trim() === '') text = walker.nextNode()
+    if (text === null) continue
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const rect = range.getBoundingClientRect()
+    if (rect.width < 1 || rect.height < 1) continue
+    const box = node.getBoundingClientRect()
+    insets.push({
+      sel: label(node),
+      edge,
+      left: Math.round(rect.left - box.left),
+      top: Math.round(rect.top - box.top),
+      right: Math.round(box.right - rect.right),
+      bottom: Math.round(box.bottom - rect.bottom),
+    })
+  }
+  return insets
+})()`
+
+/**
+ * 屏幕上不该出现的字：`undefined` / `NaN` / `[object Object]` / 没渲染的 `**`。
+ *
+ * ## 为什么值得单列一条
+ *
+ * 这四种字都是**同一个根因**的不同长相：某个值从 JSON 里来、到手是
+ * `undefined`，而组件把它当字符串拼进了模板字面量。它们在类型系统里
+ * 通通过得去（`string` 类型的字段在运行时可以是任何东西），却让人一眼
+ * 看出「这软件没做完」。
+ *
+ * 第四种（`**`）是另一半：JSX 里的字面量不会走 Markdown 渲染，
+ * 写 `**当前这一段会被归档**` 就真的印两个星号出来。
+ *
+ * 判据只看**叶子节点的可见文本**：父节点的 `textContent` 会把整棵树拼起来，
+ * 一旦命中永远命中，说不清是谁的错。
+ */
+const TEXT_LEAK_PROBE = `(() => {
+  const bad = []
+  for (const node of document.querySelectorAll('body *')) {
+    if (node.children.length > 0) continue
+    const tag = node.tagName
+    if (tag === 'SCRIPT' || tag === 'STYLE') continue
+    const text = (node.textContent ?? '').trim()
+    if (text === '') continue
+    if (/undefined|NaN|\\[object Object\\]|\\*\\*/.test(text)) bad.push(text.slice(0, 32))
+  }
+  return bad
+})()`
+
+/** 扫一次，返回漏出来的字。 */
+async function textLeaks(page) {
+  return await page.evaluate(TEXT_LEAK_PROBE)
+}
+
+/**
+ * 豁免名单：确实是「贴着边」但**故意**如此的几处。
+ *
+ * 三条都是 15px 上下的小标签，垫一大圈内距会让它们变成胶囊，反而与
+ * 周围的密度不符。写在这里而不是放宽判据，是为了让「还有哪些地方是贴的」
+ * 始终是一份可以数出来的短名单——名单一长，就该回头改设计了。
+ */
+const INSET_EXEMPT = new Set(['span.titlebar__version', 'code.md__code', 'span.ext__tag'])
+
+/**
+ * 跑一次探针，返回「文字贴边」的嫌疑清单（已去掉豁免项）。
+ *
+ * 返回成 `选择器(左/上/右/下)` 的字符串，失败时一眼能看出是哪条边、差多少。
+ * 负值一律跳过：那说明文字溢出了容器（另一类缺陷，`无横向滚动` 那些断言管）。
+ */
+async function insetViolations(page) {
+  const rows = await page.evaluate(INSET_PROBE)
+  return rows
+    .filter((row) => row.left >= 0 && row.right >= 0 && row.top >= 0 && row.bottom >= 0)
+    .filter((row) => row.left < 6 || row.right < 6 || row.top < 3 || row.bottom < 3)
+    .filter((row) => !INSET_EXEMPT.has(row.sel))
+    .map((row) => `${row.sel}(${String(row.left)}/${String(row.top)}/${String(row.right)}/${String(row.bottom)})`)
+}
+
 /** 量一组尺寸与交互。 */
 async function run() {
   const { chromium } = loadPlaywright()
@@ -1085,6 +1532,8 @@ async function run() {
   await page.locator('.composer__input').waitFor()
   await page.waitForTimeout(600)
   await page.screenshot({ path: join(OUT, 'empty-v5.png') })
+
+  same('主界面里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(page)))
 
   /*
    * --- 14b. 空态「从哪儿说起都行」真的居中（§12.5）---
@@ -1174,12 +1623,12 @@ async function run() {
   /*
    * --- 16. `Tab` 从标题栏开始（§9.6）---
    *
-   * 「从标题栏开始」在 macOS 上没有可聚焦元素（红绿灯是系统绘制的，
-   * 不参与 DOM 的 Tab 顺序），所以第一个停靠点是 Rail 的第一项。
-   * Windows 上有菜单按钮与三键，那时第一个停靠点应该在标题栏里。
+   * 红绿灯改成自绘 `<button>` 之后，macOS 的标题栏里也有了可聚焦元素，
+   * 第一个停靠点变成红绿灯的关闭键——仍然落在标题栏，符合「从顶部开始」。
+   * Windows 上是菜单按钮与三键，第一个停靠点同样在标题栏里。
    *
-   * 两种都合法，断言按平台分岔：**只要不是输入框、且不属于主列正文**，
-   * 就算从「顶部」开始。
+   * 早期注释写「macOS 没有可聚焦元素」，那是系统绘制红绿灯时代的事。
+   * 现在两平台一致，判据保留「不是输入框、且不属于主列正文」这条口径。
    */
   await page.keyboard.press('Tab')
   await page.waitForTimeout(200)
@@ -1214,6 +1663,9 @@ async function run() {
   const shownMessages = await page.evaluate(() => document.querySelectorAll('.message').length)
   truthy(`启动即载入这一段对话（${String(shownMessages)} 条消息）`, shownMessages >= 2)
   await page.screenshot({ path: join(OUT, 'session-v5.png') })
+  same('会话里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(page)))
+  same('会话里没有 undefined / NaN / 未渲染的 Markdown 漏出来', '[]', JSON.stringify(await textLeaks(page)))
+  same('会话里没有 undefined / NaN / 未渲染的 Markdown 漏出来', '[]', JSON.stringify(await textLeaks(page)))
 
   /*
    * 局部特写。
@@ -1318,8 +1770,28 @@ async function run() {
         const node = document.querySelector('.composer__card')
         return node === null ? '' : getComputedStyle(node).boxShadow
       })(),
+      prose: (() => {
+        const card = document.querySelector('.composer__card')
+        const input = document.querySelector('.composer__input')
+        const attach = document.querySelector('.composer__attach')
+        const row = document.querySelector('.composer__row')
+        if (card === null || input === null || attach === null) return null
+        const c = card.getBoundingClientRect()
+        const i = input.getBoundingClientRect()
+        const a = attach.getBoundingClientRect()
+        const s = getComputedStyle(input)
+        return {
+          leftGap: Math.round(i.left - c.left),
+          topGap: Math.round(i.top - c.top),
+          padLeft: s.paddingLeft,
+          padTop: s.paddingTop,
+          attachGap: Math.round(a.left - c.left),
+          rowTop: row === null ? 0 : Math.round(row.getBoundingClientRect().top - c.top),
+        }
+      })(),
     }
   })
+
 
   eq('标题栏高 44', 44, result.titlebar?.h)
   eq('Rail 宽 56', 56, result.rail?.w)
@@ -1342,6 +1814,28 @@ async function run() {
   eq('输入卡高 76', 76, result.card?.h)
   eq('输入卡上沿 y=492', 492, result.card?.y)
   same('输入框行高 20px', '20px', result.textareaLineHeight)
+  /*
+   * --- 输入框里的字离边框多远（用户报的第 4 条）---
+   *
+   * ## 为什么这三条要单独量
+   *
+   * 「文字贴着边框」不是配色问题，也不是尺寸问题，而是**内距少了一个方向**：
+   * textarea 自己的 `padding-left` 就是文字与卡片左内缘之间唯一的距离，
+   * 写成 0 的时候，占位符直接从边框上起笔——而它下面那行加号离边框有 12px。
+   * 上下两行文字起点差 12px，在一条 560 宽的卡里像没对齐，又说不出哪里错。
+   *
+   * 断言写成「文字起点 == 加号键起点」而不是「padding-left 是 12px」：
+   * 前者是观感，后者是实现。将来若把工具行的内距改成 16，这条会跟着红，
+   * 提醒两处要一起改——那正是需要被提醒的时刻。
+   */
+  same('输入框的左内距是 12px', '12px', result.prose?.padLeft)
+  eq(
+    '占位文字的起点与加号键的起点对齐',
+    result.prose?.attachGap,
+    (result.prose?.leftGap ?? 0) + 12,
+    1,
+  )
+  eq('输入框的上内距是 8px（文字离上边框 8 + 3 = 11px）', 8, Number.parseInt(result.prose?.padTop ?? '0', 10), 0)
   eq('无横向滚动', 820, result.docWidth)
   same('空输入时发送键 aria-disabled', 'true', result.sendDisabled)
   same('发送键不用原生 disabled', 'false', String(result.sendNativeDisabled))
@@ -1374,19 +1868,21 @@ async function run() {
    */
   same('输入框自己不画焦点环', 'none', focusRing.inputOutline)
   /*
-   * 焦点描边色 = 主操作色。浅色 `#18181b` → `rgb(24, 24, 27)`。
+   * 焦点描边色 = 强调色。浅色 `#191919` → `rgb(25, 25, 25)`。
    *
    * 这里写死 rgb 而不是读令牌，是因为断言要验的正是「这条规则用的是
-   * 主操作色，而不是某个随手写的颜色」。读令牌会把断言变成同义反复：
+   * 强调色，而不是某个随手写的颜色」。读令牌会把断言变成同义反复：
    * 令牌错了它也跟着错，永远绿。
    *
-   * 代价是换配色时这里必须同步。这条断言已经拦下过四轮配色迁移：
+   * 代价是换配色时这里必须同步。这条断言已经拦下过七轮配色迁移：
    * 蓝 `rgb(37, 99, 235)` → `rgb(24, 24, 27)` → 冷黑 `rgb(11, 13, 17)`
-   * → **本轮回石色 `rgb(24, 24, 27)`**。它确实在起作用，所以照旧写死。
+   * → 石色 `rgb(24, 24, 27)` → 蓝白 `rgb(31, 94, 255)`
+   * → 微信绿 `rgb(6, 128, 63)` → **本轮黑白 `rgb(25, 25, 25)`**。
+   * 它确实在起作用，所以照旧写死。
    */
   truthy(
-    `聚焦时卡片描边转主操作色（${focusRing.cardShadow.slice(0, 60)}）`,
-    /rgba?\(32,\s*58,\s*133[,)]/.test(focusRing.cardShadow),
+    `聚焦时卡片描边转强调色（${focusRing.cardShadow.slice(0, 60)}）`,
+    /rgba?\(25,\s*25,\s*25[,)]/.test(focusRing.cardShadow),
   )
 
   // --- 打字后发送键启用 ---
@@ -1552,9 +2048,9 @@ async function run() {
   })
   truthy('超长时出现对话框', longConfirm.open === true)
   eq('超长提示未走原生 confirm', 0, nativeDialogs)
-  same('超长对话框用 Dialog 组件标题', '这条有点长', longConfirm.title)
+  same('超长对话框用 Dialog 组件标题', '消息篇幅较长', longConfirm.title)
   truthy('超长对话框说明具体字数', longConfirm.body.includes('8001'))
-  truthy('超长对话框有两个明确动词', longConfirm.confirm.length === 2 && longConfirm.confirm[0] === '再改改')
+  truthy('超长对话框有两个明确动词', longConfirm.confirm.length === 2 && longConfirm.confirm[0] === '返回修改')
   eq('超长时草稿保留', 8001, longConfirm.kept)
 
   // 「再改改」只关框，不改草稿。
@@ -1666,16 +2162,20 @@ async function run() {
   same('行内代码字号 12', '12px', rich.inlineFont)
   eq('行内代码左右内边距 4', 4, rich.inlinePadX)
   same('行内代码圆角 4', '4px', rich.inlineRadius)
-  /* 竖条 2 → 3、内边距 12 → 14：统一线色在 2px 下看不见，加粗一档
-   并同步把内边距补上 2，保证文字与竖条之间仍是 11 的光学间隙。 */
+  /* 竖条 2 → 3、内边距 14 → 16：统一线色在 2px 下看不见，加粗一档
+   并同步把内边距补上。内边距本轮随 §11.1 吸附到八级（14 → 16），
+   文字与竖条的光学间隙从 11 变成 13——仍然落在"半行"以内，
+   读起来还是同一段引文。 */
   eq('引用左侧竖条 3', 3, rich.quoteBorder)
-  eq('引用左内边距 14', 14, rich.quotePad)
+  eq('引用左内边距 16', 16, rich.quotePad)
   same('表头字号 12', '12px', rich.headFont)
   same('表格正文字号 13', '13px', rich.cellFont)
   eq('段与段间距 12', 12, rich.gapAbove, 2)
   eq('标题与下文间距 6', 6, rich.gapBelow, 2)
   truthy('列表符号是 ·', rich.bulletContent.includes('·'))
-  eq('列表缩进 20', 20, rich.listPad)
+  /* 列表缩进 20 → 24：`ul` 的 padding-left 本轮随 §11.1 吸附到八级。
+     24 = 12（符号位）+ 12（符号与文字的缝），正好一个 --s-3 的两倍。 */
+  eq('列表缩进 24', 24, rich.listPad)
   same('链接常态无下划线', 'none', rich.linkUnderline)
   truthy('粗体渲染成 strong', rich.strong > 0)
   truthy('正文不残留 Markdown 记号', rich.rawMarks === false)
@@ -1974,7 +2474,10 @@ async function run() {
   truthy('Cmd+/ 打开快捷键总表', sheet.found === true)
   eq('总表列出全部 15 条', 15, sheet.rows)
   truthy('总表键位切成键帽', sheet.keys >= 15)
-  eq('总表贴顶 44', 44, sheet.top)
+  /* 贴顶 44 → 48：`.sheet` 的 padding 本轮随 §11.1 吸附到八级（44 → 48）。
+     48 同时是标题栏高度 (--h-titlebar) 加一个 --s-1，浮层顶端与标题栏
+     下沿对齐，视觉上"从标题栏下面压出来"。 */
+  eq('总表贴顶 48', 48, sheet.top)
   truthy('总表不超出视口', sheet.within === true)
   same('总表不是模态框', 'false', sheet.modal)
   await page.screenshot({ path: join(OUT, 'shortcut-sheet-v6.png') })
@@ -2067,21 +2570,66 @@ async function run() {
   }
 
   /*
-   * 6. 从检查器底部「全部设置」进三层面板（§5.13 第二层）。
+   * 6. 设置只有一个入口：Rail 底部齿轮。
    *
-   * ## 这个入口现在只剩一条路
+   * ## 这一条守的是「不重复」，不是「能打开」
    *
-   * 上一版 `Cmd/Ctrl + ,` 接到这里，而 §5.13 明写那条键开的是**偏好设置
-   * 独立窗口**。改指的后果是：1116 项插件参数只剩这一个入口。
-   * 它若断了，界面上不会报任何错，只是再也进不去——所以必须单独验。
+   * 上一版有两个「设置」按钮：Rail 底部齿轮，与检查器底部「全部设置」。
+   * 设置合并成一个面板之后，后者与齿轮打开的是同一个 `.settings`，只差落在
+   * 哪一页——右侧面板底部再摆一个，用户看到两次同样的动作，还得先猜它们是不是
+   * 同一处。猜错了就会以为「改了这边那边没变」。
+   *
+   * 所以分两步断言：
+   *
+   * 1. 检查器**展开时**，面板内不能有任何「设置」类按钮（数节点，不看截图）；
+   * 2. 齿轮那条必须真能开面板，并落在「外观」页（总入口的约定落页）。
+   *
+   * 第 1 步特意在检查器打开时做：入口没了才叫删掉，而不是被样式藏起来。
    */
   await raiseToast()
   await page.locator('.spine').click()
   await page.waitForTimeout(400)
-  await page.locator('.inspector__all').click()
+  const inspectorSettings = await page.evaluate(() => {
+    const panel = document.querySelector('.inspector')
+    if (panel === null) return { open: false, hits: ['(检查器没打开)'] }
+    const hits = [...panel.querySelectorAll('button, a[href]')]
+      .map((node) => `${(node.textContent ?? '').trim()} ${node.getAttribute('aria-label') ?? ''}`.trim())
+      .filter((label) => label.includes('设置'))
+    return { open: true, hits }
+  })
+  truthy('检查器已展开（下面两条的前提）', inspectorSettings.open)
+  truthy(
+    `检查器内没有第二个设置入口（命中 ${inspectorSettings.hits.length} 个：${inspectorSettings.hits.join(' / ') || '无'}）`,
+    inspectorSettings.hits.length === 0,
+  )
+
+  await page.locator('.rail__item--settings').click()
   await page.waitForTimeout(500)
-  truthy('检查器底部「全部设置」打开三层面板', await page.evaluate(() => document.querySelector('.settings') !== null))
-  truthy('三层面板打开时检查器已收起', await page.evaluate(() => document.querySelector('.inspector') === null))
+  truthy('Rail 齿轮打开设置面板', await page.evaluate(() => document.querySelector('.settings') !== null))
+  truthy('设置面板打开时检查器已收起', await page.evaluate(() => document.querySelector('.inspector') === null))
+  const landingPage = await page.evaluate(
+    () => (document.querySelector('.pref__nav-item[aria-current="page"]')?.textContent ?? '').trim(),
+  )
+  truthy(`齿轮落在「外观」页（实际：${landingPage}）`, landingPage === '外观')
+
+  /*
+   * 6b. 插件参数还进得去（删掉检查器入口后的替代路径）。
+   *
+   * 齿轮落「外观」，所以插件参数现在只能从左侧导航切——这条路径必须验：
+   * 它是 1116 项参数的总入口，断了界面不会报错，只是再也进不去。
+   * 后面几步都在量那一页的控件，也得先把面板切过去。
+   */
+  await page.locator('.pref__nav-item').filter({ hasText: '插件参数' }).click()
+  await page.waitForTimeout(500)
+  const pluginPageTitle = await page.evaluate(
+    () => (document.querySelector('.settings__title')?.textContent ?? '').trim(),
+  )
+  truthy(`左侧导航可切到「插件参数」（实际：${pluginPageTitle}）`, pluginPageTitle === '插件参数')
+
+  /*
+   * 切页会把上一条提示条拖到超时边缘，这里重新触发一次，供后面的层叠断言用。
+   */
+  await raiseToast()
 
   /*
    * 提示条不得与右侧面板相交（§5.10）。
@@ -2099,30 +2647,52 @@ async function run() {
    * 断言用**几何相交**而不是"看截图像不像"：矩形求交是可判定的，
    * 「差 12px 压到边缘」那种情况肉眼看不出来。
    */
+  /*
+   * 提示条与设置面板的关系：不再是「不重叠」，而是「压在它上面」。
+   *
+   * ## 为什么判据变了
+   *
+   * 上一版设置是右侧 360 宽的面板，提示条躲得开——那时「几何不相交」
+   * 是正确判据。现在设置是一张居中的模态纸片，横向铺满可用宽度，
+   * **无论提示条落在哪里都会重叠**。躲不开就不该假装能躲。
+   *
+   * 重叠本身不是问题：用户此刻在看设置，提示条说的是他刚在那个面板里
+   * 做的事（「已存到 …」之类）。真正要保证的是它**盖得住**——
+   * 层级低的提示条会被纸片吞掉，用户永远看不到它。
+   *
+   * 所以这里改判层叠顺序：提示条的 z-index 必须高于面板。
+   */
   const toastGeom = await page.evaluate(() => {
     const body = document.querySelector('.toast__body')
     const panel = document.querySelector('.settings')
-    if (body === null) return { present: false, disjoint: true, text: '', at: '这条没提示条' }
-    if (panel === null) return { present: true, disjoint: true, text: '', at: '这条没面板' }
+    if (body === null) return { present: false, above: false, text: '', at: '这条没提示条' }
+    if (panel === null) return { present: true, above: true, text: '', at: '这条没面板' }
+    const z = (node) => {
+      /* 从提示条往上找第一个有非 auto z-index 的祖先：真正参与层叠的是它。 */
+      let current = node
+      while (current !== null) {
+        const value = Number.parseInt(getComputedStyle(current).zIndex, 10)
+        if (!Number.isNaN(value)) return value
+        current = current.parentElement
+      }
+      return 0
+    }
+    const toastZ = z(body)
+    const panelZ = z(panel)
     const a = body.getBoundingClientRect()
-    const b = panel.getBoundingClientRect()
-    const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left)
-    const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
     return {
       present: true,
-      disjoint: overlapX <= 0 || overlapY <= 0,
+      above: toastZ > panelZ,
       text: (body.querySelector('.toast__text')?.textContent ?? '').trim(),
-      at: `toast x ${String(Math.round(a.left))}–${String(Math.round(a.right))}，面板 x ${String(Math.round(b.left))}–${String(Math.round(b.right))}`,
+      at: `toast z ${String(toastZ)}，面板 z ${String(panelZ)}（toast x ${String(Math.round(a.left))}–${String(Math.round(a.right))}）`,
     }
   })
-  truthy('提示条存在（避让断言的前提）', toastGeom.present === true)
+  truthy('提示条存在（层叠断言的前提）', toastGeom.present === true)
   /*
-   * 空提示条会让下面那条几何断言失去意义：一个只剩内边距的盒子
-   * （40px 宽）在任何面板旁边都不会相交，怎么挪都"通过"。
-   * 所以先要求它真的有字。
+   * 空提示条会让下面那条断言失去意义，所以先要求它真的有字。
    */
   truthy(`提示条有正文（「${toastGeom.text}」）`, toastGeom.text !== '')
-  truthy(`提示条不压设置面板（${toastGeom.at}）`, toastGeom.disjoint === true)
+  truthy(`提示条盖得住设置面板（${toastGeom.at}）`, toastGeom.above === true)
 
   /*
    * 标题必须真的可见。
@@ -2202,7 +2772,14 @@ async function run() {
    * 正是最容易被截图放过的一类缺陷。
    */
   same('设置·场景层无缺失项', scene.missing, 0)
-  same('设置·设置标题存在', scene.head, '设置')
+  /*
+   * 标题跟着当前页走。
+   *
+   * 这一条原来写成 `same(name, scene.head, '设置')`——参数顺序反了，
+   * 而那时面板标题恒为「设置」，两个值相同，反着也过。现在标题是页名，
+   * 反着就报红。断言要比较的两个东西必须分清哪个是"应该"、哪个是"实测"。
+   */
+  same('设置·标题是当前页的名字', '插件参数', scene.head)
 
   // 五种控件各至少一次：滑杆带锚点、滑杆、分段、开关、时间区间。
   truthy('设置·锚点按钮存在（number-anchored）', scene.anchors > 0)
@@ -2351,19 +2928,23 @@ async function run() {
   })
   same('搜索框焦点不画实心 outline', 'none', searchFocus.outline)
   /*
-   * 发光环读 `--focus-ring`，它跟着主操作色走，不是一个固定的彩色：
+   * 发光环读 `--focus-ring`，它跟着强调色走，不是一个固定的彩色：
    *
-   *   浅色  偏靛的深蓝
-   *   深色  偏蓝的浅白
+   *   浅色  `#191919` → rgb(25, 25, 25)
+   *   深色  `#ececec` → rgb(236, 236, 236)
    *
-   * 两条都要认。只认一个色会让「换主题重跑」变红，而红的是断言不是产品。
-   * 更要紧的是：这条断言**顺带守住了一个边界**——如果哪天有人把焦点环
-   * 改回琥珀，这里会因为两个都不匹配而报红，正好对应 §4.0.6 第 3 条
-   * 「琥珀不承担焦点」。
+   * ## 为什么这里必须接受两个值
+   *
+   * 上一版强调色在两套主题里是同一个绿，所以正则只认一个 rgb。改成黑白
+   * 之后强调**在深色下反向**，还只认一个值就会漏掉另一套主题——而这段
+   * 测试恰好跑在深色主题下（`searchFocus` 的前一步切了主题）。
+   *
+   * 两个值仍然都是白名单：如果哪天有人把焦点环改回琥珀，两个都不匹配，
+   * 照样报红，正好对应 §4.0.6 第 3 条「琥珀不承担焦点」。
    */
   truthy(
     `搜索框焦点用发光环（${searchFocus.shadow.slice(0, 60)}）`,
-    /rgba\((32,\s*58,\s*133|184,\s*200,\s*244)/.test(searchFocus.shadow),
+    /rgba?\((25,\s*25,\s*25|236,\s*236,\s*236)[,)]/.test(searchFocus.shadow),
   )
 
   /*
@@ -2535,6 +3116,7 @@ async function run() {
   )
   /* 留一张视觉凭证：浅色下的 78 行列表与合计三格。 */
   await page.screenshot({ path: join(OUT, 'extension-drawer.png') })
+  same('扩展抽屉里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(page)))
 
   /*
    * 8c. 「配置」要真的把人送到那一段设置。
@@ -2689,7 +3271,7 @@ async function run() {
     runLabel: (document.querySelector('.health__run')?.textContent ?? '').trim(),
   }))
   truthy(`体检跑出结果（${healthAfter.summary}）`, healthAfter.summary.includes('扫了 11 条'))
-  same('三档标题按安全度排序', '可自动修|需要你确认|建议别人修', healthAfter.labels.join('|'))
+  same('三档标题按安全度排序', '可自动修|需确认|建议别人修', healthAfter.labels.join('|'))
   eq('体检条目总数', 3, healthAfter.items, 0)
   /*
    * 只有 `auto` / `confirm` 两档有修键；`advise` 那条（疑似重复）必须没有。
@@ -3205,11 +3787,13 @@ async function run() {
   truthy('关闭时弹出确认框', dialog.found === true)
   eq('确认框宽 400', 400, dialog.w)
   truthy('确认框水平居中', dialog.centered === true)
-  same('确认框圆角 16', '16px', dialog.radius)
+  // 12 = --r-lg（§11.2 的浮层档）。曾经是 16，v3.7 起收紧。
+  same('确认框圆角 12', '12px', dialog.radius)
   truthy('确认框是 aria-modal', dialog.modal === 'true')
   truthy('确认框有「记住选择」', dialog.hasRemember === true)
   same('初始焦点在主按钮', '隐藏到托盘', dialog.focusedText)
   await page.screenshot({ path: join(OUT, 'close-dialog-v5.png') })
+  same('弹窗里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(page)))
 
   // Esc 关掉确认框，且必须**不**触发退出。
   await page.keyboard.press('Escape')
@@ -3384,7 +3968,7 @@ async function run() {
     }
   })
   truthy('离开 23 分钟留一行', absenceLong.shown === true)
-  same('离开提示写成「你离开了 23 分钟」', '你离开了 23 分钟', absenceLong.text)
+  same('离开提示写成「离开 23 分钟」', '离开 23 分钟', absenceLong.text)
   /*
    * 11px：§12.9 原文「一行 11px 灰字」。
    *
@@ -3418,647 +4002,516 @@ async function run() {
   truthy('发出下一句话后离开提示撤掉', absenceAfterSend.shown === false)
 
   /*
-   * 偏好设置窗口（§5.13 第一层）单独开一页验。
+   * 设置面板（唯一的一个）单独开一页验。
    *
-   * ## 为什么不接着主界面验
+   * ## 为什么不再是 `#preferences`
    *
-   * 壳内它是**独立 WebView 文档**，浏览器里退化成同一个文档换 hash。
-   * 在主流程里做会丢掉主界面状态（会话、抽屉、滚动位置），
-   * 后半段的断言全部要重来。开一页直达 `#preferences` 更接近真实：
-   * 新文档、干净状态、与壳内一样从零渲染。
+   * 上一版设置是**独立窗口**，浏览器里退化成同一个文档换 hash，所以能直达。
+   * 现在它是主界面之上的浮层：没有第二个文档，也没有第二条入口，只能像
+   * 用户那样点开——Rail 底部的齿轮。这更接近真实，代价是这一页必须先等
+   * 主界面渲染完。
    *
-   * ## 为什么 `Cmd+,` 本身不在这一页验
+   * ## 为什么开新页而不是接着主流程
    *
-   * 那一页没有主界面，也没有对应的快捷键上下文。`Cmd+,` 的契约是
-   * 「发出 `open_preferences` 命令」，由主流程验；这一页验的是
-   * 「命令打开的那个界面长什么样」。
+   * 主流程走到这里已经有会话、滚动位置、展开过的抽屉。设置浮层压在这些
+   * 状态之上，量几何时会受它们影响（Toast 避让、列宽、滚动位置）。
+   * 新页给的是「刚启动就打开设置」这个干净状态。
    */
-  const prefPage = await browser.newPage({ viewport: { width: 560, height: 480 }, deviceScaleFactor: 2 })
-  const prefErrors = []
-  prefPage.on('console', (message) => {
-    if (message.type() === 'error') prefErrors.push(message.text())
+  const setPage = await browser.newPage({ viewport: { width: 820, height: 580 }, deviceScaleFactor: 2 })
+  const setErrors = []
+  setPage.on('console', (message) => {
+    if (message.type() === 'error') setErrors.push(message.text())
   })
-  prefPage.on('pageerror', (error) => { prefErrors.push(String(error)) })
-  await prefPage.addInitScript(fakeShell(port, false))
-  await prefPage.addInitScript(soundSpy)
-  await prefPage.goto(`http://127.0.0.1:${String(port)}/#preferences`, { waitUntil: 'networkidle' })
-  await prefPage.waitForTimeout(500)
+  setPage.on('pageerror', (error) => { setErrors.push(String(error)) })
+  await setPage.addInitScript(fakeShell(port))
+  await setPage.addInitScript(soundSpy)
+  await setPage.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
+  await setPage.waitForTimeout(500)
 
-  const pref = await prefPage.evaluate(() => {
-    const nav = [...document.querySelectorAll('.pref__nav-item')]
+  /* 真实入口：Rail 底部的齿轮（`Cmd/Ctrl + ,` 与本项走同一个函数）。 */
+  await setPage.click('.rail__item--settings')
+  await setPage.waitForTimeout(320)
+
+  const set_panel = await setPage.evaluate(() => {
+    const pen = document.querySelector('.settings__pen')
+    const box = pen?.getBoundingClientRect()
     const navBox = document.querySelector('.pref__nav')?.getBoundingClientRect()
-    const choices = [...document.querySelectorAll('.pref__choice')]
-    const checked = choices.filter((node) => node.getAttribute('aria-checked') === 'true')
+    const overlay = document.querySelector('.settings')?.getBoundingClientRect()
+    const nav = [...document.querySelectorAll('.pref__nav-item')]
+    /*
+     * 只看**第一组**（主题）。
+     *
+     * 外观页有三组单选（主题 3 项、字号 3 项、语言 1 项），全页数会得到 3 个
+     * 选中项——那不是缺陷，是三个问题各有各的答案。断言要问的是
+     * 「一组里能不能同时选中两项」，所以必须先把范围收到一组。
+     */
+    const group = document.querySelector('.pref__choices')
+    const checked = [...(group?.querySelectorAll('.pref__choice') ?? [])]
+      .filter((node) => node.getAttribute('aria-checked') === 'true')
+    const active = document.activeElement
+    /* 标题栏那一条上，命中谁？遮罩必须让它保持可点（拖拽、红绿灯）。 */
+    const atTitlebar = document.elementFromPoint(410, 22)
     return {
       navLabels: nav.map((node) => node.textContent ?? '').join('/'),
       navWidth: navBox === undefined ? 0 : Math.round(navBox.width),
       current: document.querySelector('.pref__nav-item[aria-current="page"]')?.textContent ?? '',
+      title: document.querySelector('.settings__title')?.textContent ?? '',
       role: document.querySelector('.pref__choices')?.getAttribute('role') ?? '',
-      choiceCount: choices.length,
+      dialogRole: pen?.getAttribute('role') ?? '',
+      modal: pen?.getAttribute('aria-modal') ?? '',
+      width: box === undefined ? 0 : Math.round(box.width),
+      height: box === undefined ? 0 : Math.round(box.height),
+      overlayTop: overlay === undefined ? -1 : Math.round(overlay.top),
+      titlebarFree: atTitlebar !== null && atTitlebar.closest('.settings') === null,
+      /*
+       * 与上一版**正好相反**的一条：主界面必须还在。
+       *
+       * 独立窗口那版要验「只渲染自己那棵树」，所以断言 `.workspace` 不存在。
+       * 浮层版要验的正是反面——它是压在界面**之上**的一层，不是另一个界面。
+       */
+      appAlive: document.querySelector('.workspace') !== null,
       checkedCount: checked.length,
       checkedLabel: checked[0]?.textContent ?? '',
-      // 主界面那棵树不该在这一页出现。
-      appGone: document.querySelector('.workspace') === null,
+      focusOnNav: active !== null && active.classList.contains('pref__nav-item'),
     }
   })
   /*
-   * §5.13 的七页 + §12.12 的声音页，顺序即规范列举顺序。
+   * 七页，顺序即导航顺序。
    *
-   * 声音为什么落在「字号」之后：「发送方式」以及其后的四项都是**行为**
-   * 偏好（她怎么回、能做什么、怎么更新），而声音与主题、字号同属
-   * **感官**偏好——调的是这台机器上你听到、看到什么。把它挂在
-   * 字号后面，三件"感官"的事就挨在一起，用户不必在两个品类间跳。
+   * 合并前是九页（主题/语言/字号/声音/通知/发送方式/默认权限/更新/关于）。
+   * 三件「感官」的事收进「外观」，「更新」并进「关于」，多出「数据」——
+   * 导出与导入是唯一两件动磁盘的事，不能混进「对话」。
    */
-  same('偏好设置九页齐全且有序', '主题/语言/字号/声音/通知/发送方式/默认权限/更新/关于', pref.navLabels)
-  eq('偏好设置左导航宽 160', 160, pref.navWidth)
-  same('偏好设置默认停在主题页', '主题', pref.current)
-  same('偏好设置的选择组是 radiogroup', 'radiogroup', pref.role)
-  truthy('偏好设置只渲染自己那棵树', pref.appGone === true)
+  same('设置十一页齐全且有序', '外观/声音/通知/对话/数据/备份/插件参数/权限/隐私/知识库/关于', set_panel.navLabels)
+  eq('设置左导航宽 160', 160, set_panel.navWidth)
+  same('设置默认停在外观页', '外观', set_panel.current)
+  same('标题跟着当前页走', '外观', set_panel.title)
+  same('设置的选择组是 radiogroup', 'radiogroup', set_panel.role)
+  same('面板本体是 dialog', 'dialog', set_panel.dialogRole)
+  same('面板声明 aria-modal', 'true', set_panel.modal)
+  truthy('设置是浮层，主界面仍在（不是另一个界面）', set_panel.appAlive === true)
+  eq('遮罩从标题栏下沿开始', 44, set_panel.overlayTop)
+  truthy('标题栏没有被遮罩盖住（还能拖、还能点红绿灯）', set_panel.titlebarFree === true)
+  eq('纸片宽 760', 760, set_panel.width, 2)
+  /*
+   * 高度是「窗口高 580 − 标题栏 44 − 上下留白 32」= 504，被 `min(540px, 100%)`
+   * 夹住。断言 504 而不是 540：它证明纸片真的让出了标题栏与边距，
+   * 而不是顶到窗口外。
+   */
+  eq('纸片高 504（让出标题栏与边距）', 504, set_panel.height, 2)
+  eq('设置·一组里恰有一项选中', 1, set_panel.checkedCount)
+  truthy('设置·默认选中「跟随系统」', set_panel.checkedLabel.includes('跟随系统'))
+  truthy('打开时焦点落在导航里', set_panel.focusOnNav === true)
 
   /*
    * --- 左导航的选中态与状态梯度 ---
    *
    * ## 为什么这一条不能用「看起来像不像」来判
    *
-   * 导航铺在**窗身**上（#e7e8e3 浅 / #0b0c0a 深），不是内容区那页纸。
-   * 上一版给悬停用 `paper-2`（#edede8，比窗身**亮**）、给选中用 `paper-3`
-   * （#e4e4de，只比窗身暗 1.036）——两个方向相反的浅底叠在一起，实测
-   * 悬停对比 1.049 > 选中 1.036，读出来是「悬停比选中更明显」。
+   * 导航铺在比纸片暗一档的面上。上一版给悬停用 `paper-2`（比窗身**亮**）、
+   * 给选中用 `paper-3`（只比窗身暗 1.036）——两个方向相反的浅底叠在一起，
+   * 实测悬停对比 1.049 > 选中 1.036，读出来是「悬停比选中更明显」。
    *
    * 这类缺陷**不会有任何报错**，也不会被「选中项有没有底色」这种断言抓到
    * （它有底色，只是抓不住眼睛）。唯一能抓的是**量三档的相对明暗**：
-   * 常态 = 窗身 → 悬停略暗 → 选中远暗（反色）。方向与间距都要对。
+   * 常态 = 导航底 → 悬停略暗 → 选中远暗（反色）。方向与间距都要对。
    *
-   * ## 为什么同时量选中态的字色与底色
+   * ## 悬停必须真的把指针移上去
    *
-   * 只断言「选中项有背景」会漏掉「背景对了但字与底同色」——那是一条
-   * 完全不可读的界面，而断言全绿。
+   * 从 `document.styleSheets` 里找 `:hover` 的 `background-color` 会拿到空串
+   * ——产物把声明压成了 `background` 简写，而简写里含 `var()` 时 CSSOM
+   * 无法展开成长属性。量衍生物不如量本体：指针停上去之后读
+   * `getComputedStyle`，读到的是浏览器算完 var、算完半透明之后的值。
    */
-  /*
-   * 悬停态必须**真的把指针移上去**再量，不能去解析规则表。
-   *
-   * 走过一次弯路：先从 `document.styleSheets` 里找 `.pref__nav-item:hover`
-   * 的 `background-color` 声明。拿到空字符串——因为产物把声明压成了
-   * `background` 简写，而简写里含 `var()` 时 CSSOM 无法展开成长属性，
-   * `getPropertyValue('background-color')` 必然为空。断言于是拿到 0 而假报红。
-   *
-   * 教训与本仓多次踩到的是同一条：**量衍生物不如量本体**。指针停在元素上
-   * 之后读 `getComputedStyle`，读到的是浏览器算完 var、算完半透明之后的
-   * 那个值，与眼睛看到的完全一致，且不受压缩器改写写法的影响。
-   */
-  const idleLabel = await prefPage.evaluate(() => {
+  const set_idleLabel = await setPage.evaluate(() => {
     const items = [...document.querySelectorAll('.pref__nav-item')]
     return items.find((node) => node.getAttribute('aria-current') !== 'page')?.textContent ?? ''
   })
-  await prefPage.hover(`.pref__nav-item:text-is("${idleLabel}")`)
-  await prefPage.waitForTimeout(320)
+  await setPage.hover(`.pref__nav-item:text-is("${set_idleLabel}")`)
+  await setPage.waitForTimeout(320)
 
-  const navStates = await prefPage.evaluate((hoveredLabel) => {
+  const set_navStates = await setPage.evaluate((hoveredLabel) => {
     const parse = (value) => {
       const match = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/.exec(value)
       return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])]
     }
-    const relativeLuminance = (rgb) => {
-      const channel = rgb.map((raw) => {
-        const value = raw / 255
-        return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+    const lum = (rgb) => {
+      if (rgb === null) return 0
+      const [r, g, b] = rgb.map((value) => {
+        const channel = value / 255
+        return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
       })
-      return 0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2]
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
     const contrast = (a, b) => {
-      const first = relativeLuminance(a)
-      const second = relativeLuminance(b)
-      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+      const [hi, lo] = lum(a) >= lum(b) ? [lum(a), lum(b)] : [lum(b), lum(a)]
+      return (hi + 0.05) / (lo + 0.05)
     }
-
-    const shell = document.querySelector('.pref')
-    const canvas = parse(getComputedStyle(shell).backgroundColor)
+    const nav = document.querySelector('.pref__nav')
+    const base = parse(nav === null ? '' : getComputedStyle(nav).backgroundColor)
     const items = [...document.querySelectorAll('.pref__nav-item')]
-    const current = items.find((node) => node.getAttribute('aria-current') === 'page')
     const hovered = items.find((node) => node.textContent === hoveredLabel)
-
+    const selected = items.find((node) => node.getAttribute('aria-current') === 'page')
     /*
-     * 悬停底是半透明墨，`getComputedStyle` 会原样给出带 alpha 的值。
-     * 要比较「和窗身差多少」，必须先把 alpha 混合掉——否则算的是那个
-     * 未叠加的墨色，对比值会虚高到几倍。
+     * 半透明的悬停底要叠在导航底上算，否则量到的是那 5% 的黑本身。
+     *
+     * 透明度的取法只有一条可靠的路：**只在 `rgba(` 形态下读第四个分量**。
+     * 曾用 `/rgba?\([^)]*?,\s*([\d.]+)\)/` 去"抓最后一个数字"，
+     * 对 `rgb(6, 128, 63)` 会一路吃到 `63)` —— 于是 63 被当成不透明度，
+     * 算出来的"选中对比度"是负的。这类错误不会报错，只会让断言莫名奇妙。
      */
-    const blend = (rgb, alpha, background) =>
-      rgb.map((channel, index) => alpha * channel + (1 - alpha) * background[index])
-
-    const hoverStyle = getComputedStyle(hovered)
-    const hoverMatch = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/.exec(
-      hoverStyle.backgroundColor,
-    )
-    const hoverRgb = hoverMatch === null ? null : [hoverMatch[1], hoverMatch[2], hoverMatch[3]].map(Number)
-    const hoverAlpha = hoverMatch === null || hoverMatch[4] === undefined ? 1 : Number(hoverMatch[4])
-    const hover = hoverRgb === null ? null : blend(hoverRgb, hoverAlpha, canvas)
-
-    const currentBg = parse(getComputedStyle(current).backgroundColor)
-    const currentInk = parse(getComputedStyle(current).color)
-
-    return {
-      hoverAlpha,
-      hoverVsCanvas: hover === null ? 0 : contrast(hover, canvas),
-      currentVsCanvas: contrast(currentBg, canvas),
-      currentInkVsCurrentBg: contrast(currentInk, currentBg),
-      currentIsFill: contrast(currentInk, currentBg) > 4.5 && contrast(currentBg, canvas) > 8,
+    const flatten = (node) => {
+      if (node === undefined) return null
+      const raw = getComputedStyle(node).backgroundColor
+      const layer = parse(raw)
+      if (layer === null || base === null) return layer
+      const alpha = raw.startsWith('rgba(')
+        ? Number(raw.slice(raw.lastIndexOf(',') + 1, raw.lastIndexOf(')')))
+        : 1
+      return [0, 1, 2].map((index) => layer[index] * alpha + base[index] * (1 - alpha))
     }
-  }, idleLabel)
-
-  /*
-   * 方向：悬停必须比常态（= 窗身，1.0）更能看出来，且选中必须明显重于悬停。
-   *
-   * 上限 1.35 是给"别过火"留的：悬停底一旦接近 1.4，在石色窗身上会读成
-   * 一块脏斑，而不是"指针停在这里"。实测值 1.107 落在这个区间中段。
-   */
-  truthy('偏好·悬停可辨（>1.05）', navStates.hoverVsCanvas > 1.05)
-  truthy('偏好·悬停不过火（<1.35）', navStates.hoverVsCanvas < 1.35)
+    return {
+      base,
+      hover: flatten(hovered),
+      selected: flatten(selected),
+      selectedInk: parse(selected === undefined ? '' : getComputedStyle(selected).color),
+      hoverVsBase: contrast(flatten(hovered), base),
+      selectedVsBase: contrast(flatten(selected), base),
+      selectedInkVsFill: contrast(
+        parse(selected === undefined ? '' : getComputedStyle(selected).color),
+        flatten(selected),
+      ),
+    }
+  }, set_idleLabel)
+  truthy(`悬停比常态更明显（${set_navStates.hoverVsBase.toFixed(3)} > 1）`, set_navStates.hoverVsBase > 1)
   truthy(
-    '偏好·选中比悬停更重',
-    navStates.currentVsCanvas > navStates.hoverVsCanvas + 0.15,
+    `选中远比悬停明显（${set_navStates.selectedVsBase.toFixed(2)} > ${set_navStates.hoverVsBase.toFixed(2)}）`,
+    set_navStates.selectedVsBase > set_navStates.hoverVsBase * 1.5,
   )
-  truthy('偏好·选中是填充反色', navStates.currentIsFill === true)
-  truthy('偏好·选中项字底对比 >7', navStates.currentInkVsCurrentBg > 7)
+  truthy(
+    `选中项的字读得清（${set_navStates.selectedInkVsFill.toFixed(2)} ≥ 3）`,
+    set_navStates.selectedInkVsFill >= 3,
+  )
 
   /*
-   * --- 降级：保留颜色过渡，去掉位移（§8.7） ---
+   * 减少动态偏好：**颜色**过渡要保留，纸片**出现**的位移动画要关掉。
    *
-   * ## 为什么这条必须单独验，不能靠读 CSS
+   * ## 为什么不去要求"所有过渡变 1ms"
    *
-   * `base.css` 的兜底块用 `*` 通配符把**所有**过渡压成 `1ms !important`。
-   * 组件里后写的普通声明**压不过它**——`!important` 的胜出不看来源顺序。
-   * 所以"组件段写在后面就能赢"是个听起来合理、实际错误的推理；
-   * 只有真的开一次 `prefers-reduced-motion` 去量才可靠。
-   *
-   * 断言两件事：颜色过渡时长回到正常档（不是 1ms），且按下态没有 scale。
-   * 只验前者会漏掉"颜色回来了但位移还在"；只验后者会漏掉"位移没了但
-   * 连颜色一起被砍"，那样用户点一下什么都看不见。
+   * §11 的规矩只对位移类动画成立：位移动画会让人眩晕，颜色渐变不会。
+   * 把导航的 120ms 底色渐变也压成 1ms，得到的是"点一下瞬间跳色"——
+   * 那不是减少动态，是把界面做粗。所以两件事分开验：导航渐变仍是
+   * 0.12s，纸片与遮罩的入场动画变成 none。
    */
-  await prefPage.emulateMedia({ reducedMotion: 'reduce' })
-  await prefPage.waitForTimeout(120)
-  const reduced = await prefPage.evaluate(() => {
+  await setPage.emulateMedia({ reducedMotion: 'reduce' })
+  await setPage.waitForTimeout(120)
+  const set_reduced = await setPage.evaluate(() => {
     const items = [...document.querySelectorAll('.pref__nav-item')]
-    const idle = items.find((node) => node.getAttribute('aria-current') !== 'page')
-    const style = getComputedStyle(idle)
+    const hovered = items.find((node) => node.getAttribute('aria-current') !== 'page')
     return {
-      duration: style.transitionDuration,
-      properties: style.transitionProperty,
+      duration: hovered === undefined ? '' : getComputedStyle(hovered).transitionDuration,
+      pen: getComputedStyle(document.querySelector('.settings__pen') ?? document.body).animationName,
+      overlay: getComputedStyle(document.querySelector('.settings') ?? document.body).animationName,
     }
   })
-  await prefPage.emulateMedia({ reducedMotion: 'no-preference' })
+  truthy(`减少动态时颜色过渡保留（${set_reduced.duration}）`, set_reduced.duration.startsWith('0.12s'))
+  same('减少动态时纸片不做入场动画', 'none', set_reduced.pen)
+  same('减少动态时遮罩不做淡入', 'none', set_reduced.overlay)
+  await setPage.emulateMedia({ reducedMotion: 'no-preference' })
 
-  /*
-   * 通配符给的是 1ms。颜色过渡必须明显长于它，否则等于没过渡。
-   *
-   * ## 单位必须按后缀判断，不能 `parseFloat` 了就当毫秒
-   *
-   * Chrome 对 `0.12s` 与 `120ms` 是**原样返回作者写的那一个**：这里写的是
-   * `var(--dur-hover)` → `120ms`，但归一后回来的是 `"0.12s"`。
-   * 直接 `parseFloat` 会得到 `0.12`，与阈值 40 一比就假报红（第一次就踩了）。
-   *
-   * 只取第一个值比较：`transition-duration` 在多属性时是逗号分隔列表，
-   * 这里所有属性共用一档，取第一个即可代表整体。
-   */
-  const firstDuration = reduced.duration.split(',')[0]?.trim() ?? '0s'
-  const reducedMs = firstDuration.endsWith('ms')
-    ? Number.parseFloat(firstDuration)
-    : Number.parseFloat(firstDuration) * 1000
-  truthy(`偏好·降级仍保留颜色过渡（实测 ${String(reducedMs)}ms > 40）`, reducedMs > 40)
-  truthy('偏好·降级过渡只含颜色类属性', !reduced.properties.includes('transform'))
-
-  /*
-   * 单选语义必须成立：三项里**恰好一项**选中。
-   *
-   * 全不选，界面看起来"没选中"；多选，读屏会念出两个选中项。
-   * 这两种都不会报错，只在用的时候觉得别扭。
-   */
-  eq('偏好设置·选择组恰有一项选中', 1, pref.checkedCount)
-  truthy('偏好设置·默认选中「跟随系统」', pref.checkedLabel.includes('跟随系统'))
-
-  /*
-   * 字号必须真的改 `html` 的百分比。
-   *
-   * §9.9：界面字号一律 rem、基准 `html { font-size: 100% }`，系统放大时
-   * 跟着放大。这里点「大」再量根字号——若实现写死 px，量到的值不变。
-   * 量的是 `computedStyle`，浏览器会把 `112.5%` 归一成 px，所以比数值。
-   */
-  const fontBefore = await prefPage.evaluate(() => Number.parseFloat(getComputedStyle(document.documentElement).fontSize))
-  await prefPage.evaluate(() => {
-    const nav = [...document.querySelectorAll('.pref__nav-item')]
-    const target = nav.find((node) => node.textContent === '字号')
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  /* --- 改主题、改字号：浮层的意义就是"改完立刻看得见" --- */
+  const set_themeBefore = await setPage.evaluate(() => document.documentElement.dataset['theme'] ?? '')
+  await setPage.evaluate(() => {
+    const button = [...document.querySelectorAll('.pref__choice')].find(
+      (node) => (node.textContent ?? '').startsWith('深色'),
+    )
+    button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   })
-  await prefPage.waitForTimeout(250)
-  await prefPage.evaluate(() => {
-    const choices = [...document.querySelectorAll('.pref__choice')]
-    const target = choices.find((node) => node.textContent?.includes('大'))
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  await setPage.waitForTimeout(250)
+  const set_themeAfter = await setPage.evaluate(() => ({
+    theme: document.documentElement.dataset['theme'] ?? '',
+    /* 浮层的底必须跟着变：它读的是同一套令牌。 */
+    pen: getComputedStyle(document.querySelector('.settings__pen') ?? document.body).backgroundColor,
+  }))
+  truthy('设置里切深色，根节点跟着变', set_themeAfter.theme === 'dark')
+  truthy('设置里切深色，纸片自己也变深', set_themeAfter.pen !== 'rgb(247, 247, 247)')
+  await setPage.screenshot({ path: join(OUT, 'settings-dark.png') })
+
+  const set_fontBefore = await setPage.evaluate(() => Number.parseFloat(getComputedStyle(document.documentElement).fontSize))
+  await setPage.evaluate(() => {
+    const button = [...document.querySelectorAll('.pref__choice')].find(
+      (node) => (node.textContent ?? '').startsWith('大'),
+    )
+    button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   })
-  await prefPage.waitForTimeout(300)
-  const fontAfter = await prefPage.evaluate(() => ({
-    size: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
-    stored: localStorage.getItem('ondra.fontScale'),
-    // 预演句必须跟着变大：它用 `--text-body`，而令牌是 rem。
+  await setPage.waitForTimeout(300)
+  const set_fontAfter = await setPage.evaluate(() => ({
+    root: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
     sample: Number.parseFloat(
       getComputedStyle(document.querySelector('.pref__sample-text') ?? document.body).fontSize,
     ),
   }))
-  truthy(`偏好设置·字号真的放大（${String(fontBefore)} → ${String(fontAfter.size)}px）`, fontAfter.size > fontBefore)
-  same('偏好设置·字号已持久化', 'large', fontAfter.stored)
-  truthy(`偏好设置·预演句跟着放大（${String(fontAfter.sample)}px）`, fontAfter.sample > 14)
+  truthy(`字号选「大」后根字号变大（${String(set_fontBefore)} → ${String(set_fontAfter.root)}）`, set_fontAfter.root > set_fontBefore)
+  truthy(`字号预演跟着变大（${String(set_fontAfter.sample)}）`, set_fontAfter.sample > 15)
 
-  // 改回标准，并切到「关于」页截图（品牌块只在那一页出现）。
-  await prefPage.evaluate(() => {
-    const choices = [...document.querySelectorAll('.pref__choice')]
-    const target = choices.find((node) => node.textContent?.includes('标准'))
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  /* 切回浅色与标准字号，后面的截图与断言都在默认主题下进行。 */
+  await setPage.evaluate(() => {
+    const buttons = [...document.querySelectorAll('.pref__choice')]
+    buttons.find((node) => (node.textContent ?? '').startsWith('跟随系统'))?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    buttons.find((node) => (node.textContent ?? '').startsWith('标准'))?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   })
-  await prefPage.waitForTimeout(250)
-  await prefPage.evaluate(() => {
-    const nav = [...document.querySelectorAll('.pref__nav-item')]
-    const target = nav.find((node) => node.textContent === '关于')
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-  })
-  await prefPage.waitForTimeout(300)
-  const about = await prefPage.evaluate(() => ({
-    brand: document.querySelector('.pref__brand-name')?.textContent ?? '',
-    version: [...document.querySelectorAll('.pref__facts dd')].map((node) => node.textContent ?? '').join('|'),
-    // §5.9：禁用项保留、灰显、`title` 写原因，而不是删掉。
-    guide: (() => {
-      const button = [...document.querySelectorAll('.pref__action')].find(
-        (node) => node.textContent?.includes('重新观看引导'),
-      )
-      return button === undefined
-        ? 'missing'
-        : `${button.getAttribute('aria-disabled') ?? 'none'}:${button.getAttribute('title') ?? ''}`
-    })(),
-  }))
-  same('偏好设置·关于页有品牌名', '空谷 Ondra', about.brand)
-  truthy('偏好设置·关于页显示版本号', /v\d+\.\d+\.\d+/.test(about.version))
-  truthy(
-    `偏好设置·未实现的项保留为禁用并说明原因（${about.guide}）`,
-    about.guide.startsWith('true:') && about.guide.length > 8,
-  )
-  await prefPage.screenshot({ path: join(OUT, 'preferences-about.png') })
+  await setPage.waitForTimeout(300)
+  await setPage.screenshot({ path: join(OUT, 'settings-appearance.png') })
+  same('设置面板里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(setPage)))
 
+  /* --- 声音页：三个试听按钮必须真的会响 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '声音' }).click()
+  await setPage.waitForTimeout(300)
+  const set_soundPage = await setPage.evaluate(() => {
+    const cues = [...document.querySelectorAll('.pref__cue')]
+    const box = document.querySelector('.pref__cue')?.getBoundingClientRect()
+    return {
+      cues: cues.map((node) => node.textContent ?? '').join('|'),
+      cueWidth: box === undefined ? 0 : Math.round(box.width),
+      switchCount: document.querySelectorAll('.pref__switch').length,
+      /*
+       * 四张卡（朗读 / 口吻 / 节奏 / 规矩）都渲染成 `pref__row`，
+       * 没有各自的类名。用「小节标题数」与「行数」两个读数一起验：
+       * 标题 5 个（音效 + 四张卡各一个），行至少 5 行（提示音 + 音量 + 四张卡）。
+       *
+       * 小节名不能与卡内标题同名：原来「提示音」标题底下第一行也叫
+       * 「提示音」，「朗读」标题底下第一行也叫「朗读」——两行字一模一样、
+       * 相隔 20px，读起来像渲染了两遍。
+       */
+      headings: document.querySelectorAll('.pref__heading').length,
+      rows: document.querySelectorAll('.pref__row').length,
+    }
+  })
+  same('声音页三个试听都在', '发送一句话送出去时|她开口开始回复时|出错这一轮没成时', set_soundPage.cues)
+  truthy(`试听按钮均分宽度（${String(set_soundPage.cueWidth)}px）`, set_soundPage.cueWidth > 100)
+  eq('声音页五个小节（音效/她的声音/口吻/节奏/规矩）', 5, set_soundPage.headings)
+  truthy(`声音页四张卡各占一行（${String(set_soundPage.rows)} 行）`, set_soundPage.rows >= 5)
   /*
-   * 权限页必须真的读到宿主的值。
+   * --- 声音页的三处硬伤（这一页曾经有三样东西是坏的）---
    *
-   * ## 这一条守的是一个真实缺陷
+   * ## 一、音量滑杆的宽度是 0
    *
-   * 连接信息是壳在**宿主启动成功后**通过 `host-ready` 推给页面的。
-   * 主窗口那一刻已经加载完、收得到；偏好窗口是用户后来才打开的——
-   * **那条事件早发过了**，它永远等不到。
+   * `.pref__slider` 原本是横排（`width: 180px` + `display: flex`），里头
+   * 两个子项：`.pref__slider-head`（`width: 100%`）与滑杆（`flex: 1`）。
+   * 180 宽的容器里 head 先拿走 180，再叠 8px 的 gap 就溢出了，两边一起
+   * 收缩，滑杆收到 **0**——轨道长度为零，只剩一个拇指浮在那里。
+   * 断言量的是滑杆的实测宽度，不是「有没有这个元素」：元素一直在，
+   * 只是宽 0，`querySelector` 查不出来。
    *
-   * 不补主动拉取的话，主题与字号照样能改（不依赖宿主），只有这一页
-   * 永远停在「正在读取…」。而这种缺陷不报错、不弹提示，看起来像
-   * 后台服务挂了。这里用「假壳不补发 ready」复现真实时序：
-   * 若实现改回只靠事件，这一条会立刻报红。
+   * ## 二、`pref__note` 会渲染成空块
+   *
+   * `.pref__note` 有底色、有描边、有 12px 内距。三张卡都写成
+   * `note === '' ? null : <p>…</p>`，而 `note` 来自一次 JSON——宿主漏字段时
+   * 它是 `undefined`，`undefined === ''` 为假，于是渲染出一个**空的灰片**。
+   * 断言：「带边框的说明块里不能一个字都没有」。
+   *
+   * ## 三、界面上出现 `undefined`
+   *
+   * 同一处根因的另一种表现：「她说完的话会念出来（undefined）」。
+   * 这条断言扫的是**整块面板**的可见文本，不只这一页——任何一个组件
+   * 把 undefined/NaN/[object Object] 漏到屏幕上，都算失败。
    */
-  await prefPage.evaluate(() => {
-    const nav = [...document.querySelectorAll('.pref__nav-item')]
-    const target = nav.find((node) => node.textContent === '默认权限')
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  const set_soundHonest = await setPage.evaluate(() => {
+    const range = document.querySelector('.pref__range')
+    const notes = [...document.querySelectorAll('.pref__note')]
+    const leaks = []
+    for (const node of document.querySelectorAll('.settings__pen *')) {
+      if (node.children.length > 0) continue
+      const text = (node.textContent ?? '').trim()
+      if (text === '') continue
+      if (/undefined|NaN|\[object Object\]/.test(text)) leaks.push(text.slice(0, 32))
+    }
+    return {
+      rangeWidth: range === null ? 0 : Math.round(range.getBoundingClientRect().width),
+      emptyNotes: notes.filter((node) => (node.textContent ?? '').trim() === '').length,
+      notes: notes.length,
+      leaks,
+    }
   })
-  await prefPage.waitForTimeout(600)
-  const permission = await prefPage.evaluate(() => {
+  truthy(`音量滑杆的轨道有宽度（${String(set_soundHonest.rangeWidth)}px）`, set_soundHonest.rangeWidth > 100)
+  same('没有空的说明块（有底色有描边却一个字都没有）', 0, set_soundHonest.emptyNotes)
+  truthy(`说明块都在（${String(set_soundHonest.notes)} 段）`, set_soundHonest.notes >= 3)
+  same('设置面板里没有 undefined / NaN 漏到屏幕上', '[]', JSON.stringify(set_soundHonest.leaks))
+  /*
+   * --- 开关打开时，钮必须与轨道分开（两套主题各量一次）---
+   *
+   * ## 这条是修完才补的
+   *
+   * 强调退成黑白之后，深色下的打开态轨道是 `#ECECEC`，而默认钮
+   * `--ui-knob` 在深色下**也是亮的**（它服务的是未选中的凹槽）——两块
+   * 同色的圆叠在一起，只剩 1px 阴影在分它们，看起来像开关坏了。
+   *
+   * 它不属于"配色"也不属于"几何"，任何一边的断言都抓不到：轨道对了、
+   * 钮也在，只是**同色**。所以判据必须是"两者之间的对比"，而且要**两套
+   * 主题各算一次**——只量当前主题的话，恰好跑在浅色下就会漏掉深色那个洞。
+   *
+   * 直接改 `documentElement.dataset.theme` 而不是去点 UI：这里要的是
+   * 颜色关系，不是"设置能不能切主题"（那条另有断言）。改完恢复原值，
+   * 后面几页的截图才不会跟着变色。
+   */
+  const set_switchBoth = await setPage.evaluate(async () => {
+    const root = document.documentElement
+    const parse = (value) => {
+      const match = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/.exec(value)
+      return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])]
+    }
+    const lum = (rgb) => {
+      if (rgb === null) return 0
+      const [r, g, b] = rgb.map((value) => {
+        const channel = value / 255
+        return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const ratio = (a, b) => {
+      const [hi, lo] = lum(a) >= lum(b) ? [lum(a), lum(b)] : [lum(b), lum(a)]
+      return (hi + 0.05) / (lo + 0.05)
+    }
+    const wait = () => new Promise((done) => setTimeout(done, 240))
+    const before = root.dataset['theme'] ?? 'light'
+    const rows = []
+    for (const theme of ['light', 'dark']) {
+      root.dataset['theme'] = theme
+      await wait()
+      for (const node of document.querySelectorAll(".control-switch[aria-checked='true']")) {
+        const knob = node.querySelector('.control-switch-knob')
+        const track = getComputedStyle(node).backgroundColor
+        const ink = knob === null ? '' : getComputedStyle(knob).backgroundColor
+        rows.push({ theme, track, knob: ink, ratio: ratio(parse(track), parse(ink)) })
+      }
+    }
+    root.dataset['theme'] = before
+    await wait()
+    return rows
+  })
+  truthy(`两套主题都有打开状态的开关可量（${String(set_switchBoth.length)} 个）`, set_switchBoth.length >= 2)
+  same(
+    '打开态的开关钮与轨道分得开（对比 ≥ 3）',
+    '[]',
+    JSON.stringify(
+      set_switchBoth
+        .filter((row) => row.ratio < 3)
+        .map((row) => `${row.theme}:${row.track}/${row.knob}`),
+    ),
+  )
+
+  await setPage.screenshot({ path: join(OUT, 'settings-sound.png') })
+
+  /* --- 通知页 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '通知' }).click()
+  await setPage.waitForTimeout(300)
+  const set_notifyPage = await setPage.evaluate(() => ({
+    switches: document.querySelectorAll('.pref__switch').length,
+    notes: document.querySelectorAll('.pref__note').length,
+  }))
+  truthy('通知页有一个开关', set_notifyPage.switches === 1)
+  truthy(`通知页给出解释（${String(set_notifyPage.notes)} 段）`, set_notifyPage.notes >= 2)
+  await setPage.screenshot({ path: join(OUT, 'settings-notify.png') })
+
+  /* --- 对话页：默认权限三档 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '对话' }).click()
+  await setPage.waitForTimeout(600)
+  const set_permission = await setPage.evaluate(() => {
     const labels = [...document.querySelectorAll('.pref__choice-label')].map((node) => node.textContent ?? '')
     const checked = [...document.querySelectorAll('.pref__choice[aria-checked="true"] .pref__choice-label')]
       .map((node) => node.textContent ?? '')
+    return { labels: labels.join('/'), checked: checked.join('/') }
+  })
+  same(
+    '对话页同时给出发送方式与默认权限两档',
+    '打断/排队/只在对话内/限于工作区/不限制',
+    set_permission.labels,
+  )
+  truthy('默认权限有且只有一档被选中', set_permission.checked !== '')
+  await setPage.screenshot({ path: join(OUT, 'settings-talk.png') })
+
+  /* --- 数据页：导出三条 + 导入一条 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '数据' }).click()
+  await setPage.waitForTimeout(300)
+  const set_dataPage = await setPage.evaluate(() => {
+    const buttons = [...document.querySelectorAll('.pref__actions .button')]
     return {
-      options: labels.join('/'),
-      checked: checked.join('/'),
-      note: document.querySelector('.pref__note')?.textContent ?? '',
+      labels: buttons.map((node) => node.textContent ?? '').join('|'),
+      count: buttons.length,
+      kinds: buttons.map((node) => node.className).join('|'),
     }
   })
-  same('偏好设置·权限页三档齐全', '只在对话内/限于工作区/不限制', permission.options)
-  truthy(`偏好设置·权限页读到宿主当前值（${permission.checked}）`, permission.checked === '限于工作区')
-  truthy('偏好设置·权限页不是「正在读取」', !permission.note.includes('正在读取'))
-
+  same('数据页四个动作齐全', '导出这一段的 JSON|导出为 Markdown|导出全部|从文件恢复…', set_dataPage.labels)
   /*
-   * 内容不得越出右边界（与设置面板同一条规矩）。
+   * 四个动作必须长得一样。
    *
-   * 560 − 160 = 400 给内容区，而「不限制 · 能读到整台机器」这类两段式
-   * 选项在 400 里刚好放得下。一旦某个文案变长，整块会顶出去，
-   * 而 overlay 滚动条几乎看不见，用户只看到右边少了一块。
+   * 这里原先是「一个描边按钮 + 两个 ghost」：ghost 是透明底、透明边，
+   * 在竖排的动作清单里，后两条读起来就是两行普通文字——用户不会想到
+   * 它们能点。横排工具条里 ghost 是对的（旁边还有别的按钮做参照），
+   * 竖排清单里它没有参照，只剩"这行字好像可以点"的猜。
    */
-  const prefOverflow = await prefPage.evaluate(() => {
-    const content = document.querySelector('.pref__content')
-    if (content === null) return -1
-    const limit = content.getBoundingClientRect().right
-    let worst = 0
-    for (const node of content.querySelectorAll('*')) {
-      const box = node.getBoundingClientRect()
-      if (box.width === 0) continue
-      worst = Math.max(worst, box.right - limit)
-    }
-    return Math.round(worst)
-  })
-  truthy(`偏好设置·内容不越出右边界（实测 ${String(prefOverflow)}px）`, prefOverflow <= 0)
+  same(
+    '数据页四个动作用同一种按钮（不许混 ghost）',
+    'button|button|button|button',
+    set_dataPage.kinds,
+  )
+  same('数据页没有未渲染的 Markdown', '[]', JSON.stringify(await textLeaks(setPage)))
+  await setPage.screenshot({ path: join(OUT, 'settings-data.png') })
 
-  await prefPage.evaluate(() => {
-    const nav = [...document.querySelectorAll('.pref__nav-item')]
-    const target = nav.find((node) => node.textContent === '主题')
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-  })
-  await prefPage.waitForTimeout(300)
-  /*
-   * 截图前把指针移开。
-   *
-   * 上面量悬停态时 `hover()` 把指针停在「语言」上，不移开的话这张
-   * **产品截图**会带一行悬停底色——看起来像界面同时选中了两项。
-   * 截图是给人看的证据，必须只有"设计意图"这一个状态。
-   */
-  await prefPage.mouse.move(556, 470)
-  await prefPage.waitForTimeout(200)
-  await prefPage.screenshot({ path: join(OUT, 'preferences-theme.png') })
-
-  // 深色下同样要看一眼：偏好窗口是独立文档，令牌要能自己解析出深色。
-  /*
-   * 选择器只认**标签文字**，不认整个按钮的 `textContent`。
-   *
-   * 「跟随系统」那项的说明是「系统换深色时她也换」，整块文本里同样含
-   * 「深色」二字——按 `textContent.includes('深色')` 找，先命中的是它，
-   * 于是点回了「跟随系统」，而界面表现得像深色没生效。
-   */
-  await prefPage.evaluate(() => {
-    const labels = [...document.querySelectorAll('.pref__choice-label')]
-    const target = labels.find((node) => node.textContent === '深色')
-    target?.closest('.pref__choice')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-  })
-  await prefPage.waitForTimeout(400)
-  const prefDark = await prefPage.evaluate(() => ({
-    theme: document.documentElement.dataset.theme,
-    scheme: getComputedStyle(document.documentElement).colorScheme,
-    bg: getComputedStyle(document.querySelector('.pref') ?? document.body).backgroundColor,
+  /* --- 插件参数页：三段仍然在同一个面板里 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '插件参数' }).click()
+  await setPage.waitForTimeout(600)
+  const set_plugins = await setPage.evaluate(() => ({
+    tabs: [...document.querySelectorAll('.settings__tab')].map((node) => node.textContent ?? '').join('/'),
+    tabRole: document.querySelector('.settings__tabs')?.getAttribute('role') ?? '',
+    cards: document.querySelectorAll('.scene__item').length,
+    foot: document.querySelector('.settings__foot')?.textContent ?? '',
   }))
-  same('偏好设置·深色写进 data-theme', 'dark', prefDark.theme)
-  same('偏好设置·同步 color-scheme', 'dark', prefDark.scheme)
-  truthy(`偏好设置·深色底已生效（${prefDark.bg}）`, prefDark.bg !== 'rgb(255, 253, 249)')
-  await prefPage.screenshot({ path: join(OUT, 'preferences-dark.png') })
+  same('插件参数页三层齐全', '场景/模块/原始', set_plugins.tabs)
+  same('三层是 tablist', 'tablist', set_plugins.tabRole)
+  truthy(`场景层渲染出旋钮（${String(set_plugins.cards)} 个）`, set_plugins.cards > 0)
+  truthy('统计条给出段数与字段数', /个配置段/.test(set_plugins.foot))
+  await setPage.screenshot({ path: join(OUT, 'settings-set_plugins.png') })
+
+  /* --- 关于页 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '关于' }).click()
+  await setPage.waitForTimeout(300)
+  const set_about = await setPage.evaluate(() => ({
+    brand: document.querySelector('.pref__brand-name')?.textContent ?? '',
+    version: [...document.querySelectorAll('.pref__facts dd')].map((node) => node.textContent ?? '').join('|'),
+    links: document.querySelectorAll('.pref__link').length,
+  }))
+  same('关于页写的是「空谷 Ondra」', '空谷 Ondra', set_about.brand)
+  truthy(`关于页给出真实版本号（${set_about.version}）`, /\d+\.\d+\.\d+/.test(set_about.version))
+  truthy('关于页的仓库地址是可点文字', set_about.links === 1)
+  await setPage.screenshot({ path: join(OUT, 'settings-set_about.png') })
 
   /*
-   * --- 声音页（§12.12）---
+   * --- 出口：Esc 与点遮罩 ---
    *
-   * ## 这一页要验的四件事
-   *
-   * 1. **默认关闭**。规范第一行就是它。开着的话，用户在图书馆第一次
-   *    发消息就被响一下，那不是"细节没调好"，是产品态度错了。
-   * 2. **开关真的落盘**。只在内存里翻面，重启就回去，用户会以为
-   *    "这个设置存不住"。
-   * 3. **音量真的传到增益上**。滑杆拉到 0 必须真的静，拉到 100
-   *    必须真的响——中间无数种"调了没用"的写法都能通过截图。
-   * 4. **三种音各不相同**。三个按钮响同一个频率，等于只做了一种音。
+   * 两条都要验：Esc 是快捷方式，点遮罩是鼠标用户唯一会做的动作。
+   * 只验一条的结果是——另一条坏了没人知道，而它恰好是大多数人用的那条。
    */
-  await prefPage.evaluate(() => {
-    document.documentElement.dataset.theme = 'light'
-    const nav = [...document.querySelectorAll('.pref__nav-item')]
-    const target = nav.find((node) => node.textContent === '声音')
-    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-  })
-  await prefPage.waitForTimeout(350)
+  await setPage.keyboard.press('Escape')
+  await setPage.waitForTimeout(260)
+  const set_afterEsc = await setPage.evaluate(() => ({
+    gone: document.querySelector('.settings__pen') === null,
+    focusBack: document.activeElement?.classList.contains('rail__item--settings') === true,
+  }))
+  truthy('Esc 关掉设置', set_afterEsc.gone === true)
+  truthy('关掉后焦点回到齿轮', set_afterEsc.focusBack === true)
 
-  const soundPage = await prefPage.evaluate(() => {
-    const toggle = document.querySelector('.pref__switch')
-    const range = document.querySelector('.pref__range')
-    const cues = [...document.querySelectorAll('.pref__cue-name')].map((node) => node.textContent ?? '')
-    return {
-      toggleRole: toggle?.getAttribute('role') ?? '',
-      toggleOn: toggle?.getAttribute('aria-checked') ?? '',
-      stored: localStorage.getItem('ondra.sound'),
-      rangeLabel: range?.getAttribute('aria-label') ?? '',
-      rangeDisabled: range?.disabled === true,
-      // 关着时三个试听键都要写明原因（§5.9），不能只是灰。
-      cueHint: document.querySelector('.pref__cue')?.getAttribute('title') ?? '',
-      cues: cues.join('/'),
-    }
-  })
-  same('声音页·开关用 role=switch', 'switch', soundPage.toggleRole)
-  same('声音页·提示音默认关闭', 'false', soundPage.toggleOn)
-  /*
-   * 「没改过」的判据是**值为关**，不是键不存在。
-   *
-   * 这一页之前为了验主题与字号已经调过 `setPreferences`，而它一次写全
-   * 五个键——所以到这里 `ondra.sound` 已经有值了。键存在与否取决于
-   * 用户有没有动过任何一条偏好，与默认值无关；把它写成"键必须为 null"
-   * 是在验一件实现根本不该保证的事（新装用户点两次主题就失效）。
-   * 真正要守的是：**默认那一档必须是关**。
-   */
-  truthy(`声音页·未被主动打开时保持关闭（键值 ${String(soundPage.stored)}）`, soundPage.stored !== 'on')
-  same('声音页·三种音齐全且有序', '发送/她开口/出错', soundPage.cues)
-  truthy('声音页·关着时滑杆禁用', soundPage.rangeDisabled === true)
-  truthy(`声音页·关着时试听键写明原因（${soundPage.cueHint}）`, soundPage.cueHint.length > 0)
-  eq('声音页·滑杆有可朗读名称', 5, soundPage.rangeLabel.length > 0 ? 5 : 0)
+  await setPage.click('.rail__item--settings')
+  await setPage.waitForTimeout(300)
+  /* 点遮罩的留白区（纸片之外）：x=8 落在 padding 里，命中的是遮罩本身。 */
+  await setPage.mouse.click(8, 300)
+  await setPage.waitForTimeout(260)
+  const set_afterScrim = await setPage.evaluate(() => document.querySelector('.settings__pen') === null)
+  truthy('点遮罩关掉设置', set_afterScrim === true)
 
-  // 打开声音：必须立刻响一声（§6.5 预演），并落盘。
-  const soundOn = await prefPage.evaluate(async () => {
-    window.__ondraSound.length = 0
-    document.querySelector('.pref__switch')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await new Promise((resolve) => { setTimeout(resolve, 200) })
-    const range = document.querySelector('.pref__range')
-    return {
-      on: document.querySelector('.pref__switch')?.getAttribute('aria-checked'),
-      stored: localStorage.getItem('ondra.sound'),
-      volume: localStorage.getItem('ondra.soundVolume'),
-      rangeDisabled: range?.disabled === true,
-      starts: window.__ondraSound.filter((event) => event.op === 'start').length,
-    }
-  })
-  same('声音页·点开后开关为开', 'true', soundOn.on)
-  same('声音页·开关已落盘', 'on', soundOn.stored)
-  truthy(`声音页·音量已落盘（${soundOn.volume}）`, soundOn.volume === '60')
-  truthy('声音页·打开时立刻响一声', soundOn.starts === 1)
-  truthy('声音页·开着时滑杆可用', soundOn.rangeDisabled === false)
-
-  /*
-   * 三种音必须真的不同。
-   *
-   * 读的是 `osc.frequency` 的第一次设定值（起始频率）。三个数互不相等
-   * 才算"三种音"成立；相同就说明只写了一条配方，三个按钮指向同一段代码。
-   */
-  const cueStarts = await prefPage.evaluate(async () => {
-    const read = []
-    for (const name of ['发送', '她开口', '出错']) {
-      window.__ondraSound.length = 0
-      const button = [...document.querySelectorAll('.pref__cue')]
-        .find((node) => node.textContent?.includes(name))
-      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await new Promise((resolve) => { setTimeout(resolve, 120) })
-      const freq = window.__ondraSound.find((event) => event.op === 'freq')
-      read.push(freq?.value ?? 0)
-    }
-    return read
-  })
-  truthy(`声音页·发送与「她开口」音高不同（${String(cueStarts[0])} / ${String(cueStarts[1])}）`, cueStarts[0] !== cueStarts[1])
-  truthy(`声音页·出错音是下行且更低（${String(cueStarts[2])}）`, cueStarts[2] > 0 && cueStarts[2] < cueStarts[1])
-
-  /*
-   * 音量必须真的改变增益。
-   *
-   * 对比 0 与 100 两档：0 时一个 `start` 都不该有（`gainOf(0) = 0`，
-   * 在合成之前就返回），100 时必须响。这一条守的是"滑杆只改了界面
-   * 上的数字、没传给音频图"那类缺陷。
-   */
-  const volumeEffect = await prefPage.evaluate(async () => {
-    const setVolume = async (value) => {
-      const range = document.querySelector('.pref__range')
-      if (range === null) return
-      /*
-       * 必须走「原生 setter + 显式 this」，不能用 `Reflect.set`。
-       *
-       * React 的受控组件在 input 元素实例上装了一个**自己的** `value`
-       * 属性描述符（记 `_valueTracker`）。`Reflect.set(range, 'value', v)`
-       * 走的是实例属性、绕过了原型的原生 setter，React 的 tracker 因此
-       * 认为「值没变」，`onChange` 不触发 —— 界面上滑杆动了，音量的
-       * 真实状态还是旧的。症状就是两档读到同一个增益
-       * （本轮实测 60 与 100 都得到 0.063）。
-       *
-       * 原型上的原生 setter 取出后**必须在调用时显式给 `this`**：
-       * `setter.call(range, v)` 里的 `range` 是同一 realm 的节点句柄，
-       * 这是合法的；此前 `Illegal invocation` 的根因不是「不能用 call」，
-       * 而是那时 `range` 为 `null`（页面崩溃、元素不存在）却照样调用。
-       * 所以这里先判空，再调用。
-       */
-      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(range), 'value')
-        ?? Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
-      descriptor?.set?.call(range, String(value))
-      range.dispatchEvent(new Event('input', { bubbles: true }))
-      range.dispatchEvent(new Event('change', { bubbles: true }))
-      await new Promise((resolve) => { setTimeout(resolve, 150) })
-    }
-    await setVolume(0)
-    window.__ondraSound.length = 0
-    const cue = [...document.querySelectorAll('.pref__cue')].find((node) => node.textContent?.includes('发送'))
-    cue?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await new Promise((resolve) => { setTimeout(resolve, 150) })
-    const silent = window.__ondraSound.filter((event) => event.op === 'start').length
-
-    const peakAt = async (value) => {
-      await setVolume(value)
-      window.__ondraSound.length = 0
-      cue?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await new Promise((resolve) => { setTimeout(resolve, 150) })
-      return Math.max(0, ...window.__ondraSound
-        .filter((event) => event.op === 'gain')
-        .map((event) => event.value))
-    }
-    const quiet = await peakAt(60)
-    const loudPeak = await peakAt(100)
-    const loud = window.__ondraSound.filter((event) => event.op === 'start').length
-    return { silent, loud, quiet, loudPeak }
-  })
-  eq('声音页·音量 0 时完全不出声', 0, volumeEffect.silent)
-  truthy('声音页·音量 100 时出声', volumeEffect.loud === 1)
-  /*
-   * 比的是**两档之间的比例**，不是某个绝对数。
-   *
-   * 绝对值取决于两条曲线（`gainOf` 的平方、每种音自己的 peak），
-   * 断言写死一个区间，等于把实现细节抄进测试——改一个音色的峰值就报红，
-   * 而那时功能其实是对的。比例才是"音量真的传到了增益上"这件事本身：
-   * 平方曲线下 60 → 100 应放大 (100/60)² ≈ 2.78 倍。
-   */
-  truthy(
-    `声音页·增益随音量成比例变化（60 档 ${String(volumeEffect.quiet.toFixed(3))} → 100 档 ${String(volumeEffect.loudPeak.toFixed(3))}）`,
-    volumeEffect.quiet > 0 && volumeEffect.loudPeak / volumeEffect.quiet > 2.5,
-  )
-
-  // 改回 60，给后面的主流程留下一个已知状态。
-  await prefPage.evaluate(async () => {
-    const range = document.querySelector('.pref__range')
-    if (range === null) return
-    // 同上：走原生 setter 并显式给 this，React 的 tracker 才会认账。
-    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(range), 'value')
-      ?? Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
-    descriptor?.set?.call(range, '60')
-    range.dispatchEvent(new Event('input', { bubbles: true }))
-    await new Promise((resolve) => { setTimeout(resolve, 120) })
-  })
-  await prefPage.waitForTimeout(200)
-  await prefPage.screenshot({ path: join(OUT, 'preferences-sound.png') })
-
-  /*
-   * 探针读不到时，这一页必须**还在**。
-   *
-   * ## 守的是哪一类缺陷
-   *
-   * `getRhythmState()` 走的是 `request()`，它只保证 HTTP 通了，不保证
-   * body 是探针形状：宿主没起来、路由没注册、版本比界面旧时，返回的
-   * 可能是 `{ error: ... }`。本轮接入时正是这样——`state.loaded.rhythm`
-   * 读到 `undefined.rhythm`，React 把**整棵偏好设置树**卸掉，
-   * 左侧导航一起消失，症状是整页白屏。
-   *
-   * 这里用 `page.route` 把那条接口改写成错误体，再新开一页重放：
-   * 断言「导航还在、卡片自己说读不到」。一张诊断卡片读不到数据，
-   * 不该把整页带走。
-   */
-  {
-    const degradedPage = await browser.newPage({ viewport: { width: 560, height: 480 }, deviceScaleFactor: 2 })
-    const degradedErrors = []
-    degradedPage.on('pageerror', (error) => { degradedErrors.push(String(error)) })
-    await degradedPage.addInitScript(fakeShell(port, false))
-    await degradedPage.route('**/api/diagnostics/rhythm', (route) => {
-      void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ error: '路由还没注册' }) })
-    })
-    await degradedPage.goto(`http://127.0.0.1:${String(port)}/#preferences`, { waitUntil: 'networkidle' })
-    await degradedPage.waitForTimeout(600)
-    await degradedPage.evaluate(() => {
-      const target = [...document.querySelectorAll('.pref__nav-item')].find((node) => node.textContent === '声音')
-      target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    await degradedPage.waitForTimeout(500)
-    const degraded = await degradedPage.evaluate(() => ({
-      nav: document.querySelectorAll('.pref__nav-item').length,
-      heading: document.querySelector('.pref__title')?.textContent ?? '',
-      saidUnavailable: (document.body.innerText ?? '').includes('读不到节奏状态'),
-    }))
-    eq('探针返回错误体时导航仍在（不被整页带走）', 9, degraded.nav)
-    same('探针返回错误体时标题仍在', '偏好设置', degraded.heading)
-    truthy('探针返回错误体时卡片自己说读不到', degraded.saidUnavailable)
-    truthy('探针返回错误体时页面无未捕获异常', degradedErrors.length === 0)
-    await degradedPage.close()
-  }
-
-  /*
-   * --- 通知页（§12.10、§7.4）---
-   *
-   * 这一页能验的只有「界面这一半」：系统通知本身在无头浏览器里发不出去，
-   * 权限也是浏览器自己的。所以断言落在三件**能在 DOM 上确证**的事：
-   *
-   * 1. 出厂开关是关的（§12.10「默认关闭」）。
-   * 2. 开关旁边那句说明在（「只有窗口看不见时才发」）——它是这个功能
-   *    唯一能让用户判断「开了会怎样」的依据，藏起来等于不给判断。
-   * 3. 在浏览器环境里不谎称可用：`unsupported` 那句提示要出来。
-   *
-   * 第三点看着像吹毛求疵，其实是这一页最容易做错的地方：把「读不到权限」
-   * 当成「没授权」，用户点了开关、系统框弹不出来，开关自己弹回去，
-   * 而界面上一个字都不解释。
-   */
-  await prefPage.locator('.pref__nav-item', { hasText: '通知' }).click()
-  await prefPage.waitForTimeout(300)
-  const notifyPage = await prefPage.evaluate(() => {
-    const section = document.querySelector('.pref__section')
-    const toggle = section?.querySelector('[role="switch"]')
-    return {
-      heading: (section?.querySelector('.pref__heading')?.textContent ?? '').trim(),
-      checked: toggle?.getAttribute('aria-checked') ?? null,
-      notes: [...(section?.querySelectorAll('.pref__note') ?? [])].map((node) => (node.textContent ?? '').trim()),
-    }
-  })
-  same('通知页标题', '通知', notifyPage.heading)
-  same('系统通知出厂是关的', 'false', notifyPage.checked)
-  truthy(
-    '通知页说明「只有窗口看不见时才发」',
-    notifyPage.notes.some((note) => note.includes('只有窗口看不见的时候才发')),
-  )
-  truthy(
-    '浏览器里如实说明通知不可用',
-    notifyPage.notes.some((note) => note.includes('读不到通知权限')),
-  )
-  await prefPage.screenshot({ path: join(OUT, 'preferences-notify.png') })
-
-  if (prefErrors.length > 0) {
-    console.log('\n偏好设置页的控制台错误：')
-    for (const error of prefErrors) console.log(`  ${error}`)
+  if (setErrors.length > 0) {
+    console.log('\n设置面板的控制台错误：')
+    for (const error of setErrors) console.log(`  ${error}`)
     process.exitCode = 1
   }
 

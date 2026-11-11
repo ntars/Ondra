@@ -5,7 +5,23 @@
 .composer {
   position: relative;
   flex: none;
-  padding: 12px 24px 12px;
+  /*
+   * 左右 32，与 §11.1 的八级栅格对齐（原来是 24）。
+   *
+   * 24 不在八级里（4/8/12/16/24/32/48/64 里有 24，但它与 32 差一档的
+   * 意义不同）：这里要的是「输入卡与外框之间的呼吸」，应该跟栏内边距
+   * 同档，而栏内边距用的是 32。
+   *
+   * ## 这条改动在 820 × 580 下是零视觉变化，理由要写清
+   *
+   * 卡宽是 `min(--w-composer, 100%)` 且 `--w-composer` 恒 560：
+   * 中栏 708，减左右 64 还有 644，仍 > 560，所以卡宽**照样是 560**。
+   * 变的只是"最大可用宽度"的余量，肉眼看不到。
+   *
+   * 它真正的作用是**让约束成立**：若哪天 `--w-read` 调到 620，24 的方案
+   * 还能塞下，32 的方案会先触发 `100%` 分支——提前一档守住留白纪律。
+   */
+  padding: var(--s-3) var(--s-6) var(--s-3);
 }
 
 /* 上沿谷线：输入区与消息流之间唯一的分隔。 */
@@ -14,7 +30,8 @@
   position: absolute;
   top: 0;
   left: 50%;
-  width: min(var(--w-composer), calc(100% - 48px));
+  /* 谷线宽度跟着卡走：左右各让 32，与 .composer 的 padding 同值。 */
+  width: min(var(--w-composer), calc(100% - var(--s-8)));
   height: 0.5px;
   transform: translateX(-50%);
   background: linear-gradient(to right, transparent, var(--ui-line-strong) 18%, var(--ui-line-strong) 82%, transparent);
@@ -67,7 +84,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 10px 0;
+  padding: 12px 12px 0;
 }
 
 .composer__attachment {
@@ -81,7 +98,7 @@
 
 .composer__attachment-name {
   display: block;
-  padding: 6px 8px;
+  padding: 8px 8px;
   font-size: var(--text-micro);
   color: var(--ui-ink-3);
   overflow: hidden;
@@ -117,6 +134,22 @@
   background: rgb(0 0 0 / 72%);
 }
 
+/*
+ * 图片附件形态。
+ *
+ * 基类 `.composer__attachment` 已经是 48 × 48 的定方块与 `overflow: hidden`，
+ * 图片形态**不需要再多一个尺寸**——它要的只是「别露底色」：
+ * 文件附件底下一层 `--ui-bg-sunken` 是给文件名做衬底的（深色下文件名是
+ * 浅字，没有衬底会飘在输入卡上）；图片附件整块被缩略图盖满，那层衬底
+ * 反而会在图片透明区透出来，看起来像一张没对准的纸。
+ *
+ * 所以这一条只做一件事：把衬底撤掉。宽度高度一律继承基类，避免两处
+ * 尺寸各写一遍、日后改一处忘一处。
+ */
+.composer__attachment--image {
+  background: transparent;
+}
+
 /* ===========================================================================
    输入行
    =========================================================================== */
@@ -124,8 +157,20 @@
 .composer__row {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  padding: 9px 8px 7px 12px;
+  gap: 8px;
+  /*
+   * 左右 12，与正文的 12 是同一条竖线；上下 8，与 textarea 的上内距同档。
+   *
+   * 卡高 76 是 §3.1 锁死的，卡片里除了文字（20 行高）与工具行（30）
+   * 只剩 76 − 2 − 20 − 30 = 24px 可分配。24 分三道，八级栅格上只有
+   * 8 / 8 / 8 这一个平均解——这也是它读起来"稳"的原因：文字上方、
+   * 文字与工具行之间、工具行下方，三处呼吸一样宽。
+   *
+   * 上一版把左右写成了 12 / 12，但 textarea 自己的左右内距是 0，
+   * 文字实际贴在左边框上（见 `.composer__input` 的注释）。真正的病
+   * 不在这一行。
+   */
+  padding: 8px 12px 8px;
 }
 
 .composer__input {
@@ -133,7 +178,34 @@
   min-width: 0;
   min-height: 28px;
   max-height: 140px;
-  padding: 4px 0;
+  /*
+   * ## 左内距是 12，不是 0
+   *
+   * 这是用户报的「文字与组件边框没有留位置」的原点：textarea 是卡片的
+   * 第一个子节点，它自己的 `padding-left` 就是文字与卡片左内缘之间
+   * **唯一**的距离。旧值是 `0`，于是占位符「说点什么…」直接从边框上起笔，
+   * 而它下面那行加号离边框有 12px——一张 560 宽的卡里，上下两行文字
+   * 的起点差了 12px，越看越像没对齐。
+   *
+   * 现在左边 12 与 `.composer__row` 的左右内距同值，两行共用一条竖线。
+   * 没用 16 或 20：卡内其它元素（附件缩略图 12、工具行 12）都是 12，
+   * 输入区单独走一档会变成第三个起点。
+   *
+   * ## 上 8 下 0：垂直 padding 合计 8，与旧的上下各 4 等量
+   *
+   * 文字那 20px 行盒里，14px 的字上下各有 3px 自带留白，所以 8 + 3 = 11px
+   * 是眼睛看到的上距，与左边的 12 基本齐平——这正是原来缺的东西：
+   * 左边 0、上边 11，同一张卡里两个方向差了一个数量级。
+   *
+   * 试过把上内距加到 10 去「再多给一点」：卡高 76 = 1+20+30+8+8+8+1
+   * 是锁死的，多出的 2px 只能从别的内距里扣，而 10 / 6 / 8 三道内距
+   * 不在八级栅格上，观感也没有变好（视觉上距 13 对左边 12，反而偏了）。
+   * 真正的病在水平方向，修好了它就够。
+   *
+   * 改 `.composer__row` 的上下 padding 来挪文字是错的：因为
+   * `align-items: flex-end`，那只会推动工具行，textarea 里的字纹丝不动。
+   */
+  padding: 8px 12px 0;
   font-size: var(--text-body);
   line-height: 20px;
   color: var(--ui-ink);
@@ -143,14 +215,70 @@
   color: var(--ui-ink-4);
 }
 
-.composer__tools {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding-bottom: 2px;
+/*
+ * 撑杆。
+ *
+ * 工具行是 `flex`，左边三项（加号、模型名、超限计数）宽度都不固定：
+ * 模型名随 `current.label` 长短变，计数只在超限时出现。没有这根撑杆，
+ * 发送键会被前两项一起推着左右移动——模型名一长，发送键就跟着跑。
+ *
+ * 用 `<span>` 而不是给某个子项加 `margin-left: auto`：自动外边距只能
+ * 推一个方向，且一旦那一项被条件渲染掉（计数就是），推力也跟着消失。
+ * 撑杆是独立节点，宽度恒为「剩余量」，与谁在谁不在无关。
+ */
+.composer__spacer {
+  flex: 1;
 }
 
-.composer__tool {
+/*
+ * 「先别说」——生成中顶替发送键。
+ *
+ * 与发送键**同高 30px、同一位置**，只把圆形换成胶囊：形状变了，位置没变，
+ * 用户的手指不用重新找目标（§5.4）。宽度由文字撑开，`padding: 0 12px`
+ * 让两个汉字 + 左右内距落在 60 上下，比 30 的圆点宽一点，读起来更"可以按"。
+ *
+ * 配色用 `--ui-bg-sunken` 而不是主色：中断是一个**降级动作**，
+ * 不该和"发送"抢同一个视觉重量。文字用 `--ui-ink-2`，对凹底 ≥ 4.5
+ * （见 check:contrast）。
+ */
+.composer__stop {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
+  font-size: var(--text-caption);
+  color: var(--ui-ink-2);
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.composer__stop:hover {
+  background: var(--ui-bg-active);
+  color: var(--ui-ink);
+}
+
+/*
+ * 附加文件键。
+ *
+ * ## 它原来叫 `.composer__tool`，外面还有一层 `.composer__tools`
+ *
+ * 这两个类名在 TSX 里**已经不存在**：工具行重构时，包了一层的
+ * `.composer__tools` 被拆掉，按钮直接放在 `.composer__row` 里，类名也
+ * 从 `composer__tool` 改成了 `composer__attach`。样式表没跟着改，
+ * 于是「加号」成了唯一一个没有样式的键——26 × 26 的方盒、没有圆角、
+ * 没有 hover，回落到浏览器默认的 `<button>`（灰底 + 系统边框），
+ * 在一行扁平控件里像个旧插件。
+ *
+ * 尺寸沿用原来的 26：它和 `.composer__model-button` 的 26 高是同一档，
+ * 两者并排时底线才平。
+ */
+.composer__attach {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -163,13 +291,55 @@
     color var(--motion-f) var(--ease-fluid);
 }
 
-.composer__tool:hover {
+.composer__attach:hover {
   background: var(--ui-bg-hover);
   color: var(--ui-ink-2);
 }
 
-.composer__tool:active {
+.composer__attach:active {
   background: var(--ui-bg-active);
+}
+
+/*
+ * 麦克风键（G2）。与加号同档尺寸（26 × 26），两者并排底线才平。
+ * 录音中切换为「停止」语义：用强调色铺底，让"正在录"一眼可见。
+ */
+.composer__mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ui-ink-4);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.composer__mic:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-ink-2);
+}
+
+.composer__mic--on {
+  background: var(--ui-action);
+  color: var(--ui-action-ink);
+}
+
+.composer__mic--on:hover {
+  background: var(--ui-action);
+  color: var(--ui-action-ink);
+}
+
+/* 语音识别的瞬时状态（识别中 / 未装模型 / 无麦克风权限）。 */
+.composer__voice-note {
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+  max-width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ===========================================================================
@@ -206,15 +376,25 @@
 /**
  * 回声：发送时从圆点向外扩一圈 1px 雾蓝线，`--motion-echo` 淡出。
  * 它是**确认**：用户需要看到「话出去了」。
+ *
+ * ## 偏移量必须与发送键逐一相等
+ *
+ * 圆环从发送键的位置向外扩，任何一像素的错位都会读成「从别处冒出来的
+ * 光圈」。发送键在 `.composer__row` 里，右内距 12、下内距 8；圆环的
+ * `right` / `bottom` 是相对卡片的 padding box 算的，所以它在**没有边框**
+ * 参与的情况下应与那两值相等：`right: 12px`、`bottom: 8px`。
+ *
+ * 旧值是 `right: 10px`——比发送键偏右 2px，淡出到一半时最明显：
+ * 光圈与按钮不同心。2px 小到说不出哪里不对，但就是"飘"。
  */
 .composer__echo {
   position: absolute;
-  right: 10px;
+  right: 12px;
   bottom: 8px;
   width: 30px;
   height: 30px;
   border-radius: var(--r-full);
-  border: 1px solid var(--jade-700);
+  border: 1px solid var(--ui-action);
   pointer-events: none;
   animation: echo-out var(--motion-echo) var(--ease-exit) forwards;
 }
@@ -306,7 +486,7 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: var(--r-xs);
   font-size: var(--text-caption);
   color: var(--ui-ink-2);
@@ -320,8 +500,28 @@
 }
 
 .composer__model-item[aria-checked='true'] {
-  color: var(--jade-700);
+  /* 当文字用 → action-text。 */
+  color: var(--ui-action-text);
   font-weight: var(--w-medium);
+}
+
+/*
+ * 空菜单：没有可用模型时的引导语。
+ *
+ * §12.5 要求空状态说"下一步做什么"，组件里那句「还没有可用的模型，
+ * 去设置里加一个」已经做到了。这里只补排版：它继承的是菜单的 4px 内距，
+ * 文字会贴着玻璃边——加 8/12 的内距，与 `.composer__model-item` 的
+ * 8/12 对齐，让空态和正常情况下**同一个文字起点**，菜单不会跳。
+ *
+ * 颜色用 `--ui-ink-3` 不用 ink-4：ink-4 是占位符的灰，这里是**唯一**
+ * 可见的内容，用最浅一档会读成"这行也是灰的、也被禁用了"。
+ */
+.composer__model-empty {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--ui-ink-3);
 }
 
 /* ===========================================================================

@@ -154,6 +154,14 @@ export interface AppState {
   /** 当前会话的消息。 */
   messages: ChatMessage[]
   /**
+   * 从磁盘重新读一遍当前会话。
+   *
+   * 只有一个调用方：设置里的「导入对话」。那条路会让**宿主**换掉当前段
+   * （归档旧段、建新段），而界面手里的消息还是旧的。这里不重做一遍
+   * "导入"的逻辑，只把界面对齐到宿主的事实上——两处各算一次必然漂开。
+   */
+  reload(): Promise<void>
+  /**
    * 当前会话统计。
    *
    * `undefined` 表示还没有会话。**不在这里自己算**：已归档段数只有内核
@@ -321,7 +329,7 @@ export function useAppState(): AppState {
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState('')
   const [chatError, setChatError] = useState<string | undefined>(undefined)
-  const [permission, setPermissionState] = useState<PermissionLevel>('full')
+  const [permission, setPermissionState] = useState<PermissionLevel>('workspace')
 
   const [models, setModels] = useState<ModelDescriptor[]>([])
   const [modelId, setModelId] = useState<string | undefined>(undefined)
@@ -1535,6 +1543,14 @@ export function useAppState(): AppState {
     send,
     stop,
     newChat,
+    /*
+     * 从磁盘重新读一遍当前会话。
+     *
+     * 只有一个调用方：设置里的「导入对话」。那条路会让**宿主**换掉当前段
+     * （归档旧段、建新段），而界面手里的消息还是旧的。这里不重做一遍
+     * "导入"的逻辑，只把界面对齐到宿主的事实上——两处各算一次必然漂开。
+     */
+    reload: refreshCurrent,
     deleteMessage: removeMessage,
     setPermission,
     dismissChatError,
