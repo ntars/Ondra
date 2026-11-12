@@ -104,7 +104,7 @@ export function SettingsBackup(): React.JSX.Element {
 
       <Heading>已有备份</Heading>
       {items.length === 0 ? (
-        <Note>还没有任何备份。上面那个按钮会拍下当前全部数据的第一份快照。</Note>
+        <Note>暂无备份。点击上方按钮可创建当前全部数据的首份快照。</Note>
       ) : (
         <ul className="backup__list">
           {items.map((item) => (

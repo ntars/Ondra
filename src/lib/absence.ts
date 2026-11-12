@@ -69,7 +69,7 @@ export function absenceText(ms: number): string {
       : `离开 ${String(hours)} 小时 ${String(rest)} 分`
   }
   const days = Math.floor(hours / 24)
-  return `你离开了 ${String(days)} 天`
+  return `离开 ${String(days)} 天`
 }
 
 /**

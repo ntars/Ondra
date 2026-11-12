@@ -10,7 +10,7 @@
   display: grid;
   grid-template-rows: var(--h-titlebar) minmax(0, 1fr);
   height: 100%;
-  background: var(--ui-bg-canvas);
+  background: var(--ui-bg-sheet);
   overflow: hidden;
   /*
    * 容器查询的锚点。
@@ -253,7 +253,20 @@
   display: grid;
   grid-template-columns: var(--w-rail) minmax(0, 1fr) var(--w-spine);
   min-height: 0;
-  /* 抽屉与检查器是覆盖层，不被网格压缩（§3.4）。 */
+  /*
+   * 一枚内嵌的内容框：圆角 + 0.5px 外框 + 与窗口同色的底。
+   *
+   * 参照 QQ 的窗内结构——它不用「左右两栏各染一档灰」来分栏，而是把整块
+   * 内容做成一张带圆角与外框的纸，栏与栏之间只留一条发丝线。这么做的好处
+   * 是屏幕只有**一个**面，用户不必判断「这三块是不是不同的东西」。
+   *
+   * 外边距 8：框与窗口边之间留一指宽，圆角才看得出来。少于 6 会贴死边缘，
+   * 大于 12 会让 820 宽的主列明显变窄。
+   */
+  margin: 0 var(--s-2) var(--s-2);
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-md);
+  /* 抽屉与检查器是覆盖层，不被网格压缩（§3.4）；同时裁掉溢出到圆角外的内容。 */
   overflow: hidden;
 }
 
@@ -271,7 +284,11 @@
    * 里只有中间一栏是阅读区，所以只有它提亮；如果三栏同色，界面会读成
    * 一整块灰板，用户分不清哪儿能滚。
    */
-  background: var(--ui-bg-paper);
+  /*
+   * 与左右两栏**同色**。分栏靠 `.rail` / `.spine` 上的发丝线，
+   * 不靠明度差（见 tokens.css 里 `--ui-bg-paper` 的说明）。
+   */
+  background: var(--ui-bg-sheet);
 }
 
 /* ===========================================================================

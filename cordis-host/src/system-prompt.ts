@@ -212,7 +212,17 @@ export function assembleSystemPrompt(ctx: Context, query?: string): SystemPrompt
   // 再读人格，语气会被禁令压成合规报告。这正是 §10 第 8 条修掉的旧缺陷。
   const organ = ctx.get('ondra-organ-host') as OrganHostLike | undefined
   if (organ === undefined) {
-    missing.push('片段：没有装载 ondra-organ-host')
+    /*
+     * **不写进 `missing`。** 这条原先是 `missing.push('片段：没有装载 ondra-organ-host')`，
+     * 于是每一轮的装配结果里都恒定躺着一条「缺项」——而它缺得理直气壮：
+     * 本仓目前**没有任何器官注册**，`ondra-organ-host` 出厂关闭是刻意的
+     * （理由写在 `cordis-host/index.ts` 的 `DEFAULT_CORE_ENABLE` 注释里）。
+     *
+     * 判据在「这是缺陷还是设计」：`missing` 的语义是「本该有、这次没拿到」，
+     * 不是「这个可选能力当前没开」。混进去的后果不是报错，而是**告警通胀**——
+     * 常驻一条假红之后，真缺项出现时也没人看（同文件里「上下文缺席不进
+     * `missing`」「情绪块拒绝产出不进 `missing`」两条用的是同一个理由）。
+     */
   } else if (!organ.available) {
     missing.push('片段：器官宿主不可用')
   } else {

@@ -3,7 +3,7 @@
  *
  * ## 内容顺序固定，不可重排
  *
- * §5.8 定死四段：此刻 → 她对你 → 记得的事 → 她此刻在做什么。
+ * §5.8 定死四段：此刻 → 关系阶段 → 记得的事 → 当前活动。
  * 这个顺序不是审美选择，是**从近到远**的认知顺序：先看现在什么样，
  * 再看关系，再看历史，最后看她正在干什么。
  *
@@ -66,7 +66,7 @@ interface Dial {
 export interface InspectorProps {
   /** 此刻：心情、精力、张力。 */
   mood: MoodState
-  /** 「她对你」的阶段与维度。 */
+  /** 「关系阶段」的阶段与维度。 */
   bond: BondStats
   /** 记得的事，取最近 3 条。 */
   memories: MemoryItem[]
@@ -77,7 +77,7 @@ export interface InspectorProps {
    * 两处对同一件事给出不同说法，是最容易被当成 bug 的那种不一致。
    */
   memoryFault: string | undefined
-  /** 她此刻在做什么的一行状态。空串表示没有。 */
+  /** 「当前活动」的一行状态。空串表示没有。 */
   activity: string
   /** 张力读数，−1..1。没有数据时 undefined。 */
   tension: number | undefined
@@ -181,15 +181,15 @@ export function Inspector({
               </div>
             </>
           ) : (
-            <p className="inspector__empty">还没测到</p>
+            <p className="inspector__empty">尚未测量</p>
           )}
         </section>
 
-        {/* --- 她对你 ----------------------------------------------- */}
+        {/* --- 关系阶段 --------------------------------------------- */}
         <section className="inspector__group">
-          <h3 className="inspector__caption">她对你</h3>
+          <h3 className="inspector__caption">关系阶段</h3>
           {bond.stage === undefined || bond.stage === '' ? (
-            <p className="inspector__empty">聊两句就有了</p>
+            <p className="inspector__empty">暂无记录，对话后生成</p>
           ) : (
             <>
               <p className="inspector__stage">{bond.stage}</p>
@@ -215,8 +215,8 @@ export function Inspector({
           {memories.length === 0 ? (
             <p className="inspector__empty">
               {memoryFault === undefined
-                ? '聊两句就有了'
-                : memoryFault === 'list-failed' ? '暂时读不出来' : '还没接上'}
+                ? '暂无记录，对话后生成'
+                : memoryFault === 'list-failed' ? '暂时无法读取' : '尚未连接'}
             </p>
           ) : (
             <ul className="inspector__memories">
@@ -230,10 +230,10 @@ export function Inspector({
           )}
         </section>
 
-        {/* --- 她此刻在做什么 --------------------------------------- */}
+        {/* --- 当前活动 --------------------------------------------- */}
         <section className="inspector__group">
-          <h3 className="inspector__caption">她此刻在做什么</h3>
-          <p className="inspector__activity">{activity === '' ? '安静待着' : activity}</p>
+          <h3 className="inspector__caption">当前活动</h3>
+          <p className="inspector__activity">{activity === '' ? '空闲' : activity}</p>
         </section>
 
         {/*
@@ -248,7 +248,7 @@ export function Inspector({
 
           ## 为什么默认收起
 
-          §5.8 的四段顺序（此刻 → 她对你 → 记得的事 → 她此刻在做什么）是
+          §5.8 的四段顺序（此刻 → 关系阶段 → 记得的事 → 当前活动）是
           固定的，这三块不属于那四段。折叠起来，它们不打断阅读；需要时点开
           就能用。三块内部顺序按可逆性排：体检（无损）→ 做梦（写事实，
           不可逆）→ 快照（只读）。

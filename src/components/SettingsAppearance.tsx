@@ -25,14 +25,13 @@ export function SettingsAppearance(): React.JSX.Element {
         value={prefs.theme}
         onChange={(next) => { setPreferences({ theme: next }) }}
         options={[
-          { value: 'system', label: '跟随系统', hint: '系统换深色时她也换' },
+          { value: 'system', label: '跟随系统', hint: '随系统外观同步切换' },
           { value: 'light', label: '浅色', hint: '纸白' },
           { value: 'dark', label: '深色', hint: '墨夜' },
         ]}
       />
       <Note>
-        跟随系统时，系统在日落前后切换，这里也跟着换。选了浅色或深色就不再随系统动——
-        那不是「跟随」，是听话。
+        跟随系统时，主题随系统外观同步切换。选择浅色或深色后，将固定使用所选主题，不再随系统变化。
       </Note>
 
       <Heading>字号</Heading>

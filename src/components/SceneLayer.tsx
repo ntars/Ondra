@@ -370,7 +370,7 @@ function PreviewBlock({
   return (
     <div className="scene__preview">
       <p className="scene__preview-text">{text}</p>
-      <p className="scene__preview-note">示例只演参数的影响，不是她会说的话</p>
+      <p className="scene__preview-note">示例仅演示参数影响，不代表实际回复</p>
     </div>
   )
 }

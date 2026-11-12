@@ -73,6 +73,16 @@ export interface Preferences {
    * 麦克风授权由系统在首次使用时请求；本机需装有本地语音识别模型才能真正转写。
    */
   voiceInput: boolean
+  /**
+   * 开发者模式：插件参数里是否显示高级字段。
+   *
+   * ## 为什么是一个持久偏好而不是面板内的临时开关
+   *
+   * 会开它的人，通常每次都要开。存成临时状态等于让他每次进来点一下，
+   * 而这一步没有任何信息量。反过来，普通用户从默认值开始就看不到它，
+   * 也不会误触——所以持久化的风险为零。
+   */
+  developerMode: boolean
 }
 
 /** 出厂默认值。 */
@@ -106,6 +116,7 @@ const DEFAULTS: Preferences = {
   notify: false,
   provider: '',
   voiceInput: false,
+  developerMode: false,
 }
 
 /**
@@ -130,6 +141,7 @@ const KEY_VOLUME = 'ondra.soundVolume'
 const KEY_NOTIFY = 'ondra.notify'
 const KEY_PROVIDER = 'ondra.provider'
 const KEY_VOICE = 'ondra.voiceInput'
+const KEY_DEVELOPER = 'ondra.developerMode'
 
 /** 当前偏好。模块级单例：两个窗口各持一份内存副本，靠广播对齐。 */
 let current: Preferences = { ...DEFAULTS }
@@ -206,6 +218,7 @@ export function loadPreferences(): Preferences {
     notify: read(KEY_NOTIFY) === undefined ? DEFAULTS.notify : read(KEY_NOTIFY) === 'on',
     provider: read(KEY_PROVIDER) ?? DEFAULTS.provider,
     voiceInput: read(KEY_VOICE) === 'on',
+    developerMode: read(KEY_DEVELOPER) === 'on',
   }
   return current
 }
@@ -264,6 +277,7 @@ export function setPreferences(patch: Partial<Preferences>): void {
   write(KEY_NOTIFY, next.notify ? 'on' : 'off')
   write(KEY_PROVIDER, next.provider)
   write(KEY_VOICE, next.voiceInput ? 'on' : 'off')
+  write(KEY_DEVELOPER, next.developerMode ? 'on' : 'off')
 
   applyPreferences(next)
   notify()

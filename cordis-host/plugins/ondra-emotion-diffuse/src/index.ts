@@ -173,9 +173,9 @@ export function apply(ctx: Context, config: DiffuseConfig): void {
     return
   }
   log.info(
-    '情绪弥散就绪：保留比例 %.2f–%.2f，同会话判定间隔 %d 分钟，标记表 %s',
-    service.retainOf(1),
-    service.retainOf(0),
+    '情绪弥散就绪：保留比例 %s–%s，同会话判定间隔 %d 分钟，标记表 %s',
+    service.retainOf(1).toFixed(2),
+    service.retainOf(0).toFixed(2),
     settings.minGapMinutes,
     stats.storeProvider,
   )

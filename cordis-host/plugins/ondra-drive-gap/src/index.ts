@@ -186,14 +186,14 @@ export function apply(ctx: Context, config: DriveGapConfig): void {
     return
   }
   log.info(
-    '缺口池就绪：开 %d 条 / 闭 %d 条，存储 %s；起点 %.0f + %.1f/h，唤醒线 %.0f，判重 %.1f 加压 +%d',
+    '缺口池就绪：开 %d 条 / 闭 %d 条，存储 %s；起点 %s + %s/h，唤醒线 %s，判重 %s 加压 +%d',
     stats.open,
     stats.closed,
     stats.storeProvider,
-    settings.baseTension,
-    settings.tensionPerHour,
-    WAKE_TENSION,
-    SIMILARITY_THRESHOLD,
+    settings.baseTension.toFixed(0),
+    settings.tensionPerHour.toFixed(1),
+    WAKE_TENSION.toFixed(0),
+    SIMILARITY_THRESHOLD.toFixed(1),
     BUMP_STEP,
   )
 }

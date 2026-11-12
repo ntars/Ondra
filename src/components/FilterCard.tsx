@@ -127,10 +127,10 @@ export function FilterCard(): React.JSX.Element {
           <span className="pref__row-label">说话的规矩</span>
           <span className="pref__row-hint">
             {state === undefined
-              ? '读状态中'
+              ? '正在读取状态'
               : state.loaded
-                ? '发出去之前过九道手：草稿腔、客服腔、旁白、复读都删掉'
-                : '九步过滤没装载，她说什么都会原样发出来'}
+                ? '输出前经九道过滤：去除草稿腔、客服腔、旁白与重复'
+                : '输出过滤未装载，回复将不经处理直接输出'}
           </span>
         </div>
         <button
@@ -157,7 +157,7 @@ export function FilterCard(): React.JSX.Element {
            * 只报一个，会把「没接线」和「接了但一步都没命中」说成同一件事。
            */}
           {stats.runs === 0
-            ? '还没有一句话过过这道闸。说一句话就会开始记账。'
+            ? '还没有过滤记录。发送消息后将开始统计。'
             : `已过 ${String(stats.runs)} 句，上次删掉 ${String(stats.lastRemoved)} 句`
               + `（评审 ${String(stats.reviews)} 次，其中打回重写 ${String(stats.steers)} 次）`}
         </p>
@@ -171,7 +171,7 @@ export function FilterCard(): React.JSX.Element {
 
       {state === undefined || state.pending.length === 0 ? null : (
         <p className="pref__note">
-          {`还没接的两件：${state.pending.join('；')}。`}
+          {`以下两项未就绪：${state.pending.join('；')}。`}
         </p>
       )}
 

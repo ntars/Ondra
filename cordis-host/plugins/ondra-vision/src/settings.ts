@@ -104,6 +104,19 @@ export const BASE_URL_MAX = 300
 /** 凭据引用名的形状：POSIX 环境变量名（与 O-035 / O-076 同口径）。 */
 export const CREDENTIAL_REF_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
+/*
+ * 配置段里 `credentialRef` 字段的 `pattern`。
+ *
+ * 比 `CREDENTIAL_REF_RE` 多一个可选的空串，理由与 asr 的 `LANGUAGE_PATTERN`
+ * 同一条：本字段默认值就是空串（「留空用该家默认变量名」），而
+ * `ondra-config-schema` 注册时会拿 `pattern` 校验 `default` 本身，正则不收
+ * 空串 → 整段注册抛错。
+ *
+ * 影响范围：值仍然生效（宿主用 `buildMemberConfigs` 注入用户层），失效的是
+ * 这一段的 schema 级校验与逐字段回退，外加每次启动一行假故障 warn。
+ */
+export const CREDENTIAL_REF_PATTERN = '^([A-Za-z_][A-Za-z0-9_]*)?$'
+
 /** 细节档取值。 */
 export const DETAIL_LEVELS: readonly Config['detail'][] = Object.freeze(['auto', 'low', 'high'])
 
@@ -134,7 +147,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
   credentialRef: {
     kind: 'string',
     default: '',
-    pattern: CREDENTIAL_REF_RE.source,
+    pattern: CREDENTIAL_REF_PATTERN,
     doc: '凭据的环境变量名（不是值）。留空用该家默认：openai 是 OPENAI_API_KEY，qwen 是 DASHSCOPE_API_KEY。',
   },
   detail: {

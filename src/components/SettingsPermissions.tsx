@@ -68,7 +68,7 @@ export function SettingsPermissions(): React.JSX.Element {
     },
     {
       name: '通知',
-      purpose: '用于您离开时提醒她主动发起的内容（默认关闭）。',
+      purpose: '用于在您离开时提示主动发起的内容（默认关闭）。',
       pane: 'notifications',
       status: notification,
       needsAction: notification === '已拒绝' || notification === '尚未授权',

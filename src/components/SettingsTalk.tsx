@@ -70,13 +70,13 @@ export function SettingsTalk(): React.JSX.Element {
         value={prefs.sendMode}
         onChange={(next) => { setPreferences({ sendMode: next }) }}
           options={[
-            { value: 'interrupt', label: '打断', hint: '她正在生成时，按 Enter 可立即插入您的输入' },
-            { value: 'queue', label: '排队', hint: '待她完成本轮生成后再接入您的输入' },
+            { value: 'interrupt', label: '打断', hint: '生成过程中按 Enter 可立即插入输入' },
+            { value: 'queue', label: '排队', hint: '待本轮生成完成后再插入输入' },
           ]}
       />
       <Note>
-        这只影响「她正在生成时」按 Enter 的行为。空闲时 Enter 永远是发送，
-        Shift + Enter 永远是换行。选「排队」时，生成中按 Cmd/Ctrl + Enter 可以越过队列立刻发。
+        本项仅影响生成过程中按 Enter 的行为。空闲时 Enter 始终为发送，
+        Shift + Enter 始终为换行。选择「排队」时，生成中按 Cmd/Ctrl + Enter 可越过队列立即发送。
       </Note>
 
       <Heading>默认权限</Heading>

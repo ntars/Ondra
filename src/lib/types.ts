@@ -46,6 +46,28 @@ export interface Attachment {
   thumb?: string
 }
 
+/**
+ * 一条排队中的消息。
+ *
+ * ## 为什么要带附件而不只带文字
+ *
+ * 排队发生在"她正在生成"的那几十秒里。这期间用户完全可能拖进一张图、
+ * 再写一句话一起排。只存文字的话，那条附件在她这一轮结束的瞬间就消失了
+ * ——而用户以为已经排上了。
+ *
+ * 附件本身是内存对象（`thumb` 是 data URL），跟着这一条一起活到被发送。
+ */
+export interface QueuedMessage {
+  /** 本地 id，仅用于 React key 与编辑定位。 */
+  id: string
+  /** 正文。 */
+  text: string
+  /** 随行的附件。 */
+  attachments: readonly Attachment[]
+  /** 排进来的时刻。用于显示"排了多久"。 */
+  at: number
+}
+
 /** 本轮用量，显示在输入区底部行。 */
 export interface ComposerUsage {
   /** 本轮消耗的 token 数。 */
@@ -82,6 +104,15 @@ export interface LogEntry {
   actor: 'system' | 'user' | 'assistant'
   /** 摘要文案。 */
   summary: string
+  /**
+   * 工具名（仅 `channel === 'tool'`）。
+   *
+   * 单独成字段而不是拼进摘要：日志要把名字翻成人话（`bash` → 「跑命令」），
+   * 而拼进句子之后就只能靠正则往回拆，拆不准时整行都读不懂。
+   */
+  tool?: string
+  /** 工具参数（仅 `channel === 'tool'`）。线上是 JSON 字符串，可能是坏数据。 */
+  args?: unknown
   /** 可展开的完整内容。没有则不显示展开区。 */
   detail?: string
   /** 内容字数。单独存数字便于对齐成一列，拼进文字里就对齐不了了。 */

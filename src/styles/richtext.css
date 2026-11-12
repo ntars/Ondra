@@ -56,8 +56,25 @@ strong {
 
 em {
   font-style: normal;
-  /* 中文没有真斜体，伪斜体会让笔画粘连。用暖蜜底光代替强调。 */
-  background: linear-gradient(to top, var(--her-glow) 0 42%, transparent 42%);
+  /*
+   * 中文没有真斜体，伪斜体会让笔画粘连——这一点没变。
+   *
+   * ## 为什么去掉了「暖光底衬」
+   *
+   * 上一版用 `linear-gradient(to top, var(--her-glow) 0 42%, transparent 42%)`
+   * 给文字**下半截铺一条暖色带**，当作斜体的替代。问题在于它读起来
+   * 就是一条「高光下划线」：正文里凡是带强调的词都会浮起一块色条，
+   * 段落被切成一截一截，反而干扰阅读。截图里 `qs`、「第 1 天」上的
+   * 那道黄线就是它。
+   *
+   * 现在改用字重：中文排版的强调本来以「加粗」为主，`*斜体*` 与
+   * `**加粗**` 在中文语境下合并成同一种视觉表现是成立的，代价只是
+   * 两者不可区分——但在中文里它们本来也区分不出来。
+   *
+   * 不再引入颜色：暖色（amber）在本项目已承担「风险」语义，拿它做
+   * 正文强调会让读者误判。
+   */
+  font-weight: var(--w-medium);
 }
 
 del {
@@ -139,7 +156,18 @@ del {
 .md__code {
   padding: 1px 4px;
   border-radius: var(--r-xs);
-  background: var(--ui-bg-sunken);
+  /*
+   * 底纹从 `--ui-bg-sunken` 减到 6% 墨。
+   *
+   * `sunken` 是「比纸暗一档」的**面**色，用在块级容器上合适（代码块、
+   * 引用块），但行内码只包一个词——在浅色下那是 `#e8e8e8` 压在
+   * `#fcfcfc` 上，一块实心灰斑，读起来像被荧光笔划过；深色下同样
+   * 是比纸亮一档的亮块。一篇文章里出现五六个术语，正文就被切成碎片。
+   *
+   * 6% 的墨在深浅两套里都只是「微微有底」，够提示"这是代码"，
+   * 又不至于抢走视线。识别主要交给等宽字体本身。
+   */
+  background: color-mix(in srgb, var(--ui-ink) 6%, transparent);
   font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
   font-size: 0.75rem;
   color: var(--ui-ink);
@@ -175,7 +203,13 @@ del {
   font-size: var(--text-micro);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ui-ink-4);
+  /*
+   * `--ui-ink-4` 在这里不达标：11px 小字压在代码块底（浅色 #e8e8e8 /
+   * 深色 #333）上只有 3.27:1 与 3.2:1，AA 要求 4.5:1。降一档到 `ink-3`
+   * 后是 4.9:1 与 4.7:1。它本来是最次要的元信息，但"次要"不等于
+   * "看不清"——角标读不出来，代码块就没有语言标识了。
+   */
+  color: var(--ui-ink-3);
   pointer-events: none;
   transition: opacity var(--motion-f) var(--ease-fluid);
 }
@@ -237,6 +271,19 @@ del {
   padding-bottom: 2px;
   overflow-x: auto;
   border-radius: var(--r-xs);
+  /*
+   * 右缘一条内阴影，作为「右边还有内容」的**兜底线索**。
+   *
+   * 主线索是下面那条常驻 6px 滚动条，但 macOS 的系统设置允许「滚动条
+   * 仅在滚动时显示」，此时一个六列表格会在正文右缘被硬切——用户看到
+   * 半句话，不知道能横滑，也找不到滚动条。第一版用 `--ui-line-strong`
+   * （22% 墨）太淡，实测在浅底上几乎不可见。改用两套主题各给一档：
+   * 浅色 18% 黑、深色 14% 白，渐隐带宽 12px，肉眼能读出「右边还有」。
+   *
+   * 这两档收在 `tokens.css` 的 `--edge-fade` 里，这里只引别名：写在组件
+   * 里就得写 `[data-theme='dark']` 分支，等于第二套真源。
+   */
+  box-shadow: inset -12px 0 12px -8px var(--ui-edge-fade);
   /* 常驻 6px 细条：有溢出时它是唯一线索。不写标准 scrollbar-width——
      Chromium 里标准属性优先级更高，会让滚动条退回浮层模式隐形。 */
 }

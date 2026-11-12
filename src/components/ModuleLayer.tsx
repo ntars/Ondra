@@ -13,10 +13,19 @@
  *
  * number 与 boolean 合计 80%，所以这两种控件的观感决定整个设置页的观感。
  *
- * ## `advancedOnly` 的比例是 48%，必须按段记忆
+ * ## 分层可见：普通视图不给高级字段，开发者模式全给
  *
- * 549 / 1116 是高级字段。若做成一个全局开关，用户为看 A 段的两个高级项
- * 打开它，B 段会一次涌出三十个字段。所以开关状态存在**段**上。
+ * 全仓近半数字段标着 `advancedOnly`。默认藏起来不是「简化」，是**先给能
+ * 读懂的那一半**：普通视图里一段只有三五项，读得完；开发者模式是同一个
+ * 列表，只是不再过滤。两档由**一个**开关控制（设置页底部的「开发者模式」），
+ * 不再按段各记一个——按段记的结果是同一屏里有些段展开有些没展开，
+ * 用户无法从界面判断「我到底在哪个模式」。
+ *
+ * ## 分组按「使用者要解决什么问题」
+ *
+ * 65 个段平铺是一堵墙。分组表在 `lib/settingsTaxonomy.ts`，四组 + 兜底：
+ * 人设与表达 / 记忆与情绪 / 主动与节奏 / 运行与安全。搜索时不分组——
+ * 用户已经说出了他要找的词，再按组折叠只是多一层点击。
  *
  * ## 零插件专属代码
  *
@@ -27,6 +36,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { SettingsField, SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
+import { SETTINGS_CATEGORIES, categoryOfSection, isHighRisk } from '../lib/settingsTaxonomy.ts'
 
 export interface ModuleLayerProps {
   sections: SettingsSection[]
@@ -35,6 +45,12 @@ export interface ModuleLayerProps {
   /** 搜索词由上层持有，让「场景层搜不到 → 跳到模块层」能带词过来。 */
   query: string
   onQueryChange(next: string): void
+  /**
+   * 开发者模式：是否显示高级字段。
+   *
+   * 由设置页的一个开关控制，不按段记忆（见文件头）。默认关闭。
+   */
+  developerMode: boolean
 }
 
 /** 一个字段的当前值：用户层优先，否则默认值。 */
@@ -200,7 +216,7 @@ function JsonField({
           } catch (caught) {
             // 报错要说清哪里错。`SyntaxError` 的 message 里带位置，
             // 但 Chromium 的措辞是英文——这里只留一句中文结论，不假装翻译它。
-            setError(caught instanceof Error ? 'JSON 还没写完或格式有误' : '解析失败')
+            setError(caught instanceof Error ? 'JSON 不完整或格式有误' : '解析失败')
           }
         }}
       />
@@ -362,27 +378,36 @@ function SectionBlock({
   onWrite,
   expanded,
   onToggle,
-  advanceOpen,
-  onAdvanceToggle,
+  developerMode,
 }: {
   section: SettingsSection
   user: SceneValues
   onWrite(section: string, key: string, value: unknown): Promise<void>
   expanded: boolean
   onToggle(): void
-  advanceOpen: boolean
-  onAdvanceToggle(): void
+  developerMode: boolean
 }): React.JSX.Element {
   const changedCount = Object.keys(user[section.id] ?? {}).length
   const advancedCount = section.fields.filter((field) => field.advancedOnly).length
-  const visible = advanceOpen ? section.fields : section.fields.filter((field) => !field.advancedOnly)
+  /* 普通视图只给非高级；开发者模式给全部。两种视图共用同一段折叠状态。 */
+  const visible = developerMode ? section.fields : section.fields.filter((field) => !field.advancedOnly)
+  const highRisk = isHighRisk(section.id)
 
   return (
     <section className="module" data-inactive={section.active ? undefined : ''}>
       <button type="button" className="module__head" aria-expanded={expanded} onClick={onToggle}>
-        <span className="module__title">{section.title}</span>
+        <span className="module__title">
+          {section.title}
+          {/*
+            高风险标挂在段名后面而不是单独一行：它修饰的是这一段，
+            读者点到它时应该已经知道「这一段会动到机器边界」。
+          */}
+          {highRisk ? <span className="module__risk">高风险</span> : null}
+        </span>
         <span className="module__meta">
-          {section.fields.length} 项{changedCount > 0 ? ` · 已改 ${String(changedCount)}` : ''}
+          {visible.length} 项
+          {developerMode && advancedCount > 0 ? ` · ${String(advancedCount)} 高级` : ''}
+          {changedCount > 0 ? ` · 已改 ${String(changedCount)}` : ''}
         </span>
       </button>
 
@@ -397,12 +422,7 @@ function SectionBlock({
 
       {expanded ? (
         <div className="module__body">
-          {advancedCount > 0 ? (
-            <button type="button" className="module__advance" aria-pressed={advanceOpen} onClick={onAdvanceToggle}>
-              {advanceOpen ? `收起 ${String(advancedCount)} 项高级` : `展开 ${String(advancedCount)} 项高级`}
-            </button>
-          ) : null}
-
+          {visible.length === 0 ? <p className="module__off">这一段只有高级字段，打开开发者模式可见</p> : null}
           {visible.map((field) => (
             <FieldRow key={field.key} section={section} field={field} user={user} onWrite={onWrite} />
           ))}
@@ -419,12 +439,10 @@ export function ModuleLayer({
   onWrite,
   query,
   onQueryChange,
+  developerMode,
 }: ModuleLayerProps): React.JSX.Element {
   /** 展开的段 id 集合。只允许同时展开一段，避免 1116 个控件同时在树上。 */
   const [expanded, setExpanded] = useState<string | undefined>(undefined)
-  /** 展开高级开关的段 id 集合。**按段**记忆（§5.13）。 */
-  const [advanced, setAdvanced] = useState<ReadonlySet<string>>(new Set())
-
   const keyword = query.trim().toLowerCase()
 
   /*
@@ -457,14 +475,49 @@ export function ModuleLayer({
     [matched],
   )
 
-  const toggleAdvanced = useCallback((id: string): void => {
-    setAdvanced((previous) => {
-      const next = new Set(previous)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
+  /**
+   * 一段的渲染闭包。
+   *
+   * 分组视图与搜索结果共用同一段代码：两处各写一遍，折叠状态与「已改」
+   * 计数迟早会不一致——那种不一致用户在界面上看不出来，只会觉得「数字不对」。
+   */
+  const renderSection = (section: SettingsSection): React.JSX.Element => (
+    <SectionBlock
+      key={section.id}
+      section={section}
+      user={user}
+      onWrite={onWrite}
+      expanded={expanded === section.id}
+      onToggle={() => { setExpanded(expanded === section.id ? undefined : section.id) }}
+      developerMode={developerMode}
+    />
+  )
+
+  /**
+   * 按四组铺开。
+   *
+   * 段在组内的顺序取分类表里的声明顺序（那是「基础 → 进阶」的排法），
+   * 表里没列的段按标题排在组尾——它们通常是新装的插件，还没归位。
+   */
+  const grouped = useMemo(() => {
+    const byId = new Map(matched.map((section) => [section.id, section]))
+    const used = new Set<string>()
+    const groups = SETTINGS_CATEGORIES.map((category) => {
+      const ordered: SettingsSection[] = []
+      for (const id of category.sections) {
+        const section = byId.get(id)
+        if (section === undefined) continue
+        ordered.push(section)
+        used.add(id)
+      }
+      const rest = matched
+        .filter((section) => !used.has(section.id) && categoryOfSection(section.id) === category.id)
+        .sort((left, right) => left.title.localeCompare(right.title, 'zh'))
+      for (const section of rest) used.add(section.id)
+      return { id: category.id, name: category.name, subtitle: category.subtitle, sections: [...ordered, ...rest] }
     })
-  }, [])
+    return groups.filter((group) => group.sections.length > 0)
+  }, [matched])
 
   return (
     <div className="settings__module">
@@ -494,18 +547,22 @@ export function ModuleLayer({
             {matched.filter((section) => section.registered).length} 个配置段
             {orphanCount === 0 ? null : <span className="settings__count-note">另有 {orphanCount} 个插件只有字段、没有配置段</span>}
           </p>
-          {matched.map((section) => (
-            <SectionBlock
-              key={section.id}
-              section={section}
-              user={user}
-              onWrite={onWrite}
-              expanded={expanded === section.id}
-              onToggle={() => { setExpanded(expanded === section.id ? undefined : section.id) }}
-              advanceOpen={advanced.has(section.id)}
-              onAdvanceToggle={() => { toggleAdvanced(section.id) }}
-            />
-          ))}
+          {/*
+            * 有搜索词时平铺：用户已经说出了要找的词，再按组折叠只是
+            * 多一层点击。没有搜索词时按四组铺开，组头给一句「这一组管什么」。
+            */}
+          {keyword === ''
+            ? grouped.map((group) => (
+              <section key={group.id} className="module__group">
+                <header className="module__group-head">
+                  <h4 className="module__group-title">{group.name}</h4>
+                  <span className="module__group-count">{group.sections.length}</span>
+                  <p className="module__group-sub">{group.subtitle}</p>
+                </header>
+                {group.sections.map(renderSection)}
+              </section>
+            ))
+            : matched.map(renderSection)}
         </>
       )}
     </div>

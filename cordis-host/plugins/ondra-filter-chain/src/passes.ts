@@ -83,13 +83,27 @@ function filterSentences(text: string, step: StepId, action: StepAction, decide:
   const kept: string[] = []
   const hits: PassHit[] = []
   let removed = 0
+  /*
+   * 被删那句的尾部间隔（可能是段落空行）不能跟着它一起消失——否则
+   * 「删掉一段里的最后一句」会把下面那段并上来，两段粘成一段。
+   *
+   * 但也不能无脑顺延：**上一句保留的句子已经把它自己那个间隔发出去了**，
+   * 再加一次就变成两个空行（实测 4 个 `\n`）。所以只在上一句的间隔里
+   * 没有换行时才补。`lastGap` 初值给 `'\n'`：开头就当「前面已有分隔」，
+   * 免得删掉第一句之后结果以一个空行打头。
+   */
+  let carried = ''
+  let lastGap = '\n'
   for (const sentence of sentences) {
     const kind = decide(sentence)
     if (kind === undefined) {
-      kept.push(sentence.text)
+      kept.push(carried + sentence.text + sentence.gap)
+      carried = ''
+      lastGap = sentence.gap
       continue
     }
     removed += 1
+    carried = lastGap.includes('\n') ? '' : sentence.gap
     hits.push(
       Object.freeze({ step, kind, sample: sampleOf(sentence.text, 40), action }),
     )
@@ -297,10 +311,15 @@ function passRepeat4Gram(text: string, env: PassEnv): PassOutcome {
   const hits: PassHit[] = []
   let removed = 0
   const seen = new Set<string>()
+  /* 被删句的尾部间隔顺延给下一句，别把两段粘成一段（同 `filterSentences`）。 */
+  let carried = ''
+  let lastGap = '\n'
   for (const sentence of sentences) {
     const grams = ngramSet(sentence.text, n)
     if (grams.size === 0) {
-      kept.push(sentence.text)
+      kept.push(carried + sentence.text + sentence.gap)
+      carried = ''
+      lastGap = sentence.gap
       continue
     }
     let repeated = false
@@ -317,6 +336,7 @@ function passRepeat4Gram(text: string, env: PassEnv): PassOutcome {
     }
     if (repeated) {
       removed += 1
+      carried = lastGap.includes('\n') ? '' : sentence.gap
       hits.push(
         Object.freeze({
           step: 'repeat-4gram',
@@ -327,7 +347,9 @@ function passRepeat4Gram(text: string, env: PassEnv): PassOutcome {
       )
       continue
     }
-    kept.push(sentence.text)
+    kept.push(carried + sentence.text + sentence.gap)
+    carried = ''
+    lastGap = sentence.gap
     for (const gram of grams) seen.add(gram)
   }
   return Object.freeze({ text: joinSentences(kept), removed, hits: Object.freeze(hits) })

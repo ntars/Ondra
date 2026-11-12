@@ -49,17 +49,53 @@ interface GateDecisionLike {
   readonly speak: boolean
   readonly reason: string
   readonly chars: number
+  /**
+   * 本轮**整段回复**是否含情绪词。
+   *
+   * 要往下传给 `admit()`：句长闸按单句判，情绪词旁路按整轮判（手册 §9.4）。
+   * 少了这一项，情绪词落在没被挑中的那一句时，旁路就悄悄失效。
+   */
+  readonly emotive?: boolean
   readonly rate?: number
   readonly volume?: 'normal' | 'low'
   readonly streak: number
   readonly degraded: readonly string[]
 }
 
+/**
+ * 闸门入参的结构对位子集。
+ *
+ * 只留宿主真的要传的那一项。完整定义在插件侧 `GateOptions`，
+ * 那边多出来的字段宿主一律不碰——镜像得越少，越不容易漂。
+ */
+interface GateOptionsLike {
+  readonly emotive?: boolean
+}
+
+/**
+ * 把「可能是 undefined 的整轮情绪词结论」收敛成一份入参。
+ *
+ * `exactOptionalPropertyTypes` 下 `{ emotive: undefined }` 与「不传这一项」
+ * 不是一回事：前者会报类型错。没探过的时候就该什么都不传，让闸门自己判。
+ * @param value 整段是否含情绪词；`undefined` = 没探过。
+ */
+function emotiveOption(value: boolean | undefined): GateOptionsLike | undefined {
+  return value === undefined ? undefined : { emotive: value }
+}
+
 /** 语音闸门服务。 */
 interface GatePort {
   readonly available: boolean
   readonly reason?: string
-  admit(text: string): GateDecisionLike
+  /**
+   * 只判不记账的那一次（插件 `decide()`）。
+   *
+   * 有它是为了「先试几个候选、只对选中的那个记一次账」。没有它就只能
+   * 每试一个候选都 `admit()` 一次，`decisions` 与连读计数会被一轮里
+   * 的试探撑爆，探针从此读不出真实情况。旧版闸门没这个方法，故可选。
+   */
+  decide?(text: string, options?: GateOptionsLike): GateDecisionLike
+  admit(text: string, options?: GateOptionsLike): GateDecisionLike
   reset(): void
   stats(): {
     readonly decisions: number
@@ -182,6 +218,165 @@ function portsOf(ctx: Context): { gate: GatePort | undefined; tts: TtsPort | und
     gate: ctx.get('ondra-tts-gate') as GatePort | undefined,
     tts: ctx.get('ondra-tts') as TtsPort | undefined,
   }
+}
+
+/**
+ * 断句用的标点（中文句读 + 逗号顿号 + 换行；问号叹号含全角半角）。
+ *
+ * 逗号也切：中文口语里一句 40 字的话常常**只用逗号**，全句没有句号。
+ * 只按句号切的话，「硬盘里又不会出门，能不在嘛寂寞就寂寞一会儿，
+ * 不用急着找话说」会整条算一句，仍然超长念不出来——那正是这次要修的
+ * 那个症状换了个位置复发。切到分句再往后拼（`pickUtterance` 最多拼 4 段），
+ * 拼出来的仍然是完整意思，不是半截话。
+ */
+const CLAUSE_END = /[。！？!?…；;，,、\n]+/u
+
+/**
+ * 把一段整话切成候选朗读分句。
+ * @param text 已净化的正文。
+ */
+function clausesOf(text: string): readonly string[] {
+  const parts: string[] = []
+  for (const raw of text.split(CLAUSE_END)) {
+    const piece = raw.trim()
+    if (piece !== '') parts.push(piece)
+  }
+  return parts
+}
+
+/**
+ * 在一段「太长念不了」的整话里，挑出**第一句能念的**。
+ *
+ * ## 它补的是哪条断掉的边
+ *
+ * `ondra-tts-gate` 的句长闸口径是「一句话 6–30 字」（`max-chars` 段），
+ * README 第 2 条表格原话，配置说明里写着「超过就该拆条，不该硬念」。
+ * 也就是说：**拆条是调用方的活**，闸门只负责判它拿到的那一句。
+ *
+ * 但宿主此前是整段回复一次交给闸门（见本文件 `speakReply`）。于是一段
+ * 四十字的正常回复必然被判 `too-long`——而且这不是偶发：只要回复超过
+ * 30 字就念不出来，与情绪、频控、连读一概无关。实测一轮真实会话里
+ * `decisions=4`、`spoken=0`，四条全是 `too-long` / `flat` 拦下。
+ *
+ * 这里只做「挑一句」，不做「全部念完」：一轮念一句，连读上限与频控
+ * 才有意义；攒着念三段那是播客，不是说话。
+ *
+ * ## 为什么不用 `admit()` 试
+ *
+ * `admit()` 会记账（`decisions`、连读计数、频控时刻）。拿它试探几个
+ * 候选，等于一轮里自己把频控撞响。所以试探走 `decide()`（纯），
+ * 选中之后回到 `speakReply` 里 **只 `admit()` 一次**。
+ * @param gate 语音闸门。
+ * @param text 已净化的正文。
+ * @returns `picked` 是可念的那一句；挑不出来时给 `fallback`——被拦下的那个
+ *   候选原文，供调用方记账用（理由归因靠它）。两者都没有时返回空对象。
+ */
+function pickUtterance(
+  gate: GatePort,
+  text: string,
+  note: (message: string) => void,
+  turnEmotive: boolean | undefined,
+): { readonly picked?: string; readonly fallback?: string } {
+  /*
+   * 必须 `gate.decide(...)` 这样调，不能先 `const decide = gate.decide`。
+   *
+   * `decide()` 是类方法，内部用 `this.shape()` / `this.draft()`。取成局部
+   * 变量再调，`this` 就丢了，抛 `Cannot read properties of undefined
+   * (reading 'shape')`——而外面那层 `catch` 会把它降级成「本轮不出声」，
+   * 于是一个空指针变成了一次静默的沉默。这条踩过一次，留在这里当路标。
+   */
+  if (typeof gate.decide !== 'function') return {}
+  const clauses = clausesOf(text)
+  if (clauses.length === 0) return {}
+
+  /* 第一段能念的候选被哪道闸拦下（只用于挑不出来时留一行诊断）。 */
+  let firstBlock: string | undefined
+  /*
+   * 是否出现过「候选本身就太长」。
+   *
+   * 这一个标记专为一种情形存在：整段没有任何标点，`clausesOf()` 切出来
+   * 只有一段，于是 `too-long` 一命中就 `break`，`firstBlock` 永远填不上，
+   * 函数返回空对象——调用方既没有可念的句子，也拿不到任何理由，探针上
+   * 只看到 `blocked.too-long` 一直涨。那是本轮巡检里唯一仍然「纯静默」
+   * 的一条路：主人听不到声音，日志也读不到原因。
+   */
+  let sawTooLong = false
+  /*
+   * 被拦下的那个候选**原文**。
+   *
+   * 留住它，是因为调用方还要拿它去 `admit()` 记一次账。此前这里返回
+   * `undefined`，调用方只能拿整段去记，于是「整段 too-long、分句后全是
+   * flat」这种情形被记成 `too-long`——而真因是 `flat`。实测日志就是这样
+   * 一对相邻行：`整段过长，且分句后仍无可念句（flat）` 紧跟
+   * `语音未放行（too-long，72 字）`。本仓明令禁止「两种原因混成一句」，
+   * 而设置页读的正是 `blocked` 这个桶：它会告诉主人「你的话太长」，
+   * 真正该看的是「她太平了」。归因错了，修法就全错。
+   */
+  let firstBlockedText: string | undefined
+
+  /*
+   * 从前往后，逐段往后拼。
+   *
+   * - 拼出来还 `too-short`：继续往后加，短句拼成长句本来就是这么回事；
+   * - 拼出来 `too-long`：这条路的后续只会更长，直接换下一个起点；
+   * - 拼出来能念：就是它，第一个能念的优先（先说的那句最像开场白）。
+   *
+   * 上限 4 段：再多就已经是整段了，念出来赶得上念课文。
+   */
+  for (let start = 0; start < clauses.length; start += 1) {
+    let candidate = ''
+    for (let end = start; end < clauses.length && end < start + 4; end += 1) {
+      candidate = end === start ? clauses[end] as string : `${candidate}${clauses[end] as string}`
+      let decision: GateDecisionLike
+      try {
+        // 整轮的情绪词结论一路带下来：候选只是整段的一部分，但它是不是
+        // 「该出声的一轮」取决于整段（见 `GateOptions.emotive`）。
+        decision = gate.decide(candidate, emotiveOption(turnEmotive))
+      } catch (error) {
+        note(`挑句判定异常（本轮不出声）：${messageOf(error)}`)
+        return {}
+      }
+      if (decision.speak) return { picked: candidate }
+      // 太长了：从这个起点往后拼只会更长，换下一个起点。
+      if (decision.reason === 'too-long') {
+        sawTooLong = true
+        break
+      }
+      // 太短了：接着往后拼。其余理由（flat / harsh / cooldown …）拼多长都一样。
+      if (decision.reason !== 'too-short') {
+        if (firstBlock === undefined) {
+          firstBlock = decision.reason
+          firstBlockedText = candidate
+        }
+        break
+      }
+    }
+  }
+  /*
+   * 一句都挑不出来时留一行。
+   *
+   * 这一段最容易变成「什么都不发生」：整段 `too-long`、候选又全被别的闸
+   * 拦着，探针上只看到 `too-long` 一条，看不出是长度问题还是情绪问题。
+   * 一行足够分清这两件事，且一轮最多一行。
+   */
+  if (firstBlock !== undefined) {
+    note(`整段过长，且分句后仍无可念句（${firstBlock}）`)
+  } else if (sawTooLong) {
+    /*
+     * 落到这里的只有一种情形：切出来的每一段候选**自己**就超长。
+     *
+     * 最常见的是整段没有标点（英文长句、一串型号、一段没断句的碎碎念），
+     * `clausesOf()` 只切出一段，于是无句可挑。**不硬切**是刻意的：按字数
+     * 拦腰截断会念出「硬盘还剩一百二十个」这种半截话，比不出声更糟——
+     * 手册对朗读的要求是「一句完整的话」，宁可沉默也不要断句错。
+     *
+     * 但沉默必须留痕。此前这条路一行诊断都不写，症状在探针上和「她今天
+     * 不想说话」完全同形，只能靠读源码猜。留一行把「切不动」与「不想说」
+     * 分开，是这一处唯一该做的事。
+     */
+    note(`整段 ${String(Array.from(text).length)} 字无标点可切，单句超长不硬切（会念出半截话）`)
+  }
+  return firstBlockedText === undefined ? {} : { fallback: firstBlockedText }
 }
 
 /**
@@ -327,9 +522,82 @@ export async function speakReply(ctx: Context, text: string): Promise<VoiceOutco
     process.stderr.write(`[host] 可朗读净化失败（按原文判长）：${messageOf(error)}\n`)
   }
 
+  /*
+   * 整段念不了「太长」时，退一步挑一句能念的。
+   *
+   * 闸门的句长口径是单句（6–30 字），而这里拿到的是**一整段回复**。
+   * 不挑的话，「回复超过 30 字就永远不出声」会成为一条静默的死规则：
+   * 不报错、不影响文字、探针上只看到 `too-long` 一直涨。挑一句之后
+   * 行为变成「她说最开始那句短的」——正是闸门文档里「该拆条」的本意。
+   *
+   * 只在 `too-long` 这一种理由上退让。`flat` / `harsh` / `cooldown`
+   * 是「这一轮就是不该出声」，换一句也一样，不该绕过。
+   *
+   * 先 `decide()` 探一次是唯一不多记账的探法（见 `pickUtterance`）。
+   */
+  let spokenText = clean
+  /*
+   * 整段回复是否含情绪词的结论。挑句之后要把它带下去，否则旁路会按
+   * 「被挑中的那一句」重新判——而手册说的是「本轮」。
+   * `undefined` 表示没探过（没有 `decide()` 的旧闸门），此时交给闸门自己判。
+   */
+  let turnEmotive: boolean | undefined
+  if (typeof gate.decide === 'function') {
+    /*
+     * 诊断走 `ctx.logger` 而不是 stderr。
+     *
+     * 本仓插件习惯用 `process.stderr` 留痕，但宿主里 stderr 不进
+     * `debug.log`——调试接口读不到，等于没写。这一处要能被
+     * `ondra logs` 看到，所以走日志器。
+     */
+    const note = (message: string): void => {
+      try {
+        ctx.logger('ondra.voice').debug('%s', message)
+      } catch {
+        // 日志器不可用不该让朗读这条路断掉。
+      }
+    }
+    try {
+      const whole = gate.decide(clean)
+      if (!whole.speak && whole.reason === 'too-long') {
+        /*
+         * 只在切句这条路上才需要它：整段能念时，`admit(clean)` 本来就是按整段判。
+         *
+         * 取值来源必须是**整段**的判定结果（`whole` 就是 `decide(clean)`），
+         * 不能取被挑中那一句的。这一项正是「旁路按整轮算」的全部实现：
+         * 少了它，情绪词落在没被挑中的短句里时，`admit(候选)` 会重新按
+         * 候选判 `emotive=false`，被 `flat` 拦下——不出声、不报错。
+         *
+         * 曾经为做 A/B 在此临时置过 `undefined`，收尾时忘了还原；那会让
+         * `check:voice` 的 C 段失去被测对象（旁路根本收不到整轮结论）。
+         * 不要在这里写死 `undefined`。
+         */
+        turnEmotive = whole.emotive
+        const { picked, fallback } = pickUtterance(gate, clean, note, turnEmotive)
+        if (picked !== undefined) {
+          spokenText = picked
+          note(`整段 ${String(whole.chars)} 字念不了，改念其中 ${String(Array.from(picked).length)} 字那句`)
+        } else if (fallback !== undefined) {
+          /*
+           * 一句都挑不出来，但知道为什么。
+           *
+           * 拿那个候选去 `admit()`，让闸门的 `blocked` 桶记下真因
+           * （`flat` / `harsh` / `cooldown`），而不是笼统的 `too-long`。
+           * 结果一样都是不出声——这一处只换「记账的口径」，不换行为：
+           * 候选本来就是从这段回复里切出来的，`admit()` 只判一次、只记一次。
+           */
+          spokenText = fallback
+        }
+      }
+    } catch (error) {
+      // 探路失败就当没探过：照原路 `admit()` 一次，行为与改动前一致。
+      note(`挑句探路失败（按整段判）：${messageOf(error)}`)
+    }
+  }
+
   let decision: GateDecisionLike
   try {
-    decision = gate.admit(clean)
+    decision = gate.admit(spokenText, emotiveOption(turnEmotive))
   } catch (error) {
     process.stderr.write(`[host] 语音闸门判定异常（本轮不出声）：${messageOf(error)}\n`)
     return Object.freeze({ status: 'failed', reason: 'gate-error' })
@@ -345,7 +613,7 @@ export async function speakReply(ctx: Context, text: string): Promise<VoiceOutco
   }
 
   try {
-    const utterance = await tts.speak(clean, {
+    const utterance = await tts.speak(spokenText, {
       ...(decision.rate === undefined ? {} : { rate: decision.rate }),
       ...(decision.volume === undefined ? {} : { volume: decision.volume }),
     })

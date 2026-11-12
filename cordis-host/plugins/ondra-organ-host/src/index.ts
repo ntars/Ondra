@@ -219,10 +219,10 @@ export function apply(ctx: Context, config: Settings): void {
   }
 
   log.info(
-    '器官宿主就绪：计费模式 %s，回执有效期 %dms，置信度门槛 %.2f，片段上限 %d 片',
+    '器官宿主就绪：计费模式 %s，回执有效期 %dms，置信度门槛 %s，片段上限 %d 片',
     settings.chargeMode,
     settings.receiptTtlMs,
-    settings.minConfidence,
+    settings.minConfidence.toFixed(2),
     settings.maxFragments,
   )
   if (settings.chargeMode === 'shadow') {

@@ -15,7 +15,7 @@
   justify-content: center;
   padding: 24px;
   /* 扁平遮罩：纯色压暗，不虚化背景。模糊会把「下面还有内容」说成「下面已失效」。 */
-  background: rgb(13 16 23 / 42%);
+  background: rgb(0 0 0 / 42%);
   animation: fade-in var(--motion-f) var(--ease-fluid);
 }
 
@@ -155,7 +155,7 @@
   justify-content: center;
   padding: 48px 24px 48px;
   /* 扁平遮罩：纯色压暗，不虚化背景。模糊会把「下面还有内容」说成「下面已失效」。 */
-  background: rgb(13 16 23 / 42%);
+  background: rgb(0 0 0 / 42%);
   animation: fade-in var(--motion-f) var(--ease-fluid);
 }
 
@@ -339,9 +339,23 @@
  * `compact.css` 给 `.toast` 写了 `width: calc(100% - 24px)`，居中挪到
  * 半侧后它会直接顶出屏幕右缘，收紧上限正好把它压回去。
  */
+/*
+ * ## 设置打开时不避让，直接回窗口正中
+ *
+ * 避让的前提是「面板只占一侧，另一侧还有空地」。设置纸片现在是 780 宽、
+ * 浮在窗口正中（820 的最小窗里左右各剩 20），**没有一侧空地可以落脚**：
+ * `left: calc((100vw - 780px) / 2)` 算出来是 20，提示条从 20 起铺 420 宽，
+ * 正好横在设置左导航上——也就是「避让」反而把它送到面板最需要读的地方。
+ *
+ * `max-width` 那一项更糟：`100vw - 780 - 48` 在 820 窗口下是负数，
+ * 负的 max-width 是无效声明，浏览器退回默认值，提示条按最宽长出来。
+ *
+ * 所以这一档改成与默认一致（居中于窗口）。提示条本来就该浮在模态面板
+ * 之上，而不是挤进面板的空白里——两者的层级不同，前者不需要躲。
+ */
 :root[data-right-overlay] .toast {
-  left: calc((100vw - var(--w-settings)) / 2);
-  max-width: min(420px, calc(100vw - var(--w-settings) - 48px));
+  left: 50%;
+  max-width: min(420px, calc(100vw - 48px));
 }
 
 :root[data-left-overlay] .toast {

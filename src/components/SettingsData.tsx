@@ -50,7 +50,7 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
     try {
       setReceipt(await action())
     } catch (caught) {
-      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '这一步没成' })
+      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '操作未完成' })
     } finally {
       setBusy('')
     }
@@ -59,7 +59,15 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
   const hasSession = sessionId !== undefined && sessionId !== ''
 
   return (
-    <section className="pref__section">
+    /*
+     * `data-section` 是给断言用的稳定锚点。
+     *
+     * 「导出与恢复」现在与「知识库」「备份」同处「记忆」一页，三个 section
+     * 都用 `.pref__actions` 装按钮。断言若按全局选择器数按钮，会连隔壁两段
+     * 的「新增条目」「创建备份」一起数进来——数字对不上，报的却是"数据页
+     * 动作不全"。给这一段一个名字，量谁就限定谁。
+     */
+    <section className="pref__section" data-section="data">
       <h2 className="pref__heading">导出</h2>
 
       <p className="pref__note">
@@ -75,7 +83,7 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
           aria-disabled={hasSession && busy === '' ? undefined : 'true'}
           onClick={() => {
             if (!hasSession || sessionId === undefined) {
-              setReceipt({ tone: 'bad', text: '还没有对话可以导出——先说一句话' })
+              setReceipt({ tone: 'bad', text: '暂无可导出的对话' })
               return
             }
             void run('current', async () => {
@@ -93,7 +101,7 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
           aria-disabled={hasSession && busy === '' ? undefined : 'true'}
           onClick={() => {
             if (!hasSession || sessionId === undefined) {
-              setReceipt({ tone: 'bad', text: '还没有对话可以导出——先说一句话' })
+              setReceipt({ tone: 'bad', text: '暂无可导出的对话' })
               return
             }
             void run('markdown', async () => {
@@ -153,7 +161,7 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
                 })
                 onImported()
               } catch (caught) {
-                setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '导入没成' })
+                setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '导入失败' })
               } finally {
                 setBusy('')
               }

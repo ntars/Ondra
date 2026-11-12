@@ -1155,12 +1155,14 @@
   line-height: 1.6;
   color: var(--ui-ink-4);
 }
-
 /* ===========================================================================
-   日志抽屉：三类分区
+   日志抽屉：三类分区 + 会话日志的五类读法
 
    三个 section 之间只隔一条细线，不各自套卡片：它们读起来是一份连续的
    记录，套三张卡会把「同一段时间里发生了什么」切成三块互不相关的东西。
+
+   会话日志的行是一个四列网格，不是行内流。理由只有一个：读者查「她什么时候
+   开始想的」时，眼睛沿的是一条直边；行内流给出的是锯齿边，扫三行就得重找。
    =========================================================================== */
 
 .logp {
@@ -1229,114 +1231,178 @@
   color: var(--ui-ink-3);
 }
 
-.logp__list {
+/* 行容器：一组轮次的堆叠 + 段内 1px 的行距。 */
+.logp__rows {
   display: flex;
   flex-direction: column;
 }
 
-.logp__item {
+/* 一组 = 一轮。组与组之间留 10px，让「一次交换」读成一个块而不是五行连排。 */
+.logp__group {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 0;
-  border-top: var(--rule) solid var(--ui-line-soft);
+  flex-direction: column;
+}
+
+.logp__group + .logp__group {
+  margin-top: 12px;
 }
 
 /*
- * 系统日志项。
+ * 组头：第 N 轮 · 时间 · 条数。
  *
- * 通道日志项左边是一枚 16px 的通道徽标（`.logp__badge`），系统日志项
- * 左边是一枚 4px 的级别点（`.logp__dot`）。父级 `.logp__item` 的 gap 是
- * 8px，于是两种日志的**文字左边缘差 4px**：
- *   通道 = 16 + 8 = 24，系统 = (4+4+4) + 8 = 20。
- * 两个 section 上下叠在同一个抽屉里，文字没对齐会读成"这两列不是一套"。
- *
- * 补法不是去改 `.logp__dot` 的全局外边距（那会影响它的语义尺寸），
- * 而是在系统项里把点的右外边距从 4 加到 8，让占位凑成 16。
- *
- * 上下间距同时收一档：系统日志每条只有一行、条数多，与带展开详情的
- * 通道日志用同一密度会让一屏里塞不下几条。
+ * 条数靠右（`margin-left: auto`）：它是这一组的体积，不是标题的一部分，
+ * 贴右之后一列组头读下来就是一组体量对比。
  */
-.logp__item--system {
-  padding: 4px 0;
-}
-
-.logp__item--system .logp__dot {
-  margin-right: 8px;
-}
-
-.logp__item:first-child {
-  border-top: 0;
-}
-
-/* 徽标：16px 方块。它是一个分类记号，不是状态，所以不用彩色底。 */
-.logp__badge {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
-  border: var(--rule) solid var(--ui-line);
-  border-radius: var(--r-xs);
-  /* 10px 是 0.625rem：日志的通道徽标只有一个字母，标称比正文小两档。 */
-  font-size: 0.625rem;
-  line-height: 1;
-  color: var(--ui-ink-3);
-}
-
-/* 她说过的话用琥珀，与全项目「她的声音」同一支色。 */
-.logp__badge[data-channel='model'] {
-  border-color: var(--ui-line);
-  color: var(--ui-her-text);
-}
-
-.logp__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.logp__line {
+.logp__group-head {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  margin: 0 0 3px;
+  font-size: var(--text-micro);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink-3);
 }
 
-.logp__summary {
-  flex: 1;
+.logp__group-label {
+  color: var(--ui-ink-2);
+}
+
+.logp__group-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink-4);
+}
+
+.logp__group-count {
+  margin-left: auto;
+  font-weight: var(--w-regular);
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 一行：时间 / 徽标 / 角色 / 叙述。
+ *
+ * 列宽是量出来的，不是猜的：抽屉内容宽 296，四列 46 + 34 + 22 + 间隔 18
+ * 之后正文还有 176 —— 一句 13 字的中文正好一行，多的折行也不至于挤成柱状。
+ */
+.logp__row {
+  display: grid;
+  grid-template-columns: 46px 34px 22px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+/* 系统日志没有徽标与角色：三列，时间列同宽，两边正文左边缘对齐。 */
+.logp__row--system {
+  grid-template-columns: 46px 4px minmax(0, 1fr);
+  padding: 2px 0;
+}
+
+/*
+ * 时间用等宽字 + 表格数字。
+ *
+ * `tabular-nums` 让 1 与 8 占同样宽；没有它，秒数跳动时整列会左右抖。
+ * 11px 的等宽字比同号的正文小一圈，所以补 0.01em 字距——纯粹的光学补偿。
+ */
+.logp__time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 五类徽标：一枚软底药丸。
+ *
+ * 颜色只是扫描辅助，词才是语义——所以每格都写着两个字，色盲用户读词即可。
+ * 五色只借了语义令牌里已有的四种（强调、她的暖色、错误红、两级中性），
+ * 不为日志新造一套色板：新色板会在深浅两个主题里各留一处没验过的对比度。
+ */
+.logp__badge {
+  justify-self: start;
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  font-size: 0.625rem;
+  font-weight: var(--w-medium);
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--ui-bg-sunken);
+  color: var(--ui-ink-3);
+}
+
+.logp__badge[data-category='channel'] {
+  background: var(--ui-bg-sunken);
+  color: var(--ui-ink-2);
+}
+
+/* 她的声音：与全项目同一支暖色。 */
+.logp__badge[data-category='model'] {
+  background: var(--ui-her-bg);
+  color: var(--ui-her-text);
+}
+
+.logp__badge[data-category='tool'] {
+  background: var(--ui-bg-sunken);
+  color: var(--ui-ink-3);
+}
+
+/* 节奏最轻：它只标记轮次的开始与结束，不该抢走正文的注意力。 */
+.logp__badge[data-category='pace'] {
+  background: transparent;
+  color: var(--ui-ink-4);
+  padding-left: 0;
+}
+
+.logp__badge[data-category='error'] {
+  background: var(--ui-bad-bg);
+  color: var(--ui-bad);
+}
+
+/*
+ * 角色：一个安静的词，不是第二枚药丸。
+ *
+ * 一行里两枚彩色小片会互相抢注意力，而读者真正要读的是右边那句话。
+ * 只有「她」稍微提一档明度，让「谁在动」一眼可见。
+ */
+.logp__actor {
+  font-size: 0.625rem;
+  color: var(--ui-ink-4);
+  white-space: nowrap;
+}
+
+.logp__actor[data-actor='assistant'] {
+  color: var(--ui-her-text);
+}
+
+/*
+ * 叙述：允许折行，不裁切。
+ *
+ * 日志是拿来读的，不是拿来扫的——一条被省略号切断的日志等于没写。
+ */
+.logp__text {
   min-width: 0;
   font-size: var(--text-caption);
   line-height: 1.55;
   color: var(--ui-ink-2);
+  overflow-wrap: anywhere;
 }
 
-.logp__time {
-  flex: none;
-  font-size: var(--text-micro);
+/* 工具耗时：贴着句末，等宽数字，比正文暗一档。 */
+.logp__duration {
+  margin-left: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
   color: var(--ui-ink-4);
+  white-space: nowrap;
 }
 
-.logp__meta {
-  display: flex;
-  gap: 8px;
-  font-size: var(--text-micro);
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-4);
-}
-
-/* 系统日志的级别点：3px 圆点，不占正文宽度。 */
+/* 系统日志的级别点：4px 圆点，不占正文宽度。 */
 .logp__dot {
-  flex: none;
+  justify-self: start;
   width: 4px;
   height: 4px;
-  margin-top: 8px;
-  margin-left: 4px;
-  margin-right: 4px;
   border-radius: var(--r-full);
   background: var(--ui-ink-4);
 }
@@ -1349,18 +1415,26 @@
   background: var(--ui-bad);
 }
 
+/*
+ * 可展开正文：与叙述同列对齐（第 4 列），左侧一条 0.5px 竖线。
+ *
+ * 竖线用最细的那一档：它是「这段是引出来的」的记号，不是分隔条。
+ * 展开条默认收起，标题写清是谁说的，右边带字数。
+ */
 .logp__detail {
-  margin-top: 2px;
+  grid-column: 4;
+  margin: 1px 0 2px;
+  border-left: var(--rule) solid var(--ui-line-soft);
+  padding-left: 8px;
 }
 
 .logp__more {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: var(--text-micro);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.625rem;
   color: var(--ui-ink-4);
   cursor: pointer;
-  /* 去掉原生三角：它与项目里的 chevron 图标是两套线。 */
   list-style: none;
 }
 
@@ -1372,24 +1446,36 @@
   color: var(--ui-ink-2);
 }
 
-/* 展开时把右箭头转成下箭头，与全项目薄片形变同一动作。 */
-.logp__detail[open] .logp__more svg {
-  transform: rotate(90deg);
-}
-
-.logp__more svg {
+/* 自己画一个能表态的折角：收起朝右，展开朝下。 */
+.logp__more::before {
+  content: '›';
+  color: var(--ui-ink-4);
   transition: transform var(--motion-f) var(--ease-fluid);
 }
 
-.logp__text {
-  margin: 4px 0 0 16px;
-  padding-left: 8px;
-  border-left: var(--rule) solid var(--ui-line-soft);
+.logp__detail[open] > .logp__more::before {
+  transform: rotate(90deg);
+}
+
+.logp__body-size {
+  font-variant-numeric: tabular-nums;
+}
+
+.logp__body {
+  margin: 4px 0 0;
+  /* 上限 280：再长就该回对话里看，日志不是阅读器。 */
+  max-height: 280px;
+  overflow-y: auto;
   font-size: var(--text-label);
   line-height: 1.7;
   color: var(--ui-ink-3);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 跟随锚点：高度 0，不占位，只为给 scrollIntoView 一个落点。 */
+.logp__tail {
+  height: 0;
 }
 
 /* ===========================================================================

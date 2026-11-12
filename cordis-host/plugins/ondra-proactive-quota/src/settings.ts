@@ -73,13 +73,24 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
   enable: {
     kind: 'boolean',
     default: true,
-    doc: '总开关。关掉后服务照常注册，plan() 一律 drop/disabled。',
+    /*
+     * 这个开关**本身不会让她闭嘴**，文案必须说实话。
+     *
+     * 节律的服务面只有 `patch()` / `commit()` / `surrender()` 三个方法，
+     * 三个都不看 `enable`：关掉它之后额度照算、照记账，实测
+     * `/api/proactive/check` 仍返回 `allow:true`、额度仍是 3。
+     * 唯一能让主动彻底停下的是门控的总开关（`proactive-gate.enable`）。
+     *
+     * 原来写的是「plan() 一律 drop/disabled」——本插件根本没有 plan()，
+     * 那句是从话由插件的说明抄过来的，抄错了一个服务。
+     */
+    doc: '总开关。关掉后服务照常注册，但额度与节律仍照算；想让她完全不主动说话，请关「主动闸门」的 enable。',
   },
   profile: {
     kind: 'enum',
     default: 'standard',
     values: PROFILE_VALUES,
-    doc: '额度档位：slow 1 条/日 · standard 3 条/日（§9.3 原值）· fast 6 条/日。关闭请用 enable。',
+    doc: '额度档位：slow 1 条/日 · standard 3 条/日（§9.3 原值）· fast 6 条/日。想让主动彻底停下用门控的 enable。',
   },
   quotaOverride: {
     kind: 'number',

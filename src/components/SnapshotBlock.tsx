@@ -88,7 +88,7 @@ export function SnapshotBlock(): React.JSX.Element | null {
   if (state !== undefined && state.loaded === false) {
     return (
       <section className="snap" aria-label="快照">
-        <p className="snap__idle">备份这一块还没接上</p>
+        <p className="snap__idle">备份未装载</p>
       </section>
     )
   }
@@ -114,7 +114,7 @@ export function SnapshotBlock(): React.JSX.Element | null {
        * 这两件事在依赖坏掉时会长得一模一样，而结论完全相反。
        */}
       {state?.available === true && items.length === 0 ? (
-        <p className="snap__idle">还没有快照。做梦或遗忘前会自动做一份</p>
+        <p className="snap__idle">还没有快照。记忆整理或遗忘审计前会自动创建</p>
       ) : null}
 
       {items.length > 0 ? (
@@ -177,7 +177,7 @@ export function SnapshotBlock(): React.JSX.Element | null {
        * 给它一个按钮只会返回 `db-open`，是替一个做不到的动作画门。
        */}
       {state?.pendingRestore === true ? (
-        <p className="snap__note">有一份恢复登记着还没执行。这需要退出应用后手动替换文件，这里不做</p>
+        <p className="snap__note">存在尚未执行的恢复登记。需退出应用后手动替换文件，此处不提供执行入口。</p>
       ) : null}
     </section>
   )

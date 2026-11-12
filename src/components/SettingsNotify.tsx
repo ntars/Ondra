@@ -60,7 +60,7 @@ export function SettingsNotify(): React.JSX.Element {
     <section className="pref__section">
       <Heading>系统通知</Heading>
 
-      <Row label="系统通知" hint="窗口不在桌面时，她说的话会弹到通知栏">
+      <Row label="系统通知" hint="窗口不在前台时，回复将通过系统通知送达">
         <Toggle label="系统通知" checked={prefs.notify} onChange={(next) => { void change(next) }} />
       </Row>
 

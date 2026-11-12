@@ -94,10 +94,10 @@ export function OralCard(): React.JSX.Element {
           <span className="pref__row-label">说话口吻</span>
           <span className="pref__row-hint">
             {state === undefined
-              ? '读状态中'
+              ? '正在读取状态'
               : state.expressReady
-                ? '按情绪改标点、省主语、减语气词'
-                : '情绪档没到位：只改标点，语气词不动'}
+                ? '按情绪调整标点、省略主语、精简语气词'
+                : '情绪档未就绪：仅调整标点，不改动语气词'}
           </span>
         </div>
         <button

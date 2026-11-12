@@ -8,14 +8,36 @@
  */
 
 import { spawn } from 'node:child_process'
-import { createServer } from 'node:http'
+import { existsSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const HOST_DIR = '/Users/ntars/Github/Ondra/cordis-host'
 
-/** 起宿主，等它打出 ready JSON。 */
-function startHost() {
+/**
+ * 真实数据目录。**只读**，用来做「有没有被本次检查污染」的对照。
+ *
+ * 为什么必须对照：宿主起来会往数据目录写 `host.json`（调试握手），退出时删掉。
+ * 如果检查脚本不隔离数据目录，它就会踩掉**正在运行的应用**的握手文件，
+ * 导致 `node tools/ondra.mjs say/status` 全部报「应用大概没在运行」。
+ * 这个坑真的踩过（2026-11-12 第 4 轮），下面那段断言就是防它复发。
+ */
+const REAL_DATA_DIR = process.platform === 'darwin'
+  ? join(homedir(), 'Library', 'Application Support', 'com.ntars.ondra')
+  : join(homedir(), '.local', 'share', 'com.ntars.ondra')
+const REAL_HANDSHAKE = join(REAL_DATA_DIR, 'host.json')
+const realHandshakeBefore = existsSync(REAL_HANDSHAKE)
+
+/** 起宿主，等它打出 ready JSON。数据目录与端口一律隔离到临时目录。 */
+function startHost(dataDir) {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', ['lib/index.js'], { cwd: HOST_DIR, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn('node', ['lib/index.js'], {
+      cwd: HOST_DIR,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      // ONDRA_PORT=0 让内核自己挑空口，避免和正在运行的应用抢 9060。
+      env: { ...process.env, ONDRA_DATA_DIR: dataDir, ONDRA_PORT: '0' },
+    })
     let buffer = ''
     const timer = setTimeout(() => {
       child.kill()
@@ -55,7 +77,8 @@ async function probe(port, { method, path, headers }) {
   }
 }
 
-const { child, ready } = await startHost()
+const dataDir = await mkdtemp(join(tmpdir(), 'ondra-cors-'))
+const { child, ready } = await startHost(dataDir)
 console.log(`宿主就绪：${ready.url}`)
 
 const ORIGIN = 'tauri://localhost'
@@ -135,7 +158,18 @@ try {
   check('不回 allow-origin', sameOrigin.headers['access-control-allow-origin'] === undefined,
     `实际 ${String(sameOrigin.headers['access-control-allow-origin'])}`)
 } finally {
+  // 等子进程真的退出再断言——握手文件是在退出钩子里删的，抢在退出前看会漏判。
+  const exited = new Promise((resolve) => child.once('exit', resolve))
   child.kill()
+  await exited
+
+  console.log('\n[6] 没有污染真实数据目录（回归断言：曾经踩掉运行中应用的握手文件）')
+  const realHandshakeAfter = existsSync(REAL_HANDSHAKE)
+  check('真实数据目录的 host.json 与检查前状态一致',
+    realHandshakeAfter === realHandshakeBefore,
+    realHandshakeBefore ? '检查把运行中应用的握手文件删掉了' : '检查往真实数据目录写了握手文件')
+
+  await rm(dataDir, { recursive: true, force: true })
 }
 
 console.log('')

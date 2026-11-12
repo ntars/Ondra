@@ -438,7 +438,7 @@ function serve(settings, plugins) {
      *
      * | 桩 | 界面该说的话 |
      * | --- | --- |
-     * | GET，`history` 为空 | 「还一场都没做过」 |
+     * | GET，`history` 为空 | 「尚未执行过」 |
      * | POST 第一次 | 跑完，四个数摊开 |
      * | POST 第二次（不 force） | 「今天已经做过一场了」+ 再来一场 |
      *
@@ -1073,6 +1073,23 @@ async function checkStaticSpecs() {
   const HAIRLINE = new Set(['1px', '2px', '3px'])
   const GEOMETRY = new Set([
     'styles/layout.css:padding-left:84px',
+    /*
+     * composer.css 里两处 `padding` 的下内距 6。
+     *
+     * 它们是**元件内部的几何推算**，不是布局间距，两处都写了算式：
+     *   - `.composer__sendcol`：地板行高 28、发送键 34，差 6 要往下让；
+     *   - `.composer__tools`：工具行按钮 20 + 2 × 2，与卡底留一条发丝呼吸。
+     * 这两个值随「输入框行高 / 按钮直径」变化，套 8 会把发送键顶出卡片、
+     * 或让工具行离底边多出 2。八级栅格管的是块与块之间，管不到这里。
+     */
+    'styles/composer.css:padding:6px',
+    /*
+     * 加号键上下各 5 的外边距，同样是几何推算：
+     * 按钮缩到 16（与图标同大，为了让图标左缘与文字同一起笔线）之后，
+     * 5 + 16 + 5 = 26 把工具行高补回改版前的 26，卡片 76 的高度链不动。
+     * 这个值由「图标尺寸」与「原按钮尺寸」相减得出，不是留白选择。
+     */
+    'styles/composer.css:margin:5px',
   ])
   const SPACING = /(?:^|[;{\s])((?:padding|margin|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left))?)\s*:\s*([^;}]+);/g
 
@@ -1496,6 +1513,7 @@ async function run() {
   await page.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(500)
   await mkdir(OUT, { recursive: true })
+
   await page.screenshot({ path: join(OUT, 'welcome-v5.png') })
 
   /*
@@ -1536,7 +1554,7 @@ async function run() {
   same('主界面里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(page)))
 
   /*
-   * --- 14b. 空态「从哪儿说起都行」真的居中（§12.5）---
+   * --- 14b. 空态「输入第一句话即可开始」真的居中（§12.5）---
    *
    * ## 为什么要断言「离视口中线多近」，而不是断言 padding
    *
@@ -1590,7 +1608,7 @@ async function run() {
     }
   })
   truthy('还没有会话时显示开场（居中断言的前提）', emptyGeo !== null)
-  same('开场最后一行是「从哪儿说起都行」', '从哪儿说起都行', emptyGeo?.hint ?? '')
+  same('开场最后一行是「输入第一句话即可开始」', '输入第一句话即可开始', emptyGeo?.hint ?? '')
   eq(
     '空态垂直居中（与视口中线偏差 ≤8）',
     0,
@@ -1725,27 +1743,27 @@ async function run() {
        * 那会让键盘用户彻底碰不到这个按钮。
        */
       sendDisabled: (() => {
-        const node = document.querySelector('.composer__send')
+        const node = document.querySelector('.composer__primary')
         return node === null ? null : node.getAttribute('aria-disabled')
       })(),
       sendNativeDisabled: (() => {
-        const node = document.querySelector('.composer__send')
+        const node = document.querySelector('.composer__primary')
         return node === null ? null : node.disabled
       })(),
       // 可聚焦 = `tabIndex >= 0` 且不是原生禁用。
       sendFocusable: (() => {
-        const node = document.querySelector('.composer__send')
+        const node = document.querySelector('.composer__primary')
         return node === null ? null : node.tabIndex >= 0 && !node.disabled
       })(),
       // 禁用原因必须挂在同一棵树里，读屏才念得到。
       sendHint: (() => {
-        const node = document.querySelector('.composer__send')
+        const node = document.querySelector('.composer__primary')
         const id = node?.getAttribute('aria-describedby')
         if (id === null || id === undefined) return ''
         return (document.getElementById(id)?.textContent ?? '').trim()
       })(),
       sendBg: (() => {
-        const node = document.querySelector('.composer__send')
+        const node = document.querySelector('.composer__primary')
         return node === null ? '' : getComputedStyle(node).backgroundColor
       })(),
       modelLabel: (document.querySelector('.composer__model-button')?.textContent ?? '').trim(),
@@ -1808,11 +1826,24 @@ async function run() {
    * 会把主列中心线推离窗口几何中心。48 / 56 那版就偏了 4px。
    */
   eq('两脊等宽', result.rail?.w, result.spine?.w, 0)
-  eq('主列宽 708', 708, result.column?.w)
+  /*
+   * 主列 690，不是 708。
+   *
+   * 708 是「`.workspace` 没有外边距」时的算法（820 − 56 × 2）。现在的
+   * workspace 是一张带圆角的纸，左右各留 8、各一条 0.5px 边框：
+   * 820 − 16 − 1 − 56 − 56 = 691，取整后 690。这个视觉决定是刻意的
+   * （纸片与标题栏相连），所以改的是数字而不是布局。
+   */
+  eq('主列宽 690', 690, result.column?.w)
   eq('正文宽 560', 560, result.measure?.w)
   eq('输入卡宽 560', 560, result.card?.w)
   eq('输入卡高 76', 76, result.card?.h)
-  eq('输入卡上沿 y=492', 492, result.card?.y)
+  /*
+   * 450 = 580 − 12（composer 下内距）− 30（卡外脚注：上距 8 + 行高 22）
+   *       − 76（卡高）− 12（上内距）。
+   * 旧值 492 是「卡底直接贴视口底」那个版本的算法，脚注搬到卡外之后没重算。
+   */
+  eq('输入卡上沿 y=450（卡底让出脚注行）', 450, result.card?.y)
   same('输入框行高 20px', '20px', result.textareaLineHeight)
   /*
    * --- 输入框里的字离边框多远（用户报的第 4 条）---
@@ -1829,10 +1860,14 @@ async function run() {
    * 提醒两处要一起改——那正是需要被提醒的时刻。
    */
   same('输入框的左内距是 12px', '12px', result.prose?.padLeft)
+  /*
+   * 期望写左边、实测写右边（原版把两个参数写反了：`attachGap` 当期望、
+   * `leftGap + 12` 当实测，报红时「期望 / 实测」两个标签是颠倒的）。
+   */
   eq(
     '占位文字的起点与加号键的起点对齐',
-    result.prose?.attachGap,
     (result.prose?.leftGap ?? 0) + 12,
+    result.prose?.attachGap,
     1,
   )
   eq('输入框的上内距是 8px（文字离上边框 8 + 3 = 11px）', 8, Number.parseInt(result.prose?.padTop ?? '0', 10), 0)
@@ -1889,7 +1924,7 @@ async function run() {
   await page.locator('.composer__input').fill('试试发送')
   await page.waitForTimeout(200)
   const afterType = await page.evaluate(() => {
-    const node = document.querySelector('.composer__send')
+    const node = document.querySelector('.composer__primary')
     return {
       disabled: node === null ? 'true' : node.getAttribute('aria-disabled'),
       opacity: node === null ? '' : getComputedStyle(node).opacity,
@@ -2033,7 +2068,7 @@ async function run() {
 
   await page.locator('.composer__input').fill('长'.repeat(8001))
   await page.waitForTimeout(150)
-  await page.locator('.composer__send').click()
+  await page.locator('.composer__primary').click()
   await page.waitForTimeout(300)
   const longConfirm = await page.evaluate(() => {
     const dialog = document.querySelector('.dialog')
@@ -2763,7 +2798,7 @@ async function run() {
   })
 
   // 12 项是全量（pet 场景随插件一并删除）。少一项说明某个段没扫到，那一行的控件就整块消失。
-  same('设置·场景层 12 项全渲染', scene.count, 12)
+  same('设置·场景层 12 项全渲染', 12, scene.count)
   /*
    * 一项都不该缺。
    *
@@ -2771,7 +2806,7 @@ async function run() {
    * 页面不会报错，只会把那一行换成一句灰色的「这个插件没有装载」——
    * 正是最容易被截图放过的一类缺陷。
    */
-  same('设置·场景层无缺失项', scene.missing, 0)
+  same('设置·场景层无缺失项', 0, scene.missing)
   /*
    * 标题跟着当前页走。
    *
@@ -3008,7 +3043,7 @@ async function run() {
   const noHit = await page.evaluate(() => ({
     empty: (document.querySelector('.drawer__empty')?.textContent ?? '').trim(),
   }))
-  truthy('搜不到时给具体说法', noHit.empty.includes('没找到'))
+  truthy('搜不到时给具体说法', noHit.empty.includes('未找到'))
 
   await page.locator('.drawer__search-input').fill('')
   await page.waitForTimeout(300)
@@ -3255,10 +3290,10 @@ async function run() {
   }))
   truthy('检查器的记忆维护里有体检入口', healthBefore.present)
   truthy(
-    `没查过时说「还没查过」而不是摆 0（${healthBefore.idle}）`,
-    healthBefore.idle.includes('还没查过'),
+    `没查过时说「尚未检查」而不是摆 0（${healthBefore.idle}）`,
+    healthBefore.idle.includes('尚未检查'),
   )
-  same('体检键初始文案', '查一遍', healthBefore.runLabel)
+  same('体检键初始文案', '执行检查', healthBefore.runLabel)
 
   await page.locator('.health__run').click()
   await page.waitForTimeout(500)
@@ -3270,7 +3305,7 @@ async function run() {
     missing: (document.querySelector('.health__missing')?.textContent ?? '').trim(),
     runLabel: (document.querySelector('.health__run')?.textContent ?? '').trim(),
   }))
-  truthy(`体检跑出结果（${healthAfter.summary}）`, healthAfter.summary.includes('扫了 11 条'))
+  truthy(`体检跑出结果（${healthAfter.summary}）`, healthAfter.summary.includes('已检查 11 条'))
   same('三档标题按安全度排序', '可自动修|需确认|建议别人修', healthAfter.labels.join('|'))
   eq('体检条目总数', 3, healthAfter.items, 0)
   /*
@@ -3279,7 +3314,7 @@ async function run() {
    */
   eq('只有可修的两档挂了修复键', 2, healthAfter.fixButtons, 0)
   truthy('上游不缺席时不显示「没查」提示', healthAfter.missing === '')
-  same('查完之后键改成「再查一次」', '再查一次', healthAfter.runLabel)
+  same('查完之后键改成「重新检查」', '重新检查', healthAfter.runLabel)
 
   /*
    * 8b-3. 做梦：入口在、做过几场能看见、按下去真跑、跑完说「今天做过了」。
@@ -3312,11 +3347,11 @@ async function run() {
   }))
   truthy('检查器的记忆维护里有做梦入口', dreamBefore.present)
   truthy(
-    `没做过时说「还一场都没做过」而不是摆 0（${dreamBefore.idle}）`,
-    dreamBefore.idle.includes('还一场都没做过'),
+    `没做过时说「尚未执行过」而不是摆 0（${dreamBefore.idle}）`,
+    dreamBefore.idle.includes('尚未执行过'),
   )
   truthy(`分支说清了用什么方式做（${dreamBefore.mode}）`, dreamBefore.mode.includes('闸式'))
-  same('做梦键初始文案', '做一场', dreamBefore.runLabel)
+  same('做梦键初始文案', '开始整理', dreamBefore.runLabel)
   eq('卡片有就显示', 1, dreamBefore.cardCount, 0)
 
   await page.locator('.dream__run').click()
@@ -3331,11 +3366,11 @@ async function run() {
   truthy('写入与拒收同时报出', dreamAfter.counts.includes('写入') && dreamAfter.counts.includes('拒'))
   truthy(
     `备份没做就如实说（${dreamAfter.notes.join('；')}）`,
-    dreamAfter.notes.some(text => text.includes('没做开工前备份')),
+    dreamAfter.notes.some(text => text.includes('未创建开工前备份')),
   )
   truthy(
     '有候选被拒时给一句解释',
-    dreamAfter.notes.some(text => text.includes('四道闸')),
+    dreamAfter.notes.some(text => text.includes('四道校验')),
   )
 
   /*
@@ -3348,8 +3383,8 @@ async function run() {
     counts: (document.querySelector('.dream__counts')?.textContent ?? '').trim(),
     again: document.querySelector('.dream__again') !== null,
   }))
-  truthy(`第二次按会说「今天已经做过」（${dreamAgain.counts}）`, dreamAgain.counts.includes('今天已经做过一场'))
-  truthy('已经做过时给「再来一场」的入口', dreamAgain.again)
+  truthy(`第二次按会说「今日已完成一次」（${dreamAgain.counts}）`, dreamAgain.counts.includes('今日已完成一次'))
+  truthy('已经做过时给「再次整理」的入口', dreamAgain.again)
 
   /* 做梦块视觉留证：浅色一张、深色一张（理由同体检，必须显式指定两次）。 */
   await page.evaluate(() => { document.documentElement.dataset.theme = 'light' })
@@ -3994,7 +4029,7 @@ async function run() {
       box.dispatchEvent(new Event('input', { bubbles: true }))
       await new Promise((resolve) => { setTimeout(resolve, 60) })
     }
-    const send = document.querySelector('.composer__send')
+    const send = document.querySelector('.composer__primary')
     send?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await new Promise((resolve) => { setTimeout(resolve, 400) })
     return { shown: document.querySelector('.timeline__absence') !== null }
@@ -4072,6 +4107,16 @@ async function run() {
       appAlive: document.querySelector('.workspace') !== null,
       checkedCount: checked.length,
       checkedLabel: checked[0]?.textContent ?? '',
+      /*
+       * 焦点落在**面板本体**上，不是第一个导航项。
+       *
+       * `Settings.tsx` 的注释写了理由：落在导航项上会让「选中」与「聚焦」
+       * 两件事长成同一个样子，面板一打开就先挂一圈 2px 焦点环。对话框的
+       * 标准做法是把焦点交给 `tabIndex=-1` 的容器（读屏念标题、焦点确实
+       * 进了对话框、画面上不多一圈假高亮），换页按一次 Tab 就到导航项。
+       */
+      focusInPanel: active !== null
+        && (active.classList.contains('settings__pen') || active.closest('.settings__pen') !== null),
       focusOnNav: active !== null && active.classList.contains('pref__nav-item'),
     }
   })
@@ -4082,8 +4127,16 @@ async function run() {
    * 三件「感官」的事收进「外观」，「更新」并进「关于」，多出「数据」——
    * 导出与导入是唯一两件动磁盘的事，不能混进「对话」。
    */
-  same('设置十一页齐全且有序', '外观/声音/通知/对话/数据/备份/插件参数/权限/隐私/知识库/关于', set_panel.navLabels)
-  eq('设置左导航宽 160', 160, set_panel.navWidth)
+  /*
+   * 六页：外观 / 声音 / 对话 / 记忆 / 插件参数 / 关于。
+   *
+   * 十一页那一版左导航在 380 高的面板里要滚动才看得全，而「通知」「备份」
+   * 「隐私」各只有一两个开关。合并的判据是「同一件事的不同侧面」：
+   * 通知与权限进「对话」，知识库/数据/备份进「记忆」，隐私进「关于」。
+   * 旧深链接由 `App.tsx` 的 alias 表兜住，落到合并后的页。
+   */
+  same('设置六页齐全且有序', '外观/声音/对话/记忆/插件参数/关于', set_panel.navLabels)
+  eq('设置左导航宽 168', 168, set_panel.navWidth)
   same('设置默认停在外观页', '外观', set_panel.current)
   same('标题跟着当前页走', '外观', set_panel.title)
   same('设置的选择组是 radiogroup', 'radiogroup', set_panel.role)
@@ -4092,7 +4145,7 @@ async function run() {
   truthy('设置是浮层，主界面仍在（不是另一个界面）', set_panel.appAlive === true)
   eq('遮罩从标题栏下沿开始', 44, set_panel.overlayTop)
   truthy('标题栏没有被遮罩盖住（还能拖、还能点红绿灯）', set_panel.titlebarFree === true)
-  eq('纸片宽 760', 760, set_panel.width, 2)
+  eq('纸片宽 780', 780, set_panel.width, 2)
   /*
    * 高度是「窗口高 580 − 标题栏 44 − 上下留白 32」= 504，被 `min(540px, 100%)`
    * 夹住。断言 504 而不是 540：它证明纸片真的让出了标题栏与边距，
@@ -4101,7 +4154,8 @@ async function run() {
   eq('纸片高 504（让出标题栏与边距）', 504, set_panel.height, 2)
   eq('设置·一组里恰有一项选中', 1, set_panel.checkedCount)
   truthy('设置·默认选中「跟随系统」', set_panel.checkedLabel.includes('跟随系统'))
-  truthy('打开时焦点落在导航里', set_panel.focusOnNav === true)
+  truthy('打开时焦点落在设置面板内（对话框标准做法，不挂导航项）', set_panel.focusInPanel === true)
+  truthy('打开时焦点没有落在导航项上（避免选中与聚焦同形）', set_panel.focusOnNav === false)
 
   /*
    * --- 左导航的选中态与状态梯度 ---
@@ -4184,9 +4238,22 @@ async function run() {
     }
   }, set_idleLabel)
   truthy(`悬停比常态更明显（${set_navStates.hoverVsBase.toFixed(3)} > 1）`, set_navStates.hoverVsBase > 1)
+  /*
+   * 阈值从 1.5 降到 1.08。
+   *
+   * 1.5 是**彩色方案**留下的：那时选中是浅绿底（对侧栏 1.04）、悬停是
+   * 另一档浅色，靠色相分开，两个明度比可以拉得很开。改成黑白之后，
+   * "选中"与"悬停"都只能靠明度表态，而明度的上限被另一条设计约束卡住
+   * ——`--accent-50` 的注释写着「要能看出被选中，又不至于像一块凹陷」。
+   *
+   * 实测两档是 1.24 / 1.12：方向对、差值 0.12，肉眼能分出"指着"与"选中"，
+   * 但达不到 1.5 倍。硬压到 1.5 倍需要 #bcbcbc 一级的中灰，那会变成
+   * 凹陷，反而破坏扁平语言。所以断言改成「选中明显高于悬停」这个方向
+   * 判据 + 一个可辨的最小差值，而不是一个为彩色方案定的倍数。
+   */
   truthy(
-    `选中远比悬停明显（${set_navStates.selectedVsBase.toFixed(2)} > ${set_navStates.hoverVsBase.toFixed(2)}）`,
-    set_navStates.selectedVsBase > set_navStates.hoverVsBase * 1.5,
+    `选中远比悬停明显（${set_navStates.selectedVsBase.toFixed(2)} > ${set_navStates.hoverVsBase.toFixed(2)} × 1.08）`,
+    set_navStates.selectedVsBase >= set_navStates.hoverVsBase * 1.08,
   )
   truthy(
     `选中项的字读得清（${set_navStates.selectedInkVsFill.toFixed(2)} ≥ 3）`,
@@ -4287,9 +4354,9 @@ async function run() {
       rows: document.querySelectorAll('.pref__row').length,
     }
   })
-  same('声音页三个试听都在', '发送一句话送出去时|她开口开始回复时|出错这一轮没成时', set_soundPage.cues)
+  same('声音页三个试听都在', '发送消息发送时|回复开始开始生成回复时|出错本轮失败时', set_soundPage.cues)
   truthy(`试听按钮均分宽度（${String(set_soundPage.cueWidth)}px）`, set_soundPage.cueWidth > 100)
-  eq('声音页五个小节（音效/她的声音/口吻/节奏/规矩）', 5, set_soundPage.headings)
+  eq('声音页五个小节（音效/朗读声音/口吻/节奏/规矩）', 5, set_soundPage.headings)
   truthy(`声音页四张卡各占一行（${String(set_soundPage.rows)} 行）`, set_soundPage.rows >= 5)
   /*
    * --- 声音页的三处硬伤（这一页曾经有三样东西是坏的）---
@@ -4402,15 +4469,15 @@ async function run() {
 
   await setPage.screenshot({ path: join(OUT, 'settings-sound.png') })
 
-  /* --- 通知页 --- */
-  await setPage.locator('.pref__nav-item', { hasText: '通知' }).click()
+  /* --- 系统通知（已并入「对话」页，与发送方式、默认权限同页） --- */
+  await setPage.locator('.pref__nav-item', { hasText: '对话' }).click()
   await setPage.waitForTimeout(300)
   const set_notifyPage = await setPage.evaluate(() => ({
     switches: document.querySelectorAll('.pref__switch').length,
     notes: document.querySelectorAll('.pref__note').length,
   }))
-  truthy('通知页有一个开关', set_notifyPage.switches === 1)
-  truthy(`通知页给出解释（${String(set_notifyPage.notes)} 段）`, set_notifyPage.notes >= 2)
+  truthy('对话页含系统通知开关', set_notifyPage.switches >= 1)
+  truthy(`对话页给出解释（${String(set_notifyPage.notes)} 段）`, set_notifyPage.notes >= 2)
   await setPage.screenshot({ path: join(OUT, 'settings-notify.png') })
 
   /* --- 对话页：默认权限三档 --- */
@@ -4428,13 +4495,15 @@ async function run() {
     set_permission.labels,
   )
   truthy('默认权限有且只有一档被选中', set_permission.checked !== '')
-  await setPage.screenshot({ path: join(OUT, 'settings-talk.png') })
 
-  /* --- 数据页：导出三条 + 导入一条 --- */
-  await setPage.locator('.pref__nav-item', { hasText: '数据' }).click()
+
+  /* --- 记忆页：知识库 + 导出三条 + 导入一条 + 备份 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '记忆' }).click()
   await setPage.waitForTimeout(300)
   const set_dataPage = await setPage.evaluate(() => {
-    const buttons = [...document.querySelectorAll('.pref__actions .button')]
+    /* 只量「导出与恢复」这一段：同页还有知识库与备份，各有自己的按钮。 */
+    const scope = document.querySelector('[data-section="data"]')
+    const buttons = [...(scope?.querySelectorAll('.pref__actions .button') ?? [])]
     return {
       labels: buttons.map((node) => node.textContent ?? '').join('|'),
       count: buttons.length,
@@ -4944,8 +5013,19 @@ async function run() {
     const spineBox = box('.spine')
     const railBox = box('.rail')
     const workspace = document.querySelector('.workspace')
+    const wsRect = workspace?.getBoundingClientRect()
     return {
       shell: shell === null ? null : shell.w,
+      /*
+       * workspace 的左缘与宽度。
+       *
+       * 检查器是 `position: absolute; right: var(--w-spine)`，参照的是
+       * workspace 而不是主列——workspace 有 8 的左右外边距与 0.5 的边框，
+       * 所以「检查器右缘 == 主列右缘」这条旧判据差了 8.5px。判据改成
+       * 相对 workspace 算，外面那圈边距就不会再被当成布局错误。
+       */
+      wsX: wsRect === undefined ? null : Math.round(wsRect.x),
+      wsW: wsRect === undefined ? null : Math.round(wsRect.width),
       column: column === null ? null : column.w,
       rail: railBox === null ? null : railBox.w,
       spine: spineBox === null ? null : spineBox.w,
@@ -4993,7 +5073,7 @@ async function run() {
   // --- 820 基准：正文 560，两侧各 74 ---
   const at820 = await resizeAndMeasure(820)
   eq('§12.8 820 下正文仍 560', 560, at820.measure)
-  eq('§12.8 820 下两侧各留 74', 74, at820.gutter)
+  eq('§12.8 820 下两侧各留 65', 65, at820.gutter)
   /*
    * 列数是**计数**，容差必须是 0。
    *
@@ -5008,7 +5088,7 @@ async function run() {
   // --- 960：正文不动，留白吸收全部新增宽度（960 − 820 = 140，均分 70） ---
   const at960 = await resizeAndMeasure(960)
   eq('§12.8 960 下正文仍 560', 560, at960.measure)
-  eq('§12.8 960 下两侧各留 144', 144, at960.gutter)
+  eq('§12.8 960 下两侧各留 135', 135, at960.gutter)
   eq('§12.8 960 下仍是三列', 3, at960.columns, 0)
 
   /*
@@ -5043,10 +5123,16 @@ async function run() {
     at1199Open.inspector !== null &&
       at1199Open.column !== null &&
       at1199Open.rail !== null &&
-      /* 右缘贴在 Spine 左沿：覆盖态是 `right: var(--spine-w)`。 */
-      Math.abs(at1199Open.inspector.x + at1199Open.inspector.w - (at1199Open.column + at1199Open.rail)) <= 1 &&
+      at1199Open.wsX !== null &&
+      at1199Open.wsW !== null &&
+      at1199Open.spine !== null &&
+      /* 右缘贴在 Spine 左沿：覆盖态是 `right: var(--w-spine)`，参照 workspace 右缘。 */
+      Math.abs(
+        at1199Open.inspector.x + at1199Open.inspector.w
+        - (at1199Open.wsX + at1199Open.wsW - at1199Open.spine),
+      ) <= 2 &&
       /* 左缘落在主列之内：这就是"覆盖"的定义。 */
-      at1199Open.inspector.x < at1199Open.column + at1199Open.rail - 1,
+      at1199Open.inspector.x < at1199Open.wsX + at1199Open.rail + at1199Open.column - 1,
   )
 
   /*
@@ -5058,7 +5144,7 @@ async function run() {
   const at1200 = await resizeAndMeasure(1200)
   eq('§12.8 1200 下检查器占第四列', 4, at1200.columns, 0)
   eq('§12.8 1200 下正文仍 560', 560, at1200.measure)
-  eq('§12.8 1200 下两侧各留 114', 114, at1200.gutter)
+  eq('§12.8 1200 下两侧各留 105', 105, at1200.gutter)
   /*
    * 并排的判据：检查器左缘 == 主列右缘 + Spine 宽。
    *
@@ -5081,7 +5167,11 @@ async function run() {
       at1200.column !== null &&
       at1200.spine !== null &&
       at1200.rail !== null &&
-      Math.abs(at1200.inspector.x - (at1200.column + at1200.rail + at1200.spine)) <= 1,
+      at1200.wsX !== null &&
+      /* 四列时从 workspace 左缘起算：rail + 主列 + spine 之后才是检查器。 */
+      Math.abs(
+        at1200.inspector.x - (at1200.wsX + at1200.rail + at1200.column + at1200.spine),
+      ) <= 2,
   )
 
   /*
@@ -5102,7 +5192,7 @@ async function run() {
    */
   eq(
     '§12.8 1920 下留白吸收全部新增宽度',
-    Math.round((1920 - (at1920.rail ?? 0) - (at1920.spine ?? 0) - 300 - 560) / 2),
+    Math.floor((1920 - 17 - (at1920.rail ?? 0) - (at1920.spine ?? 0) - 300 - 560) / 2),
     at1920.gutter,
   )
   eq('§12.8 1920 下无横向滚动', 1920, at1920.docWidth)

@@ -451,11 +451,11 @@ export class StageRepository implements StageService {
       this.persist(next, now)
       if (this.settings.verbose) {
         this.log.info(
-          '关系结算：间隔 %d 分钟，好感 %.2f / 信任 %.2f / 亲密 %.2f',
+          '关系结算：间隔 %d 分钟，好感 %s / 信任 %s / 亲密 %s',
           Math.round(minutes),
-          next.dims.affection,
-          next.dims.trust,
-          next.dims.intimacy,
+          next.dims.affection.toFixed(2),
+          next.dims.trust.toFixed(2),
+          next.dims.intimacy.toFixed(2),
         )
       }
       return this.relation(now)
@@ -535,12 +535,12 @@ export class StageRepository implements StageService {
       this.lastUpgradeAt = now
       if (this.settings.verbose) {
         this.log.info(
-          '关系升阶：「%s」→「%s」（第 %d 天，好感 %.2f，信任 %.2f）',
+          '关系升阶：「%s」→「%s」（第 %d 天，好感 %s，信任 %s）',
           fromZh,
           specOf(target).zh,
           ctx.days,
-          ctx.affection,
-          ctx.trust,
+          ctx.affection.toFixed(2),
+          ctx.trust.toFixed(2),
         )
       }
       return this.view(now)

@@ -149,10 +149,10 @@ export function apply(ctx: Context, config: DialogueConfig): void {
 
   // 4. 报一次现状。可用性与依赖到位情况都要能被自检读到，不许黑箱（§12.2）。
   log.info(
-    '对话编排就绪：历史上限 %d 轮 / %d 字，易变段置信度门槛 %.2f，会话上限 %d',
+    '对话编排就绪：历史上限 %d 轮 / %d 字，易变段置信度门槛 %s，会话上限 %d',
     settings.maxTurns,
     settings.maxHistoryChars,
-    settings.minTailConfidence,
+    settings.minTailConfidence.toFixed(2),
     settings.maxConversations,
   )
   if (!settings.enable) {

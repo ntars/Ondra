@@ -107,6 +107,22 @@ export const PATH_MAX = 400
 /** 语言标记的形状：`zh` / `en` / `pt-BR` / `auto`。 */
 export const LANGUAGE_RE = /^(auto|[a-z]{2,3}(-[A-Za-z]{2,4})?)$/
 
+/*
+ * 配置段里 `language` 字段的 `pattern`。
+ *
+ * 与上面的 `LANGUAGE_RE` **故意不同**：多一个可选的空串。
+ *
+ * 本字段的默认值就是空串（「留空即自动检测」），而 `ondra-config-schema`
+ * 在 `register()` 时会拿 `pattern` 校验 `default` 本身——正则不收空串，
+ * 整段注册就抛错。空串是本插件**合法且默认**的取值，所以它必须进正则。
+ *
+ * 影响范围要说准：宿主在装载前会把用户层配置作为成员配置注入
+ * （`buildMemberConfigs`），所以设置页改这一段的**值仍然生效**。真正失效的
+ * 是这一段的 schema 级校验与逐字段回退——非法值不再被挡回默认值，而每次
+ * 启动都会留一行读起来像故障的 warn（「注册配置段失败」）。
+ */
+export const LANGUAGE_PATTERN = '^(auto|[a-z]{2,3}(-[A-Za-z]{2,4})?)?$'
+
 /** 凭据引用名的形状：POSIX 环境变量名（与 O-035 / O-076 同口径）。 */
 export const CREDENTIAL_REF_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
@@ -136,7 +152,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
   language: {
     kind: 'string',
     default: '',
-    pattern: LANGUAGE_RE.source,
+    pattern: LANGUAGE_PATTERN,
     doc: '语言提示（zh / en / auto）。留空即自动检测。',
   },
   threads: {

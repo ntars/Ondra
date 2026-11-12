@@ -1,43 +1,68 @@
 /**
- * 输入区（Composer，§5.6）。
+ * 输入区（Composer）。
  *
- * ## 它承载的不只是输入
+ * ## 它是「一句话的盒子」，不是一张表单
  *
- * 一块 620 × 76 的卡片里有五样东西：正文输入、附件缩略图、
- * 加号、模型名、发送键。任何一样缺失，用户都会先去找它而不是先打字——
- * 「怎么换个模型」比「说什么」更常发生。
+ * 卡片里只有两件事：你要说的话，和一个发送键。附件是话的一部分（贴在上面），
+ * 加号与麦克风是话的工具（贴在下面一行）；**模型与权限不在卡里**——它们
+ * 回答的是「跟谁说话、能走多远」，是说话之前的前置决定，所以排在卡外的
+ * 一行脚注里。
+ *
+ * 上一版把模型名放在卡内工具行左端，与加号并排。结果是「换模型」和
+ * 「加附件」在视觉上成了同一件事，而它们的频率差两个数量级。
+ *
+ * ## 两列地板
+ *
+ * 正文占左、动作占右，发送键与文字**同处一行**，不在文字下方。
+ * 这样卡片读起来是「一句话 + 一个动作」，而不是「一个输入框 + 一条工具栏」。
+ * 文字多行时发送键贴着底边（`align-items: flex-end`），不会浮到中间。
+ *
+ * ## 发送键的三个状态
+ *
+ * | 状态 | 图形 | 含义 |
+ * | --- | --- | --- |
+ * | 可发 | 带凹口的实心三角 | 方向 |
+ * | 生成中且草稿为空 | 圆角方块 | 停下这一轮 |
+ * | 生成中且有草稿 | 三角 | 按设置：排队或打断后发出 |
+ *
+ * 空草稿时按钮保留在原位、降到 40% 不透明度：位置不动，用户不必重新找它。
  *
  * ## 十条输入细则落在哪
  *
- * §5.6 的十条细则里，能靠 CSS 表达的在 `composer.css`，需要状态的在这里：
- *
  * | 细则 | 落点 |
  * | --- | --- |
- * | 空输入时发送键**保留**但降为 40% | `disabled` + CSS 不透明度，不移除节点 |
- * | 首次聚焦边框转 teal | CSS `:focus-within` |
- * | 高度 1→3 行逐级增长 | `rows` 由内容行数算，封顶 3 |
- * | 粘贴多行不自动发送 | 不拦文本粘贴，交给浏览器默认行为 |
- * | 粘贴图片转附件 | `lib/paste.ts` + 本文件的 `onPaste` |
- * | 粘贴超长先确认 | 本文件的 `pending` + `Dialog` |
- * | 生成中输入框仍可编辑 | `disabled` 只加在发送键上 |
- * | 生成中按 Enter | 走 `interrupt` 判断 |
- * | 草稿跨会话保留 | 状态在 `useAppState`，本组件不持有 |
- * | 超长提示 | 字数接近上限时底部行出现计数 |
+ * | 空输入时发送键保留但降透明度 | `aria-disabled` + CSS |
+ * | 首次聚焦边框转焦点环 | CSS `:focus-within` |
+ * | 高度 1→3 行逐级增长 | `useEffect` 按 `scrollHeight` 算，封顶 3 行 |
+ * | 粘贴多行不自动发送 | 不拦文本粘贴 |
+ * | 粘贴图片转附件 | `lib/paste.ts` + `onPaste` |
+ * | 粘贴超长先确认 | `pending` + `Dialog` |
+ * | 生成中输入框仍可编辑 | 只有发送键换语义，textarea 不禁用 |
+ * | 生成中按 Enter | 按 `sendMode` 排队或打断 |
+ * | 草稿跨会话保留 | 状态在 `useAppState` |
+ * | 超长提示 | 底部行出现计数 |
  *
  * ## 为什么 `isComposing` 要判 `nativeEvent`
  *
  * React 的合成事件不带 `isComposing`，它在原生 `KeyboardEvent` 上。
- * 不判这一条，中文输入法选词时按回车会把半截拼音发出去——
- * 这是中文界面最容易出、也最难在英文环境复现的缺陷。
+ * 不判这一条，中文输入法选词时按回车会把半截拼音发出去——这是中文界面
+ * 最容易出、也最难在英文环境复现的缺陷。
+ *
+ * ## 焦点为什么不交给按钮
+ *
+ * 点加号、点停止时浏览器会把焦点搬到按钮上，输入法状态与光标位置一起丢。
+ * 所有按钮的 `onMouseDown` 都 `preventDefault`，焦点留在 textarea 里，
+ * 用户松手就能接着打下一个字。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
-import { IconClose, IconChevronDown, IconMic, IconPlus, IconSend } from './icons.ts'
+import { IconClose, IconChevronDown, IconMic, IconPlus } from './icons.ts'
 import { Dialog } from './Dialog.tsx'
+import { QueueDock } from './QueueDock.tsx'
 import { CONFIRM_LIMIT, imagesOf, toPastedImages } from '../lib/paste.ts'
-import type { Attachment } from '../lib/types.ts'
-import type { ModelDescriptor } from '../lib/api.ts'
+import type { Attachment, ComposerUsage, QueuedMessage } from '../lib/types.ts'
+import type { ModelDescriptor, PermissionLevel } from '../lib/api.ts'
 import { usePreferences } from '../lib/preferences.ts'
 import { invokeShell } from '../lib/shell.ts'
 
@@ -64,21 +89,40 @@ const LINE = 20
  *
  * 为什么写在这里而不是读 computed style：这条 effect 在每次输入时都跑，
  * 每帧一次 `getComputedStyle` 会把它的开销从「算一次数」变成「触发布局」。
- * 两处同值的代价是改一处要记得改另一处——所以两处都留了指向对方的注释，
- * 并且 `check:ui` 有一条断言拿实测几何去对。
  */
 const PAD_TOP = 8
 
-/** 最多展开 3 行，超出内部滚动（§5.6）。 */
+/** 最多展开 3 行，超出内部滚动。 */
 const MAX_ROWS = 3
+
+/** 权限档位的显示名。与设置页同一套说法，不在这里另起一套。 */
+const PERMISSION_LABEL: Record<PermissionLevel, string> = {
+  chat: '只在对话内',
+  workspace: '限于工作区',
+  full: '不限制',
+}
+
+/** 上下文环的几何：14px 视窗、2px 描边。 */
+const RING_RADIUS = 5.5
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
 export interface ComposerProps {
   /** 当前草稿。 */
   value: string
   /** 草稿变化。 */
   onChange(value: string): void
-  /** 发送。 */
+  /** 空闲时发送。 */
   onSend(): void
+  /**
+   * 生成中「打断并发送」。
+   *
+   * 抽成一个动作而不是让组件依次调 stop + send：两步之间有竞态
+   * （`stop` 是异步的，`send` 在 `busy` 还是 true 时会自己挡回去，
+   * 结果就是消息静默消失）。这一条由数据层实现，组件只表达意图。
+   */
+  onInterruptSend(): void
+  /** 生成中「排队」：把草稿放进队列，这一轮结束后自动发出。 */
+  onEnqueue(): void
   /** 停止生成。 */
   onStop(): void
   /** 是否正在生成。 */
@@ -87,12 +131,7 @@ export interface ComposerProps {
   attachments: Attachment[]
   /** 弹出文件选择。 */
   onAddFiles(): void
-  /**
-   * 直接附加一批（粘贴图片，§12.14）。
-   *
-   * 与 `onAddFiles` 并列而不是复用它：那条走系统选择器，
-   * 这条走内存里的缩略图，两者唯一的共同点是「都往附件列表里加东西」。
-   */
+  /** 直接附加一批（粘贴图片）。 */
   onAddAttachments(items: readonly { name: string; thumb?: string }[]): void
   /** 移除一条附件。 */
   onRemoveAttachment(id: string): void
@@ -102,35 +141,89 @@ export interface ComposerProps {
   modelId: string | undefined
   /** 切换模型。 */
   onSelectModel(id: string): void
+  /** 当前权限档位。 */
+  permission: PermissionLevel
+  /** 切换权限档位。 */
+  onSelectPermission(next: PermissionLevel): void
+  /** 本轮用量。没有则 undefined（此时不画上下文环）。 */
+  usage: ComposerUsage | undefined
+  /** 排队中的消息。 */
+  queue: QueuedMessage[]
+  /** 移除一条排队消息。 */
+  onDropQueued(id: string): void
+  /** 改一条排队消息的正文。 */
+  onEditQueued(id: string, text: string): void
+  /** 上移 / 下移一条排队消息。 */
+  onMoveQueued(id: string, direction: -1 | 1): void
   /**
    * 生成中按 Enter 的行为。
    *
-   * `queue` 入队等这一轮结束，`interrupt` 立刻停止并发送（§5.6）。
-   * 取值来自设置；本期没有设置项时用 `interrupt`——
-   * 用户按下回车时想要的通常是「我现在就要说」。
+   * `queue` 入队等这一轮结束，`interrupt` 立刻停下并发出。
    */
-  interrupt?: 'queue' | 'interrupt'
+  sendMode: 'queue' | 'interrupt'
   /**
    * 输入框节点交给上层。
    *
-   * `Cmd/Ctrl + N`（新建对话）与 `↑`（编辑上一条）都要把焦点送回输入框，
-   * 而这两个键的处理在 `App` 里——只有它知道什么时候该回首页、
-   * 回填哪一条。把 textarea 的 ref 交出去，比在组件上加两个
-   * `focus()` 方法再各写一遍转发更省。
+   * `Cmd/Ctrl + N` 与 `↑`（编辑上一条）都要把焦点送回输入框，
+   * 而这两个键的处理在 `App` 里——只有它知道该回填哪一条。
    */
   onInputRef?(node: HTMLTextAreaElement | null): void
+}
+
+/**
+ * 渲染一个上下文占用环。
+ *
+ * ## 为什么是环而不是数字
+ *
+ * 「还剩多少上下文」是一个**比例**。数字要读、要跟一个基数比；环只要瞟一眼。
+ * 百分比仍然写着——环给的是形状，字给的是精度，两者不重复。
+ *
+ * ## 为什么没有点开的分段构成
+ *
+ * 上一版点开能看到「系统提示 / 工具定义 / 对话内容」三段各占多少。本版的
+ * 宿主只回一个整轮估算值（见 `useAppState` 的注解），拆不出三段。
+ * 与其画一个假的三段饼，不如只给总量：**少一个功能，不多一句假话**。
+ *
+ * @param props.percent 0–100。
+ * @returns 环 + 百分比。
+ */
+function ContextRing({ percent }: { percent: number }): React.JSX.Element {
+  const clamped = Math.max(0, Math.min(100, percent))
+  const filled = (clamped / 100) * RING_CIRCUMFERENCE
+  return (
+    <span className="composer__ring" title={`上下文已用 ${String(clamped)}%`}>
+      <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+        <circle cx="7" cy="7" r={RING_RADIUS} fill="none" stroke="currentColor" strokeOpacity="0.18" strokeWidth="2" />
+        <circle
+          cx="7"
+          cy="7"
+          r={RING_RADIUS}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={`${String(filled)} ${String(RING_CIRCUMFERENCE)}`}
+          transform="rotate(-90 7 7)"
+        />
+      </svg>
+      <span className="composer__ring-text">{String(clamped)}%</span>
+      <span className="sr-only">上下文已用 {String(clamped)}%</span>
+    </span>
+  )
 }
 
 /**
  * 渲染输入区。
  *
  * @param props 见 `ComposerProps`。
- * @returns 输入卡片。
+ * @returns 输入卡片 + 脚注 + 上下文环。
  */
 export function Composer({
   value,
   onChange,
   onSend,
+  onInterruptSend,
+  onEnqueue,
   onStop,
   busy,
   attachments,
@@ -140,7 +233,14 @@ export function Composer({
   models,
   modelId,
   onSelectModel,
-  interrupt = 'interrupt',
+  permission,
+  onSelectPermission,
+  usage,
+  queue,
+  onDropQueued,
+  onEditQueued,
+  onMoveQueued,
+  sendMode,
   onInputRef,
 }: ComposerProps): React.JSX.Element {
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -217,22 +317,11 @@ export function Composer({
   /**
    * 聚焦时把输入区顶到软键盘上方（§10.8）。
    *
-   * ## 为什么不能只靠 CSS 的 `--kb-h`
+   * 不能只靠 CSS 的 `--kb-h`：CSS 让输入区上移，但页面本身不会跟着滚。
+   * iOS 弹出键盘时布局视口不缩小、也不自动滚动，结果是输入区被顶到屏幕外。
    *
-   * CSS 那条让整个输入区上移，但**页面本身不会跟着滚**。iOS 弹出键盘时
-   * 布局视口不缩小、也不自动滚动，结果是输入区被顶到屏幕外——比被键盘
-   * 盖住更糟：用户连上面那半句都看不到了。
-   *
-   * 这里在聚焦后延一帧再滚（键盘动画约 250ms，`requestAnimationFrame`
-   * 一帧就够拿到新的 `visualViewport.height`），把输入区底边对齐到
-   * 可视区底边。
-   *
-   * ## 为什么用 `scrollIntoView` 而不是算 `scrollTop`
-   *
-   * 输入区不一定在「整页」里滚，而是在 `.column` 这个 flex 容器里跟着
-   * 时间轴一起排。手算要猜滚动容器是谁，`scrollIntoView({ block: 'nearest' })`
-   * 交给浏览器逐层处理，且 `nearest` 保证「已经可见时不动」——
-   * 桌面上点输入框永远不会跳一下。
+   * 用 `scrollIntoView({ block: 'nearest' })` 而不是算 `scrollTop`：
+   * 输入区不一定在"整页"里滚，而是在 `.column` 这个 flex 容器里跟着时间轴排。
    */
   const revealOnFocus = useCallback((): void => {
     const node = inputRef.current
@@ -247,8 +336,6 @@ export function Composer({
   /**
    * 高度自适应。
    *
-   * ## 为什么不直接写 `rows`
-   *
    * `rows` 只是初始提示，实际高度由浏览器按内容算，会一直长到几十行。
    * 必须显式设 `height` 才能封顶。先置 `auto` 再读 `scrollHeight`，
    * 是因为不置 auto 时读到的 `scrollHeight` 只增不减——删字之后框不会缩。
@@ -257,14 +344,6 @@ export function Composer({
     const node = inputRef.current
     if (node === null) return
     node.style.height = 'auto'
-    /*
-     * 封顶 = 三行文字 + textarea 自己的上内距。
-     *
-     * `scrollHeight` 把 padding 算在内，所以这里的常数必须与
-     * `composer.css` 里 `.composer__input` 的 `padding-top` 同值（8）——
-     * 旧值是 12，多出的 4px 让三行状态下框底比文字低一档，最后一行
-     * 下面空出一条谁也说不出原因的缝。
-     */
     const max = LINE * MAX_ROWS + PAD_TOP
     node.style.height = `${String(Math.min(node.scrollHeight, max))}px`
   }, [value])
@@ -272,9 +351,8 @@ export function Composer({
   /**
    * 待确认的超长草稿。
    *
-   * `undefined` 表示没有待确认的东西。存的是**提交那一刻的快照**而不是
-   * 「要不要确认」的布尔：确认后要发的是那一份内容，而用户在这期间
-   * 完全可能又改了几个字——真发出去的是他改过的版本，确认框就成了摆设。
+   * 存的是**提交那一刻的快照**而不是「要不要确认」的布尔：确认后要发的是
+   * 那一份内容，而用户在这期间完全可能又改了几个字。
    */
   const [pending, setPending] = useState<{ text: string } | undefined>(undefined)
 
@@ -283,25 +361,30 @@ export function Composer({
    *
    * 每次真正发出去时 +1，用它做 `key` 让一枚新的圆环重新播放动画。
    * 不存布尔：布尔只能触发一次，第二次发送时动画不会重来。
-   * 0 表示还没发过，此时不渲染任何东西。
    */
   const [echo, setEcho] = useState(0)
 
+  /** 草稿为空（含无附件）。 */
+  const empty = value.trim() === '' && attachments.length === 0
+
   /**
-   * 真正发送。抽出来是因为它有两个入口：直接发、确认后发。
+   * 真正发送。
    *
-   * 抽出来而不是在 `submit` 里加一个 `confirmed` 参数：那个参数一旦存在，
-   * 每个调用点都要想一次「我这里该传什么」，而答案永远是同一个。
+   * 三条路，由 `busy` 与 `sendMode` 决定，组件不做别的判断：
+   * - 空闲 → 发；
+   * - 生成中 + 排队 → 进队列；
+   * - 生成中 + 打断 → 停下这一轮再发。
    */
   const deliver = useCallback((): void => {
     if (busy) {
-      if (interrupt === 'interrupt') onStop()
-      else return
+      if (sendMode === 'queue') onEnqueue()
+      else onInterruptSend()
+    } else {
+      onSend()
     }
-    onSend()
-    // 话出去了，给一枚回声。它只是确认，不携带任何状态。
-    setEcho((previous) => previous + 1)
-  }, [busy, interrupt, onStop, onSend])
+    /* 只有真的发出去了才给回声：排队不该有"话出去了"的反馈。 */
+    if (!busy || sendMode !== 'queue') setEcho((previous) => previous + 1)
+  }, [busy, sendMode, onSend, onEnqueue, onInterruptSend])
 
   /** 发送。超长时先确认（§12.14）。 */
   const submit = useCallback((): void => {
@@ -318,17 +401,16 @@ export function Composer({
     // 组合中不发送（§12.3）。这一条必须最先判。
     if (event.nativeEvent.isComposing) return
     if (event.key !== 'Enter') return
-    // Shift + Enter 与 Cmd/Ctrl + Enter 都不走默认发送路径：
-    // 前者换行，后者按设置走另一种发送方式。
+    // Shift + Enter 换行。Cmd/Ctrl + Enter 在排队模式下越过队列立刻发。
     if (event.shiftKey) return
     event.preventDefault()
-    if ((event.metaKey || event.ctrlKey) && interrupt === 'queue') {
-      // Cmd/Ctrl + Enter 在「排队」模式下才代表立即发送，其余情况同 Enter。
-      submit()
+    if ((event.metaKey || event.ctrlKey) && busy && sendMode === 'queue') {
+      onInterruptSend()
+      setEcho((previous) => previous + 1)
       return
     }
     submit()
-  }, [submit, interrupt])
+  }, [submit, busy, sendMode, onInterruptSend])
 
   // 模型菜单：点到外面就关。用 pointerdown 而不是 click：
   // click 在「按在菜单外、松在菜单内」时不会触发，菜单会留在原地。
@@ -345,20 +427,9 @@ export function Composer({
   /**
    * 粘贴（§12.14）。
    *
-   * ## 三种情形，只有两种需要动手
-   *
-   * | 剪贴板里是 | 动作 |
-   * | --- | --- |
-   * | 纯文字 | 什么都不做，浏览器默认粘贴（含换行、丢样式，天然满足要求） |
-   * | 图片 | `preventDefault` + 转附件，文字一并不收 |
-   * | 图片 + 文字 | 同上。文字是图片的元数据，不是用户要说的话 |
-   *
-   * ## 为什么在没有图片时直接返回
-   *
-   * 这是这一条最容易被写坏的地方。一旦对**所有** paste 都
-   * `preventDefault` 再自己 `insertText`，就会同时丢掉：撤销栈的
-   * 合并、输入法的候选上屏、原生选区替换。三样都要自己重写一遍，
-   * 而收益是零——textarea 的默认粘贴本来就是我们想要的。
+   * 只有带图片时才 `preventDefault`。对**所有** paste 都拦下来自己
+   * `insertText`，会同时丢掉撤销栈的合并、输入法候选上屏、原生选区替换
+   * ——三样都要自己重写，而收益是零。
    */
   const onPaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>): void => {
     const files = imagesOf(event.clipboardData)
@@ -370,22 +441,42 @@ export function Composer({
     })()
   }, [onAddAttachments])
 
+  /**
+   * 按钮上按下鼠标时不让焦点离开输入框。
+   *
+   * 点完加号再打字，若焦点被按钮拿走，输入法会回到英文、光标位置也丢了。
+   * 在 `mousedown` 上处理是唯一有效的时机：`click` 已经太晚。
+   */
+  const keepFocus = useCallback((event: React.MouseEvent<HTMLElement>): void => {
+    event.preventDefault()
+    inputRef.current?.focus({ preventScroll: true })
+  }, [])
+
   const overLimit = value.length > SOFT_LIMIT
-  /** 空输入：发送键保留但不可用（§5.6）。 */
-  const empty = value.trim() === '' && attachments.length === 0
+  /** 生成中且没有草稿：这个位置该是「停下」，不是「发送」。 */
+  const showStop = busy && empty
+
+  const primaryLabel = showStop ? '停止生成' : busy ? (sendMode === 'queue' ? '排队发送' : '打断并发送') : '发送'
 
   return (
     <div className="composer">
+      {/*
+        排队区在卡片**上方**：排队的东西是"还没轮到的句子"，位置应当在
+        正在写的那句之前——它与时间轴同向（先排的在上，后写的在下）。
+      */}
+      {queue.length > 0 ? (
+        <QueueDock
+          items={queue}
+          onDrop={onDropQueued}
+          onEdit={onEditQueued}
+          onMove={onMoveQueued}
+        />
+      ) : null}
+
       <div className="composer__card">
         {/*
-          附件缩略图排在输入框上方，超过 6 个横向滚动（§5.6）。
-
-          ## 两种形态：图片有图，文件没有
-
-          图片附件画成 48 × 48 的方块（§12.14），文件附件留 24 高的胶囊。
-          不是刻意不一致——胶囊里能放文件名，图片附件放不下，
-          硬塞一个 48 高的方块里再叠文字会让两者都看不清。
-          容器用 `align-items: center` 让它们在一条水平线上居中对齐。
+          附件缩略图排在输入框上方，超过 6 个横向滚动。
+          图片画成 48 × 48 方块，文件留 48 高的小卡放文件名。
         */}
         {attachments.length > 0 ? (
           <ul className="composer__attachments">
@@ -401,11 +492,10 @@ export function Composer({
                   <span className="composer__attachment-name">{item.name}</span>
                 ) : (
                   /*
-                    缩略图用 `background-image` 而不是 `<img>`：
-                    它是 48 × 48 的定方块，`background-size: cover` 一行就够，
-                    而 `<img>` 要额外处理 object-fit、拖拽（图片默认可拖，
-                    拖出去会变成往别的应用扔一个 data URL）与 alt 取舍。
-                    装饰性图片不该有 alt——文件名已在 `title` 上。
+                    缩略图用 `background-image` 而不是 `<img>`：它是 48 × 48 的
+                    定方块，`background-size: cover` 一行就够，而 `<img>` 还要
+                    处理 object-fit、默认可拖（拖出去会往别的应用扔一个 data URL）
+                    与 alt 取舍。装饰性图片不该有 alt——文件名已在 title 上。
                   */
                   <span
                     className="composer__attachment-thumb"
@@ -418,6 +508,7 @@ export function Composer({
                   type="button"
                   className="composer__attachment-remove"
                   aria-label={`移除 ${item.name}`}
+                  onMouseDown={keepFocus}
                   onClick={() => { onRemoveAttachment(item.id) }}
                 >
                   <Icon icon={IconClose} size={16} />
@@ -427,25 +518,72 @@ export function Composer({
           </ul>
         ) : null}
 
-        <textarea
-          ref={attachInput}
-          className="composer__input"
-          value={value}
-          rows={1}
-          placeholder="输入消息…"
-          aria-label="输入消息"
-          onChange={(event) => { onChange(event.target.value) }}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          onFocus={revealOnFocus}
-        />
+        {/* 两列地板：正文占左，动作占右。 */}
+        <div className="composer__floor">
+          <textarea
+            ref={attachInput}
+            className="composer__input"
+            value={value}
+            rows={1}
+            placeholder={busy ? '生成中，回车将排队发送' : '输入消息…'}
+            aria-label="输入消息"
+            onChange={(event) => { onChange(event.target.value) }}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            onFocus={revealOnFocus}
+          />
 
-        <div className="composer__row">
+          <div className="composer__sendcol">
+            {/*
+              生成中且草稿为空 → 停止。有草稿时保留发送语义：用户此刻想说
+              下一句，而不是想停下（停下仍可用 Esc）。
+            */}
+            {showStop ? (
+              <button
+                type="button"
+                className="composer__primary"
+                aria-label={primaryLabel}
+                title={primaryLabel}
+                onMouseDown={keepFocus}
+                onClick={onStop}
+              >
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                  <rect x="3" y="3" width="10" height="10" rx="2.5" fill="currentColor" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="composer__primary"
+                aria-label={primaryLabel}
+                title={primaryLabel}
+                aria-disabled={empty}
+                aria-describedby={empty ? 'composer-send-hint' : undefined}
+                onMouseDown={keepFocus}
+                onClick={empty ? undefined : submit}
+              >
+                {/*
+                  导航三角：带凹口的实心三角，是「方向」而不是纸飞机。
+                  描边 0.6 与填充同色，小尺寸下边缘才不显毛。
+                */}
+                <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                  <path d="M8 1.6 14 14.2 8 11.3 2 14.2Z" fill="currentColor" stroke="currentColor" strokeWidth="0.6" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+            {empty && !showStop ? (
+              <span className="sr-only" id="composer-send-hint">请先输入内容再发送</span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="composer__tools">
           <button
             type="button"
             className="composer__attach"
             aria-label="附加文件"
             title="附加文件"
+            onMouseDown={keepFocus}
             onClick={onAddFiles}
           >
             <Icon icon={IconPlus} size={16} />
@@ -458,6 +596,7 @@ export function Composer({
               aria-label={recording ? '停止录音' : '语音输入'}
               aria-pressed={recording}
               title={recording ? '停止录音' : '语音输入'}
+              onMouseDown={keepFocus}
               onClick={recording ? stopVoice : () => { void startVoice() }}
             >
               <Icon icon={IconMic} size={16} />
@@ -467,52 +606,7 @@ export function Composer({
             <span className="composer__voice-note" aria-live="polite">{voiceNote}</span>
           )}
 
-          {/*
-            模型名。点击展开候选。没有可选模型时显示「未选择」并指向设置
-            （§12.5 的空状态规则：显示引导语而不是「暂无数据」）。
-          */}
-          <div className="composer__model" ref={menuRef}>
-            <button
-              type="button"
-              className="composer__model-button"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => { setMenuOpen((previous) => !previous) }}
-            >
-              {current === undefined ? '未选择' : current.label}
-              {/*
-                下拉指示。没有它时这行是「一个加号 + 一串裸文字」，
-                看不出那串字可以点。箭头是菜单的唯一通用标记（§4.4）：
-                它不解释"有什么"，只说"这里能展开"。
-              */}
-              <Icon icon={IconChevronDown} size={16} />
-            </button>
-            {menuOpen ? (
-              <div className="composer__model-menu" role="menu">
-                {models.length === 0 ? (
-                  <p className="composer__model-empty">尚无可用模型，请在设置中添加</p>
-                ) : (
-                  models.map((model) => (
-                    <button
-                      key={model.id}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={model.id === modelId}
-                      className="composer__model-item"
-                      onClick={() => {
-                        onSelectModel(model.id)
-                        setMenuOpen(false)
-                      }}
-                    >
-                      {model.label}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </div>
-
-          {/* 超长时出现计数，不超长时不显示——常驻会让人时刻在意字数。 */}
+          {/* 超长时才出现计数：常驻会让人时刻在意字数。 */}
           {overLimit ? (
             <span className="composer__count" data-over="">
               {value.length} / {SOFT_LIMIT}
@@ -521,68 +615,93 @@ export function Composer({
 
           <span className="composer__spacer" />
 
-          {/*
-            发送键。生成中换成「先别说」（§5.4）：用户此刻最可能想做的
-            不是再发一条，而是让这一轮停下。同一个位置，两种语义。
-          */}
-          {busy ? (
-            <button type="button" className="composer__stop" onClick={onStop}>
-              停止
-            </button>
-          ) : (
-            /*
-             * 发送键。空输入时**保留在位置上**，但不可用且降为 40%（§5.6）。
-             *
-             * ## 用 `aria-disabled` 而不是 `disabled`
-             *
-             * §13 要求「禁用项用 `aria-disabled` 且可聚焦，聚焦时朗读禁用原因」。
-             * 原生 `disabled` 会把按钮从 Tab 顺序里摘掉、也不进可访问性树，
-             * 键盘用户既碰不到它、也听不到「为什么不能按」——只能猜。
-             *
-             * 代价是要自己在 `onClick` 里挡住点击（原生属性不挡了）。
-             */
-            <>
-              <button
-                type="button"
-                className="composer__send"
-                aria-label="发送"
-                aria-disabled={empty}
-                aria-describedby={empty ? 'composer-send-hint' : undefined}
-                onClick={empty ? undefined : submit}
-              >
-                <Icon icon={IconSend} size={16} />
-              </button>
-              {empty ? (
-                <span className="sr-only" id="composer-send-hint">
-                  请先输入内容再发送
-                </span>
-              ) : null}
-            </>
-          )}
+          {busy ? <span className="composer__busy-hint">{sendMode === 'queue' ? '回车排队' : '回车插话'}</span> : null}
         </div>
 
         {/*
-          回声。发送成功后从发送键位置向外扩一圈，520ms 淡出。
-          它挂在卡片内、绝对定位到发送键上；`key` 变化会让节点重建，
-          于是每一句话都有自己的一圈，而不是共用一条播放到一半的动画。
+          回声：发送成功后从发送键位置向外扩一圈，520ms 淡出。
+          `key` 变化会让节点重建，于是每一句话都有自己的一圈。
         */}
         {echo === 0 ? null : <span className="composer__echo" key={echo} aria-hidden="true" />}
       </div>
 
       {/*
-        超长确认（§12.14）。
+        脚注：权限 + 模型。
+        
+        两个都是「说话之前」的决定：跟谁说话、她能走多远。放在卡外一行、
+        居中，读起来是一条脚注而不是一条工具栏——它们一天改一次，
+        而输入框一秒用三次。
+      */}
+      <div className="composer__footnote">
+        {/*
+          权限用原生 `<select>`：三档、无层级、要能用键盘直接选。
+          自绘菜单在这里只会多一层状态，换不来任何表达力。
+        */}
+        <label className="composer__select" title="本档决定可访问的操作范围">
+          <select
+            className="composer__select-input"
+            value={permission}
+            aria-label="权限档位"
+            onChange={(event) => { onSelectPermission(event.target.value as PermissionLevel) }}
+          >
+            {(Object.keys(PERMISSION_LABEL) as PermissionLevel[]).map((level) => (
+              <option key={level} value={level}>{PERMISSION_LABEL[level]}</option>
+            ))}
+          </select>
+          <span className="composer__select-face" aria-hidden="true">
+            {PERMISSION_LABEL[permission]}
+            <Icon icon={IconChevronDown} size={16} />
+          </span>
+        </label>
 
-        ## 为什么用 `Dialog` 而不是 `globalThis.confirm`
+        <div className="composer__model" ref={menuRef}>
+          <button
+            type="button"
+            className="composer__model-button"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => { setMenuOpen((previous) => !previous) }}
+          >
+            {current === undefined ? '未选择模型' : current.label}
+            <Icon icon={IconChevronDown} size={16} />
+          </button>
+          {menuOpen ? (
+            <div className="composer__model-menu" role="menu">
+              {models.length === 0 ? (
+                <p className="composer__model-empty">尚无可用模型，请在设置中「对话」页添加</p>
+              ) : (
+                models.map((model) => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={model.id === modelId}
+                    className="composer__model-item"
+                    onClick={() => {
+                      onSelectModel(model.id)
+                      setMenuOpen(false)
+                    }}
+                  >
+                    {model.label}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
 
-        原生 `confirm` 在 macOS 上会弹出系统级模态框，**样式完全不受控制**：
-        字号、圆角、按钮顺序都是系统的，与这个纸白界面放在一起像两个应用。
-        更实际的问题在 Tauri 里——WebView 的 `confirm` 在部分平台会被壳拦掉
-        或根本不显示，于是「超长时提示」这条静默失效，谁也不会发现。
+      {/* 上下文占用：没有用量数据时不画，空环会被读成"用的是零"。 */}
+      {usage === undefined ? null : (
+        <div className="composer__dock">
+          <ContextRing percent={usage.context} />
+        </div>
+      )}
 
-        ## 文案按 §7.6 的三段式
-
-        「发了什么 · 为什么值得一问 · 下一步」。不说「确定吗」，因为
-        「确定/取消」是抽象词，用户读完仍不知道自己按下去会发生什么。
+      {/*
+        超长确认（§12.14）。用 `Dialog` 而不是 `globalThis.confirm`：
+        原生 confirm 在 macOS 上是系统级模态、样式完全不受控，且在 Tauri 里
+        部分平台会被壳拦掉或根本不显示。
       */}
       {pending === undefined ? null : (
         <Dialog

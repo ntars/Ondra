@@ -18,6 +18,7 @@ import type { Context } from '@ntars/cordis'
 import { VectorRepository } from './service.js'
 import { VECTOR_SERVICE_KEY } from './types.js'
 import type {
+  ConfigSchemaLike,
   MemoryCoreLike,
   StorePortLike,
   VectorService,
@@ -31,6 +32,29 @@ export { VectorRepository } from './service.js'
 export { hashEmbed, cosineOf, fingerprintOf } from './embed.js'
 export { bigramsOf, literalScoreOf, rrfFuse, HYBRID_RRF_K } from './literal.js'
 export { buildIvf, ivfSearch, IVF_MIN_DOCS } from './ann.js'
+// 配置的四层合并接入与默认值真源都在 `settings.ts`：`FIELD_SPECS` 是唯一存放处，
+// 本文件不再自己写一份默认值（两份默认值必然漂移，`ondra-memory-intake` 已经踩过）。
+export {
+  CONFIG_SECTION,
+  CONFIG_SECTION_ID,
+  DEFAULT_CONFIG,
+  FIELD_SPECS,
+  KEY_PAIRS,
+  MODES,
+  SECTION_KEYS,
+  normalizeUserLayer,
+  registerSection,
+  valuesToConfigShape,
+} from './settings.js'
+import {
+  CONFIG_SECTION_ID,
+  MODES,
+  completeConfig,
+  isRecord,
+  normalizeUserLayer,
+  registerSection,
+  valuesToConfigShape,
+} from './settings.js'
 
 /** Cordis 函数插件名。与 `package.json` 的 `name` 完全一致。 */
 export const name = 'ondra-memory-vector'
@@ -65,51 +89,9 @@ export interface Config {
   readonly verbose: boolean
 }
 
-/** 默认配置。 */
-const DEFAULT_CONFIG: Config = {
-  enabled: false,
-  mode: 'auto',
-  autoSync: true,
-  persist: true,
-  annProbes: 3,
-  verbose: false,
-}
-
-/** 允许的模式值。 */
-const MODES: readonly string[] = ['auto', 'literal', 'hybrid', 'vector']
-
 /** O-001 身份服务的结构对位子集（只用来拼日志命名空间）。 */
 interface IdentityLike {
   loggerName(feature: string): string
-}
-
-/** 判空对象。 */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** 补全并夹紧配置。 */
-function completeConfig(value: unknown): Config {
-  const raw = isRecord(value) ? value : {}
-  const enabled = raw['enabled']
-  const mode = raw['mode']
-  const autoSync = raw['autoSync']
-  const persist = raw['persist']
-  const annProbes = raw['annProbes']
-  const verbose = raw['verbose']
-  return {
-    enabled: typeof enabled === 'boolean' ? enabled : DEFAULT_CONFIG.enabled,
-    mode: typeof mode === 'string' && (MODES as readonly string[]).includes(mode)
-      ? (mode as Config['mode'])
-      : DEFAULT_CONFIG.mode,
-    autoSync: typeof autoSync === 'boolean' ? autoSync : DEFAULT_CONFIG.autoSync,
-    persist: typeof persist === 'boolean' ? persist : DEFAULT_CONFIG.persist,
-    annProbes:
-      typeof annProbes === 'number' && Number.isFinite(annProbes) && annProbes > 0
-        ? Math.min(64, Math.trunc(annProbes))
-        : DEFAULT_CONFIG.annProbes,
-    verbose: typeof verbose === 'boolean' ? verbose : DEFAULT_CONFIG.verbose,
-  }
 }
 
 declare module '@ntars/cordis' {
@@ -124,15 +106,43 @@ declare module '@ntars/cordis' {
  * @param ctx 宿主上下文。
  * @param config 配置行内容。
  */
-export function apply(ctx: Context, config: Config): void {
-  const complete = completeConfig(config)
-
+export function apply(ctx: Context, config: unknown): void {
   const identity = ctx.get('ondra-identity') as IdentityLike | undefined
   const log = ctx.logger(identity ? identity.loggerName('memory-vector') : 'ondra.memory-vector')
 
+  /*
+   * 配置：有 O-005 就走四层合并（并能说出「哪一层的哪个字段」）。
+   *
+   * 取不到 / 注册失败 / 解析抛错，三条降级路径的终点都是同一个
+   * `completeConfig(config)`，所以没有 O-005 时的行为与以前逐字相同。
+   *
+   * 这一段此前是缺的，而缺它的后果**不是「配置不生效」这么轻**：
+   * 用户层的 `enabled` 根本没机会进来，总开关恒读出厂的 `false`，
+   * 于是本插件的 `ctx.get('ondra-memory-vector')` 在任何配置下都是 `undefined`，
+   * 「出厂关闭但可打开」退化成「永远关着」。
+   */
+  const raw: unknown = isRecord(config) ? config : {}
+  let effective: unknown = raw
+  const schema = ctx.get('ondra-config-schema') as ConfigSchemaLike | undefined
+  if (schema !== undefined && registerSection(ctx, schema, log)) {
+    try {
+      // 用户层用 kebab 键交给 O-005（§8.4 只认小写），回来再换成 camel 键。
+      const resolved = schema.resolve(CONFIG_SECTION_ID, { user: normalizeUserLayer(raw) })
+      if (resolved !== undefined) {
+        effective = valuesToConfigShape(resolved.values)
+        if (resolved.fallbackCount > 0) {
+          log.warn('配置有 %d 个字段校验失败，已逐个回退默认值', resolved.fallbackCount)
+        }
+      }
+    } catch (error) {
+      log.warn('解析配置段失败，退回插件实例配置：%s', error instanceof Error ? error.message : String(error))
+    }
+  }
+  const complete = completeConfig(effective)
+
   // 0. 总开关。关闭就不注册服务：O-014 的探测看到 undefined 走「缺席」路径，语义因子退出归一化。
   if (!complete.enabled) {
-    log.info('enabled=false（默认）：向量分支未注册。2-gram 倒排（O-014）独自承担召回')
+    log.info('enabled=false（出厂默认）：向量分支未注册。2-gram 倒排（O-014）独自承担召回；要语义召回请在「设置 → 记忆向量」里打开')
     return
   }
 

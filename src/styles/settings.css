@@ -46,9 +46,25 @@
 .settings__pen {
   position: relative;
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  width: min(760px, 100%);
-  height: min(540px, 100%);
+  /*
+   * 导航列 168 + 内容列。168 而不是 160：分类名最长是「人设与表达」五个字，
+   * 160 减去左右内距 16 之后只剩 128，五字加图标（16 + 间隙 8）会挤到
+   * 省略号。168 刚好放得下，且仍是 8 的倍数。
+   */
+  grid-template-columns: 168px minmax(0, 1fr);
+  /* 宽度只有一个真源：`--w-settings`。toast 的避让公式也读它。 */
+  width: min(var(--w-settings), 100%);
+  /*
+   * 高度 720 而不是 540。
+   *
+   * 540 是按「一屏七八行表单」定的，而插件参数那一页有 65 个段：
+   * 540 里只放得下六七个段头，用户滚动的时间比读的时间长。720 在
+   * 820 × 580 的最小窗口里仍会被 `100%` 接住（不会溢出），在正常窗口
+   * 里则多给两屏的信息密度。
+   *
+   * 高度必须是**固定**的：按内容定高会让换页时纸片自己跳一下。
+   */
+  height: min(720px, 100%);
   overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--ui-bg-paper);
@@ -136,6 +152,10 @@
 
 .settings__tab:hover {
   color: var(--ui-ink-2);
+}
+
+.settings__tab:active {
+  color: var(--ui-ink);
 }
 
 .settings__tab[aria-selected='true'] {
@@ -1117,4 +1137,130 @@
   font-size: var(--text-micro);
   line-height: 1.5;
   color: var(--ui-ink-3);
+}
+
+/* ===========================================================================
+   模块层的四组分类
+
+   65 个段平铺是一堵墙。分组之后，用户先读组名（她是谁 / 她记得什么 /
+   她什么时候开口 / 程序怎么跑），再看组里的段——这一步不比滚动更快，
+   但它给了「我该去哪一组」这个判断。
+   =========================================================================== */
+
+.module__group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 组与组之间留 24：这一档比段间距（12）大，读者能看出层级。 */
+.module__group + .module__group {
+  margin-top: 24px;
+}
+
+/*
+ * 组头：名字 + 段数 + 一句说明。
+ *
+ * 组头不做折叠。段本身已经是一层折叠（点开才渲染字段），再套一层
+ * 会让「展开两次才看到一个字段」，而组内的段数是 10–24，全部收起
+ * 也只有几个屏幕——折叠省下的滚动，抵不上多点一次的成本。
+ */
+.module__group-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.module__group-title {
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-label);
+  color: var(--ui-ink);
+}
+
+.module__group-count {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 说明单独占一行：它与组名是两种信息，挤在一行会在窄面板里折得难看。 */
+.module__group-sub {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 高风险标：一枚窄药丸，跟在段名后面。
+ *
+ * 用 `--ui-warn` 当字而不是当底：它不是错误，只是「这一段会动到边界」。
+ * 底用透明，避免一格段的标题行出现两块彩色。
+ */
+.module__risk {
+  margin-left: 8px;
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--ui-bad-bg);
+  font-size: var(--text-micro);
+  font-weight: var(--w-regular);
+  color: var(--ui-warn);
+  white-space: nowrap;
+}
+
+/* 设置行之间的发丝线：0.5px，与全项目的分隔线同一档。 */
+.module__body > .field + .field {
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+/* 底部统计条里的撑杆 + 开发者模式开关。 */
+.settings__foot-spacer {
+  flex: 1;
+}
+
+.settings__dev {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/*
+ * 复选框：14px，走原生。
+ *
+ * 这里不用项目里的自绘开关：它是一个**次要**的视图开关，出现在统计条
+ * 这种文字行里，原生小方框与这行的字号、行高天然对齐；自绘开关 24 高
+ * 会把这一行撑高一档，而这条 bar 的高度是与导航列对齐算过的。
+ */
+.settings__dev-check {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--ui-action);
+  cursor: pointer;
+}
+
+/*
+ * 自管滚动的页面宿（插件参数）。
+ *
+ * 它不做任何排版，只把宽度与高度约束传下去：`.settings__plug` 的
+ * `flex: 1` 需要父级是 flex 容器且有确定高度，这两条在这里给。
+ * 上一版这类页面直接挂在 `.settings__main` 下，靠的是「没有中间层」；
+ * 现在外面多了一层（为了统一 key 与条件渲染），就必须显式声明。
+ */
+.settings__plug-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }

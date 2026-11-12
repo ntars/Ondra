@@ -28,9 +28,9 @@ import { Heading, Note, Row, Toggle } from './settingsUi.tsx'
  * 让用户不知道该期待什么。
  */
 const CUES: Array<{ key: SoundCue; label: string; hint: string }> = [
-  { key: 'send', label: '发送', hint: '一句话送出去时' },
-  { key: 'speak', label: '她开口', hint: '开始回复时' },
-  { key: 'error', label: '出错', hint: '这一轮没成时' },
+  { key: 'send', label: '发送', hint: '消息发送时' },
+  { key: 'speak', label: '回复开始', hint: '开始生成回复时' },
+  { key: 'error', label: '出错', hint: '本轮失败时' },
 ]
 
 export function SettingsSound(): React.JSX.Element {
@@ -59,7 +59,7 @@ export function SettingsSound(): React.JSX.Element {
       */}
       <Heading>音效</Heading>
 
-      <Row label="提示音" hint="发送、她开口、出错时各一声">
+      <Row label="提示音" hint="发送、回复开始、出错时各播放一次">
         <Toggle label="提示音" checked={prefs.sound} onChange={changeSound} />
       </Row>
 
@@ -126,10 +126,10 @@ export function SettingsSound(): React.JSX.Element {
       </div>
 
       <Note>
-        此档音量仅作用于上述三种提示音，不改变系统音量：系统音量是为其他应用设置的，不应随之变动。本应用不提供打字音与环境音：打字音会与逐字输出的文字叠成噪声，环境音则会把陪伴做成播放器。
+        本档音量仅作用于上述三种提示音，不改变系统音量。本应用不提供打字音与环境音：打字音会与逐字输出叠加成噪声，环境音会使应用偏离陪伴定位。
       </Note>
 
-      <Heading>她的声音</Heading>
+      <Heading>朗读声音</Heading>
       <VoiceCard />
 
       <Heading>说话口吻</Heading>

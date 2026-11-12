@@ -149,14 +149,14 @@ export function apply(ctx: Context, config: EvolveConfig): void {
     return
   }
   log.info(
-    '人格演化就绪：%d 个特质 / %d 条漂移，存储 %s；互动 %d 次，阈值系数 ×%.2f（饱和点 %d，斜率 %.1f）',
+    '人格演化就绪：%d 个特质 / %d 条漂移，存储 %s；互动 %d 次，阈值系数 ×%s（饱和点 %d，斜率 %s）',
     stats.counters.traits,
     stats.driftEntries,
     stats.storeProvider,
     stats.interactions,
-    stats.factor,
+    stats.factor.toFixed(2),
     DRIFT_SATURATION,
-    DRIFT_RATE,
+    DRIFT_RATE.toFixed(1),
   )
 }
 

@@ -180,11 +180,11 @@ export function apply(ctx: Context, config: ExpressConfig): void {
   }
   const probe = service.profileOf()
   log.info(
-    '六态表达就绪：%s（mood %.2f / energy %.0f / tension %.2f），语速档 %s，主动额度 %d，数值来源 %s',
+    '六态表达就绪：%s（mood %s / energy %s / tension %s），语速档 %s，主动额度 %d，数值来源 %s',
     STATE_ZH[probe.view.state],
-    probe.view.mood,
-    probe.view.energy,
-    probe.view.tension,
+    probe.view.mood.toFixed(2),
+    probe.view.energy.toFixed(0),
+    probe.view.tension.toFixed(2),
     probe.tts.tempo,
     probe.rhythm.proactiveQuotaDelta,
     stats.source === 'emotion' ? '情绪服务' : '出厂基线（未接情绪服务）',

@@ -80,7 +80,7 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
     setNote(undefined)
     void getMemoryHealth(true)
       .then((next) => { setHealth(next) })
-      .catch(() => { setNote('这次没查成，稍后再试') })
+      .catch(() => { setNote('这次检查失败，稍后再试') })
       .finally(() => { setRunning(false) })
   }, [])
 
@@ -96,7 +96,7 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
         return getMemoryHealth(true)
       })
       .then((next) => { setHealth(next) })
-      .catch(() => { setNote('修复没成功，清单已保留') })
+      .catch(() => { setNote('修复失败，清单已保留') })
       .finally(() => { setRepairing(false) })
   }, [])
 
@@ -104,7 +104,7 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
   if (health !== undefined && health.loaded === false) {
     return (
       <section className="health" aria-label="记忆库体检">
-        <p className="health__idle">体检这一块还没接上</p>
+        <p className="health__idle">记忆检查未装载</p>
       </section>
     )
   }
@@ -124,21 +124,21 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
           disabled={running === true || health?.available === false}
           onClick={runScan}
         >
-          {running === true ? '正在查…' : ran ? '再查一次' : '查一遍'}
+          {running === true ? '检查中…' : ran ? '重新检查' : '执行检查'}
         </button>
       </header>
 
       {/* 不可用：给出原因码，但不写内部错误码本身——那是给查代码的人看的。 */}
       {health?.available === false ? (
-        <p className="health__idle">记忆内核没接上，暂时没法体检</p>
+        <p className="health__idle">记忆内核未就绪，暂时无法执行检查</p>
       ) : null}
 
       {/* 还没查过：说清「一次都没跑」，不要摆一个 0。 */}
       {health?.available !== false && !ran ? (
         <p className="health__idle">
           {typeof health?.stats?.['diagnoses'] === 'number' && health.stats['diagnoses'] > 0
-            ? `这次还没查。上次查过 ${String(health.stats['diagnoses'])} 次，累计发现 ${String(health.stats['findings'] ?? 0)} 项`
-            : '还没查过。按一下，看看有没有留着不该留的东西'}
+            ? `本轮尚未检查。上次检查 ${String(health.stats['diagnoses'])} 次，累计发现 ${String(health.stats['findings'] ?? 0)} 项`
+            : '尚未检查。执行检查以确认是否存在冗余记忆'}
         </p>
       ) : null}
 
@@ -147,9 +147,9 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
         <>
           <p className="health__summary">
             {findings.length === 0
-              ? `扫了 ${String(scanned ?? 0)} 条，没发现问题`
-              : `扫了 ${String(scanned ?? 0)} 条，发现 ${String(findings.length)} 项`}
-            {health?.complete === false ? '（没扫完，清单只是一部分）' : ''}
+              ? `已检查 ${String(scanned ?? 0)} 条，未发现问题`
+              : `已检查 ${String(scanned ?? 0)} 条，发现 ${String(findings.length)} 项`}
+            {health?.complete === false ? '（未完成，清单不完整）' : ''}
           </p>
 
           {health?.missing !== undefined && health.missing.length > 0 ? (
@@ -158,7 +158,7 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
              * 长得一模一样，而两者的含义正相反。
              */
             <p className="health__missing">
-              {`有 ${String(health.missing.length)} 个上游没接上，这几类没查`}
+              {`${String(health.missing.length)} 个上游服务未就绪，以下类别未检查`}
             </p>
           ) : null}
 
@@ -207,7 +207,7 @@ export function MemoryHealthBlock(): React.JSX.Element | null {
                 )
               }}
             >
-              {`把可自动修的 ${String(counted?.auto ?? 0)} 项都清掉`}
+              {`清除 ${String(counted?.auto ?? 0)} 项可自动修复项`}
             </button>
           ) : null}
 

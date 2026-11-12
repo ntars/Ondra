@@ -34,7 +34,7 @@
 
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -83,6 +83,33 @@ const upstreamPort = await new Promise((resolve) => {
  * ---------------------------------------------------------------- */
 
 const dataDir = await mkdtemp(join(tmpdir(), 'ondra-e2e-proactive-'))
+
+/*
+ * 静默窗必须在这里钉成空窗。
+ *
+ * 门控的两道静默窗（产品静默 23:00–08:00、防封深夜 00:30–07:30）按真实
+ * 钟表判定，而本脚本要验的是「由头能不能出来」——与此刻几点无关。不钉死
+ * 的话它只在 08:00–23:00 之间通过：夜里跑必红，且红的原因与被测能力无关，
+ * 属最难查的一类假失败。
+ *
+ * 起止取同一分钟即视为空窗（见插件 `window.ts` 的 `inWindow`），所以四个
+ * 字段写同一个值就能让两道窗都不成立，且不改任何产品默认值。
+ */
+await writeFile(
+  join(dataDir, 'settings.json'),
+  JSON.stringify({
+    user: {
+      'proactive-gate': {
+        'quiet-start': '00:00',
+        'quiet-end': '00:00',
+        'anti-ban-quiet-start': '00:00',
+        'anti-ban-quiet-end': '00:00',
+      },
+    },
+  }),
+  'utf8',
+)
+
 const host = spawn(process.execPath, [join(import.meta.dirname, '..', 'cordis-host', 'lib', 'index.js')], {
   stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, ONDRA_DATA_DIR: dataDir },

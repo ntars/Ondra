@@ -220,9 +220,17 @@ a {
   color: var(--ui-ink);
 }
 
+/*
+ * 禁用态 0.5，不是 0.45。
+ *
+ * 0.45 会把正文级的黑字压到 #a0a0a0 一带（对纸约 3.1:1）。WCAG 对
+ * 禁用控件有豁免，但「豁免」不等于「读不出来」——禁用按钮上的字往往
+ * 正是用户想确认的那句（比如「清空全部」）。0.5 仍然是肉眼可辨的淡，
+ * 字却回到了能读的区间。
+ */
 .button[aria-disabled='true'],
 .button:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   pointer-events: none;
 }
 

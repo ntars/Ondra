@@ -140,7 +140,7 @@ export class ProjectRepository implements ProjectService {
     this.lastState = resolved.state
     this.lastError = undefined
     if (this.settings.verbose) {
-      this.log.debug?.('情感投影：%s，排序 %d（尾部），置信度 %.2f', template.zh, fragment.order, fragment.confidence)
+      this.log.debug?.('情感投影：%s，排序 %d（尾部），置信度 %s', template.zh, fragment.order, fragment.confidence.toFixed(2))
     }
 
     return Object.freeze({

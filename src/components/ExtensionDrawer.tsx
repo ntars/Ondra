@@ -139,7 +139,7 @@ export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): 
           type="search"
           className="drawer__search-input"
           value={query}
-          placeholder="按名字或包名找"
+          placeholder="按名称或包名搜索"
           aria-label="搜索扩展"
           onChange={(event) => { setQuery(event.target.value) }}
           /*
@@ -183,7 +183,7 @@ export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): 
           </div>
 
           {shown.length === 0 ? (
-            <p className="drawer__empty">{`没找到「${query.trim()}」`}</p>
+            <p className="drawer__empty">{`未找到「${query.trim()}」`}</p>
           ) : (
             <ul className="ext__list">
               {shown.map((row) => {

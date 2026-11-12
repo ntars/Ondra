@@ -89,7 +89,7 @@ export type SceneValues = Record<string, Record<string, unknown>>
 export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
   {
     id: 'memory-depth',
-    name: '她记得多深',
+    name: '记忆保留深度',
     section: 'memory-core',
     sectionTitle: '记忆内核',
     key: 'archive-normal-days',
@@ -104,12 +104,12 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     ],
     preview: (values) => {
       const days = readNumber(values, 'memory-core', 'archive-normal-days', 30)
-      return `${String(days)} 天没提到的记忆会沉底，仍可翻到`
+      return `${String(days)} 天未提及的记忆将转入归档，仍可查阅`
     },
   },
   {
     id: 'proactive-rate',
-    name: '她多主动',
+    name: '主动发言频率',
     section: 'proactive-quota',
     sectionTitle: '主动配额',
     key: 'profile',
@@ -121,25 +121,58 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
       { value: 'standard', label: '正常' },
       { value: 'fast', label: '主动' },
     ],
-    hint: '想让她完全不主动说话，去原始层关掉 proactive-quota 的 enable',
+    /*
+     * 这里曾经写「去原始层关掉 proactive-quota 的 enable」。
+     *
+     * 那句是错的，而且错得伤人：用户照做之后她照样开口——实测
+     * `proactive-quota.enable=false` 下 `/api/proactive/check` 仍返回
+     * `allow:true`、额度仍是 3（节律的 `patch()` 不看自己这个开关）。
+     * 唯一的真开关在主动闸门：`proactive-gate.enable=false` 会在第一道闸
+     * 就 drop/disabled，那才是「她不再主动说话」。
+     */
+    hint: '如需完全关闭主动发言，请在「原始」层关闭「主动闸门」',
     preview: (values) => {
       const profile = readString(values, 'proactive-quota', 'profile', 'standard')
       const perDay = profile === 'slow' ? 1 : profile === 'fast' ? 6 : 3
-      return `大约每天 ${String(perDay)} 条`
+      return `约每日 ${String(perDay)} 条`
     },
   },
+  /*
+   * 这一项原来绑 `proactive-gate.daily-quota`，那个键是**死的**：
+   * 主动节律在位时，宿主把 `patch()` 算出的档位额度当入参交给门控，
+   * 门控一律用入参（`budgetOf()`：`fromCaller ? override : settings.dailyQuota`），
+   * 于是这个滑杆拖到哪都不影响任何一次判定——设置页能拖、能落盘、
+   * 界面写着「已改」，而她每天说的条数一个不变。
+   *
+   * 现在改绑 `idle-minutes`：会话安静满这么久她才允许插话，是门控自己
+   * 读的那个数，没有被谁覆盖，拖一下立刻能感觉到。
+   *
+   * 注：这里不能用块注释夹在 `id:` 前面——`check-acceptance` 的场景解析器
+   * 按 `\n  {\n    id: '` 切块，中间插任何东西都会让这一项整块漏掉。
+   */
   {
     id: 'proactive-cap',
-    name: '主动的安全阀',
+    name: '主动发言静默阈值',
     section: 'proactive-gate',
     sectionTitle: '主动闸门',
-    key: 'daily-quota',
-    control: 'number',
-    hint: '每天最多几条。只算她主动开口，不算回话',
+    key: 'idle-minutes',
+    control: 'number-anchored',
+    /*
+     * 四档只是显示名。字段 min:0 max:1440，滑杆必须仍能拉到任意分钟——
+     * 0–1440 的线性滑杆把常用的 5–60 分钟挤在最左边几个像素里，
+     * 不给锚点就基本没法精确落到「25」这种值（默认值恰好是 25）。
+     */
+    options: [
+      { value: '5', label: '五分钟' },
+      { value: '15', label: '一刻钟' },
+      { value: '30', label: '半小时' },
+      { value: '120', label: '两小时' },
+    ],
+    hint: '会话静默达到该时长后，允许主动发言',
   },
   {
     id: 'tone',
-    name: '说话的浓度',
+    name: '人格浓度',
     section: 'persona-vars',
     sectionTitle: '人格变量与浓度',
     key: 'tone-level',
@@ -150,18 +183,18 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
       // 三档对照同一句话，让「浓度」这个抽象参数有一次可见的差别。
       const samples: readonly [string, string, string] = ['嗯。', '嗯，我在。', '在的在的，怎么啦？']
       const index = level < 34 ? 0 : level < 67 ? 1 : 2
-      return `同一句「我在」会写成：${samples[index] ?? samples[1]}`
+      return `同一句「我在」在当前浓度下写作：${samples[index] ?? samples[1]}`
     },
   },
   {
     id: 'message-length',
-    name: '一次说多少',
+    name: '单条消息长度',
     section: 'rhythm',
     sectionTitle: '节奏',
     key: 'max-chars-per-message',
     control: 'number',
     scale: ['短', '适中', '长'],
-    hint: '越短越像即时消息',
+    hint: '长度越短，越接近即时消息节奏',
     preview: (values) => {
       const limit = readNumber(values, 'rhythm', 'max-chars-per-message', 40)
       // 用一条 120 字的长回复演示切分。条数按上限整除后向上取整。
@@ -200,8 +233,8 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     ],
     preview: (values) => {
       const turns = readNumber(values, 'dialogue', 'max-turns', 10)
-      if (turns <= 1) return '只带 1 轮，没有「多轮」可演'
-      return `她会记得最近 ${String(turns)} 轮对话`
+      if (turns <= 1) return '仅携带 1 轮，无法体现多轮上下文'
+      return `保留最近 ${String(turns)} 轮对话作为上下文`
     },
   },
   {
@@ -212,7 +245,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     key: 'rest-start',
     keyEnd: 'rest-end',
     control: 'range-time',
-    hint: '她在这段时间休息',
+    hint: '该时段内不主动发言',
   },
   {
     id: 'proactive-reason',
@@ -221,11 +254,11 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '主动话由',
     key: 'pool-enabled',
     control: 'boolean',
-    hint: '每次主动都能看到「为什么」',
+    hint: '每条主动消息附带触发原因',
   },
   {
     id: 'audit-interval',
-    name: '多久复核一次遗忘',
+    name: '遗忘复核周期',
     section: 'memory-audit',
     sectionTitle: '遗忘审计',
     key: 'resurface-days',
@@ -238,7 +271,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '语音合成',
     key: 'enable',
     control: 'boolean',
-    hint: '她可以读出来',
+    hint: '启用后回复可朗读',
   },
   {
     id: 'approval',
@@ -248,9 +281,9 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     key: 'approval-mode',
     control: 'enum',
     options: [
-      { value: 'supervised', label: '都问我' },
-      { value: 'auto', label: '低风险不问' },
-      { value: 'full', label: '都不问' },
+      { value: 'supervised', label: '全部确认' },
+      { value: 'auto', label: '仅高风险确认' },
+      { value: 'full', label: '不确认' },
     ],
   },
 ])

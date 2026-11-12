@@ -41,17 +41,17 @@ const MODE_LABEL: Record<string, string> = {
 
 /** 分支的一句话说明。 */
 const MODE_HINT: Record<string, string> = {
-  gate: '只补带逐字出处的事实',
-  lightweight: '纯规则挖五类卡片，不调模型',
-  surreal: '荒诞联想与梦话',
+  gate: '仅补充带逐字出处的事实',
+  lightweight: '纯规则抽取五类条目，不调用模型',
+  surreal: '超现实联想与自由联想',
 }
 
 /** 没跑的原因码翻成人话。**四句各不相同**，见文件头第一条。 */
 const SKIP_TEXT: Record<string, string> = {
-  'already-today': '今天已经做过一场了',
-  'not-loaded': '做梦这一块还没接上',
-  unavailable: '做梦不可用',
-  'no-material': '还没有可做素材的对话',
+  'already-today': '今日已完成一次',
+  'not-loaded': '记忆整理未装载',
+  unavailable: '记忆整理不可用',
+  'no-material': '暂无可用于整理的对话',
 }
 
 /** 日期键 `YYYY-MM-DD` → `M 月 D 日`，避免在窄栏里塞一串数字。 */
@@ -103,7 +103,7 @@ export function DreamBlock(): React.JSX.Element | null {
   if (state !== undefined && state.loaded === false) {
     return (
       <section className="dream" aria-label="做梦">
-        <p className="dream__idle">做梦这一块还没接上</p>
+        <p className="dream__idle">记忆整理未装载</p>
       </section>
     )
   }
@@ -125,14 +125,14 @@ export function DreamBlock(): React.JSX.Element | null {
           disabled={running || state?.available !== true}
           onClick={() => { run(false) }}
         >
-          {running ? '正在做…' : '做一场'}
+          {running ? '整理中…' : '开始整理'}
         </button>
       </header>
 
       {/* 不可用：给一句人话，不摆内部原因码（那是给查代码的人看的）。 */}
       {state?.available === false ? (
         <p className="dream__idle">
-          {state.reason === 'no-core' ? '记忆内核没接上，暂时做不了梦' : '做梦暂时不可用'}
+          {state.reason === 'no-core' ? '记忆内核未就绪，暂时无法执行记忆整理' : '记忆整理暂时不可用'}
         </p>
       ) : null}
 
@@ -145,27 +145,38 @@ export function DreamBlock(): React.JSX.Element | null {
 
       {/* 一次都没做过：不要摆一个「0 场」，那读起来像「做过、什么也没留」。 */}
       {state?.available === true && history.length === 0 && result === undefined ? (
-        <p className="dream__idle">还一场都没做过。攒够一天的话再按</p>
+        <p className="dream__idle">尚未执行过。积累足够对话内容后再试</p>
       ) : null}
 
       {/* 刚跑完：把这一场的四个数摊开。 */}
       {result !== undefined ? (
         <div className="dream__result">
-          <p className="dream__summary">{result.note}</p>
+          {/*
+           * `note` 只在**真的跑了**时显示。
+           *
+           * 它是宿主给的摘要（含「写了 2 条」这类只有宿主知道的信息），
+           * 而不跑的原因码由下面的 `SKIP_TEXT` 按四种状态分别给。两个都渲染
+           * 会让同一件事说两遍——实测面板上并排出现「今天已经做过一场梦了」
+           * 与「今日已完成一次」，读者会以为那是两条不同的信息。
+           *
+           * 宿主文案不受界面控制，也不能当作界面文案的出口；分状态这件事
+           * 归前端一处（`SKIP_TEXT`），宿主只负责在真跑时报数。
+           */}
+          {result.ran ? <p className="dream__summary">{result.note}</p> : null}
           {result.ran ? (
             <p className="dream__counts">
               {`候选 ${String(result.candidates ?? 0)} · 写入 ${String(result.written ?? 0)}`
                 + ` · 拒 ${String(result.rejected ?? 0)} · 卡片 ${String(result.cards ?? 0)}`}
             </p>
           ) : (
-            <p className="dream__counts">{SKIP_TEXT[result.skipped ?? ''] ?? '这一场没跑'}</p>
+            <p className="dream__counts">{SKIP_TEXT[result.skipped ?? ''] ?? '本次未执行'}</p>
           )}
           {/*
            * 拒收要说出来：只报「写入 0」会让人以为插件坏了，而真实原因
            * 往往是四道闸之一按设计拒掉了（没逐字出处、改人格、重复、无人称）。
            */}
           {result.ran && (result.rejected ?? 0) > 0 ? (
-            <p className="dream__note">有候选被四道闸拒了：梦只补带出处的事实，宁缺不滥</p>
+            <p className="dream__note">部分候选未通过四道校验：仅补充带出处的事实</p>
           ) : null}
           {/*
            * 备份那一格如实，且**三种值分开说**。
@@ -177,13 +188,13 @@ export function DreamBlock(): React.JSX.Element | null {
            * 差一个量级，混成一句就等于把故障说成配置。
            */}
           {result.ran && result.backup === 'skipped' ? (
-            <p className="dream__note">这一场没做开工前备份（快照服务不可用）</p>
+            <p className="dream__note">本次未创建开工前备份（快照服务不可用）</p>
           ) : null}
           {result.ran && result.backup === 'failed' ? (
-            <p className="dream__note">这一场备份失败了，照常做完（快照那份可能不可用）</p>
+            <p className="dream__note">本次备份失败，整理已完成（备份副本可能不可用）</p>
           ) : null}
           {result.ran && result.backup === 'created' ? (
-            <p className="dream__note">开工前已备份一份</p>
+            <p className="dream__note">已创建开工前备份</p>
           ) : null}
           {/* 已经做过一场之后，给一个能绕开「一天一场」的入口。 */}
           {!result.ran && result.skipped === 'already-today' ? (
@@ -193,7 +204,7 @@ export function DreamBlock(): React.JSX.Element | null {
               disabled={running}
               onClick={() => { run(true) }}
             >
-              再来一场
+              再次整理
             </button>
           ) : null}
         </div>
@@ -207,7 +218,7 @@ export function DreamBlock(): React.JSX.Element | null {
       {/* 卡片：纯规则挖出来的五类，按权重降序。只显示未归档的几张。 */}
       {cards.length > 0 ? (
         <div className="dream__cards">
-          <p className="dream__cards-head">留下的卡片</p>
+          <p className="dream__cards-head">新增记忆卡片</p>
           <ul className="dream__list">
             {cards.slice(0, 3).map(card => (
               <li key={card.id} className="dream__card">

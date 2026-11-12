@@ -134,7 +134,7 @@ export function VoiceCard(): React.JSX.Element {
         <div className="pref__row-text">
           <span className="pref__row-label">朗读</span>
           <span className="pref__row-hint">
-            {voice === undefined ? '读状态中' : `她说完的话会念出来（${engineText(voice.engine)}）`}
+            {voice === undefined ? '正在读取状态' : `回复内容将被朗读（${engineText(voice.engine)}）`}
           </span>
         </div>
         <button

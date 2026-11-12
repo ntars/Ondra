@@ -35,6 +35,16 @@ export interface Sentence {
   readonly text: string
   /** 序号。 */
   readonly index: number
+  /**
+   * 这句**后面**跟着的空白（含段落空行）。
+   *
+   * 为什么单独存一栏、而不是留在 `text` 里：`text` 要拿去跑正则
+   * （`DRAFT_RULES` 里全是 `^…` 锚点），尾巴上多一个换行会让
+   * `/^嗯。$/` 这类整句判据全部失配。也不能丢——`\n` 在本文件里是
+   * 句末标点之一，丢掉它，模型写好的分段会在**删一句之后整段被压平**，
+   * 界面上看就是两段话粘成一句（第 13 轮实测：三段回复变成一整行）。
+   */
+  readonly gap: string
 }
 
 /**
@@ -49,6 +59,21 @@ export interface Sentence {
 export function splitSentences(text: string): readonly Sentence[] {
   const out: Sentence[] = []
   let buffer = ''
+
+  /**
+   * 把缓冲拼成一句压进结果。
+   *
+   * 尾部空白不丢：它进 `gap`，由 `joinSentences()` 原样拼回。左侧空白
+   * （只可能出现在整段开头）仍然丢掉，与旧行为一致。
+   * @param raw 含标点与尾部空白的原始缓冲。
+   */
+  const pushPiece = (raw: string): void => {
+    const body = raw.trimEnd()
+    const piece = body.trim()
+    if (piece.length === 0) return
+    out.push(Object.freeze({ text: piece, index: out.length, gap: raw.slice(body.length) }))
+  }
+
   let depth = 0
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index]
@@ -67,17 +92,22 @@ export function splitSentences(text: string): readonly Sentence[] {
     // 把紧跟的收引号与空白并回来。**收引号要同步减深度**：
     // 它被这里吃掉之后，外层循环不会再看到它，不减就会让此后整段都被当成「引号内」，
     // 于是再也不分句——过滤链退化成「要么全留要么全丢」，而且不报任何错。
-    while (index + 1 < text.length && (CLOSERS.has(text[index + 1]) || text[index + 1] === ' ')) {
+    //
+    // 空白（空格、换行、制表符）一起并进来：换行本身也是句末标点，
+    // 它后面那一串空白就是这一句与下一句之间的间隔，**必须留在这一句的
+    // `gap` 里**，否则 `joinSentences()` 拼回去时段落就没了。
+    while (
+      index + 1 < text.length
+      && (CLOSERS.has(text[index + 1]) || /\s/.test(text[index + 1]))
+    ) {
       index += 1
       buffer += text[index]
       if (CLOSERS.has(text[index])) depth = Math.max(0, depth - 1)
     }
-    const piece = buffer.trim()
-    if (piece.length > 0) out.push(Object.freeze({ text: piece, index: out.length }))
+    pushPiece(buffer)
     buffer = ''
   }
-  const tail = buffer.trim()
-  if (tail.length > 0) out.push(Object.freeze({ text: tail, index: out.length }))
+  pushPiece(buffer)
   return Object.freeze(out)
 }
 
@@ -190,7 +220,7 @@ export function trimTail(text: string, maxChars: number): { text: string; hardCu
   let used = 0
   for (const sentence of sentences) {
     if (used + sentence.text.length > maxChars) break
-    kept.push(sentence.text)
+    kept.push(sentence.text + sentence.gap)
     used += sentence.text.length
   }
   if (kept.length > 0) return { text: joinSentences(kept), hardCut: false }

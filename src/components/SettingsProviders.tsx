@@ -116,7 +116,7 @@ export function SettingsProviders(): React.JSX.Element {
       </div>
 
       {items.length === 0 && draft === undefined ? (
-        <Note>还没有自定义提供商。点上面的「添加提供商」接入您自己的模型后端。</Note>
+        <Note>尚无自定义提供商。点击上方「添加提供商」可接入自建的模型后端。</Note>
       ) : (
         <ul className="kb__list">
           {items.map((item) => (

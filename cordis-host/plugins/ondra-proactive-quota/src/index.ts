@@ -177,7 +177,17 @@ export function apply(ctx: Context, config: QuotaConfig): void {
     quota.stored ? '是' : '否（重启后重复开口）',
   )
   if (!settings.enable) {
-    log.warn('主动节律已关闭（enable=false）：服务照常注册，plan() 一律 drop/disabled')
+    /*
+     * 这句原写「plan() 一律 drop/disabled」，与设置文案是两套说法，而后者是对的。
+     *
+     * 本插件**没有 plan()**（服务面只有 `patch()` / `commit()` / `surrender()`），
+     * 三个方法也都不看 `enable`：关掉之后额度照算、间隔照算、照记账。
+     * 真正能让她彻底闭嘴的是门控的总开关。日志是用户排查时的第一现场，
+     * 它说反话比不说更贵——会让人以为「关了却没生效」是插件坏了。
+     */
+    log.warn(
+      '主动节律已关闭（enable=false）：本插件不拦主动开口，额度与最小间隔仍按档位计算；要彻底停用请关「主动闸门」（proactive-gate）的 enable',
+    )
   }
   if (!NAME_RE.test(name)) {
     log.error('插件名不合规（%s）：服务键会被模型侧拒绝', name)

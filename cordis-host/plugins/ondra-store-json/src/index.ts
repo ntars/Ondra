@@ -23,12 +23,34 @@
 import type { Context } from '@ntars/cordis'
 import { JsonlStore } from './port.js'
 import { STORE_JSON_SERVICE_KEY } from './types.js'
-import type { StorePort } from './types.js'
+import type { ConfigSchemaLike, StorePort } from './types.js'
 
 // 契约里既有纯类型也有运行时值（服务键、错误类、标识符正则），分开导出才不违背
 // 「类型导入不得混入运行时值」这条自检项。
 export type * from './types.js'
 export { STORE_JSON_SERVICE_KEY, StoreError } from './types.js'
+// 配置的四层合并接入与默认值真源都在 `settings.ts`：`FIELD_SPECS` 是唯一存放处，
+// 本文件不再自己写一份默认值（两份默认值必然漂移）。
+export {
+  CONFIG_SECTION,
+  CONFIG_SECTION_ID,
+  DEFAULT_CONFIG,
+  FIELD_SPECS,
+  KEY_PAIRS,
+  SECTION_KEYS,
+  completeConfig,
+  normalizeUserLayer,
+  registerSection,
+  valuesToConfigShape,
+} from './settings.js'
+import {
+  CONFIG_SECTION_ID,
+  completeConfig,
+  isRecord,
+  normalizeUserLayer,
+  registerSection,
+  valuesToConfigShape,
+} from './settings.js'
 export { JsonlStore } from './port.js'
 
 /** Cordis 函数插件名。与 `package.json` 的 `name` 完全一致。 */
@@ -60,14 +82,6 @@ export interface Config {
   readonly tightenPermissions: boolean
 }
 
-/** 默认配置。 */
-const DEFAULT_CONFIG: Config = {
-  enabled: false,
-  maxRowsPerTable: 20000,
-  compactFactor: 4,
-  tightenPermissions: true,
-}
-
 /** O-001 身份服务的结构对位子集（只用来拼日志命名空间）。 */
 interface IdentityLike {
   loggerName(feature: string): string
@@ -78,32 +92,6 @@ interface PathLayoutLike {
   readonly display: string
   ensure(area: 'user' | 'logs' | 'cache' | 'tmp' | 'backups', ...segments: string[]): string
   fileIn(area: 'user' | 'logs' | 'cache' | 'tmp' | 'backups', ...segments: string[]): string
-}
-
-/** 判空对象。 */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** 补全并夹紧配置。 */
-function completeConfig(value: unknown): Config {
-  const raw = isRecord(value) ? value : {}
-  const enabled = raw['enabled']
-  const maxRows = raw['maxRowsPerTable']
-  const compact = raw['compactFactor']
-  const tighten = raw['tightenPermissions']
-  return {
-    enabled: typeof enabled === 'boolean' ? enabled : DEFAULT_CONFIG.enabled,
-    maxRowsPerTable:
-      typeof maxRows === 'number' && Number.isFinite(maxRows) && maxRows > 0
-        ? Math.min(2_000_000, Math.trunc(maxRows))
-        : DEFAULT_CONFIG.maxRowsPerTable,
-    compactFactor:
-      typeof compact === 'number' && Number.isFinite(compact) && compact >= 0
-        ? Math.min(1024, Math.trunc(compact))
-        : DEFAULT_CONFIG.compactFactor,
-    tightenPermissions: typeof tighten === 'boolean' ? tighten : DEFAULT_CONFIG.tightenPermissions,
-  }
 }
 
 declare module '@ntars/cordis' {
@@ -118,15 +106,39 @@ declare module '@ntars/cordis' {
  * @param ctx 宿主上下文。
  * @param config 配置行内容。
  */
-export function apply(ctx: Context, config: Config): void {
-  const complete = completeConfig(config)
-
+export function apply(ctx: Context, config: unknown): void {
   const identity = ctx.get('ondra-identity') as IdentityLike | undefined
   const layout = ctx.get('ondra-path-layout') as PathLayoutLike | undefined
   const log = ctx.logger(identity ? identity.loggerName('store-json') : 'ondra.store-json')
 
+  /*
+   * 配置：有 O-005 就走四层合并。取不到 / 注册失败 / 解析抛错，三条降级路径的
+   * 终点都是同一个 `completeConfig(config)`，所以没有 O-005 时行为与以前逐字相同。
+   *
+   * 这一段此前是缺的：用户层的 `enabled` 根本没机会进来，总开关恒读出厂的 `false`。
+   * 后果是「在插件抽屉里打开它 → 显示已启用 → 启动日志说 enabled=false → 服务没注册」，
+   * 而三个界面各说各的，没有一处报错。
+   */
+  const raw: unknown = isRecord(config) ? config : {}
+  let effective: unknown = raw
+  const schema = ctx.get('ondra-config-schema') as ConfigSchemaLike | undefined
+  if (schema !== undefined && registerSection(ctx, schema, log)) {
+    try {
+      const resolved = schema.resolve(CONFIG_SECTION_ID, { user: normalizeUserLayer(raw) })
+      if (resolved !== undefined) {
+        effective = valuesToConfigShape(resolved.values)
+        if (resolved.fallbackCount > 0) {
+          log.warn?.('配置有 %d 个字段校验失败，已逐个回退默认值', resolved.fallbackCount)
+        }
+      }
+    } catch (error) {
+      log.warn?.('解析配置段失败，退回插件实例配置：%s', error instanceof Error ? error.message : String(error))
+    }
+  }
+  const complete = completeConfig(effective)
+
   if (!complete.enabled) {
-    log.info('enabled=false（默认）：JSONL 分支未注册。SQLite 不可用且不想丢数据时再打开它')
+    log.info('enabled=false（出厂默认）：JSONL 分支未注册。SQLite 不可用且不想丢数据时，在「设置 → JSONL 存储」里打开它')
     return
   }
 

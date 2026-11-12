@@ -19,6 +19,7 @@ import { SceneLayer } from './SceneLayer.tsx'
 import { ModuleLayer } from './ModuleLayer.tsx'
 import { RawLayer } from './RawLayer.tsx'
 import { getSettings, saveSetting } from '../lib/settings.ts'
+import { usePreferences, setPreferences } from '../lib/preferences.ts'
 import type { SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
 
@@ -43,11 +44,28 @@ export interface SettingsPluginsProps {
 }
 
 export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React.JSX.Element {
+  /*
+   * 默认停在**场景层**。
+   *
+   * 三个 tab 的顺序是「浅 → 深」（`TABS` 的注释），场景层就是最浅那一层：
+   * 12 项看完就能改完日常会用到的全部参数，而模块层是 66 段 629 个字段。
+   * 默认落在中间那层有三个坏处——第一次进来的人先看到一段段插件名，
+   * 得自己发现左边还有更简单的视图；从扩展抽屉带段 id 进来时又要先跳
+   * 一次；而且与 tab 的排列顺序相反，读起来像"第一个是装饰"。
+   *
+   * 带 `initialSection` 进来时仍会切到模块层并填好搜索词（见 `load()`），
+   * 那条路径是「用户点的就是某个包」，简化视图帮不上忙。
+   */
   const [tab, setTab] = useState<TabKey>('scene')
   const [sections, setSections] = useState<SettingsSection[]>([])
   const [user, setUser] = useState<SceneValues>({})
   const [totals, setTotals] = useState({ sections: 0, fields: 0, unregistered: 0 })
   /** 加载态。首屏用骨架，之后不再显示骨架（避免"换个骨架再换回来"）。 */
+  /*
+   * 开发者模式是**偏好**，不是本页的临时状态：会开它的人每次都要开。
+   * 存本地之后，下次打开设置还停在同一个视图，不必每次重新点。
+   */
+  const preferences = usePreferences()
   const [phase, setPhase] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [error, setError] = useState('')
 
@@ -206,7 +224,7 @@ export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React
 
         {phase === 'failed' ? (
           <div className="settings__failed">
-            <p className="settings__failed-title">读不到设置</p>
+            <p className="settings__failed-title">无法读取设置</p>
             <p className="settings__failed-detail">{error}</p>
             <button type="button" className="button button--ghost" onClick={() => { void load() }}>
               重试
@@ -227,6 +245,7 @@ export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React
                 onWrite={onWrite}
                 query={query}
                 onQueryChange={setQuery}
+                developerMode={preferences.developerMode}
               />
             ) : null}
 
@@ -271,11 +290,27 @@ export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React
        * 三个数分开说：段数、可调字段数、来源未登记的段数。第三个不为 0 时
        * 必须显示，否则用户会在模块层看到一段没有标题的字段却说不清它从哪来。
        */}
+      {/*
+       * 底部：统计三个数 + 开发者模式开关。
+       *
+       * 开关放在这里而不是页签里：它不是一个「页面」，是同一份列表的
+       * 一档可见性。放页签会让用户以为切过去是另一批设置。
+       */}
       {phase === 'ready' ? (
         <footer className="settings__foot">
           <span>{totals.sections} 个配置段</span>
           <span>{totals.fields} 个字段</span>
           {totals.unregistered === 0 ? null : <span>{totals.unregistered} 段来源未登记</span>}
+          <span className="settings__foot-spacer" />
+          <label className="settings__dev">
+            <input
+              type="checkbox"
+              className="settings__dev-check"
+              checked={preferences.developerMode}
+              onChange={(event) => { setPreferences({ developerMode: event.target.checked }) }}
+            />
+            开发者模式
+          </label>
         </footer>
       ) : null}
     </div>

@@ -150,10 +150,10 @@ export function SessionPanel({ stats, title, busy, onClearAll }: SessionPanelPro
           disabled={busy || stats === undefined}
           onClick={onClearClick}
         >
-          {armed ? '再点一次，清空全部' : '清空全部'}
+          {armed ? '再次点击以清空' : '清空全部'}
         </button>
         <span className="sess__hint">
-          {busy ? '她还在说，先停下再清' : '清空会留一段归档，不会丢'}
+          {busy ? '生成中，请先停止' : '清空后保留归档副本'}
         </span>
       </div>
     </div>

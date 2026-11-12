@@ -30,7 +30,8 @@
  */
 
 import type { Context } from '@ntars/cordis'
-import { CONFIG_SECTION_ID, Config, completeConfig } from './settings.js'
+import { CONFIG_SECTION, CONFIG_SECTION_ID, Config, completeConfig, normalizeUserLayer, valuesToConfigShape } from './settings.js'
+import type { ConfigSchemaLike } from './settings.js'
 import { DEDUPE_SERVICE_KEY, EXTRACT_SERVICE_KEY, INTAKE_SERVICE_KEY } from './types.js'
 import type {
   DedupeServiceLike,
@@ -112,6 +113,28 @@ interface Draft extends TurnDraft {
 export const name = 'ondra-memory-intake'
 
 /**
+ * 向 O-005 注册配置段。
+ *
+ * 注册放进 `ctx.effect` 里：段是本插件的资源，卸载时必须一起撤，
+ * 否则重载后第二次注册会撞「段键已被占用」。
+ * @param ctx 宿主上下文。
+ * @param schema 配置真源服务。
+ * @param log 日志。
+ * @returns 注册是否成功。
+ */
+function registerSection(ctx: Context, schema: ConfigSchemaLike, log: LogLike): boolean {
+  try {
+    ctx.effect(() => schema.register(CONFIG_SECTION, name), 'ondra-memory-intake: 注册配置段')
+    return true
+  } catch (error) {
+    // 注册失败不是致命：四层合并与来源追溯用不上，插件实例配置照样能跑。
+    const reason = error instanceof Error ? error.message : String(error)
+    log.warn?.('向 ondra-config-schema 注册配置段失败（四层合并不可用，退回插件实例配置）：%s', reason)
+    return false
+  }
+}
+
+/**
  * Cordis 入口：注册采集服务并挂上会话监听。**永不阻断宿主**。
  *
  * 刻意不声明插件级 `inject`：`inject` 里有任何一个上游缺席，整个插件会停在
@@ -121,8 +144,30 @@ export const name = 'ondra-memory-intake'
  * @param config 配置行内容。
  */
 export function apply(ctx: Context, config: unknown): void {
-  const settings = completeConfig(config)
   const log = (ctx.logger?.('ondra.memory-intake') ?? console) as LogLike
+
+  // 1. 配置：有 O-005 就走四层合并（并能说出「哪一层的哪个字段」）。
+  //    取不到 / 注册失败 / 解析抛错，三路都退回实例配置——三条降级路径
+  //    的终点是同一个 `completeConfig(config)`，所以行为与以前逐字相同。
+  const raw: unknown = config !== null && typeof config === 'object' ? config : {}
+  let effective: unknown = raw
+  const schema = ctx.get('ondra-config-schema') as ConfigSchemaLike | undefined
+  if (schema !== undefined && registerSection(ctx, schema, log)) {
+    try {
+      // 用户层用 kebab 键交给 O-005（§8.4 只认小写），回来再换成 camel 键。
+      const resolved = schema.resolve(CONFIG_SECTION_ID, { user: normalizeUserLayer(raw) })
+      if (resolved !== undefined) {
+        effective = valuesToConfigShape(resolved.values)
+        if (resolved.fallbackCount > 0) {
+          log.warn?.('配置有 %d 个字段校验失败，已逐个回退默认值', resolved.fallbackCount)
+        }
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      log.warn?.('解析配置段失败，退回插件实例配置：%s', reason)
+    }
+  }
+  const settings = completeConfig(effective)
 
   const core = (): MemoryCoreLike | undefined => ctx.get('ondra-memory-core') as MemoryCoreLike | undefined
   const extractor = (): ExtractServiceLike | undefined =>
@@ -262,6 +307,30 @@ export function apply(ctx: Context, config: unknown): void {
     draft: TurnDraft,
     sinceLastTurn?: number,
   ): Promise<{ readonly rawId?: string; readonly facts: number; readonly reason?: string }> {
+    /*
+     * 开关必须在**这里**判，不能只靠 `service.available`。
+     *
+     * `available` 只影响「别人问它能不能用」时怎么答，不影响**谁在调用它**：
+     * 轮次结束时的那次 `void flush(...)`（本文件末尾）是直接调的，不经过
+     * `available`。于是设置的语义断裂得非常安静——
+     *
+     * | 界面文案 | 实际 |
+     * | --- | --- |
+     * | 「收对话进记忆」已关 | `memory_raw` 照写，事实照提炼 |
+     * | 右栏「暂无记忆」 | 那只是界面按 `available` 画的，库里一直在长 |
+     *
+     * 字段说明写的是「**一轮都不收**」（`settings.ts` 的 `enable.doc`），
+     * 而且这是个隐私面开关——用户说别记了，就该一个字都不落。
+     *
+     * 手动的 `ingest()`（补录）也一并拦：服务已经对外宣称 `available=false`，
+     * 再偷偷写就又是两套说法。要补录就先打开开关。
+     */
+    if (!settings.enable) {
+      stats.skipped += 1
+      log.info?.('收编已关闭（enable=false）：本轮一行都不收')
+      return { facts: 0, reason: 'disabled' }
+    }
+
     log.info?.('收到一轮：%d 行', draft.lines.length)
     const spoken = draft.lines.filter(line => line.text.trim() !== '')
     if (spoken.length === 0) {
@@ -419,7 +488,9 @@ export function apply(ctx: Context, config: unknown): void {
         ...rawId === undefined ? {} : { rawId },
         messages: spoken.map(line => ({ role: line.role, text: line.text })),
         ...draft.at === undefined ? {} : { at: draft.at },
-        ...settings.maxFacts === undefined ? {} : { maxFacts: settings.maxFacts },
+        // `0` / 缺省 = 不传上限，交给提炼服务按证据强度自己收（它当前默认 8 条）。
+        // 负数与 0 一律当「不传」：`0` 在老配置里可能是「没填」被补齐的产物。
+        ...settings.maxFacts > 0 ? { maxFacts: settings.maxFacts } : {},
       }
       const result: ExtractResultLike = useDedupe
         ? await extract.propose!(request)

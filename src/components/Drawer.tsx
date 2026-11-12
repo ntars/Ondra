@@ -99,23 +99,31 @@ export function Drawer({
   useRestoreFocus(open)
 
   /**
-   * 打开时把焦点移进来。
+   * 打开时把焦点移进面板本体。
    *
-   * 三个抽屉的可聚焦项不一样（会话是清空键、日志是刷新键、扩展是搜索框），
-   * 统一取「第一个可聚焦项」而不是写死某一种。收起时不主动抢焦点：
-   * 那该由上层还原到触发按钮。
+   * ## 为什么不落在「第一个可聚焦项」
+   *
+   * 上一版取的是面板里第一个按钮。视觉后果很具体：抽屉一打开，关闭键上
+   * 就挂着一圈 2px 焦点环——它比抽屉标题还显眼，读起来像"这个叉被选中了"。
+   * 而用户此刻并没有聚焦到叉上，他只是刚点开了抽屉。
+   *
+   * 落在面板（`tabIndex=-1`）上是抽屉的标准做法：读屏念标题、焦点确实
+   * 进了抽屉，画面上不多一圈假高亮；要操作的话按一次 Tab 就到第一个控件。
    */
   useEffect(() => {
     if (!open) return
-    const target = panelRef.current?.querySelector<HTMLElement>(
-      'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    )
-    target?.focus()
+    panelRef.current?.focus({ preventScroll: true })
   }, [open, view])
 
   return (
     <div className="drawer" data-open={open ? '' : undefined}>
-      <div className="drawer__panel" ref={panelRef} role="dialog" aria-label={view === undefined ? '抽屉' : TITLES[view]}>
+      <div
+        className="drawer__panel"
+        ref={panelRef}
+        role="dialog"
+        aria-label={view === undefined ? '抽屉' : TITLES[view]}
+        tabIndex={-1}
+      >
         <header className="drawer__head">
           <h2 className="drawer__title">{view === undefined ? '' : TITLES[view]}</h2>
           <button type="button" className="drawer__close" aria-label="关闭" onClick={onClose}>

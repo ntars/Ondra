@@ -48,13 +48,21 @@
 
 .timeline__empty-mark {
   display: inline-flex;
-  margin-bottom: 16px;
+  /* 56：空态是这一屏唯一的视觉锚点，32 在 560 宽的正文区里读成一个小图标。 */
+  margin-bottom: 24px;
   opacity: 0.92;
 }
 
 .timeline__empty-title {
   font-family: var(--font-display);
-  font-size: 1.375rem;
+  /*
+   * 28（1.75rem），不是 22。
+   *
+   * 空态这一屏只有四个元素：字标、名称、标语、邀请。名称若只比正文大
+   * 3px，「主体是什么」就得靠读字来确认，而不是一眼看出来。28 与正文
+   * 14 是 2:1，与标语 16 是 1.75:1，三档在余光里就能分开。
+   */
+  font-size: 1.75rem;
   font-weight: var(--w-light);
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -63,7 +71,8 @@
 
 .timeline__empty-title-en {
   margin-left: 8px;
-  font-size: 0.75rem;
+  /* 英文副标 14：跟中文名同一行，但要明显小一档（28 → 14 是 2:1）。 */
+  font-size: var(--text-body);
   font-weight: var(--w-regular);
   letter-spacing: 0.12em;
   color: var(--ui-ink-4);
@@ -71,15 +80,21 @@
 }
 
 .timeline__empty-slogan {
-  margin-top: 8px;
-  font-size: var(--text-caption);
+  /*
+   * 16：标语是「一句话说清这是什么」，比正文大一档、比名称小得多。
+   * 上一版 12 与正文同页的说明文字同号，读起来像附注。
+   */
+  margin-top: 12px;
+  font-size: var(--text-lead);
+  font-weight: var(--w-light);
   letter-spacing: 0.01em;
-  color: var(--ui-ink-3);
+  color: var(--ui-ink-2);
 }
 
 .timeline__empty-hint {
-  margin-top: 24px;
-  font-size: var(--text-label);
+  /* 邀请是「下一步动作」，与上面的描述隔开一段：32 是这里唯一的大间距。 */
+  margin-top: 32px;
+  font-size: var(--text-caption);
   letter-spacing: 0.06em;
   color: var(--ui-ink-4);
 }
@@ -89,54 +104,55 @@
    =========================================================================== */
 
 /*
- * `—— 今天 ——` 的形态：两条横线把日期夹在中间，两端各占满余量。
+ * 时间胶囊：一整块居中，圆角全圆，底色比纸暗一档。
  *
- * ## 为什么样式表里原来一条都没有
+ * ## 为什么从「横线—日期—横线」改成胶囊
  *
- * `Timeline.tsx` 早就渲染了 `.timeline__day` / `__day-rule` /
- * `__day-label` / `__day-index` 四个类名，CSS 里全无对应规则。于是
- * 跨天会话里的分隔行退化成：一行 16px 的默认黑字「今天」，前面两个
- * 空的 inline `<span>`（没有尺寸，看不见），后面两个同样看不见。
- * §4.2 要求的"两侧横线"完全不存在，日期行反而比消息正文还醒目——
- * 它读起来像一条消息，而不是一个分隔。
+ * 横线版是「文档分隔」的语言：两条线把日期夹在中间，暗示「这里是一段
+ * 章节的开始」。但会话里跨天的位置不是章节，是**时间锚点**——微信、
+ * QQ、Telegram 都用一枚居中的小胶囊表达同一件事，因为它只占内容宽度，
+ * 余光扫过时不会被读成一条消息。
  *
- * ## 横线为什么用 flex 而不是 ::before/::after
- *
- * 左右横线长度要相等、且随正文列宽变化。用两个真元素 + `flex: 1`
- * 是唯一能让浏览器自己算平分的写法；伪元素做不到两端同时自适应。
+ * 横线还带来一个实际问题：它与消息正文同宽，跨天多的时候整屏会出现
+ * 好几条贯穿线，把本来就不宽的中栏切得很碎。
  */
 .timeline__day {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: var(--w-column-text);
-  margin: 24px auto 16px;
+  justify-content: center;
+  margin: 24px auto 12px;
 }
 
+/* 横线不再使用。保留类名不渲染：旧的截图与断言仍可能提到它。 */
 .timeline__day-rule {
-  flex: 1;
-  height: var(--rule);
-  background: var(--ui-line-soft);
+  display: none;
 }
 
 /*
- * 日期文字。11px、字距略开、最浅墨：它是**路标**不是内容，
- * 读的时候应该被眼睛滑过去，而不是和消息正文抢注意力。
+ * 胶囊本体。11px 字、字距略开、三级墨：它是路标不是内容，
+ * 读的时候应该被眼睛滑过去。
  */
 .timeline__day-label {
-  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
   font-size: var(--text-micro);
   letter-spacing: var(--track-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
 /*
  * 「第 N 天」。只在第一条日期行出现一次（§4.2），是这段关系的
  * 计时而非日期的补充，所以用 tabular-nums 让多位数时不左右晃。
+ *
+ * 与日期同处一枚胶囊、但比它再淡一档：胶囊内两段信息要有主次，
+ * 否则「昨天 第 3 天」会被读成两个并列的标签。
  */
 .timeline__day-index {
-  flex: none;
+  font-style: normal;
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
   font-variant-numeric: tabular-nums;
@@ -147,29 +163,125 @@
    消息
    =========================================================================== */
 
+/*
+ * 气泡：一条消息 = 一颗气泡，左（她）右（我）。
+ *
+ * ## 为什么从「通栏正文」改成气泡
+ *
+ * 上一版的消息是一条通栏正文，用户消息靠一条左侧竖线 + 淡底区分。
+ * 那套是「文档批注」的语言：适合阅读长文，但会话里两条相邻消息的
+ * 边界要靠间距去猜，而「谁说的」只能靠位置和那条 2px 竖线。
+ *
+ * 气泡把这两件事一次说清：**形状**说明这是一句话（不是一段文档），
+ * **左右**说明是谁说的。参考微信与 QQ——它们的会话区在十年里收敛到了
+ * 同一套形状，不是审美巧合，是这套形状的识别成本最低。
+ */
 .message {
   position: relative;
-  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 8px 0;
 }
 
+/* 我发出的靠右：气泡、可解释行、操作条一起镜像。 */
 .message[data-role='user'] {
-  margin: 8px 0 12px -14px;
-  padding: 12px 16px 12px 16px;
-  background: var(--ui-bg-raised);
-  border-left: 2px solid var(--ui-action);
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
-}
-
-.message[data-role='user'] .message__body {
-  font-weight: var(--w-medium);
-  color: var(--ui-ink);
+  align-items: flex-end;
 }
 
 .message__body {
+  /*
+   * 气泡本体：宽度交给外层的 `__row` 约束，这里只吃满那一行。
+   *
+   * 一句话的气泡要贴着文字收，长回复才铺到接近满宽。固定宽会让「嗯」
+   * 也占一整行，读起来像一张表格。
+   */
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--r-lg);
+  border-bottom-left-radius: var(--r-xs);
+  background: var(--ui-bg-sunken);
   font-size: var(--text-body);
   line-height: var(--lh-body);
   color: var(--ui-ink);
   word-break: break-word;
+  min-width: 0;
+}
+
+/*
+ * 气泡 + 操作条的一行。
+ *
+ * `max-width` 挂在这里而不是气泡上：气泡在 flex 行里是收缩的，给它
+ * 百分比会相对"由它自己撑出来的宽度"求值，等于没有上限。挂在外层，
+ * 86% 才算得出来。操作条靠 `left: 100%` 贴着气泡外侧，也因此知道
+ * 气泡到底有多宽。
+ */
+.message__row {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  max-width: 86%;
+  min-width: 0;
+}
+
+/*
+ * 宽度上限 86%，与她的气泡一致。
+ *
+ * 原来是 76%，理由是"一句话很少更长"。但用户也会贴一段代码或几条
+ * 要点进来，76% 会让那些内容比她的回复还窄，右对齐之后左边空出更大
+ * 一块，读起来像被挤到角落。86% 是上限而不是定宽——短消息照样贴着
+ * 文字收，只有长消息才用到这个余量。
+ */
+.message[data-role='user'] .message__row {
+  max-width: 86%;
+}
+
+/*
+ * 我发出的气泡：**极淡墨底 + 正常墨色**，不是强调实底反字。
+ *
+ * ## 为什么放弃了「实底 + 反字」
+ *
+ * 上一版用 `background: var(--ui-action)` + `color: var(--ui-action-ink)`，
+ * 想复刻微信那种「自己这边有颜色」的气泡。问题在深色主题：强调色是
+ * `#ECECEC`（近白），反字是 `#191919`，气泡本体没问题——但气泡里的
+ * **富文本子元素**各自写着 `color: var(--ui-ink)`（`richtext.css` 里有
+ * 20 处），深色下 `--ui-ink` 也是近白，于是正文、列表、加粗全部变成
+ * **白字压白底**，读不了。
+ *
+ * 当时的补丁是给代码块/表格/引用/行内码/链接逐条反相——这个思路本身
+ * 就是错的：反字气泡要求把整套富文本颜色重写一遍，而富文本是会长大的
+ * （今天加一个 `md__callout` 就又漏一条），漏一条的表现是"字消失"。
+ *
+ * 现在改成极淡墨底 + 正常墨色：`richtext.css` 那 20 条颜色规则原样成立，
+ * 深浅两套都不用特判。识别度交给**左右分侧 + 圆角方向**（右下角收小），
+ * 这两件事在微信里本来就比颜色更主要。
+ *
+ * `color-mix` 跟 `--ui-ink` 走，所以浅色下是极浅灰、深色下是极浅白，
+ * 不会出现"某个主题下气泡比纸还亮"的翻车。
+ */
+.message[data-role='user'] .message__body {
+  border-bottom-left-radius: var(--r-lg);
+  border-bottom-right-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--ui-ink) 7%, transparent);
+}
+
+/*
+ * 富文本在两种气泡里共用同一套颜色。
+ *
+ * 上一版这里有一整段「反字气泡里的富文本要跟着反相」——给 pre / table /
+ * quote / code / link 逐条改成半透明白或反字色。气泡改成淡底之后整段
+ * 都不需要了，而且必须删掉：那几条 `rgb(255 255 255 / 12%)` 是**白**，
+ * 压在浅色主题的淡底上会变成一块比气泡更亮的白斑。
+ */
+
+/* 相邻消息的呼吸：同角色挨得近（一句话说完再说一句），换角色才拉开。 */
+.message + .message {
+  margin-top: 8px;
+}
+
+.message[data-role='assistant'] + .message[data-role='user'],
+.message[data-role='user'] + .message[data-role='assistant'] {
+  margin-top: 16px;
 }
 
 /*
@@ -222,18 +334,43 @@
   35% { opacity: 1; }
 }
 
-/* 悬停时间沟槽：正文左 48px 处的一行小字。 */
+/* 悬停时间沟槽：贴着气泡外侧的一行小字。 */
 .message::after {
   content: attr(data-time);
   position: absolute;
-  left: -48px;
-  top: 22px;
+  /*
+   * 气泡化之后，时间也跟着换边：
+   *
+   *   她说的（左气泡）→ 时间在右侧
+   *   我说的（右气泡）→ 时间在左侧
+   *
+   * 与微信/QQ 一致——时间永远在气泡**朝外**那一侧，读的时候不会挤进
+   * 气泡与对面那一条空白之间。垂直方向贴气泡底边，与最后一行文字齐。
+   */
+  right: -52px;
+  bottom: 2px;
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
   font-variant-numeric: tabular-nums;
   opacity: 0;
   transition: opacity var(--motion-f) var(--ease-fluid);
   pointer-events: none;
+}
+
+.message[data-role='user']::after {
+  right: auto;
+  left: -52px;
+}
+
+/*
+ * 悬停时让位。
+ *
+ * 操作条（复制/引用/删除）悬停出现时也占气泡右侧那一带，两者叠在一起
+ * 会读成一串乱码。时间本来就是 hover 才有的，操作条也是——同一时刻只
+ * 该出现一个，让更有用的那个（操作条）出现。
+ */
+.message[data-actions]::after {
+  opacity: 0;
 }
 
 /* 容器窄到放不下沟槽时藏起时间戳。 */
@@ -265,16 +402,18 @@
 .message__actions {
   position: absolute;
   /*
-   * 三个按钮（复制 / 引用 / 删除）各 24px，间距 0 → 总宽 72。
-   * 右缘留在正文栏右侧 74：左边留 2 的呼吸，右边不越过滚动视口右缘
-   * （820 窗口下正文栏两侧的沟正是 74）。
+   * 贴着气泡外侧，垂直对齐气泡底边。
    *
-   * 上一版只有两个按钮（50 宽），`right: -58` 刚好够。加第三个之后
-   * 它压到了正文上——这条几何关系必须跟着按钮数一起改，改宽一点
-   * 比把按钮做小更符合点击目标下限（这里是 24 的图标键，再小就点不准）。
+   * 上一版是 `right: -63px`——把操作条钉在整条消息的右缘。那是「通栏
+   * 正文」时代的算法：气泡铺满 560，右缘就是气泡右缘。改成气泡之后，
+   * 一句「嗯」的气泡只有 60 宽，操作条却还挂在 560 处的右缘，中间空出
+   * 四百多像素，看起来像另一条消息的工具条。
+   *
+   * 现在由 `.message__row` 做定位参照（它 shrink-to-fit 到气泡宽），
+   * `left: 100%` 就是气泡右缘，加 4 的呼吸。
    */
-  right: -74px;
-  top: 14px;
+  left: calc(100% + 4px);
+  bottom: 0;
   display: flex;
   gap: 0;
   opacity: 0;
@@ -283,6 +422,12 @@
     opacity var(--motion-f) var(--ease-fluid),
     transform var(--motion-f) var(--ease-fluid);
   pointer-events: none;
+}
+
+/* 我发出的气泡在右边，操作条镜像到左侧。 */
+.message[data-role='user'] .message__actions {
+  left: auto;
+  right: calc(100% + 4px);
 }
 
 .message[data-actions] .message__actions,

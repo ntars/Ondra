@@ -20,6 +20,47 @@ interface FieldSpec {
   readonly max?: number
 }
 
+/**
+ * O-005 的字段声明形状（结构对位，不 import 它的源码）。
+ *
+ * 只镜像本插件真正用到的键：`label` 是设置页标题、O-005 不认，
+ * 所以这里不收——收了会让「两份字段表长得一样」变成一种维持负担。
+ */
+interface FieldSpecLike {
+  readonly kind: 'string' | 'number' | 'boolean' | 'json' | 'enum'
+  readonly default: unknown
+  readonly min?: number
+  readonly max?: number
+  readonly options?: readonly string[]
+  readonly advancedOnly?: boolean
+  readonly secret?: boolean
+  readonly doc?: string
+}
+
+/** O-005 的段声明形状。 */
+interface SectionDeclLike {
+  readonly id: string
+  readonly title: string
+  readonly fields: Readonly<Record<string, FieldSpecLike>>
+  readonly owner?: string
+}
+
+/**
+ * O-005 配置真源的结构对位（只用到注册与解析）。
+ *
+ * `resolve` 返回 `undefined` 表示「段没登记」，调用方必须退回本地校验，
+ * 不能当成「取到了一份空配置」——那会把用户设置静默清空。
+ */
+export interface ConfigSchemaLike {
+  register(section: SectionDeclLike, owner?: string): () => void
+  resolve(
+    sectionId: string,
+    layers?: { readonly user?: Readonly<Record<string, unknown>> },
+  ):
+    | { readonly values: Readonly<Record<string, unknown>>; readonly fallbackCount: number }
+    | undefined
+}
+
 /** 段内字段（单一真源）。 */
 export const FIELD_SPECS: Readonly<Record<string, FieldSpec>> = {
   enable: {
@@ -45,9 +86,11 @@ export const FIELD_SPECS: Readonly<Record<string, FieldSpec>> = {
   maxFacts: {
     kind: 'number',
     label: '每轮最多几条',
-    doc: '留空交给提炼服务自己定（它的默认按证据强度收）。',
-    default: 6,
-    min: 1,
+    doc:
+      '0（出厂值）= 交给提炼服务自己定，它按证据强度收，当前默认 8 条；'
+      + '1–30 = 本侧硬上限，超过的候选记 over-limit 拒绝，不静默丢。',
+    default: DEFAULT_CONFIG.maxFacts,
+    min: 0,
     max: 30,
   },
   verbose: {
@@ -56,6 +99,86 @@ export const FIELD_SPECS: Readonly<Record<string, FieldSpec>> = {
     doc: '收下与失败都打一行，排查「为什么她记不住」时用得到。',
     default: DEFAULT_CONFIG.verbose,
   },
+}
+
+/**
+ * 段内字段键（camel）→ 配置文件键（kebab）。
+ *
+ * `maxConcurrent` → `max-concurrent` 这类映射**不能靠字符串替换**推断：
+ * 本仓有过「`bm25K1` → `bm25-k1` 恰好对、换个名字就错」的先例。
+ * 所以映射写成表，`SECTION_KEYS` 与 `CONFIG_SECTION` 都从这一张表派生。
+ */
+export const KEY_PAIRS: Readonly<Record<keyof IntakeConfig, string>> = Object.freeze({
+  enable: 'enable',
+  extract: 'extract',
+  maxConcurrent: 'max-concurrent',
+  maxFacts: 'max-facts',
+  verbose: 'verbose',
+})
+
+/** 段字段键（kebab）→ Config 键（camel）。由 `KEY_PAIRS` 反向生成，不手写。 */
+export const SECTION_KEYS: Readonly<Record<string, keyof IntakeConfig>> = Object.freeze(
+  Object.fromEntries(Object.entries(KEY_PAIRS).map(([camel, kebab]) => [kebab, camel as keyof IntakeConfig])),
+)
+
+/**
+ * 交给 O-005 的段声明。字段表由 `FIELD_SPECS` + `KEY_PAIRS` 派生，不复制。
+ *
+ * ## 为什么本插件必须有这一份
+ *
+ * 宿主扫描设置段时只认**导出了 `CONFIG_SECTION`** 的包；只有 `FIELD_SPECS`
+ * 的包会被标成 `registered=false`，设置页在它上面直接写一行
+ * 「未注册配置段，不参与四层合并」（`ModuleLayer.tsx`）。
+ * 本仓 64 个有 `settings.ts` 的包里，此前**只有本插件是那样**——
+ * 也就是说别处都对，唯独记忆的入口没有接进四层合并。
+ * 补上之后「插件声明的段」与「设置页看见的段」才是同一件事。
+ */
+export const CONFIG_SECTION: SectionDeclLike = Object.freeze({
+  id: CONFIG_SECTION_ID,
+  title: '记忆入库',
+  fields: Object.freeze(
+    Object.fromEntries(
+      (Object.keys(KEY_PAIRS) as (keyof IntakeConfig)[]).map((camel) => [KEY_PAIRS[camel], FIELD_SPECS[camel]]),
+    ),
+  ) as Readonly<Record<string, FieldSpecLike>>,
+  owner: 'ondra-memory-intake',
+})
+
+/** 判断一个值是不是普通对象。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 把用户层归一化成段字段键（kebab）。
+ *
+ * 未知键**原样保留**：交给 O-005 报 `unknown-field`，在这里悄悄吞掉，
+ * 用户就只会看到「我填了怎么没生效」。
+ * @param raw 原始配置对象。
+ */
+export function normalizeUserLayer(raw: unknown): Readonly<Record<string, unknown>> {
+  if (!isRecord(raw)) return {}
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    out[KEY_PAIRS[key as keyof IntakeConfig] ?? key] = value
+  }
+  return out
+}
+
+/**
+ * 把 O-005 的解析结果（kebab 键）回填成 Config 形状（camel 键）。
+ *
+ * **少这一步就是把整份配置打回默认值**：`completeConfig` 只读 camel 键，
+ * 喂它 kebab 键不会有任何报错，只会安静地全部落空。
+ * @param values 解析结果的 `values`。
+ */
+export function valuesToConfigShape(values: unknown): Record<string, unknown> {
+  if (!isRecord(values)) return {}
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(values)) {
+    out[SECTION_KEYS[key] ?? key] = value
+  }
+  return out
 }
 
 /**
@@ -101,7 +224,7 @@ export function completeConfig(raw: unknown): Required<IntakeConfig> {
     enable: bool('enable', DEFAULT_CONFIG.enable),
     extract: bool('extract', DEFAULT_CONFIG.extract),
     maxConcurrent: num('maxConcurrent', DEFAULT_CONFIG.maxConcurrent, 1, 4),
-    maxFacts: num('maxFacts', 6, 1, 30),
+    maxFacts: num('maxFacts', DEFAULT_CONFIG.maxFacts, 0, 30),
     verbose: bool('verbose', DEFAULT_CONFIG.verbose),
   }
 }

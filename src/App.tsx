@@ -51,6 +51,7 @@ import { getPlatform } from './lib/platform.ts'
 import { isTypingTarget, keyContext, matches } from './lib/shortcuts.ts'
 import { useProactiveTick } from './lib/useProactiveTick.ts'
 import { useQuietToday } from './lib/proactive.ts'
+import { PERSONA } from './lib/persona.ts'
 import { registerDebugActions, startDebugAgent } from './lib/debugAgent.ts'
 import { keepAwake } from './lib/wakelock.ts'
 import type { ThemeMode } from './lib/api.ts'
@@ -82,6 +83,8 @@ export function App(): React.JSX.Element {
  */
 function Chrome(props: {
   title: string
+  personaName: string
+  presence: 'online' | 'thinking'
   mood: number
   energy: number
   hasData: boolean
@@ -91,7 +94,7 @@ function Chrome(props: {
 }): React.JSX.Element {
   return (
     <>
-      <TitleBar />
+      <TitleBar personaName={props.personaName} presence={props.presence} />
       <TopBar
         title={props.title}
         mood={props.mood}
@@ -673,10 +676,25 @@ function Shell(): React.JSX.Element {
       const segments = stripped.split('/').filter(Boolean)
       const target = segments[1] ?? segments[0] ?? ''
       const known: SettingsPage[] = [
-        'appearance', 'sound', 'notify', 'talk', 'data', 'backup',
-        'plugins', 'permissions', 'privacy', 'knowledge', 'about',
+        'appearance', 'sound', 'talk', 'memory', 'plugins', 'about',
       ]
-      const page = known.find((candidate) => candidate === target)
+      /*
+       * 旧版深链接的页名。
+       *
+       * 十一页压成六页之后，`ondra://settings/notify` 这类外部链接会认不出
+       * 而被静默忽略——用户点了没反应，且没有任何提示。这里把旧名映射到
+       * 它现在所属的那一页：通知与权限进了「对话」，知识库/数据/备份进了
+       * 「记忆」，隐私进了「关于」。链接照旧能用，只是落在合并后的页上。
+       */
+      const alias: Record<string, SettingsPage> = {
+        notify: 'talk',
+        permissions: 'talk',
+        knowledge: 'memory',
+        data: 'memory',
+        backup: 'memory',
+        privacy: 'about',
+      }
+      const page = known.find((candidate) => candidate === target) ?? alias[target]
       if (page !== undefined) {
         setSettingsPage(page)
         setSettings(true)
@@ -1038,6 +1056,8 @@ function Shell(): React.JSX.Element {
     <div className="shell" data-window-blurred={blurred ? '' : undefined}>
       <Chrome
         title={title}
+        personaName={PERSONA.name}
+        presence={state.busy ? 'thinking' : 'online'}
         mood={state.mood.mood}
         energy={state.mood.energy}
         hasData={state.mood.label !== undefined && state.mood.label !== ''}
@@ -1079,6 +1099,30 @@ function Shell(): React.JSX.Element {
                 setAbsence(undefined)
                 void state.send()
               }}
+              /*
+                打断并发送 = 先停这一轮，再把这句话排进队列。
+
+                ## 为什么不直接 send
+
+                `stop` 是异步的（要通知内核中断），而 `send` 开头的 `busy` 闸门
+                读的是本轮渲染那一刻的旧值——立刻调 `send` 会被自己挡回去，
+                表现就是"按了回车什么都没发生"。走队列则一定安全：队列在
+                `busy` 变 false 的那一帧由数据层放行，只慢一帧，不会丢。
+
+                ## 为什么不在这里判 sendMode
+
+                模式已经由 Composer 判过了（它决定按钮文案与回车行为）。
+                这里只负责"把用户表达的意图执行到底"。
+              */
+              onInterruptSend={() => {
+                setAbsence(undefined)
+                void state.stop()
+                state.enqueue()
+              }}
+              onEnqueue={() => {
+                setAbsence(undefined)
+                state.enqueue()
+              }}
               onStop={() => { void state.stop() }}
               busy={state.busy}
               attachments={state.attachments}
@@ -1088,7 +1132,14 @@ function Shell(): React.JSX.Element {
               models={state.models}
               modelId={state.modelId}
               onSelectModel={state.setModel}
-              interrupt={preferences.sendMode}
+              permission={state.permission}
+              onSelectPermission={state.setPermission}
+              usage={state.usage}
+              queue={state.queue}
+              onDropQueued={state.dropQueued}
+              onEditQueued={state.editQueued}
+              onMoveQueued={state.moveQueued}
+              sendMode={preferences.sendMode === 'queue' ? 'queue' : 'interrupt'}
               onInputRef={(node) => { composerRef.current = node }}
             />
           </main>

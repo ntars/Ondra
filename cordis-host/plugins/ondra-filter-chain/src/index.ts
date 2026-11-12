@@ -145,10 +145,10 @@ export function apply(ctx: Context, config: FilterConfig): void {
 
   // 4. 报一次现状。可用性与依赖到位情况都要能被自检读到，不许黑箱（§12.2）。
   log.info(
-    '输出过滤就绪：长度上限 %d 字（困 ×0.6 / 炸毛 ×0.7），复读 %d-gram 阈值 %.2f，评审 %s（%d 分及格，每轮 ≤%d 次）',
+    '输出过滤就绪：长度上限 %d 字（困 ×0.6 / 炸毛 ×0.7），复读 %d-gram 阈值 %s，评审 %s（%d 分及格，每轮 ≤%d 次）',
     settings.maxChars,
     settings.repeatNgram,
-    settings.repeatThreshold,
+    settings.repeatThreshold.toFixed(2),
     settings.reviewEnabled ? '开' : '关',
     settings.reviewThreshold,
     settings.reviewMaxRounds,

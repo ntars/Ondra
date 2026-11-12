@@ -36,14 +36,17 @@
    * 看起来像漏了内容。居中后这一组是一个完整的仪表，上下留白对称。
    */
   justify-content: center;
-  background: var(--ui-bg-canvas);
+  /* 与内容同色：分栏交给左边那条 0.5px 线。 */
+  background: transparent;
+  border-left: var(--rule) solid var(--ui-line-soft);
   color: var(--ui-ink-3);
   cursor: pointer;
   transition: background-color var(--motion-f) var(--ease-fluid);
 }
 
 .spine:hover {
-  background: rgb(18 24 40 / 3.5%);
+  /* 悬停底走语义层，跟着主题翻转；原来是写死的深蓝 3.5%。 */
+  background: var(--ui-bg-hover);
 }
 
 /* 整条右脊是按钮，按压要看得出来；与左栏 .rail__item:active 同一档。 */
@@ -118,8 +121,8 @@
   inset: 0;
   /* 8 宽的轨道取 4 = 全圆角药丸（内圆角极限是宽度一半）。 */
   border-radius: var(--r-xs);
-  background: rgb(18 24 40 / 7%);
-  box-shadow: inset 0 0 0 0.5px rgb(18 24 40 / 8%);
+  background: var(--ui-bg-active);
+  box-shadow: inset 0 0 0 0.5px var(--ui-line-soft);
   overflow: hidden;
 }
 

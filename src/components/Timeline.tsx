@@ -603,26 +603,38 @@ export function Timeline({
           {empty ? (
             <div className="timeline__empty">
               <span className="timeline__empty-mark">
-                <Mark size={32} variant="line" />
+                <Mark size={56} variant="line" />
               </span>
               <p className="timeline__empty-title">
                 空谷
                 <span className="timeline__empty-title-en">Ondra</span>
               </p>
               <p className="timeline__empty-slogan">于无声处，听见共鸣。</p>
-              <p className="timeline__empty-hint">从哪儿说起都行</p>
+              <p className="timeline__empty-hint">输入第一句话即可开始</p>
             </div>
           ) : null}
 
           {rows.map((row) =>
             row.kind === 'day' ? (
               <div className="timeline__day" key={row.key}>
-                <span className="timeline__day-rule" aria-hidden="true" />
-                <span className="timeline__day-label">{row.label}</span>
-                {row.dayIndex === undefined ? null : (
-                  <span className="timeline__day-index">第 {row.dayIndex} 天</span>
-                )}
-                <span className="timeline__day-rule" aria-hidden="true" />
+                {/*
+                  时间胶囊：一整块居中，日期与「第 N 天」同处其中。
+                  上一版是「横线—日期—横线」的分隔带，读起来像一条
+                  被拉长的消息；微信那种胶囊只占内容宽度，一眼能认出
+                  它是路标而不是正文。
+                */}
+                <span className="timeline__day-label">
+                  {row.label}
+                  {row.dayIndex === undefined ? null : (
+                    /*
+                     * 这里原来是 `<em>`——只是想借它的默认视觉，但 `em`
+                     * 在富文本里有专门的强调样式（曾经是一条暖光底衬），
+                     * 于是「第 N 天」跟着浮起一道色条。语义上它也不是
+                     * 强调，是一个计数，`<span>` 才对。
+                     */
+                    <span className="timeline__day-index">第 {row.dayIndex} 天</span>
+                  )}
+                </span>
               </div>
             ) : (
               <article
@@ -648,15 +660,59 @@ export function Timeline({
                   setActive((previous) => (previous === row.message.id ? undefined : previous))
                 }}
               >
-                <div className="message__body">
-                  <RichText source={row.message.content} />
-                  {row.message.pending === true ? (
-                    <span className="message__dots" aria-label="正在回复">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  ) : null}
+                <div className="message__row">
+                  <div className="message__body">
+                    <RichText source={row.message.content} />
+                    {row.message.pending === true ? (
+                      <span className="message__dots" aria-label="正在回复">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    ) : null}
+                  </div>
+                {/*
+                  悬停操作条。`data-actions` 挂在 article 上，CSS 用它控制
+                  显隐——把显隐放在 CSS 而不是条件渲染，是为了让淡入淡出
+                  真的有 120ms，而不是「节点出现即完成」。
+
+                  三项：复制、引用、删除。§5.4 里还有朗读与重答，宿主协议
+                  没有对应接口，仍不放——点了会失败的按钮比不放更糟。
+                  删除这一项是本轮补上的：内核新增了 `session.deleteMessage`，
+                  它从「位置预留」变成了真的可用。
+                */}
+                  <div className="message__actions">
+                    <button
+                      type="button"
+                      className="message__action"
+                      aria-label="复制"
+                      title="复制"
+                      onClick={() => { copy(row.message.content) }}
+                    >
+                      <Icon icon={IconCopy} size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="message__action"
+                      aria-label="引用"
+                      title="引用"
+                      onClick={() => { onQuote(row.message.content) }}
+                    >
+                      <Icon icon={IconQuote} size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="message__action"
+                      data-armed={confirming === row.message.id ? '' : undefined}
+                      aria-label={confirming === row.message.id ? '确认删除这条消息' : '删除'}
+                      title={confirming === row.message.id ? '再次点击以删除' : '删除'}
+                      onClick={() => { askDelete(row.message.id) }}
+                    >
+                      {confirming === row.message.id
+                        ? <span className="message__action-text">确认</span>
+                        : <Icon icon={IconTrash} size={16} />}
+                    </button>
+                  </div>
                 </div>
 
                 {/*
@@ -686,48 +742,6 @@ export function Timeline({
                     onDecline={() => { onDeclineProactive(row.message.id) }}
                   />                ) : null}
 
-                {/*
-                  悬停操作条。`data-actions` 挂在 article 上，CSS 用它控制
-                  显隐——把显隐放在 CSS 而不是条件渲染，是为了让淡入淡出
-                  真的有 120ms，而不是「节点出现即完成」。
-
-                  三项：复制、引用、删除。§5.4 里还有朗读与重答，宿主协议
-                  没有对应接口，仍不放——点了会失败的按钮比不放更糟。
-                  删除这一项是本轮补上的：内核新增了 `session.deleteMessage`，
-                  它从「位置预留」变成了真的可用。
-                */}
-                <div className="message__actions">
-                  <button
-                    type="button"
-                    className="message__action"
-                    aria-label="复制"
-                    title="复制"
-                    onClick={() => { copy(row.message.content) }}
-                  >
-                    <Icon icon={IconCopy} size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    className="message__action"
-                    aria-label="引用"
-                    title="引用"
-                    onClick={() => { onQuote(row.message.content) }}
-                  >
-                    <Icon icon={IconQuote} size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    className="message__action"
-                    data-armed={confirming === row.message.id ? '' : undefined}
-                    aria-label={confirming === row.message.id ? '确认删除这条消息' : '删除'}
-                    title={confirming === row.message.id ? '再点一次就删掉' : '删除'}
-                    onClick={() => { askDelete(row.message.id) }}
-                  >
-                    {confirming === row.message.id
-                      ? <span className="message__action-text">确认</span>
-                      : <Icon icon={IconTrash} size={16} />}
-                  </button>
-                </div>
               </article>
             ),
           )}
@@ -769,11 +783,16 @@ export function Timeline({
       {/*
         「有新消息」浮标。只在用户离开底部时出现，点了才滚。
         它不抢滚动位置，也不自动消失——用户没看到新消息就不该假装他看到了。
+
+        渲染条件里再判一次 `messages.length > 0`：`showJump` 是**状态**，
+        切到空会话时没有谁把它复位，于是空态开场下面会挂着一条
+        「查看最新消息」——点下去没有任何消息可看。状态可能过期，渲染时
+        按当前数据再校一次是最省事也最不会漏的做法。
       */}
-      {showJump ? (
+      {showJump && messages.length > 0 ? (
         <button type="button" className="timeline__jump" onClick={() => { scrollToBottom(true) }}>
           <Icon icon={IconChevronDown} size={16} />
-          <span>有新消息</span>
+          <span>查看最新消息</span>
         </button>
       ) : null}
     </div>

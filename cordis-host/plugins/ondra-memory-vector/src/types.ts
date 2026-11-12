@@ -236,6 +236,60 @@ export interface StorePortLike {
 /** 错误码。 */
 export type VectorErrorCode = 'bad-argument' | 'embed-failed' | 'dim-mismatch' | 'not-available'
 
+/* ------------------------------------------------------------------ *
+ * O-005 配置真源的结构对位（只用到「声明段」与「解析段」两件事）
+ * ------------------------------------------------------------------ */
+
+/**
+ * O-005 的字段声明形状。
+ *
+ * 与 `ondra-memory-recognition/src/types.ts` 的同类定义逐字一致——刻意不共享一个
+ * 公共包：插件之间不互相 import 源码是本仓的硬规矩（§15.5），代价是每个插件
+ * 各写一份结构对位。形状分叉时 `schema.register()` 的实参处会立刻报错。
+ */
+export interface FieldSpecLike {
+  readonly kind: 'string' | 'number' | 'boolean' | 'json' | 'enum'
+  readonly default: unknown
+  readonly min?: number
+  readonly max?: number
+  readonly options?: readonly string[]
+  readonly advancedOnly?: boolean
+  readonly secret?: boolean
+  readonly doc?: string
+}
+
+/** O-005 的段声明形状。 */
+export interface SectionDeclLike {
+  readonly id: string
+  readonly title: string
+  readonly fields: Readonly<Record<string, FieldSpecLike>>
+  readonly owner?: string
+}
+
+/** O-005 配置真源的结构对位子集。 */
+export interface ConfigSchemaLike {
+  register(section: SectionDeclLike, owner?: string): () => void
+  resolve(
+    sectionId: string,
+    section?: { readonly user?: Readonly<Record<string, unknown>> },
+  ):
+    | { readonly values: Readonly<Record<string, unknown>>; readonly fallbackCount: number }
+    | undefined
+}
+
+/**
+ * 日志门面的最小形状。
+ *
+ * `warn` 写成可选：Cordis 的 `LoggerService` 一定有它，但本插件在
+ * 「`ctx.logger` 缺席」时会退回 `console`，而 `console.warn` 在收窄类型里
+ * 不能假定存在（同 `ondra-memory-intake` 的教训）。
+ */
+export interface LogLike {
+  info(message: string, ...args: unknown[]): void
+  warn?(message: string, ...args: unknown[]): void
+  error(message: string, ...args: unknown[]): void
+}
+
 /** 端口错误。带稳定错误码，消费方可按码分支。 */
 export class VectorError extends Error {
   /** 错误码。 */

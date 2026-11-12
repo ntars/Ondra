@@ -48,7 +48,9 @@ import { relativeTime } from './time.ts'
 import { playCue } from './sound.ts'
 import { notify } from './notify.ts'
 import { DECLINE_LIMIT, UNDO_WINDOW_MS, noteDecline, clearDeclines } from './proactive.ts'
-import type { Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState } from './types.ts'
+import type {
+  Attachment, BondStats, ComposerUsage, LogEntry, MemoryItem, MoodState, QueuedMessage,
+} from './types.ts'
 
 /**
  * 语音识别实例的最小形状。
@@ -201,6 +203,17 @@ export interface AppState {
   /** 移除一条附件。 */
   removeAttachment(id: string): void
 
+  /** 排队等这一轮结束的消息，按发送顺序。 */
+  queue: QueuedMessage[]
+  /** 把当前草稿排进队列（生成中按 Enter、点发送都会走这里）。 */
+  enqueue(): void
+  /** 移除一条排队消息。 */
+  dropQueued(id: string): void
+  /** 改一条排队消息的正文。 */
+  editQueued(id: string, text: string): void
+  /** 上移 / 下移一条排队消息。 */
+  moveQueued(id: string, direction: -1 | 1): void
+
   /** 是否正在录音。 */
   voiceActive: boolean
   /** 切换语音输入（仅在支持的环境下有效）。 */
@@ -334,6 +347,26 @@ export function useAppState(): AppState {
   const [models, setModels] = useState<ModelDescriptor[]>([])
   const [modelId, setModelId] = useState<string | undefined>(undefined)
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  /**
+   * 排队等这一轮结束的消息。
+   *
+   * ## 为什么需要它（这是一个真缺陷的修复）
+   *
+   * 设置里可以选「生成中按 Enter = 排队」。但上一版的实现里，`send` 的第一
+   * 句就是 `if (busy) return`——于是「排队」这个档位的实际行为是**消息消失**：
+   * 输入框被清空、什么都没发出去、界面上也没有任何一处显示它去了哪。
+   *
+   * 用户选了「排队」，得到的是「静默丢弃」。这个队列就是补上那一段。
+   *
+   * ## 自动发送的时机
+   *
+   * 上一轮**正常结束**之后（`finally` 里 `setBusy(false)` 之后由 effect 放行）。
+   * 不在这里判「成功还是失败」：失败也有 `chatError` 显示着，而把排队的
+   * 那句话继续压着不发，用户会以为它也丢了。
+   */
+  const [queue, setQueue] = useState<QueuedMessage[]>([])
+  /** 防止 drain effect 在同一帧里连发两条。 */
+  const draining = useRef(false)
   const [voiceActive, setVoiceActive] = useState(false)
   /** 最近一轮的用量统计。没有真实数据时保持 undefined，界面不显示这一行。 */
   const [usage, setUsage] = useState<ComposerUsage | undefined>(undefined)
@@ -415,6 +448,8 @@ export function useAppState(): AppState {
    * 展开状态的小键，保证同一次运行内稳定递增即可，且便于测试时断言顺序。
    */
   const logSeq = useRef(0)
+  /** 排队消息的本地序号。与日志 id 同理：只做 key，自增即可。 */
+  const queueSeq = useRef(0)
   const pushLog = useCallback((entry: Omit<LogEntry, 'id'>): void => {
     logSeq.current += 1
     const id = `log-${String(logSeq.current)}`
@@ -702,11 +737,28 @@ export function useAppState(): AppState {
    * 若后端真的失败，错误提示会显示在输入框上方，且那条消息仍保留——
    * 用户能直接重发，不用重新打字。
    */
-  const send = useCallback(async (): Promise<void> => {
-    const input = draft.trim()
+  const send = useCallback(async (
+    /**
+     * 覆盖本次发送的内容。
+     *
+     * 排队消息从队列里取出时必须走这条路：那一刻 `draft` 已经清空，
+     * 而队列里的文字不在草稿里。用参数传进来，比"先把草稿写回去再发"
+     * 少一次渲染，也不会和用户此刻正在打的新字打架。
+     */
+    override?: { text: string; attachments: readonly Attachment[] },
+    /**
+     * 跳过 `busy` 闸门。
+     *
+     * 只有队列放行时用：上一轮的 `finally` 里 `setBusy(false)` 刚提交，
+     * 而闭包里的 `busy` 仍是旧值，不放行就会被自己挡回去。
+     */
+    force = false,
+  ): Promise<void> => {
+    const source = override ?? { text: draft, attachments }
+    const input = source.text.trim()
     // 空内容不发送；但若附带了文件，空文字也允许发出（纯附件消息）。
-    if (input === '' && attachments.length === 0) return
-    if (busy) return
+    if (input === '' && source.attachments.length === 0) return
+    if (busy && !force) return
 
     /*
      * 用户开口了 → 连续拒绝清零（§7.4 的「连续」）。
@@ -732,8 +784,8 @@ export function useAppState(): AppState {
 
     // 把附件名折叠进正文，作为可见的结构化前缀。内核当前只持久化
     // role + content，附件元数据走这条最简路径，既可见又不改动协议。
-    const prefix = attachments.length > 0
-      ? `[附件] ${attachments.map((item) => item.name).join('、')}\n`
+    const prefix = source.attachments.length > 0
+      ? `[附件] ${source.attachments.map((item) => item.name).join('、')}\n`
       : ''
     const text = `${prefix}${input}`.trim()
 
@@ -746,8 +798,11 @@ export function useAppState(): AppState {
      */
     playCue('send')
 
-    setDraft('')
-    setAttachments([])
+    /* 排队消息发送时草稿是空的，不必（也不该）再清一次：清的是用户此刻的字。 */
+    if (override === undefined) {
+      setDraft('')
+      setAttachments([])
+    }
     setChatError(undefined)
     setBusy(true)
 
@@ -776,7 +831,7 @@ export function useAppState(): AppState {
         at: startedAt,
         channel: 'channel',
         actor: 'user',
-        summary: attachments.length > 0 ? '收到一条消息，带附件' : '收到一条消息',
+        summary: source.attachments.length > 0 ? '收到一条消息，带附件' : '收到一条消息',
         chars: text.length,
         ...(text.length > 0 ? { detail: text } : {}),
       })
@@ -947,7 +1002,7 @@ export function useAppState(): AppState {
             pushLog({
               round,
               at: Date.now(),
-              channel: 'rhythm',
+              channel: 'error',
               actor: 'system',
               summary: `这一轮中断了：${message}`,
             })
@@ -966,9 +1021,9 @@ export function useAppState(): AppState {
         pushLog({
           round,
           at: Date.now(),
-          channel: 'rhythm',
+          channel: 'error',
           actor: 'system',
-          summary: '这一轮失败',
+          summary: `这一轮失败：${caught instanceof Error ? caught.message : '未知原因'}`,
         })
         setMessages((previous) => previous.filter((message) => message.id !== replyId))
       }
@@ -1007,6 +1062,83 @@ export function useAppState(): AppState {
   }, [draft, busy, sessionId, attachments, refreshSessionMeta, refreshMemories, pushLog, syncMessages])
 
   /** 停止生成。 */
+  /**
+   * 把当前草稿排进队列。
+   *
+   * ## 为什么在这里清空草稿
+   *
+   * 与 `send` 同一个原则：用户按下回车之后，输入框里那个东西已经"交出去"了。
+   * 留着它，用户会以为没排上，于是再按一次——队列里就出现两条一样的消息。
+   */
+  const enqueue = useCallback((): void => {
+    const text = draft.trim()
+    if (text === '' && attachments.length === 0) return
+    queueSeq.current += 1
+    const item: QueuedMessage = {
+      id: `queue-${String(queueSeq.current)}`,
+      text,
+      attachments,
+      at: Date.now(),
+    }
+    setQueue((previous) => [...previous, item])
+    setDraft('')
+    setAttachments([])
+  }, [draft, attachments])
+
+  /** 从队列里取走一条。 */
+  const dropQueued = useCallback((id: string): void => {
+    setQueue((previous) => previous.filter((item) => item.id !== id))
+  }, [])
+
+  /** 改一条排队消息的正文。空正文且没有附件时视为删除。 */
+  const editQueued = useCallback((id: string, text: string): void => {
+    setQueue((previous) => previous.map((item) => {
+      if (item.id !== id) return item
+      return { ...item, text }
+    }))
+  }, [])
+
+  /**
+   * 调整一条排队消息的位置。
+   *
+   * 用方向而不是目标下标：界面上的操作是「上移 / 下移」两个按钮，
+   * 传下标就得在组件里先算出目标位置，而那个算法只属于队列自己。
+   */
+  const moveQueued = useCallback((id: string, direction: -1 | 1): void => {
+    setQueue((previous) => {
+      const index = previous.findIndex((item) => item.id === id)
+      const target = index + direction
+      if (index < 0 || target < 0 || target >= previous.length) return previous
+      const next = [...previous]
+      const [moved] = next.splice(index, 1)
+      /* v8 ignore next -- index 已判在范围内，splice 必然取出一项。 */
+      if (moved === undefined) return previous
+      next.splice(target, 0, moved)
+      return next
+    })
+  }, [])
+
+  /**
+   * 队列放行：一轮结束后把队首发出去。
+   *
+   * 依赖里带 `queue` 与 `busy`：`busy` 变 false 的那一帧就是唯一的放行时机。
+   * `draining` 挡掉"同一帧里 `setBusy(false)` 触发两次"的极端情况
+   * （React 18 的自动批处理下不会发生，但这是一个便宜的保险）。
+   */
+  useEffect(() => {
+    if (busy || queue.length === 0 || draining.current) return
+    const next = queue[0]
+    /* v8 ignore next -- length 已判大于 0。 */
+    if (next === undefined) return
+    draining.current = true
+    setQueue((previous) => previous.slice(1))
+    void send({ text: next.text, attachments: next.attachments }, true)
+      .catch((caught: unknown) => {
+        console.error('排队消息发送失败', caught)
+      })
+      .finally(() => { draining.current = false })
+  }, [busy, queue, send])
+
   const stop = useCallback(async (): Promise<void> => {
     // 先撤本地连接，界面立刻停下；再通知宿主让内核中断，
     // 否则内核会继续把整轮跑完、白花额度。
@@ -1184,7 +1316,7 @@ export function useAppState(): AppState {
               at: Date.now(),
               channel: 'rhythm',
               actor: 'assistant',
-              summary: `她主动开口 · ${reason === '' ? '没有给出理由' : reason}`,
+              summary: `主动发言 · ${reason === '' ? '未提供原因' : reason}`,
               chars: done.length,
               detail: done,
             })
@@ -1260,7 +1392,7 @@ export function useAppState(): AppState {
         at: Date.now(),
         channel: 'rhythm',
         actor: 'system',
-        summary: `今天已经被拒绝 ${String(count)} 次，她今天不再主动开口`,
+        summary: `主动发言今日已被拒绝 ${String(count)} 次，今日不再主动发言`,
       })
     } else {
       pushLog({
@@ -1524,6 +1656,11 @@ export function useAppState(): AppState {
     modelId,
     setModel,
     attachments,
+    queue,
+    enqueue,
+    dropQueued,
+    editQueued,
+    moveQueued,
     addFiles,
     addAttachments,
     removeAttachment,

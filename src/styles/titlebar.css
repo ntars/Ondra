@@ -64,3 +64,122 @@
   opacity: 0.7;
   transition: transform var(--motion-s) var(--ease-fluid);
 }
+
+/* ===========================================================================
+   身份行：头像 + 名字 + 状态
+   =========================================================================== */
+
+/*
+ * 位置在红绿灯之后（macOS 的 `padding-left: 84` 已经把红绿灯让开），
+ * 与 Windows 的菜单按钮共用同一段起始位。
+ *
+ * 不用 flex 居中，也不用绝对定位：标题栏是 flex，这一块是它的第一个
+ * 常规子项，后面跟一根撑杆把版本号与窗口键推右。
+ */
+.titlebar__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  /* 它是标识不是按钮：没有 hover 底，也不进入 Tab 顺序。 */
+  user-select: none;
+}
+
+/*
+ * 头像 24：比标题栏高度（44）小近一半，与 14px 的名字同高。
+ *
+ * 用一档沉色底 + 发丝边而不是实心品牌板：深色下品牌板取强调色（近白），
+ * 会变成标题栏上最亮的一块，压过名字与窗口按钮。
+ */
+.titlebar__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  /*
+   * 正圆，不是 4px 圆角方块。
+   *
+   * 头像在标题栏里是「她」的唯一视觉身份，圆是肖像的通用形状；方块会被
+   * 读成一枚应用图标或状态灯，与旁边那行「空谷 · 在线」抢身份。左侧三个
+   * 红绿灯也都是圆，方块夹在它们右边时，整条标题栏的曲率是断的。
+   */
+  border-radius: var(--r-full);
+  background: var(--ui-bg-sunken);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line);
+  color: var(--ui-ink-2);
+}
+
+.titlebar__idtext {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.titlebar__name {
+  font-size: var(--text-caption);
+  font-weight: var(--w-medium);
+  color: var(--ui-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 状态词用文字，不只靠颜色。
+ *
+ * 「在想 / 在线」两个字本身就说明了状态；前面那枚 5px 的点只是让它
+ * 更快被扫到。只给颜色不给词，色觉障碍用户就只剩一个无语义的小圆。
+ */
+.titlebar__presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  white-space: nowrap;
+}
+
+.titlebar__presence::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--ui-ink-4);
+}
+
+.titlebar__presence[data-presence='thinking'] {
+  color: var(--ui-her-text);
+}
+
+.titlebar__presence[data-presence='thinking']::before {
+  background: var(--ui-her);
+  animation: titlebar-presence 1.6s var(--ease-breathe) infinite;
+}
+
+@keyframes titlebar-presence {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+/* 撑杆：把版本号与窗口键推到右边。 */
+.titlebar__spacer {
+  flex: 1;
+}
+
+/*
+ * 版本号：一枚极小的灰字，贴在窗口键左侧。
+ *
+ * 它是有用的（报问题、对更新日志），但不该争视线，所以只在标题栏右侧
+ * 以 10px 出现，鼠标悬停有 `aria-label` 兜着。
+ */
+.titlebar__version {
+  flex: none;
+  margin-right: 8px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}

@@ -20,7 +20,9 @@
   width: var(--w-rail);
   gap: var(--s-2);
   padding: 12px 0;
-  background: var(--ui-bg-canvas);
+  /* 与内容同色：分栏交给右边那条 0.5px 线。 */
+  background: transparent;
+  border-right: var(--rule) solid var(--ui-line-soft);
 }
 
 /**
@@ -87,7 +89,9 @@
   background: var(--ui-bg-selected);
   /* 当**文字**用 → 走 action-text，不走 action（当底那一档）。见 tokens.css 注释。 */
   color: var(--ui-action-text);
-  box-shadow: inset 0 0 0 1px rgb(32 58 133 / 10%);
+  /* 内描边走语义细线：原来是固定的深蓝 `rgb(32 58 133 / 10%)`，
+     那是旧「夜谷玻璃」配色的残留——面已经是中性灰，描边不该带色相。 */
+  box-shadow: inset 0 0 0 1px var(--ui-line-soft);
 }
 
 /**

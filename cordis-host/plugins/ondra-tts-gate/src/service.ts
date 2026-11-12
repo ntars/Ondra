@@ -137,7 +137,8 @@ export class Gate implements GateService {
     // 净化走 O-050 的同一份实现（有就用，没有按原文）。不在这里另写一份。
     const cleaned = typeof tts.speakable === 'function' ? tts.speakable(text) : String(text ?? '')
     const chars = charCount(cleaned)
-    const emotive = hasEmotive(cleaned)
+    // 调用方知道整段原文时以它为准（见 `GateOptions.emotive` 的注释）。
+    const emotive = options.emotive ?? hasEmotive(cleaned)
 
     const tooShortOrLong = lengthReason(chars, settings)
     if (tooShortOrLong !== undefined) {

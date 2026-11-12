@@ -46,8 +46,21 @@
     padding: 0;
   }
 
-  .composer__row {
-    padding: 8px 8px 8px 12px;
+  /*
+   * 窄窗下收紧输入行的左内距。
+   *
+   * 这里原来写的是 `.composer__row`——一个已经不存在的类名（输入卡改版后
+   * 那行叫 `.composer__floor`），所以整条规则从改版那天起就没生效过。
+   * 内距现在挂在 `.composer__input` 上，窄窗下由 12 收到 8：
+   * 375 宽的屏上，12 的左内距会让占位文字离卡片边缘太远，读起来像缩进。
+   */
+  .composer__input {
+    padding-left: 8px;
+  }
+
+  /* 工具行跟着收到 8，否则窄窗下文字与加号又错开 4px。 */
+  .composer__tools {
+    padding-left: 8px;
   }
 
   .drawer__panel {
@@ -198,8 +211,12 @@
     height: 20px;
   }
 
+  /*
+   * 44 − 2 × 2（左右内距）− 20（钮宽）= 20。写 18 会让打开的钮右缘
+   * 离轨道边 4、左边只剩 2，两边不对称——触屏上那点偏差一眼看得出来。
+   */
   .control-switch[aria-checked='true'] .control-switch-knob {
-    transform: translateX(18px);
+    transform: translateX(20px);
   }
 
   /* 触屏不显示滚动条：拖动滑块的操作在手指下会被遮挡。 */

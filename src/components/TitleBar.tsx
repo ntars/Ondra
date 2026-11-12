@@ -28,12 +28,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconChevronDown } from './icons.ts'
+import { Mark } from './Mark.tsx'
+import { PERSONA } from '../lib/persona.ts'
 import { invokeShell } from '../lib/shell.ts'
 import { isMac, isWindows } from '../lib/platform.ts'
 
 export interface TitleBarProps {
   /** 打开浮层菜单（Windows 左上的菜单按钮）。 */
   onOpenMenu?: () => void
+  /**
+   * 她的名字。由上层注入；失败页与骨架页没有人设状态，退回单一真源里的名字。
+   *
+   * 之所以做可选而不是让调用方传两遍：那两个分支在数据层还没就绪时就渲染，
+   * 它们要的只是"标题栏别空着"，不是"精确的在场状态"。
+   */
+  personaName?: string
+  /** 在场状态。'thinking' 时状态点换成她的暖色并轻微呼吸。 */
+  presence?: 'online' | 'thinking'
 }
 
 /**
@@ -221,7 +232,11 @@ function TrafficLights(): React.JSX.Element {
 }
 
 /** 渲染标题栏。 */
-export function TitleBar({ onOpenMenu }: TitleBarProps): React.JSX.Element {
+export function TitleBar({
+  onOpenMenu,
+  personaName = PERSONA.name,
+  presence = 'online',
+}: TitleBarProps): React.JSX.Element {
   const windows = isWindows()
   const mac = isMac()
 
@@ -247,14 +262,38 @@ export function TitleBar({ onOpenMenu }: TitleBarProps): React.JSX.Element {
       ) : null}
 
       {/*
-        品牌牌：应用名 + 版本号。
-        固定，不随会话变化（见文件头）。`aria-label` 把两者连读成一句，
-        避免读屏念成「空谷 Ondra · v2.2.1」时中间那个点被念成"中点"。
+        身份行：头像 + 名字 + 状态。
+        
+        ## 为什么在标题栏，不在左栏
+        
+        参照 QQ 的窗内结构：**人**在标题栏，**功能**在左栏。56px 的图标脊
+        放不下昵称，硬塞进去只能压到 10px 并截断，读起来像一个贴边的标签；
+        而标题栏本来就有 44px 的高度和一整条横向空间，头像与名字放在那里
+        不用和任何东西抢位置。
+        
+        左栏因此回到纯图标：它回答「去哪儿」，不再回答「这是谁」。
+        
+        ## 名字与版本分开
+        名字是**她的身份**，版本是**这个构建的身份**。上一版把两者挤在中间
+        当一个品牌牌，结果是「空谷 Ondra v2.2.1」这样的长串占着标题栏正中，
+        而真正该被认出来的人没有出现。
       */}
-      <div className="titlebar__brand" aria-label={`空谷 Ondra，版本 ${__APP_VERSION__}`}>
-        <span className="titlebar__name">空谷 Ondra</span>
-        <span className="titlebar__version">{__APP_VERSION__}</span>
+      <div className="titlebar__identity">
+        <span className="titlebar__avatar">
+          {/* 16 而不是 18：24 圆的内切正方形边长约 17，18 会让鱼形的角贴到圆周。 */}
+          <Mark size={16} variant="line" label="" />
+        </span>
+        <span className="titlebar__idtext">
+          <span className="titlebar__name">{personaName}</span>
+          <span className="titlebar__presence" data-presence={presence}>
+            {presence === 'thinking' ? '在想' : '在线'}
+          </span>
+        </span>
       </div>
+
+      <span className="titlebar__spacer" />
+
+      <span className="titlebar__version" aria-label={`版本 ${__APP_VERSION__}`}>{__APP_VERSION__}</span>
 
       {windows ? <WindowControls /> : null}
       {mac ? <TrafficLights /> : null}

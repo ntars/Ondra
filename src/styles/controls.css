@@ -135,8 +135,15 @@
   gap: 2px;
 }
 
-/* 触屏：输入类控件抬到 16px 防自动放大。 */
-@media (any-pointer: coarse) {
+/*
+ * 触屏：输入类控件抬到 16px 防自动放大。
+ *
+ * 判定用 `pointer: coarse`（**主**指针是手指），与 `compact.css` 那份
+ * 触屏规则同一个口径。原先这里写的是 `any-pointer`，它只问「有没有任何
+ * 触屏」，于是带触屏的 Windows 笔记本（主指针是鼠标）也会把字号抬到 16
+ * ——那不是防放大，是把桌面端的字改大了。两处口径必须一致。
+ */
+@media (pointer: coarse) {
   .field__text,
   .field__number {
     font-size: 1rem;

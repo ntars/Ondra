@@ -359,6 +359,16 @@ export const DEFAULT_CONFIG: Required<IntakeConfig> = {
   enable: true,
   extract: true,
   maxConcurrent: 1,
-  maxFacts: undefined as unknown as number,
+  /**
+   * `0` = **交给提炼服务自己定**（它的默认按证据强度收，当前是 8 条）。
+   *
+   * 这里原来写的是 `undefined as unknown as number`——用类型断言把「没有值」
+   * 硬塞进 `Required<IntakeConfig>` 的数字位。那不只是难看，它让下面这条链
+   * 整根失效：`completeConfig()` 的 `num()` 见到 `undefined` 必回退默认，
+   * 于是 `maxFacts` 永远是个数，`index.ts` 里那句「有值才传」永远成立，
+   * 每轮都把 6 硬塞给提炼服务——**提炼侧自己那个 8 在真实链路上永不生效**，
+   * 而界面上写着「留空交给提炼服务自己定」。用 `0` 做哨兵，语义显式、可断言。
+   */
+  maxFacts: 0,
   verbose: true,
 }

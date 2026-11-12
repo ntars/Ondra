@@ -111,7 +111,16 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     default: 3,
     min: 0,
     max: HARD_DAILY_QUOTA,
-    doc: '每日主动投递预算（§9.3 原值 3）。只算主动，不算回话。',
+    /*
+     * 这一项是**兜底值**，不是最终生效值。
+     *
+     * 主动节律（`ondra-proactive-quota`）在位时，它按档位算出的额度会作为
+     * 入参交给 `gate()`，`budgetOf()` 一律以入参为准。所以调这一项在装了
+     * 节律的机器上不会有任何变化——这不是 bug，是「额度归节律、门控只消费」
+     * 的分工（见 `types.ts` 里 `dailyQuota` 入参的注释）。真正想改每天几条，
+     * 走节律的「她多主动」档位或它的 `quota-override`。
+     */
+    doc: '每日主动投递预算的兜底值（§9.3 原值 3）。只算主动，不算回话。装了主动节律时以它的档位为准，这一项不生效。',
   },
   quietStart: {
     kind: 'string',

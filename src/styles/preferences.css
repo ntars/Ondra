@@ -37,14 +37,29 @@
   border-right: var(--rule) solid var(--ui-line-soft);
 }
 
+/*
+ * 导航格：34 高、2px 间距。
+ *
+ * ## 为什么从 30 加到 34
+ *
+ * 十一项 × 30 + 间距 = 340，在 720 高的纸片里读起来是一串贴着的小字；
+ * 34 让每一格成为一个可点的行，鼠标不必精确到 30px 高度里。
+ *
+ * ## 为什么选中态从「反色实底」改成一档浅实底
+ *
+ * 反色实底（黑底白字）是把导航格画成了**按钮**。十一项里随时有一个是按钮
+ * 样，用户的视线会一直停在那儿，而导航应当安静——它只是"你现在在哪儿"。
+ * 换成选中行那一档填充之后，深浅两套主题都有现成的对比度，不必单独验。
+ */
 .pref__nav-item {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  height: 30px;
-  padding: 0 8px;
+  height: 34px;
+  margin-bottom: 2px;
+  padding: 0 12px;
   border-radius: var(--r-sm);
   font-size: var(--text-caption);
   color: var(--ui-ink-2);
@@ -66,12 +81,16 @@
   color: var(--ui-ink);
 }
 
-/* 选中项填充反色：全界面唯一用主色做整块底的地方。 */
+/* 按下再深一档：选择型控件也必须有「已按下」的反馈，否则点了像没反应。 */
+.pref__nav-item:active {
+  background: var(--ui-bg-active);
+}
+
+/* 选中项：一档浅实底 + 名字提一档。不做反色，理由见上。 */
 .pref__nav-item[aria-current='page'] {
-  color: var(--ui-action-ink);
+  color: var(--ui-ink);
   font-weight: var(--w-medium);
-  background: var(--ui-action);
-  box-shadow: none;
+  background: var(--ui-bg-selected);
 }
 
 .pref__nav-item[aria-current='page']::before {
@@ -367,8 +386,10 @@
 }
 
 /* 但提示音关闭时整条滑杆降一档，表明"现在调它没用"。 */
+/* 整块降透明而不是逐件换色：滑杆与读数要一起「失去可操作性」。0.55
+   与 `.button` 的禁用态同档，45% 时读数那行已经读不清了。 */
 .pref__slider[data-off] {
-  opacity: 0.45;
+  opacity: 0.55;
 }
 
 .pref__note {

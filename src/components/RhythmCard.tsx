@@ -128,10 +128,10 @@ export function RhythmCard(): React.JSX.Element {
           <span className="pref__row-label">说话节奏</span>
           <span className="pref__row-hint">
             {state === undefined
-              ? '读状态中'
+              ? '正在读取状态'
               : state.loaded.rhythm && state.loaded.typing
-                ? '开口前留半拍，不一口气吐完整段'
-                : '分条或计时没装载，她会一次性说完'}
+                ? '回复前保留停顿，按节奏分段输出'
+                : '分条与节奏未装载，回复将整段输出'}
           </span>
         </div>
         <button
@@ -157,7 +157,7 @@ export function RhythmCard(): React.JSX.Element {
        */}
       {state !== undefined && rhythm !== undefined ? (
         rhythm.turns === 0 && state.host.holds === 0 ? (
-          <p className="pref__note">还没有一句话经过分条。说一句话就会开始记账。</p>
+          <p className="pref__note">还没有分条记录。发送消息后将开始统计。</p>
         ) : (
           <p className="pref__note">
             {`分条 ${String(rhythm.turns)} 轮，平均切成 ${String(rhythm.avgMessages)} 条`

@@ -343,6 +343,32 @@ async function main(): Promise<void> {
     'ondra-path-layout',
     'ondra-store-sqlite',
     /*
+     * `ondra-store-memory`：**不是功能，是存储域的兜底端口**。
+     *
+     * 它此前不在名单里，而 21 处消费方写的是
+     * `ctx.get('ondra-store-sqlite') ?? ctx.get('ondra-store-memory')`——
+     * 那个 `??` 的右半边从来取不到东西。SQLite 一切正常时看不出差别，
+     * 一旦库打不开（文件损坏、卷不支持共享内存、Node 缺 `node:sqlite`），
+     * 记忆域 / 情绪域 / 人格域会**同时**拿到 `undefined`。而 `ondra-memory-core`
+     * 用 `ctx.inject([...])` 等存储端口，等不到就整包不起，于是症状是
+     * 「她失忆了，而且什么都不说」，日志里一行错都没有。
+     *
+     * ## 装上它不是「多开一个功能」
+     *
+     * 插件自己的 `apply()` 写得很清楚：**即使 SQLite 已在位也照常注册**，
+     * 只在日志里说一句「本后端仅作备用，不会被选中」。选谁由消费方的
+     * `??` 顺序决定，SQLite 永远优先。所以代价是一个空对象加一行日志，
+     * 换掉的是「存储域单点全塌」。
+     *
+     * ## 为什么它之前被漏掉
+     *
+     * 因为它**没有设置字段**（`settings.ts` 不存在），在设置面板里不存在，
+     * 于是「按清单核对设置段」这条老办法看不见它。而它的出厂 `enabled`
+     * 明明是 `true`——用户若在别处看到「内存兜底：开」，那个开关背后
+     * 从来没有人。
+     */
+    'ondra-store-memory',
+    /*
      * `ondra-llm-gateway`：**模型网关**，事实提炼与做梦的唯一模型入口。
      *
      * 它此前不在名单里，于是三处静默失效叠在一起：
@@ -628,9 +654,12 @@ async function main(): Promise<void> {
      * 图谱因子看起来「接上了」，实际一条边都没有。
      *
      * 补的是 `cooccur`（共现）这一类：**同一轮对话里提炼出来的两条事实**
-     * 就是「她真的见过它们一起出现」的最小证据。落笔在宿主的
-     * `src/memory-links.ts`——它能从 `memory_fact.source_raw_id` 精确拿到
-     * 「这一轮是哪几条」，插件拿不到这个视角。
+     * 就是「她真的见过它们一起出现」的最小证据。落笔在
+     * `ondra-memory-intake` 的 `linkCooccur()`（`plugins/ondra-memory-intake/src/index.ts`）——
+     * 它手上正有「这一轮落库了哪几条 id」，而图谱插件拿不到这个视角。
+     *
+     * （这段注释原先写的是「落笔在宿主的 `src/memory-links.ts`」，那个文件从来没有
+     * 存在过；实现一直在 intake 里。注释指错地方，比没有注释更费时间。）
      *
      * ## 向量默认是关的，这不是漏配
      *
@@ -972,6 +1001,61 @@ async function main(): Promise<void> {
     [...enableList, ...pluginSwitches.extra].filter((id) => !pluginSwitches.disabled.has(id)),
   )
 
+  /*
+   * 宿主级常驻：**不受装载名单约束**，无条件可用。
+   *
+   * 前两个包在第 1、2 段里就已经 `ctx.plugin(...)` 挂好了（见上方
+   * 「桌面能力桥」与「dsh 内核客户端」），它们不在 `enabledPlugins` 里——
+   * 那份名单只描述「核心链成员」，而这两个是宿主自己的地基。
+   *
+   * 第三个 `ondra-core` 是**装配器本身**：宿主在下面直接 `corePlugin.loadCore()`
+   * 用它装那 75 个成员，它自己从来没被 `ctx.plugin()` 挂过，也不在成员清单里。
+   *
+   * ## 为什么它必须进这个集合（第 12 轮补）
+   *
+   * 它是个真包，所以扩展抽屉照目录把它列了出来；而它的 `loaded` 来自
+   * `enabledPlugins`——用户在抽屉里点一次「启用」，它就进了 `plugins.json`
+   * 的 `extra`，界面于是显示「已装载」。反过来点「停用」，它被写进 `disabled`，
+   * 下次启动界面显示「未启用 · 未装载」，**而那 75 个成员照装不误**。
+   *
+   * 也就是说：这个开关从任何一侧看都是空的，且两侧的显示都是假的。
+   * 装配器没有「停用」这个动作可实现（宿主不用它就什么也装不起来），
+   * 所以它与前两个同属「不可停用」，一并进 `core` 让开关置灰。
+   *
+   * 顺带把两个数字对上了：`核心链装载 75 + 宿主常驻 3 = 78`，与
+   * `GET /api/plugins` 的 78 个包一致，不再差一个。
+   *
+   * ## 为什么必须单独说出来
+   *
+   * 扩展抽屉的 `loaded` 判据只有 `enabledPlugins` 一处。常驻包不在里面，
+   * 于是界面上稳定显示：
+   *
+   * ```
+   * dsh-client      未启用 · 未装载      ← 实际每次启动都在跑
+   * desktop-bridge  未启用 · 未装载      ← 实际每次启动都在跑
+   * ```
+   *
+   * 更糟的是 `desktop-bridge` 曾被写进 `plugins.json` 的 `disabled`：
+   * 用户以为关掉了，重启后它照装不误，而界面还配合着显示「已关」——
+   * **关闭动作无效与状态谎报互相盖章**，两边都不会报错。
+   *
+   * 判据是日志而不是推断：每次启动都有 `dsh-client dsh 内核就绪：2.1.2`，
+   * 而 `GET /api/plugins` 同一时刻说它没装载。同一份事实两种说法，
+   * 那就一定是其中一处写错了。
+   *
+   * ## 为什么并入 `core` 而不是只改 `loaded`
+   *
+   * `core` 的语义是「**不允许停用**」，界面据此把开关置灰、toggle 接口据此
+   * 回 409。常驻插件本来就没有「停用」这个动作可实现（挂载点在装载名单之外），
+   * 若只把 `loaded` 改成 true 而 `core` 留空，开关会变成可点、点了却什么也
+   * 不会发生——把「谎报」换成了「空响」，一样是失信。
+   */
+  const RESIDENT_PLUGINS = ['desktop-bridge', 'dsh-client', 'ondra-core'] as const
+  /** 展示用的装载集合：核心链 + 宿主常驻。判据只此一处。 */
+  const loadedPlugins = new Set<string>([...enabledPlugins, ...RESIDENT_PLUGINS])
+  /** 展示用的「不可停用」集合：核心链 + 宿主常驻。 */
+  const protectedPlugins = new Set<string>([...DEFAULT_CORE_ENABLE, ...RESIDENT_PLUGINS])
+
   // --- 3.5 插件设置段 -------------------------------------------------------
   // 必须**早于** `loadCore`：用户改的设置要作为配置递进插件（见 `buildMemberConfigs`）。
   // 原先这里在 loadCore 之后打开，于是装载时根本无从读到用户层——插件永远跑默认值，
@@ -1005,8 +1089,8 @@ async function main(): Promise<void> {
    */
   const pluginRows = await scanPlugins(
     resolvePluginsRoot(),
-    enabledPlugins,
-    new Set(DEFAULT_CORE_ENABLE),
+    loadedPlugins,
+    protectedPlugins,
     settingsSections,
   )
   logInfo(
@@ -1065,11 +1149,47 @@ async function main(): Promise<void> {
     // 这里如实说一句，免得下一个人又去查「为什么 memory_fact 是 0」。
     logInfo(ctx, '还没有配置任何供应商：模型来源清单为空，事实提炼会跳过（原文照常落盘）')
   }
-  const coreResult = await corePlugin.loadCore(ctx, { enable: enableList, configs: coreConfigs })
+  /*
+   * 传给 `loadCore` 的必须是**合成后的名单** `enabledPlugins`，不是 `enableList`。
+   *
+   * `enableList` 只有两来源：代码常量 `DEFAULT_CORE_ENABLE` 与环境变量
+   * `ONDRA_CORE_ENABLE`。用户在扩展抽屉里点「启用」写的是 `plugins.json`
+   * 的 `extra`，点「停用」写的是 `disabled`——两者都只进 `enabledPlugins`。
+   *
+   * 这里原先传的是 `enableList`，于是同一次启动里出现两套事实：
+   *
+   * | 读的地方 | 判据 | 说法 |
+   * | --- | --- | --- |
+   * | `/api/plugins` 的 `loaded` | `enabledPlugins` | 「已装载」 |
+   * | 真正装没装 | `loadCore` 收到的名单 | 「没装」 |
+   *
+   * 后果有两层，而且都不报错：
+   *
+   * 1. **开关是空响。** 用户打开一个出厂关闭的包，重启后它照样不装，界面
+   *    却已经从「未装载」翻成「已装载」——「关闭无效」与「状态谎报」
+   *    互相盖章，这正是本仓反复踩的那一类。
+   * 2. **停用也是空响。** 停用一个非核心包只会把它从 `enabledPlugins` 里
+   *    摘掉，而 `enableList` 里本来就没有它，于是什么都没发生（这一层
+   *    恰好因为「本来就不装」而看不出问题，掩盖了上面那层）。
+   *
+   * 换成 `enabledPlugins` 之后，「展示的装载集合」与「实际装载的集合」
+   * 只差两个常驻包（它们本来就在链外挂载，见 `RESIDENT_PLUGINS`）。
+   */
+  const coreResult = await corePlugin.loadCore(ctx, { enable: [...enabledPlugins], configs: coreConfigs })
+  /*
+   * 括号里那句「另有 N 项宿主常驻」不是废话。
+   *
+   * `coreResult.loaded` 只含核心装载链，而 `desktop-bridge` / `dsh-client`
+   * 是在链外挂的。三处数字（这行日志、`ondra status`、插件抽屉）此前各报
+   * 各的（46 / 46 / 48），排查时第一眼就会怀疑「到底装了几个」。
+   * 现在这行把两个口径一次说清。
+   */
   logInfo(
     ctx,
     `空谷核心：清单 ${String(corePlugin.MIGRATED_PLUGIN_COUNT)} 项，`
-    + `装载 ${String(coreResult.loaded.length)} 项，禁用 ${String(coreResult.skipped.length)} 项，`
+    + `核心链装载 ${String(coreResult.loaded.length)} 项`
+    + `（另有 ${String(RESIDENT_PLUGINS.length)} 项宿主常驻，合计 ${String(coreResult.loaded.length + RESIDENT_PLUGINS.length)} 项），`
+    + `禁用 ${String(coreResult.skipped.length)} 项，`
     + `带入用户配置 ${String(Object.keys(coreConfigs).length)} 项`,
   )
   // 跳过项只在「有启用名单」时逐条打原因。默认全禁的情况下逐条打 134 行
@@ -1118,14 +1238,23 @@ async function main(): Promise<void> {
         sections: settingsSections,
         bridge: new UiBridge(),
         log: debugLog,
-        loadedPlugins: coreResult.loaded,
+        /*
+         * 展示用的装载集合，与 `/api/plugins` 同源。
+         *
+         * 这里原来报的是 `coreResult.loaded`——只含核心装载链装上的包，
+         * 于是 `ondra status` 说「46 个已装载」、插件抽屉说「48 个」，
+         * 差的正是 `desktop-bridge` / `dsh-client` 两个**在核心链之外挂载**的
+         * 常驻插件。两个数字都「不算错」，但同一个人在两处看到不同答案时，
+         * 只会得出「有一个在骗我」的结论。第 6 轮修 `/api/plugins` 时漏了这里。
+         */
+        loadedPlugins: [...loadedPlugins],
       }
     : undefined
 
   const routes = buildRoutes(ctx, config, settings, settingsSections, debugEnvironment, {
     rows: pluginRows,
-    loaded: enabledPlugins,
-    core: new Set(DEFAULT_CORE_ENABLE),
+    loaded: loadedPlugins,
+    core: protectedPlugins,
     switchFile: pluginSwitchFile,
     /*
      * 可变引用而不是值拷贝：开关写入后要立刻反映到「下次启动」的状态里，
@@ -1275,7 +1404,43 @@ function buildMemberConfigs(
     if (dir === undefined) continue
     // 空对象也照传：它表示「用户没改过这段」，插件据此走自己的默认值，
     // 与「配置缺失」等价。不传会让下游多一个分支去猜。
-    out[dir] = values
+    out[dir] = camelizeKeys(values)
+  }
+  return out
+}
+
+/**
+ * 段字段键（kebab）→ 插件配置键（camel）。
+ *
+ * ## 为什么必须在这一处归一
+ *
+ * `settings.json` 里存的是段字段键（`quiet-start`），而**每个插件的
+ * `completeConfig()` 只读 camel 键**（`quietStart`）——64 个 `settings.ts`
+ * 逐个查过，没有一个读 kebab。
+ *
+ * 不归一的话，配置会死在两步之外：
+ * ① cordis 装载插件时先用插件导出的 `Config['~standard'].validate(config)`
+ *   过一遍，而那里就是 `completeConfig(value)`——kebab 喂进去，字段一个都
+ *    对不上，于是**整份配置被打回出厂默认**；
+ * ② `apply(ctx, config)` 收到的已经是默认值，插件内部再怎么合并都救不回来。
+ *
+ * 症状不是报错，是「设置页每一个滑杆都拨得动、存得下、重启后读得回，
+ * 但插件行为永远停在默认值」——两侧都不报错，最难查的一类。
+ *
+ * ## 为什么只转顶层键
+ *
+ * 配置值的内部结构（数组、对象）属于插件自己的数据，宿主不碰。
+ * 只把「段字段键」这一层的连字符转成驼峰，与插件侧 `KEY_PAIRS` 的
+ * 映射方向一致。
+ *
+ * @param values 段字段键 → 值。
+ * @returns 插件配置键 → 值。
+ */
+function camelizeKeys(values: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(values)) {
+    const camel = key.replace(/-([a-z0-9])/g, (_match, char: string) => char.toUpperCase())
+    out[camel] = value
   }
   return out
 }
@@ -1737,8 +1902,18 @@ function buildRoutes(
   routes.set('GET /api/plugins', () => ({
     body: {
       items: plugins.rows.map((row) => {
-        const enabled = !plugins.switches.disabled.has(row.id)
-          && (row.loaded || plugins.switches.extra.has(row.id) || plugins.core.has(row.id))
+        /*
+         * `core` 优先于 `disabled`：核心链成员与宿主常驻插件**恒为启用**。
+         *
+         * 这两类本来就没有「停用」这个动作可实现——核心成员的服务键在别人
+         * 启动时就被 `ctx.get` 走了，常驻插件的挂载点在装载名单之外。toggle
+         * 接口对它们回 409，界面把开关置灰。若这里仍让 `disabled` 说最后一句话，
+         * 历史残留的一条停用记录就能让界面显示「已关」而进程里照跑——
+         * 正是这一处要修的谎报。
+         */
+        const enabled = plugins.core.has(row.id)
+          || (!plugins.switches.disabled.has(row.id)
+            && (row.loaded || plugins.switches.extra.has(row.id)))
         return {
           ...row,
           enabled,
@@ -1749,8 +1924,9 @@ function buildRoutes(
         all: plugins.rows.length,
         loaded: plugins.rows.filter((row) => row.loaded).length,
         pending: plugins.rows.filter((row) => {
-          const enabled = !plugins.switches.disabled.has(row.id)
-            && (row.loaded || plugins.switches.extra.has(row.id) || plugins.core.has(row.id))
+          const enabled = plugins.core.has(row.id)
+            || (!plugins.switches.disabled.has(row.id)
+              && (row.loaded || plugins.switches.extra.has(row.id)))
           return enabled !== row.loaded
         }).length,
       },
@@ -2356,8 +2532,22 @@ function buildRoutes(
     const gapEligible = gapEligibleFor(gap, idle)
     const taken = takeReason(reason, gapEligible)
 
+    /*
+     * 没有由头、调用方也没给正文时，正文就是**空串**——不编兜底句。
+     *
+     * 以前这里兜一句「想找你聊聊」。代价不是「多说了一句废话」，而是
+     * 它是一个**常量**：去重闸（30 分钟窗口、最短 4 字）会把它当成
+     * 同一句话，于是半小时内的第二次主动开口一律判重复，症状正是
+     * `checkProactive()` 契约里写的那种「她只主动说过一次」。同时那句
+     * 占位还会被当成由头塞进模型上下文（`nudgeFor()` 拼在「这次想提的事」后面），
+     * 让她照着「想找你聊聊」这句空话去组织语言。
+     *
+     * 空串交给门控自己判：它按 `content-empty`（空气泡）拒掉，
+     * 但额度、剩余、冷却这些真实数值仍照常回给界面——界面拿到的
+     * 结论与我在这里拍一个 `allow:false` 相同，数字却是真的。
+     */
     const text = taken?.text
-      ?? (typeof body.text === 'string' && body.text.trim() !== '' ? body.text : '想找你聊聊')
+      ?? (typeof body.text === 'string' ? body.text.trim() : '')
 
     const gate = ctx.get('ondra-proactive-gate') as GateLike | undefined
     const quota = ctx.get('ondra-proactive-quota') as QuotaLike | undefined
