@@ -219,6 +219,52 @@ jobs:
       - name: 列出待发布资产
         run: ls -lh dist-assets
 
+      - name: 资产名改成纯 ASCII
+        run: |
+          # GitHub 会把资产名里的非 ASCII 字符直接洗掉：「空谷 Ondra_x.dmg」
+          # 存进去就变成「Ondra_x.dmg」。由此产生一个很难看的坑——
+          # softprops/action-gh-release 的覆盖逻辑是「按本地文件名去已上传
+          # 资产里找同名的，找到就先删再传」。它拿「空谷 Ondra_x.dmg」去找，
+          # 永远找不到「Ondra_x.dmg」，于是不删；上传之后 GitHub 又把名字洗成
+          # 「Ondra_x.dmg」，撞 already_exists，整步失败。
+          #
+          # 所以这里先自己改成与 GitHub 洗过之后一致的名字，再交给下一步。
+          # 规则与 GitHub 一致：去掉非 ASCII 字符，空格换成下划线。
+          python3 - <<'PYEOF'
+          import glob, os, shutil
+          os.makedirs('upload', exist_ok=True)
+          for path in glob.glob('dist-assets/*'):
+              if os.path.isdir(path):
+                  continue
+              base = os.path.basename(path)
+              name = ''.join(ch for ch in base if ch.isascii()).strip().replace(' ', '_')
+              shutil.copy2(path, os.path.join('upload', name))
+              print(f'{base} -> {name}')
+          PYEOF
+          ls -l upload
+
+      - name: 清掉同 tag 的残留草稿
+        # 上一次发布中途失败时，action-gh-release 会留下一条同 tag 的空草稿。
+        # 它不会出现在公开页面上，但会让「按 tag 取 release」的接口与工具有时
+        # 取到那个空壳（`gh release view <tag>` 就取错过，看起来像资产丢了）。
+        # 这里先删干净再发布，保证同一个 tag 只对应一条 release。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          tag = os.environ['TAG']
+          out = subprocess.run(['gh', 'api', f'repos/{repo}/releases?per_page=100'],
+                               capture_output=True, text=True, check=True).stdout
+          for rel in json.loads(out):
+              if rel['draft'] and rel['tag_name'] == tag:
+                  print('删除残留草稿', rel['id'])
+                  subprocess.run(['gh', 'api', '-X', 'DELETE',
+                                  f'repos/{repo}/releases/{rel["id"]}'], check=True)
+          PYEOF
+
       - name: 创建 pre-release
         uses: softprops/action-gh-release@v2
         with:
@@ -241,5 +287,5 @@ jobs:
 
             完整变更见 README 的「更新日志」。
           files: |
-            dist-assets/*.dmg
-            dist-assets/*.exe
+            upload/*.dmg
+            upload/*.exe
