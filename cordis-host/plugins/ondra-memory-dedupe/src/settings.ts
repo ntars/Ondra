@@ -148,6 +148,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 200,
     advancedOnly: true,
     doc: '参与判重的最短正文（字）。低于 4 字包含度恒为 1.0，直接新建。',
+    unit: '字',
   },
   slotCoverage: {
     kind: 'number',

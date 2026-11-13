@@ -107,6 +107,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 3650,
     advancedOnly: true,
     doc: 'SM-2 间隔上限（天）。没有上限时 EF 连续走高会把下次复习推到几年后，等于永不复习。',
+    unit: '天',
   },
   autoScan: {
     kind: 'boolean',
@@ -121,6 +122,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 10080,
     advancedOnly: true,
     doc: '自动扫描间隔（分钟）。仅 autoScan=true 时生效。',
+    unit: '分钟',
   },
 } as const)
 

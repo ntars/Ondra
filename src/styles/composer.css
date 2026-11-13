@@ -400,14 +400,14 @@
 .composer__busy-hint {
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
 .composer__count {
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -486,7 +486,7 @@
   padding: 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
   transition:
     background-color var(--motion-f) var(--ease-fluid),
@@ -518,7 +518,7 @@
   padding: 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
   /*
    * 用 padding 把热区撑到 28，再用负 margin 把多出来的高度从布局里收回，
@@ -745,7 +745,7 @@
 
 .queue__note {
   margin-left: 4px;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -776,7 +776,7 @@
   flex: none;
   width: 12px;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -826,7 +826,7 @@
   padding: 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   transition:
     background-color var(--motion-f) var(--ease-fluid),
     color var(--motion-f) var(--ease-fluid);

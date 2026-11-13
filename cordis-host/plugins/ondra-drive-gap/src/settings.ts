@@ -102,6 +102,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 1,
     max: 720,
     doc: '执念片段存活时长（分钟）。默认 30：一次对话里说不说这件事，半小时内有效。',
+    unit: '分钟',
   },
   closedRetainDays: {
     kind: 'number',

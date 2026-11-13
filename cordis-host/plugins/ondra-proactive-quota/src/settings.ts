@@ -106,6 +106,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: MIN_INTERVAL_FLOOR,
     max: MIN_INTERVAL_CEIL,
     doc: '两次主动之间的最小间隔（分钟）。手册未给，自定 90 并登记待裁决。',
+    unit: '分钟',
   },
   giveUpRate: {
     kind: 'number',

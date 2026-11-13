@@ -236,7 +236,7 @@
      中文笔画会糊；「记忆 148」约 45px，56px 栏宽装得下，不必单开一档。 */
   font-size: var(--text-label);
   letter-spacing: 0.01em;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
@@ -244,7 +244,7 @@
 .spine__empty {
   font-size: var(--text-label);
   line-height: 1.5;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 0.08em;
@@ -290,7 +290,7 @@
 }
 
 .spine[data-resting] .spine__caption {
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 生成中：读数轻微脉动，表示数字正在更新。 */

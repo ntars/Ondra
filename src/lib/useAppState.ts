@@ -1897,9 +1897,18 @@ function withTimestamps(raw: SessionMessage[]): ChatMessage[] {
       id: message.id,
       role: message.role,
       content: message.content,
-      // createdAt 缺失（老数据）时给 0：日志里会显示成 1970，
-      // 但那比用 Date.now() 把所有历史都挤到"现在"更诚实。
-      at: message.createdAt,
+      /*
+       * `createdAt` 缺失（老数据、或宿主只给了 `at`）时归 0。
+       *
+       * 这里必须真的兜住，不能直接透传：`undefined` 进 `new Date()`
+       * 会得到 Invalid Date，`getFullYear()` 返回 `NaN`，界面上直出
+       * `NaN 年 NaN 月 NaN 日`；而 `startOfDay(undefined)` 得到的 `NaN`
+       * 与自身不相等，会让**每条**无时间的消息各起一个日期行。
+       *
+       * 归 0 而不是 `Date.now()`：把历史全挤到「现在」是编造，
+       * 界面那边把 0 识别为「时间未知」，如实说出来。
+       */
+      at: Number.isFinite(message.createdAt) ? message.createdAt : 0,
     })
   }
   return result

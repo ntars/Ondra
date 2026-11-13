@@ -1283,6 +1283,11 @@ async function checkStaticSpecs() {
     'scene__segment', // 挂 `control-segment`（轨道底 + 选中态）
     'scene__range', // 挂 `control-range`（轨道渐变 + 拇指 + 填充比例）
     'field__segment', // 挂 `control-segment`，ModuleLayer 枚举 ≤4 项
+
+    // 折叠头的左半文字：字号与颜色由 `.sec-fields__toggle` 继承，横向位置由
+    // 该容器的 `justify-content: space-between` 决定。它自己不需要任何声明，
+    // 加了也只能是重复父级已有的那两条。
+    'sec-fields__label',
   ])
 
   const cssClassSet = new Set()
@@ -1373,6 +1378,25 @@ async function checkStaticSpecs() {
         // 它正是「等比放大」这条链的起点，不是违规。
         || value === '100%'
       if (!ok) problems.push(`${short(file)} 的 font-size 不是 rem：${value}`)
+
+      /*
+       * rem 还得落在整像素上（1/16 的整数倍）。
+       *
+       * 单位对了不代表刻度对。`0.85rem` 在 100% 基准下是 13.6px——一个
+       * 浏览器必须四舍五入的亚像素值，11px 的字形骨架落在半像素上会发虚，
+       * 而且它不在任何一档上：label 11 / caption 12 / body 14 之间凭空多出
+       * 一个 13.6。项目里所有字号都是整数 px（10/11/12/13/15/16/17/20/28），
+       * 这条把「随手调一个比正文小一点点」挡在门外。
+       *
+       * 只查字面值：`var(--text-*)` 由令牌统一管，令牌自己是整数 px。
+       */
+      const remMatch = /^(-?\d*\.?\d+)rem$/.exec(value)
+      if (remMatch !== null) {
+        const px = parseFloat(remMatch[1]) * 16
+        if (Math.abs(px - Math.round(px)) > 0.001) {
+          problems.push(`${short(file)} 的 font-size 落在亚像素上：${value}（= ${String(px)}px，须为整数 px）`)
+        }
+      }
     }
     // 写死基准是把整条链掐断的那一刀。
     if (/html\s*\{[^}]*font-size:\s*\d+px/.test(text)) {
@@ -1388,6 +1412,263 @@ async function checkStaticSpecs() {
   console.log('\n静态规格：')
   if (problems.length === 0) {
     console.log('  ✓ 组件无越层令牌引用、两段辅助功能降级就位、字号全为 rem 且基准 100%')
+  } else {
+    for (const problem of problems) console.log(`  ✗ ${problem}`)
+  }
+  return problems.length === 0
+}
+
+/**
+ * 时间格式化必须挡住「不可用的时间戳」（§12.6）。
+ *
+ * ## 守的是什么
+ *
+ * 界面上所有日期/时刻都来自宿主的 JSON。老数据、本地存储回放、备份清单
+ * 这几条路径都可能给出 `undefined` 或 `NaN`，而 `new Date(undefined)`
+ * **不抛错**，只产出 Invalid Date，`getFullYear()` 返回 `NaN`——于是
+ * 屏幕上直出 `NaN 年 NaN 月 NaN 日`。类型上写着 `number`，运行时不是。
+ *
+ * ## 为什么浏览器测试抓不到
+ *
+ * `check-ui` 的桩数据 `MESSAGES` 每条都带完整的 `createdAt`。整条链路
+ * 从未走过「时间缺失」那一支，`textLeaks` 那条断言（扫 `NaN`）自然全绿。
+ * **桩数据把缺陷挡在了测试外面**——这是最容易被忽略的一类假绿。
+ *
+ * 更隐蔽的是分组：`startOfDay(undefined)` 得到 `NaN`，而 `NaN !== NaN`
+ * 恒为真，于是**每条无时间的消息都另起一个日期分隔行**，React key 全是
+ * `day-NaN`。屏幕上是一串重复的「NaN 年…」。
+ *
+ * ## 为什么只查 `Number.isFinite` 不够（上一版就是错的）
+ *
+ * 上一版判据是「函数体里出现 `Number.isFinite`」，于是所有函数都算绿。
+ * 但 `Number.isFinite` **挡不住越界的有限数**：`1.7e18`（纳秒时间戳，
+ * 最常见的量纲错位）有限、为正、过守卫，`new Date(1.7e18)` 仍旧是
+ * Invalid Date。`LogDrawer` 的 `new Date(row.at).toISOString()` 更糟——
+ * 它对越界值**抛 RangeError**，渲染期抛错会卸掉整棵子树，用户看到白屏。
+ *
+ * 所以判据必须包含**范围**：委托的守卫里要有上界（`MAX_STAMP` 或
+ * 那个字面量），否则等于只挡了一半。
+ *
+ * ## 判据
+ *
+ * 1. 函数体里有守卫：就地写 `Number.isFinite`，或委托 `isUsableStamp`。
+ * 2. 委托必须追到 `src/lib/time.ts` 去核那个守卫本身，且守卫里必须有上界。
+ * 3. 挡住之后必须给指定的人话兜底（返回空串或 `NaN` 不算修好）。
+ * 4. `SettingsBackup.formatTime` 的入参是**秒**，守卫必须判 `* 1000` 后的值
+ *    ——量纲不换算，`1e13` 秒会过守卫再乘成 `1e16` 毫秒越界。
+ * 5. `LogDrawer` 的 `isoStamp` 是 `toISOString` 的唯一入口，必须存在
+ *    ——它抛的是异常不是 NaN，`textLeaks` 完全扫不到。
+ */
+async function checkTimeGuards() {
+  const { readFile } = await import('node:fs/promises')
+  const repo = new URL('../', import.meta.url).pathname
+  const problems = []
+
+  /*
+   * 共享守卫的源码。每个条目都可能委托它，所以先读一次。
+   * 读不到就直接判红：没有这个文件，整套委托关系都无从核对。
+   */
+  let sharedGuard = ''
+  try {
+    const timeSrc = await readFile(join(repo, 'src', 'lib', 'time.ts'), 'utf8')
+    const guardRe = /export function isUsableStamp\s*\(([\s\S]*?)\n\}/
+    const guardBody = guardRe.exec(timeSrc)
+    if (guardBody === null) {
+      problems.push('src/lib/time.ts 里找不到 isUsableStamp——共享守卫不存在，时间断言失效')
+    } else {
+      sharedGuard = guardBody[1]
+      /*
+       * 范围检查是这一轮补上的核心判据。只判「有限」会让 `1.7e18` 过，
+       * 而它正是宿主侧最容易出现的错（秒乘成纳秒）。上界允许写成
+       * `MAX_STAMP` 常量或那个字面量，两种都算——认的是「有上界」。
+       */
+      const hasUpper = /MAX_STAMP|8_?640_?000_?000_?000_?000/.test(sharedGuard)
+      if (!hasUpper) {
+        problems.push(
+          'src/lib/time.ts 的 isUsableStamp 没有上界——Number.isFinite 挡不住 1.7e18 这类越界有限数',
+        )
+      }
+      if (!/Number\.isFinite/.test(sharedGuard)) {
+        problems.push('src/lib/time.ts 的 isUsableStamp 没有挡非数')
+      }
+    }
+  } catch {
+    problems.push('src/lib/time.ts 读不到——共享时间守卫无从核对')
+  }
+
+  /*
+   * 每个条目：文件、函数名、兜底写法，以及（可选）入参量纲换算。
+   *
+   * `scaled` 表示这个函数的入参单位与 `isUsableStamp` 的上界不同，
+   * 守卫必须先把入参换算成毫秒再判。`SettingsBackup` 收的是 Unix 秒。
+   */
+  const formatters = [
+    { file: join('src', 'lib', 'time.ts'), fn: 'relativeTime', fallback: '时间未知' },
+    { file: join('src', 'components', 'Timeline.tsx'), fn: 'dayLabel', fallback: '时间未知' },
+    { file: join('src', 'components', 'Timeline.tsx'), fn: 'clockOf', fallback: "''" },
+    { file: join('src', 'components', 'LogDrawer.tsx'), fn: 'clockOf', fallback: '—' },
+    { file: join('src', 'components', 'SettingsBackup.tsx'), fn: 'formatTime', fallback: '—', scaled: 'seconds * 1000' },
+    { file: join('src', 'components', 'SessionStats.tsx'), fn: 'formatMoment', fallback: '—' },
+    { file: join('src', 'lib', 'paste.ts'), fn: 'stamp', fallback: "''" },
+    { file: join('src', 'lib', 'mute.ts'), fn: 'formatClock', fallback: '—' },
+    /*
+     * `dayKey` 不渲染给人看，但它拼出的字符串会变成 `localStorage` 的键名。
+     * 上一轮把它归为「风险低，不守」——本轮补上，因为它的失败形态很隐蔽：
+     * 键名拼成 `NaN-NaN-NaN` 时不会报错、不会显示，只是那条拒绝计数
+     * 永远读不回来，表现为「主动消息的当日静音静默失效」。没有断言守着，
+     * 这类「写进去但读不回来」的错只能靠用户抱怨才发现。
+     */
+    { file: join('src', 'lib', 'proactive.ts'), fn: 'dayKey', fallback: 'Date.now()' },
+  ]
+
+  for (const item of formatters) {
+    let src
+    try {
+      src = await readFile(join(repo, item.file), 'utf8')
+    } catch {
+      problems.push(`${item.file} 读不到——${item.fn} 的时间守卫无从核对`)
+      continue
+    }
+    /*
+     * 抓函数体：从 `function <name>(` 到第一个顶格 `}`。
+     * 不追求精确解析，只要求「守卫在函数里」，比整文件 grep 可靠得多。
+     */
+    const bodyRe = new RegExp(`function\\s+${item.fn}\\s*\\(([\\s\\S]*?)\\n\\}`)
+    const found = bodyRe.exec(src)
+    if (found === null) {
+      problems.push(`${item.file} 里找不到 ${item.fn} 的函数体——断言失效`)
+      continue
+    }
+    const body = found[1]
+    /*
+     * 守卫可以就地写，也可以委托共享守卫。委托是更好的写法——同一个判断
+     * 在七个格式化函数里各写一遍迟早会分叉（本轮修的就是这个：五份手写
+     * 判断没有一份带范围检查，而漏掉的那一处正好是唯一会抛异常的地方）。
+     *
+     * 但**必须追一层**核那个守卫本身；只认「函数体里出现过某个函数名」
+     * 等于把断言交给命名，随便起个名字就能骗绿。上一版就是栽在这里。
+     */
+    const inlineGuard = /Number\.isFinite|typeof\s+\w+\s*===\s*'number'/.test(body)
+    let guarded = inlineGuard
+    if (!guarded) {
+      const delegated = /isUsableStamp\s*\(/.test(body)
+      if (delegated) {
+        guarded = sharedGuard !== ''
+        if (!guarded) {
+          problems.push(
+            `${item.file} 的 ${item.fn} 委托了 isUsableStamp，但那个守卫本身不成立`,
+          )
+          continue
+        }
+      }
+    }
+    if (!guarded) {
+      problems.push(
+        `${item.file} 的 ${item.fn} 没有挡不可用的时间——undefined 会拼出 NaN 年 NaN 月 NaN 日`,
+      )
+      continue
+    }
+    /*
+     * 量纲：入参是秒的函数必须先乘 1000 再交给毫秒守卫。
+     * 直接 `isUsableStamp(seconds)` 会让 1e13 秒过守卫，乘完才越界。
+     *
+     * 判据必须落在**守卫的实参**上，不能查「函数体里有没有出现过
+     * `seconds * 1000`」——函数体里本来就有 `new Date(seconds * 1000)`，
+     * 那句话会把没换算的守卫一起判绿。反向验证时正是这样漏过一条。
+     */
+    if (item.scaled !== undefined) {
+      const argRe = /isUsableStamp\s*\(([^)]*)\)/
+      const arg = argRe.exec(body)
+      if (arg === null || !arg[1].includes(item.scaled)) {
+        problems.push(
+          `${item.file} 的 ${item.fn} 没有把秒换算成毫秒再判（量纲不换算，1e13 秒会过守卫）`,
+        )
+      }
+    }
+    if (!body.includes(item.fallback)) {
+      problems.push(
+        `${item.file} 的 ${item.fn} 挡住不可用时间后没有给「${item.fallback}」兜底（返回空或 NaN 等于没修）`,
+      )
+    }
+  }
+
+  /*
+   * `toISOString` 必须收进一个具名函数里。
+   *
+   * 就地写 `new Date(at).toISOString()` 配一个 `at > 0` 的守卫，是本轮
+   * 修掉的真实缺陷：越界值过守卫，`toISOString` 抛 RangeError，渲染期
+   * 抛错会卸掉整棵子树。这条断言认的是「有一个带守卫的封装」，因为
+   * 只有这样才可能被上面的 formatters 表核到。
+   */
+  try {
+    const drawerSrc = await readFile(join(repo, 'src', 'components', 'LogDrawer.tsx'), 'utf8')
+    const isoRe = /function\s+isoStamp\s*\(([\s\S]*?)\n\}/
+    const isoBody = isoRe.exec(drawerSrc)
+    if (isoBody === null) {
+      problems.push(
+        'src/components/LogDrawer.tsx 里没有 isoStamp——toISOString 就地写会在越界时间戳上抛 RangeError',
+      )
+    } else if (!/isUsableStamp\s*\(/.test(isoBody[1])) {
+      problems.push('src/components/LogDrawer.tsx 的 isoStamp 没有用共享守卫挡时间')
+    }
+    /*
+     * 全文再扫一遍：任何地方还在就地 `new Date(...).toISOString()` 就判红。
+     * 封装存在但别处绕过去，等于没封。
+     *
+     * 扫之前要剥掉两样东西，否则断言会变成永远红着的噪音：
+     *
+     * 1. **注释**。`isoStamp` 上方的文档注释正拿这行坏代码当反例在讲道理，
+     *    把讲解词判成违规，等于禁止在代码里记录教训。
+     * 2. **`isoStamp` 自己的函数体**。封装内部当然要调一次 `toISOString`，
+     *    那正是它的职责；不挖掉就会把「唯一的正确调用点」当成违规。
+     */
+    const stripComments = (text) =>
+      text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+    const bodyless = stripComments(isoBody === null ? drawerSrc : drawerSrc.replace(isoBody[0], ''))
+    const inlineIso = /new\s+Date\([^)]*\)\s*\.toISOString\(\)/g
+    const hits = [...bodyless.matchAll(inlineIso)]
+    if (hits.length > 0) {
+      problems.push(
+        `src/components/LogDrawer.tsx 还有 ${String(hits.length)} 处就地 toISOString（必须走 isoStamp）`,
+      )
+    }
+  } catch {
+    problems.push('src/components/LogDrawer.tsx 读不到——toISOString 断言失效')
+  }
+
+  /*
+   * 日期分组必须把「不可用时间」归成同一个可比较的值。
+   *
+   * `NaN !== NaN` 让「每条无时间的消息各起一行」这件事在类型上完全合法，
+   * 只有把不可用值换成 `null`（自等）才能收进同一组。这里核对
+   * `startOfDay` 对不可用输入返回 `null`，而不是让它流出一个 `NaN`。
+   */
+  try {
+    const timelineSrc = await readFile(join(repo, 'src', 'components', 'Timeline.tsx'), 'utf8')
+    const startRe = /function\s+startOfDay\s*\(([\s\S]*?)\n\}/
+    const startBody = startRe.exec(timelineSrc)
+    if (startBody === null) {
+      problems.push('src/components/Timeline.tsx 里找不到 startOfDay——日期分组断言失效')
+    } else if (!/return\s+null/.test(startBody[1])) {
+      problems.push(
+        'src/components/Timeline.tsx 的 startOfDay 对不可用时间没有返回 null（NaN 会让每条消息各起一个日期行）',
+      )
+    }
+    if (!/day === null \? 'day-unknown'/.test(timelineSrc)) {
+      problems.push(
+        'src/components/Timeline.tsx 的日期行 key 没有为「时间未知」留专用值（会撞成多个 day-NaN）',
+      )
+    }
+  } catch {
+    problems.push('src/components/Timeline.tsx 读不到——日期分组断言失效')
+  }
+
+  console.log('\n时间字段：')
+  if (problems.length === 0) {
+    console.log(
+      `  ✓ ${String(formatters.length)} 个时间格式化函数都挡住不可用时间（含越界有限数）并给了人话兜底；`
+      + 'toISOString 收进具名守卫；日期分组把「时间未知」收进同一行',
+    )
   } else {
     for (const problem of problems) console.log(`  ✗ ${problem}`)
   }
@@ -1463,6 +1744,235 @@ async function checkTrayAssets() {
 
   if (problems.length === 0) {
     console.log('  ✓ 16 / 32 / 64 三档齐备、带 alpha、且已打包进 Resources')
+  } else {
+    for (const problem of problems) console.log(`  ✗ ${problem}`)
+  }
+  return problems.length === 0
+}
+
+/**
+ * 数值字段的量纲必须真的露出来。
+ *
+ * ## 为什么单列一节
+ *
+ * 设置页里有 341 个数字字段，其中 35 个是有量纲的（天 / 分钟 / 毫秒 /
+ * 字 / 轮）。它们原先只显示裸数字：`20000` 到底是毫秒还是秒，用户读不
+ * 出来；读屏用户拿到的 `aria-valuetext` 更是纯数字，连上下文都没有。
+ *
+ * 修法有三条路可选，这里锁的是**结果**不是写法：
+ *
+ *   1. 插件在自己的 `FIELD_SPECS` 里声明 `unit`（35 个字段已声明）；
+ *   2. 宿主 `normalizeField` 透传它（不许在界面层猜键名后缀——
+ *      `timeoutMs` 猜得出，`backoffMs` 也猜得出，但 `stickerGap` 猜不出）；
+ *   3. 模块层的读数与 `aria-valuetext` 读同一个 `field.unit`。
+ *
+ * ## 判据为什么只查这三件事
+ *
+ * 查「每个字段都有单位」是错的：341 个里有 306 个本来就没有量纲
+ * （分数、比例、条数上限），给它们安一个单位反而在说谎。所以只查
+ * 「声明了 unit 的那些，是否一路走到了界面」，外加「宿主有没有透传」。
+ */
+async function checkFieldUnits() {
+  const { readdir, readFile } = await import('node:fs/promises')
+  const repo = new URL('../', import.meta.url).pathname
+  const readText = (path) => readFile(path, 'utf8')
+  const problems = []
+
+  // --- 1. 宿主透传 ---
+  const hostSrc = await readText(join(repo, 'cordis-host', 'src', 'settings.ts'), 'utf8')
+  if (!/field\.unit = raw\['unit'\]/.test(hostSrc)) {
+    problems.push('cordis-host/src/settings.ts 的 normalizeField 没有透传 unit——插件声明了也到不了界面')
+  }
+
+  // --- 2. 前端类型与渲染 ---
+  const typesSrc = await readText(join(repo, 'src', 'lib', 'settingTypes.ts'), 'utf8')
+  if (!/unit\?: string/.test(typesSrc)) {
+    problems.push('src/lib/settingTypes.ts 的 SettingsField 没有 unit 字段')
+  }
+
+  const layerSrc = await readText(join(repo, 'src', 'components', 'ModuleLayer.tsx'), 'utf8')
+  /*
+   * 两处都必须拼。只拼视觉不拼 `aria-valuetext`，读屏用户仍然拿到裸数字；
+   * 只拼 `aria-valuetext` 不拼视觉，看得见的人仍然要猜。
+   */
+  if (!/aria-valuetext=\{ariaText\}/.test(layerSrc)) {
+    problems.push('ModuleLayer.tsx 的数值控件没有把单位拼进 aria-valuetext')
+  }
+  /*
+   * 视觉读数那一处查的是**插值真的被用上**，不是变量名存在。
+   * 只匹配 `unitSuffix` 的话，删掉 `{unitSuffix}` 插值、留下变量声明
+   * 仍然算过——那是假绿，界面上一个单位都不会出现。
+   */
+  if (!/\{unitSuffix\}/.test(layerSrc)) {
+    problems.push('ModuleLayer.tsx 的视觉读数没有单位后缀——界面上仍是裸数字')
+  }
+
+  // --- 3. 插件侧真的声明了 ---
+  const units = new Map()
+  for (const dir of await readdir(join(repo, 'cordis-host', 'plugins'))) {
+    const file = join(repo, 'cordis-host', 'plugins', dir, 'src', 'settings.ts')
+    let text
+    try {
+      text = await readText(file, 'utf8')
+    } catch {
+      continue
+    }
+    for (const match of text.matchAll(/^\s*unit: '([^']+)',$/gm)) {
+      units.set(`${dir}`, (units.get(dir) ?? 0) + 1)
+    }
+  }
+  if (units.size === 0) {
+    problems.push('没有任何插件声明 unit——35 个有量纲的数值字段会退回裸数字')
+  }
+
+  /*
+   * --- 4. 手写滑块也必须带单位 ---
+   *
+   * 上面三条只守 `ModuleLayer` 这一条路径。设置页的「提示音音量」是手写
+   * 滑杆（`SettingsGeneral`），读数走自己的 `.pref__slider-readout`，不经过
+   * `field.unit` 透传链——于是它两边都是裸数字：屏幕上写 `50`，读屏念 `50`，
+   * 没人知道这是百分比。同一个应用里两套口径，用户看到的就是不一致。
+   *
+   * 判据只认**结果**：手写滑块的 `aria-valuetext` 与视觉读数都必须拼出
+   * `%`。不认变量名（叫 `unit` 还是 `suffix` 都行），只认那两处出现了
+   * 百分号拼接。之所以锁 `%` 而不锁「任意单位」：音量是 0–100 的百分比，
+   * 这里换成「50 分」是错的，不该给它自由度。
+   */
+  const generalSrc = await readText(join(repo, 'src', 'components', 'SettingsGeneral.tsx'), 'utf8')
+  if (!/aria-valuetext=\{`\$\{String\(prefs\.soundVolume\)\}%`\}/.test(generalSrc)) {
+    problems.push('SettingsGeneral.tsx 的音量滑杆 aria-valuetext 是裸数字——读屏只念「50」，不知道是百分比')
+  }
+  if (!/\{prefs\.soundVolume\}%/.test(generalSrc)) {
+    problems.push('SettingsGeneral.tsx 的音量视觉读数是裸数字——屏幕上写「50」，与另两处滑块的带单位读数不一致')
+  }
+
+  if (problems.length === 0) {
+    const total = [...units.values()].reduce((sum, n) => sum + n, 0)
+    console.log(`  ✓ ${String(units.size)} 个插件、${String(total)} 个数值字段声明了量纲，宿主透传、界面与 aria-valuetext 同源`)
+  } else {
+    for (const problem of problems) console.log(`  ✗ ${problem}`)
+  }
+  return problems.length === 0
+}
+
+/**
+ * 状态不许只靠颜色（WCAG 1.4.1）。
+ *
+ * ## 为什么必须单独查
+ *
+ * 对比度断言只验「这个色对那个底够不够」，`ink-4` 那类 4px 圆点对底色
+ * 3:1 全过——**量的是颜色，不是信息有没有传到**。系统日志的 `warn` /
+ * `error` 原本只体现在一枚 `aria-hidden` 的 4px 圆点上：色觉障碍用户看不出
+ * 差别，读屏用户连这一维都拿不到。脚本全绿而信息确实丢了。
+ *
+ * 项目在 `titlebar.css` 已经定过规矩（`titlebar__presence` 是「词 + 点」），
+ * 这条断言把它从一处约定升级成全局红线。
+ *
+ * ## 判据
+ *
+ * 逐条扫 `aria-hidden="true"` 的状态点，看它所在的组件里有没有同名的
+ * 文字兜底。用穷举登记而不是正则猜：漏登记就红，新增同类点会被立刻发现。
+ */
+async function checkStatusNotColorOnly() {
+  const { readFile } = await import('node:fs/promises')
+  const repo = new URL('../', import.meta.url).pathname
+  const problems = []
+
+  /*
+   * 每一条：组件文件、那个 aria-hidden 的点、必须有文字兜底的级别集合、
+   * 以及兜底文字常量所在的位置。加新点必须同时想清楚「谁来念这一维」。
+   */
+  const dots = [
+    {
+      file: join('src', 'components', 'LogDrawer.tsx'),
+      marker: 'logp__dot',
+      cls: 'logp__level',
+      labelConst: 'LEVEL_LABEL',
+      labelIn: join('src', 'lib', 'logModel.ts'),
+      dataField: 'row.level',
+      needs: ['warn', 'error'],
+    },
+  ]
+
+  for (const dot of dots) {
+    let src
+    try {
+      src = await readFile(join(repo, dot.file), 'utf8')
+    } catch {
+      problems.push(`${dot.file} 读不到——状态点断言失效`)
+      continue
+    }
+    if (!src.includes(dot.marker)) continue
+
+    /*
+     * 查渲染，不查「文件里出现过这个名字」。
+     *
+     * 第一版判据只要求 `src.includes(labelConst)`，于是把守卫改成
+     * `false ? null : (…)` —— 插值还在、字面量还在，断言照绿，而界面上
+     * 一个级别词都不会出现。这正是「假绿」最典型的样子：**符号在，效果不在**。
+     *
+     * 现在要求两件事同时成立：
+     *   ① 有一个 `<span className="{cls}">`，其子节点就是 `{LABEL[...]}` 插值；
+     *   ② 它的守卫条件引用了 `dataField`（说明由数据驱动，不是常量短路）。
+     */
+    const renderRe = new RegExp(
+      `\\{\\s*([^{}]*?)\\s*\\?\\s*null\\s*:\\s*\\(?\\s*<span[^>]*className="${dot.cls}"[^>]*>\\s*\\{\\s*${dot.labelConst}\\[`,
+    )
+    const rendered = renderRe.exec(src)
+    if (rendered === null) {
+      problems.push(
+        `${dot.file} 的 .${dot.marker} 只有颜色，没有把 ${dot.labelConst} 渲染成 .${dot.cls} 文字（WCAG 1.4.1）`,
+      )
+      continue
+    }
+    if (!rendered[1].includes(dot.dataField)) {
+      problems.push(
+        `${dot.file} 里 .${dot.cls} 的显示守卫没有引用 ${dot.dataField}（被常量短路了，级别词永远不出现）`,
+      )
+      continue
+    }
+
+    let labelSrc
+    try {
+      labelSrc = await readFile(join(repo, dot.labelIn), 'utf8')
+    } catch {
+      problems.push(`${dot.labelIn} 读不到——${dot.labelConst} 无从核对`)
+      continue
+    }
+    for (const level of dot.needs) {
+      /*
+       * 查的是「这个级别映射到一个非空字符串」，不是「文件里出现过这个词」。
+       * 映射成空串等于没写——那是把断言骗绿的最省事办法。
+       */
+      const re = new RegExp(`\\b${level}:\\s*'([^']*)'`)
+      const found = re.exec(labelSrc)
+      if (found === null) {
+        problems.push(`${dot.labelIn} 的 ${dot.labelConst} 缺 ${level} 档——这一级的用户拿不到文字`)
+      } else if (found[1].trim() === '') {
+        problems.push(`${dot.labelIn} 的 ${dot.labelConst}.${level} 是空串——等于没有文字兜底`)
+      }
+    }
+
+    /* 文字有了，还得有可见样式：类名没规则会退回浏览器默认黑字，与底同色就看不见。 */
+    let cssSrc = ''
+    try {
+      cssSrc = await readFile(join(repo, 'src', 'styles', 'drawer.css'), 'utf8')
+    } catch {
+      problems.push('src/styles/drawer.css 读不到——级别词样式无从核对')
+      continue
+    }
+    for (const level of dot.needs) {
+      const rule = new RegExp(
+        `\\.${dot.cls}\\[data-level='${level}'\\]\\s*\\{[^}]*color:\\s*var\\(--ui-`,
+      )
+      if (!rule.test(cssSrc)) {
+        problems.push(`.${dot.cls}[data-level='${level}'] 没有语义色规则——级别词会与正文同色`)
+      }
+    }
+  }
+
+  if (problems.length === 0) {
+    console.log('  ✓ 状态不只靠颜色：warn / error 都有文字兜底（WCAG 1.4.1）')
   } else {
     for (const problem of problems) console.log(`  ✗ ${problem}`)
   }
@@ -1752,6 +2262,92 @@ async function run() {
   )
   await emptyPage.screenshot({ path: join(OUT, 'empty-first-run.png') })
   await emptyPage.close()
+
+  /*
+   * --- 14c. 越界时间戳不得把界面打崩（运行期，真 DOM）---
+   *
+   * ## 为什么静态断言不够，必须真跑一页
+   *
+   * 上面 `checkTimeGuards()` 核的是「守卫里有没有上界」，那是**读代码**。
+   * 代码写对了但调用点绕过去（本轮修的就是这种：`isoStamp` 建好了，两处
+   * 渲染却还在就地 `toISOString`），静态检查看不出差别——只有真把
+   * `1.7e18` 喂进渲染链路，才知道会不会抛。
+   *
+   * ## 为什么要单独一页
+   *
+   * 主页面已经跑过几十条几何与交互断言，往它的桩里塞坏时间戳会让那些
+   * 断言一起受牵连，报红时报不出「是时间的问题」。另开一页、只覆写三个
+   * 带时间的接口，坏样本的影响面就被关在这一段里。
+   *
+   * ## 判据三条
+   *
+   * 1. 页面没崩：`.workspace` 还在（渲染期抛错会卸掉整棵子树）。
+   * 2. 没有 `NaN` 漏到叶子文本（`textLeaks` 同一个探针）。
+   * 3. `datetime` 属性要么合法、要么不渲染——`toISOString` 抛错时
+   *    React 已经把树卸了，所以这一条能抓到「勉强渲染但属性是坏的」。
+   */
+  const badTimePage = await browser.newPage({ viewport: { width: 820, height: 580 }, deviceScaleFactor: 2 })
+  await badTimePage.addInitScript(fakeShell(port))
+  /*
+   * 三种坏法各一条，覆盖三条不同的代码路径：
+   * - 纳秒量纲（`1.7e18`）：最常见的宿主错，有限、为正、越界。
+   * - `Infinity`：`Number.isFinite` 挡得住，但 `> 0` 挡不住。
+   * - 纯 `undefined`：老数据的形状，`new Date(undefined)` 不抛只产 Invalid。
+   */
+  const BAD_STAMPS = [1.7e18, Number.POSITIVE_INFINITY, undefined]
+  await badTimePage.route('**/api/logs/session*', (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sessionId: SESSIONS[0].id,
+        items: BAD_STAMPS.map((at, index) => ({
+          id: `bad${String(index)}`,
+          round: 1,
+          at,
+          channel: 'model',
+          actor: 'assistant',
+          summary: `第 1 轮 · 坏时间样本 ${String(index)}`,
+          chars: 12,
+        })),
+      }),
+    })
+  })
+  await badTimePage.route('**/api/logs/system*', (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: BAD_STAMPS.map((at, index) => ({
+          id: index + 1,
+          at,
+          level: 'info',
+          text: `坏时间系统日志 ${String(index)}`,
+        })),
+      }),
+    })
+  })
+  let badTimeCrashed = ''
+  badTimePage.on('pageerror', (error) => { badTimeCrashed = error.message })
+  await badTimePage.goto(`http://127.0.0.1:${String(port)}/`, { waitUntil: 'networkidle' })
+  /* 打开日志抽屉——三处 `dateTime` 都在这里，是 `toISOString` 的必经之路。 */
+  await badTimePage.locator('.rail__item').nth(1).click()
+  await badTimePage.waitForTimeout(600)
+  const badTimeState = await badTimePage.evaluate(() => ({
+    workspace: document.querySelector('.workspace') !== null,
+    rows: document.querySelectorAll('.logp__row').length,
+    /* `datetime` 只要在，就必须是能被 Date 解析的合法值。 */
+    badDatetime: [...document.querySelectorAll('.logp__time')]
+      .map((node) => node.getAttribute('datetime'))
+      .filter((value) => value !== null && !Number.isFinite(Date.parse(value))),
+  }))
+  truthy('越界时间戳没有把界面打崩（.workspace 仍在）', badTimeState.workspace === true)
+  same('越界时间戳没有让页面抛未捕获异常', '', badTimeCrashed)
+  truthy('坏时间样本真的渲染出来了（否则上面两条是假绿）', badTimeState.rows >= 3)
+  same('没有 datetime 属性是解析不出来的（toISOString 没被越界值击穿）', '[]', JSON.stringify(badTimeState.badDatetime))
+  same('日志里的坏时间没有漏出 NaN', '[]', JSON.stringify(await textLeaks(badTimePage)))
+  await badTimePage.screenshot({ path: join(OUT, 'bad-timestamps.png') })
+  await badTimePage.close()
 
   /*
    * --- 15. 进入会话后仍不自动聚焦输入框（§9.5 第一条）---
@@ -5966,6 +6562,15 @@ async function run() {
 
   const specsOk = await checkStaticSpecs()
   if (!specsOk) process.exitCode = 1
+
+  const unitsOk = await checkFieldUnits()
+  if (!unitsOk) process.exitCode = 1
+
+  const statusOk = await checkStatusNotColorOnly()
+  if (!statusOk) process.exitCode = 1
+
+  const timeOk = await checkTimeGuards()
+  if (!timeOk) process.exitCode = 1
 
   const trayOk = await checkTrayAssets()
   if (!trayOk) process.exitCode = 1

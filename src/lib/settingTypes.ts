@@ -29,6 +29,14 @@ export interface SettingsField {
   pattern?: string
   /** 一句中文说明，来自插件的 `doc`。 */
   doc?: string
+  /**
+   * 数字读数的量纲（天 / 分钟 / 毫秒 / 字 / 轮 / %）。
+   *
+   * 与 `scenes.ts` 的 `SceneItem.unit` 是同一件事的两处声明：场景层管
+   * 12 个重点项，这里管模块层全量字段。两边都读同一份插件声明，界面
+   * 只负责拼在读数后面，不自己推导。
+   */
+  unit?: string
   /** 是否只在展开高级后显示。全仓 48% 的字段为真。 */
   advancedOnly: boolean
   /** 是否密钥字段。全仓为 0，界面不预留密码框（§5.13）。 */

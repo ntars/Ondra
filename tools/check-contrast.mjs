@@ -36,7 +36,7 @@
  * 而**对比度这个判据一个字都没松**。新增令牌若忘记登记，脚本会红。
  */
 
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const REPO = new URL('../', import.meta.url).pathname
@@ -342,6 +342,79 @@ function checkTheme(name, palette, { dimmedMin }) {
  * 这里直接比对 RGB：光环的 RGB 必须等于主操作色的 RGB。浓度（alpha）
  * 不比对——它是设计自由度；色相与明度不许自己走。
  */
+/* ==========================================================================
+   五、ink-4 的使用边界：占位符可以淡，真信息不许淡
+   ========================================================================== */
+
+/**
+ * `ink-4` 是 3.9:1 的灰，按定义**只承载占位符与装饰**。
+ *
+ * ## 为什么必须单独查「谁在用」
+ *
+ * 上面 `checkTheme` 已经把 `ink-4` 对四种石底都验到 ≥ 3:1 了，那是
+ * 「这个令牌本身合法」。但令牌合法 ≠ 用对了地方：把时间戳、计数、
+ * 表头、空态提示这些**唯一承载真实信息**的文字刷成 `ink-4`，
+ * 每一条都仍然过 3:1 的断言，界面上却读不清。
+ *
+ * 实测有 77 处属于这种情况（`.drawer__row-time`、`.logp__time`、
+ * `.settings__empty`、`.raw__table th`、`.field__meta` …）。它们不是
+ * 「占位符的灰」，是「默认值 3 · 已改」这种用户必须读到的交代。
+ *
+ * ## 判据怎么划
+ *
+ * 只有这三类允许留在 `ink-4`，其余一律红：
+ *
+ * 1. `::placeholder` —— 输入框空着时的提示语，按定义是占位符。
+ * 2. `::before` / `::after` 与 `__dot` / `__track` / `__caret` 这类
+ *    纯装饰伪元素与图形，不含文字。
+ * 3. `:disabled` —— 禁用态是「现在不可用」，不是信息缺失；WCAG 明确
+ *    豁免禁用控件。
+ *
+ * 图标按钮（`.composer__attach` / `.composer__mic` / `.toast__close`）
+ * 也留在 `ink-4`：它们是非文本内容，门槛 3:1，已经达标。这三个是**穷举
+ * 列出**的，不是靠正则猜——漏一个就会红，逼着人来登记。
+ */
+const ICON_OK = new Set([
+  '.composer__attach',
+  '.composer__mic',
+  '.toast__close',
+])
+
+/** 允许淡的形态：占位符、装饰伪元素、禁用态、已登记的图标。 */
+const DIM_OK = /::placeholder|::before|::after|:disabled|__dot$|__track|__caret|__line$|clock-tick/
+
+async function checkInkUsage() {
+  console.log('\n── ink-4 使用边界（真信息不许用占位灰）──')
+
+  const dir = join(REPO, 'src/styles')
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.css'))
+  const offenders = []
+
+  for (const file of files) {
+    const css = (await readFile(join(dir, file), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '')
+    /* 逐条规则扫：记录当前选择器，遇到 color: ink-4 就判一次。 */
+    let selector = ''
+    for (const line of css.split('\n')) {
+      const head = /^\s*([.:#\[a-zA-Z*][^{]*)\{/.exec(line)
+      if (head !== null) selector = head[1].trim()
+      if (!/^\s*color:\s*var\(--ui-ink-4\);/.test(line)) continue
+      if (DIM_OK.test(selector) || ICON_OK.has(selector)) continue
+      offenders.push(`${file}  ${selector}`)
+    }
+  }
+
+  if (offenders.length === 0) {
+    passed += 1
+    console.log('  ✓ 没有「承载真实信息的文字用 ink-4」（0 处）')
+    return
+  }
+
+  failed += 1
+  const line = `${offenders.length} 处承载真实信息的文字用了 ink-4（3.9:1 < 4.5）。改 ink-3：\n    ${offenders.join('\n    ')}`
+  failures.push(line)
+  console.log(`  ✗ ${line}`)
+}
+
 function checkGlowHue(name, palette) {
   const brand = rgbOf(palette, ACTION_BG)
   if (brand === null) {
@@ -400,6 +473,7 @@ checkTheme('浅色', lightDecl, { dimmedMin: 3 })
 checkTheme('深色', darkDecl, { dimmedMin: 3 })
 checkGlowHue('浅色', lightDecl)
 checkGlowHue('深色', darkDecl)
+await checkInkUsage()
 
 console.log(`\n合计：${String(passed)}/${String(passed + failed)} 通过`)
 

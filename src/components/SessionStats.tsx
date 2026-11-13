@@ -22,10 +22,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionStats } from '../lib/api.ts'
+import { isUsableStamp } from '../lib/time.ts'
 
 /** 把时间戳写成 `YYYY-MM-DD HH:mm`。 */
 function formatMoment(at: number): string {
-  if (!Number.isFinite(at) || at <= 0) return '—'
+  if (!isUsableStamp(at)) return '—'
   const date = new Date(at)
   const pad = (value: number): string => String(value).padStart(2, '0')
   return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`

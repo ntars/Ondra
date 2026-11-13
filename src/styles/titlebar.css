@@ -297,7 +297,7 @@
 .persona-pop__caption {
   padding: 4px 8px 4px;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   letter-spacing: var(--track-title);
 }
 
@@ -348,7 +348,7 @@
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .persona-pop__dot {
@@ -362,14 +362,14 @@
 .persona-pop__busy {
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .persona-pop__empty {
   padding: 4px 8px 8px;
   font-size: var(--text-micro);
   line-height: var(--lh-caption);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*

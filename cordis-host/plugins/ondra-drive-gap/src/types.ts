@@ -582,6 +582,8 @@ export interface FieldSpecLike {
   readonly kind: 'string' | 'number' | 'boolean' | 'enum'
   readonly default: unknown
   readonly doc: string
+  /** 数字读数的量纲（天 / 分钟 / 毫秒 / 字 / 轮）。空表示无量纲。 */
+  readonly unit?: string
   readonly min?: number
   readonly max?: number
   readonly values?: readonly string[]

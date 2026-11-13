@@ -51,6 +51,14 @@ export interface SettingsField {
   values?: string[]
   pattern?: string
   doc?: string
+  /**
+   * 数字读数的量纲（天 / 分钟 / 毫秒 / 字 / 轮 / %）。
+   *
+   * 没有它，界面上「超时」只显示 `20000`——用户读不出这是毫秒还是秒，
+   * 读屏用户拿到的更是纯裸数字。单位属于**字段语义**，由插件自己声明，
+   * 宿主只做透传，不在界面层猜键名后缀。
+   */
+  unit?: string
   advancedOnly: boolean
   secret: boolean
 }
@@ -122,6 +130,7 @@ function normalizeField(key: string, raw: unknown): SettingsField | undefined {
   if (typeof raw['max'] === 'number') field.max = raw['max']
   if (typeof raw['pattern'] === 'string') field.pattern = raw['pattern']
   if (typeof raw['doc'] === 'string') field.doc = raw['doc']
+  if (typeof raw['unit'] === 'string' && raw['unit'] !== '') field.unit = raw['unit']
   if (candidates !== undefined) {
     field.values = candidates.filter((item): item is string => typeof item === 'string')
   }

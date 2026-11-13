@@ -75,6 +75,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 1,
     max: 1440,
     doc: '投影片段存活时长（分钟）。默认 10：它只是「这一轮该用什么语气」的建议，比任何状态量都短命。',
+    unit: '分钟',
   },
   projectionOrder: {
     kind: 'number',

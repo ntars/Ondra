@@ -41,7 +41,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -148,12 +148,83 @@ function nextVersion(current, minor) {
     : `${String(major)}.${String(mid)}.${String(patch + 1)}-alpha`
 }
 
+// ---------------------------------------------------------------------------
+// 并发锁
+// ---------------------------------------------------------------------------
+
+/**
+ * 升版本是「读当前值 → 加一 → 写七个文件」，三步之间任何别的智能体插进来，
+ * 就会得到同一个版本号，或者后写的覆盖先写的。所以必须先独占。
+ *
+ * ## 为什么用 `wx` 而不是 `mkdir`
+ *
+ * 两个都能做到「已存在则失败」。但 `mkdir` 造出来的是目录，删除要走 `rmdir`，
+ * 而 `rmdir` 在受限沙箱里会被拒（实测 `EPERM`），锁就永远释放不掉——比不加锁
+ * 更糟。`wx` 造普通文件，释放走 `unlink`，两个操作在所有环境下都可用。
+ *
+ * ## 为什么锁里要写 pid 和时间
+ *
+ * 进程被强杀时锁文件会留下。下次启动看到「30 分钟前的锁」就知道是残留，
+ * 直接接管；看到「10 秒前的锁」就老实等。没有时间戳就只能靠猜。
+ */
+const LOCK = join(repoRoot, '.workbuddy', 'locks', 'version.lock')
+const LOCK_STALE_MS = 30 * 60 * 1000
+
+/** 拿锁，失败返回 false（不抛：调用方要能自己决定等还是退）。 */
+function tryLock() {
+  const body = JSON.stringify({ pid: process.pid, at: new Date().toISOString() })
+  try {
+    mkdirSync(dirname(LOCK), { recursive: true })
+    writeFileSync(LOCK, body, { flag: 'wx' })
+    return true
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+    /* 残留锁：持有者早已不在，接管而不是干等。 */
+    try {
+      const held = JSON.parse(readFileSync(LOCK, 'utf8'))
+      const age = Date.now() - new Date(held.at).getTime()
+      if (Number.isFinite(age) && age > LOCK_STALE_MS) {
+        writeFileSync(LOCK, body)
+        return true
+      }
+    } catch {
+      /* 锁文件内容坏了，当作可接管。 */
+      writeFileSync(LOCK, body)
+      return true
+    }
+    return false
+  }
+}
+
+/** 放锁。删不掉只警告，不影响已经写好的版本号。 */
+function unlock() {
+  try {
+    unlinkSync(LOCK)
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`警告：锁文件没删掉（${error.code ?? '未知'}），下次会自动按过期处理`)
+    }
+  }
+}
+
 const options = parseArgs(process.argv.slice(2))
+
+/*
+ * 演练模式不碰锁：它不写任何文件，占锁只会挡住真正要写的那一个。
+ */
+if (!options.dryRun && !tryLock()) {
+  console.error('另一个智能体正在升版本（.workbuddy/locks/version.lock 被占用）。')
+  console.error('等它写完再来。锁超过 30 分钟会自动按残留处理。')
+  process.exit(2)
+}
+
+/* 进了锁才读版本：读到的一定是最新值，不是进本轮时的旧值。 */
 const current = readVersion()
 const target = options.set ?? nextVersion(current, options.minor)
 
 if (!VERSION_RE.test(target)) {
   console.error(`版本号形状不对：${target}（应为 主.次.修订 或 主.次.修订-alpha）`)
+  if (!options.dryRun) unlock()
   process.exit(1)
 }
 
@@ -164,8 +235,16 @@ if (options.dryRun) {
   process.exit(0)
 }
 
-const changed = writeVersion(target)
+let changed
+try {
+  changed = writeVersion(target)
+} catch (error) {
+  /* 写一半失败也要放锁，否则下一轮永远进不来。 */
+  unlock()
+  throw error
+}
 console.log(`已写入 ${String(changed.length)} 个文件：${changed.join('、')}`)
+unlock()
 
 /*
  * 只有「次 +1」才发布。

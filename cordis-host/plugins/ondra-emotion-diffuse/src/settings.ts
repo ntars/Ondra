@@ -57,6 +57,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 0,
     max: 1440,
     doc: '同一场会话的判定间隔（分钟）。手册未给此数，30 是工程取值：挡住「每轮一个新边界键」把心情洗回基线。',
+    unit: '分钟',
   },
   verbose: {
     kind: 'boolean',

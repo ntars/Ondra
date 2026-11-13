@@ -117,6 +117,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 2,
     max: 20,
     doc: '字速（字/秒）。手册 §9.2 原值 6。',
+    unit: '字/秒',
   },
   minDelayMs: {
     kind: 'number',

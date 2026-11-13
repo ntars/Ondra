@@ -96,6 +96,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: TTL_MAX_MS,
     advancedOnly: true,
     doc: '同意有效期（毫秒），`0` = 永不过期。默认 30 天。',
+    unit: '毫秒',
   },
   verbose: {
     kind: 'boolean',

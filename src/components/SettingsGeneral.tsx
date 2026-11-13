@@ -320,7 +320,7 @@ export function SettingsGeneral(): React.JSX.Element {
       <div className="pref__slider" data-off={prefs.sound ? undefined : ''}>
         <div className="pref__slider-head">
           <span className="pref__row-label">{t('general.sound.volume')}</span>
-          <span className="pref__slider-readout" aria-hidden="true">{prefs.soundVolume}</span>
+          <span className="pref__slider-readout" aria-hidden="true">{prefs.soundVolume}%</span>
         </div>
         <input
           type="range"
@@ -330,7 +330,8 @@ export function SettingsGeneral(): React.JSX.Element {
           step={1}
           value={prefs.soundVolume}
           aria-label={t('general.sound.volumeAria')}
-          aria-valuetext={String(prefs.soundVolume)}
+          /* 读屏只念这个字段，裸数字「50」在听觉上没有量纲，与视觉读数同源加百分号。 */
+          aria-valuetext={`${String(prefs.soundVolume)}%`}
           disabled={!prefs.sound}
           /* 已填充比例。0–100 的连续档，直接用值当百分比。 */
           style={{ '--fill': `${String(prefs.soundVolume)}%` } as React.CSSProperties}

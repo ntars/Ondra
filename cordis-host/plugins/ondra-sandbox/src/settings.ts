@@ -75,6 +75,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: TTL_FLOOR_HOURS,
     max: TTL_CEILING_HOURS,
     doc: '默认票期（小时）。默认 24：跨夜之后世界通常已经变了。',
+    unit: '小时',
   },
   maxTtlHours: {
     kind: 'number',
@@ -82,6 +83,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: TTL_FLOOR_HOURS,
     max: TTL_CEILING_HOURS,
     doc: '票期上限（小时）。默认 168（7 天）。再长的票等于取消了「限期」这个名字。',
+    unit: '小时',
   },
   defaultUses: {
     kind: 'number',

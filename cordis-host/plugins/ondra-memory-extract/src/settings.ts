@@ -69,6 +69,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 20,
     max: 2000,
     doc: '单条正文上限（字）。超长截断（与 O-010 同一口径），不整条拒绝。',
+    unit: '字',
   },
   maxSummaryChars: {
     kind: 'number',
@@ -76,6 +77,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 10,
     max: 500,
     doc: '摘要上限（字）。模型没给摘要时用正文前若干字代替。',
+    unit: '字',
   },
   minQuoteChars: {
     kind: 'number',
@@ -113,6 +115,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 200000,
     advancedOnly: true,
     doc: '输入预算（字）。超了从最早的消息开始丢；被丢掉的消息不参与引文校验。',
+    unit: '字',
   },
 } as const)
 

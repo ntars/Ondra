@@ -38,6 +38,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { isDesktopShell, invokeShell } from './shell.ts'
+import { isUsableStamp } from './time.ts'
 
 /** localStorage 的键。带命名空间前缀，与 `ondra.theme` 等并列。 */
 const KEY = 'ondra.mutedUntil'
@@ -65,7 +66,7 @@ function read(): number {
     const raw = globalThis.localStorage?.getItem(KEY)
     if (raw === null || raw === undefined) return 0
     const value = Number(raw)
-    return Number.isFinite(value) && value > 0 ? value : 0
+    return isUsableStamp(value) ? value : 0
   } catch {
     return 0
   }
@@ -151,6 +152,7 @@ export function mutedRemaining(at: number = Date.now()): number {
  * @param at 毫秒时间戳。
  */
 export function formatClock(at: number): string {
+  if (!isUsableStamp(at)) return '—'
   const date = new Date(at)
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }

@@ -83,6 +83,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 100000,
     advancedOnly: true,
     doc: '「长期档」的基线阈值（小时）。手册说「只从长期/永久挑」但没定义长期；本插件用基线阈值判定，不抄 11 类表（那是 O-010 的真源）。240 = person 基线。',
+    unit: '小时',
   },
   permanentBaseHours: {
     kind: 'number',
@@ -91,6 +92,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 200000,
     advancedOnly: true,
     doc: '「永久档」的基线阈值（小时）。8000 = promise 基线，self 20000 也在此档；永久档抽中权重再 ×0.6。',
+    unit: '小时',
   },
   minStrength: {
     kind: 'number',
@@ -115,6 +117,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 365,
     advancedOnly: true,
     doc: '「最近想过」的跳过窗口（天）。判据是内核的 lastHitAt（reinforce(\'hit\') 写入），本插件不另记一份。',
+    unit: '天',
   },
   cueBaseProbability: {
     kind: 'number',

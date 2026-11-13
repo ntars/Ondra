@@ -216,6 +216,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: TEXT_MIN,
     max: TEXT_MAX,
     doc: `进检索的条目上限（字）。手册 §2.2「条目 ≤200 字」；超出的部分留在边表的全文列。`,
+    unit: '字',
   },
   maxTitleChars: {
     kind: 'number',
@@ -224,6 +225,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: TITLE_MAX,
     advancedOnly: true,
     doc: '标题上限（字）。',
+    unit: '字',
   },
   maxFullChars: {
     kind: 'number',
@@ -232,6 +234,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: FULL_MAX,
     advancedOnly: true,
     doc: '边表留档的全文上限（字）。超长转写在这里截断，并记一条降级说明。',
+    unit: '字',
   },
   dedupe: {
     kind: 'boolean',

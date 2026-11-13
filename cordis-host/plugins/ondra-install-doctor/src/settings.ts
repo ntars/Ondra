@@ -46,6 +46,8 @@ export const FIELD_SPECS: Readonly<Record<keyof Settings, {
   readonly max?: number
   readonly advancedOnly?: boolean
   readonly doc: string
+  /** 数字读数的量纲（天 / 分钟 / 毫秒 / 字 / 轮）。空表示无量纲。 */
+  readonly unit?: string
 }>> = Object.freeze({
   enable: {
     kind: 'boolean',
@@ -83,6 +85,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Settings, {
     max: 600_000,
     advancedOnly: true,
     doc: '报告缓存有效期（毫秒），0 = 每次都重读磁盘。',
+    unit: '毫秒',
   },
 })
 

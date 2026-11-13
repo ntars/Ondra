@@ -81,6 +81,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 100000,
     advancedOnly: true,
     doc: '长期类判定线（小时）：类别基线不低于它的，写入基底记 70 分而不是 30 分。',
+    unit: '小时',
   },
   channelAnchorDays: {
     kind: 'number',
@@ -89,6 +90,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 3650,
     advancedOnly: true,
     doc: '通道归一化锚点（天）。三通道 4/12/180 天都除以它，得到无量纲通道系数。',
+    unit: '天',
   },
   floorWeight: {
     kind: 'number',
@@ -132,6 +134,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 20,
     max: 4000,
     doc: '单条正文上限（字）。超长会截断并记一条 issue，而不是整条拒绝——拒绝等于这条记忆彻底消失。',
+    unit: '字',
   },
   maxSummaryChars: {
     kind: 'number',
@@ -139,6 +142,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 10,
     max: 1000,
     doc: '摘要上限（字）。',
+    unit: '字',
   },
   maxSelectRows: {
     kind: 'number',

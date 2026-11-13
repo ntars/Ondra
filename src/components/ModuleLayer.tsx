@@ -94,6 +94,19 @@ function NumberField({
   /* 已填充比例（§12.16）。同 `SceneLayer`：轨道无法分段着色，填充画在元素背景上。 */
   const fill = max > min ? `${String(((current - min) / (max - min)) * 100)}%` : '0%'
 
+  /*
+   * 单位。空串表示这个数字没有量纲，此时不渲染也不拼进 `aria-valuetext`
+   * ——拼一个空的会让读屏多念一次停顿。
+   *
+   * 与 `SceneLayer` 同一口径：百分号紧贴数字，其余单位按词处理加空格。
+   */
+  const unit = field.unit ?? ''
+  const ariaText = unit === ''
+    ? String(current)
+    : unit === '%'
+      ? `${String(current)}%`
+      : `${String(current)} ${unit}`
+
   return (
     <div className="field__control">
       {useSlider ? (
@@ -105,6 +118,7 @@ function NumberField({
           step={1}
           value={current}
           aria-label={field.key}
+          aria-valuetext={ariaText}
           style={{ '--fill': fill } as React.CSSProperties}
           onChange={(event) => { onCommit(Number(event.target.value)) }}
         />
@@ -117,6 +131,7 @@ function NumberField({
         step={1}
         value={current}
         aria-label={field.key}
+        aria-valuetext={ariaText}
         onChange={(event) => {
           const next = Number(event.target.value)
           // 越界时不动：把 5000 夹成 3650 会让用户以为自己输的是 3650。
@@ -299,6 +314,19 @@ function FieldRow({
       ? '{…}'
       : String(value)
 
+  /*
+   * 视觉读数里的单位后缀。
+   *
+   * 与 `aria-valuetext` 同源（都来自 `field.unit`），只差排版：百分号
+   * 紧贴数字，其余按词加一个空格。数字字段之外一律为空——`{…}` 后面
+   * 跟一个「天」只会让人以为这个对象以天计。
+   */
+  const unitSuffix = field.kind !== 'number' || field.unit === undefined
+    ? ''
+    : field.unit === '%'
+      ? '%'
+      : ` ${field.unit}`
+
   const commit = useCallback((next: unknown): void => {
     void onWrite(section.id, field.key, next)
   }, [field.key, onWrite, section.id])
@@ -351,8 +379,8 @@ function FieldRow({
         * 并排写两个一样的数字只是噪声。
         */}
       <p className="field__meta">
-        {changed ? `当前 ${currentText} · ` : null}
-        默认 {String(field.default ?? '—')} · {changed ? '已改' : '未改'}
+        {changed ? `当前 ${currentText}${unitSuffix} · ` : null}
+        默认 {String(field.default ?? '—')}{unitSuffix} · {changed ? '已改' : '未改'}
       </p>
 
       {field.doc === undefined ? null : <p className="field__doc">{field.doc}</p>}

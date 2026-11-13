@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { invokeShell, isShellUnavailable } from '../lib/shell.ts'
+import { isUsableStamp } from '../lib/time.ts'
 import { useT } from '../lib/i18n.ts'
 import { Dialog } from './Dialog.tsx'
 import { Heading, Note } from './settingsUi.tsx'
@@ -21,8 +22,22 @@ interface Backup {
   path: string
 }
 
-/** 把 Unix 秒排成 `2026-02-14 15:04`。 */
+/**
+ * 把 Unix 秒排成 `2026-02-14 15:04`。
+ *
+ * 不可用时给 `—`：`seconds` 来自备份文件的清单，读到一个坏条目时
+ * `new Date(NaN)` 会一路拼出 `NaN-NaN-NaN NaN:NaN`。备份列表里出现
+ * 一串 NaN 会让人以为备份坏了，而实际只是这一条的元信息读不出来。
+ *
+ * ## 为什么守卫要判 `seconds * 1000` 而不是 `seconds`
+ *
+ * 这个入参是**秒**，而 `isUsableStamp` 的上限是**毫秒**（8.64e15）。
+ * 直接拿秒去判，`1e13` 秒（≈31.7 万年）会被判成可用，乘 1000 变成
+ * `1e16` 毫秒才越界——于是 Invalid Date 照样流出去，守卫等于没写。
+ * 量纲在边界处必须换算，不能把两种单位混着比。
+ */
 function formatTime(seconds: number): string {
+  if (!isUsableStamp(seconds * 1000)) return '—'
   const date = new Date(seconds * 1000)
   const pad = (value: number): string => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`

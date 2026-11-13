@@ -16,18 +16,24 @@
         "backgroundColor": "#FFFFFF"
       }
     ],
-    "withGlobalTauri": false
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' http: https:"
+    }
+  },
+  "build": {
+    "beforeBuildCommand": "pnpm --filter @ondra/web run build:mobile"
   },
   "bundle": {
-    "targets": ["apk", "aab"],
+    "active": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png"
     ],
+    "resources": null,
     "android": {
-      "minSdkVersion": 24,
-      "versionCode": 1
+      "minSdkVersion": 24
     }
   }
 }

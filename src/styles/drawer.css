@@ -260,7 +260,7 @@
 .drawer__row-time {
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -376,7 +376,7 @@
   margin-bottom: 8px;
   font-size: var(--text-label);
   letter-spacing: var(--track-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .inspector__row {
@@ -419,7 +419,7 @@
   margin: 0;
   font-size: var(--text-caption);
   line-height: 1.6;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 关系阶段名（"刚认识" "熟了" 这类）：它是这一段唯一的主语，给正文档。 */
@@ -477,7 +477,7 @@
 
 .inspector__memory-time {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -675,7 +675,7 @@
 .health__group-hint {
   flex: 1;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .health__group-count {
@@ -753,7 +753,7 @@
 
 .health__stamp {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .health__note {
@@ -826,7 +826,7 @@
 /* 分支说明：一行小字，不抢主信息。 */
 .dream__mode {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .dream__result {
@@ -917,7 +917,7 @@
 
 .dream__stamp {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* ===========================================================================
@@ -954,7 +954,7 @@
 
 .snap__keep {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .snap__idle {
@@ -992,13 +992,13 @@
 .snap__item-size {
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 库版本：与存储份数同一档的次要信息。 */
 .snap__item-schema {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 验过且好：用与她同一支的琥珀，不用绿色——绿在这套配色里没有语义位。 */
@@ -1016,7 +1016,7 @@
 /* 没验过：灰色。它与「好」的区别就是这一块存在的理由。 */
 .snap__item-raw {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 校验键：与体检键同一形态（描边、无底色、极小）。 */
@@ -1046,7 +1046,7 @@
 
 .snap__stamp {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .snap__note {
@@ -1142,7 +1142,7 @@
 .sess__key {
   font-size: var(--text-micro);
   letter-spacing: var(--track-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .sess__value {
@@ -1227,7 +1227,7 @@
 .sess__hint {
   font-size: var(--text-micro);
   line-height: 1.6;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 /* ===========================================================================
    日志抽屉：三类分区 + 会话日志的五类读法
@@ -1273,7 +1273,7 @@
 .logp__count {
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .logp__refresh {
@@ -1343,13 +1343,13 @@
 
 .logp__group-time {
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .logp__group-count {
   margin-left: auto;
   font-weight: var(--w-regular);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -1366,9 +1366,15 @@
   padding: 4px 0;
 }
 
-/* 系统日志没有徽标与角色：三列，时间列同宽，两边正文左边缘对齐。 */
+/*
+ * 系统日志没有徽标与角色：四列，时间 / 级别点 / 级别词 / 正文。
+ *
+ * 级别词那一列用 `auto` 而不是固定宽：`info` 档不渲染任何元素（见
+ * `LEVEL_LABEL`），此时该列塌成 0，正文仍与 warn / error 行的正文左缘
+ * 对齐；只有真出现告警时它才占位。固定 22 会让每行都空出一截。
+ */
 .logp__row--system {
-  grid-template-columns: 46px 4px minmax(0, 1fr);
+  grid-template-columns: 46px 4px auto minmax(0, 1fr);
   padding: 4px 0;
 }
 
@@ -1383,7 +1389,7 @@
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -1424,7 +1430,7 @@
 /* 节奏最轻：它只标记轮次的开始与结束，不该抢走正文的注意力。 */
 .logp__badge[data-category='pace'] {
   background: transparent;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   padding-left: 0;
 }
 
@@ -1441,7 +1447,7 @@
  */
 .logp__actor {
   font-size: 0.625rem;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
@@ -1468,7 +1474,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
@@ -1490,6 +1496,31 @@
 }
 
 /*
+ * 级别词（注意 / 错误）。
+ *
+ * 存在的理由是可达性而不是装饰：圆点只有颜色，色觉障碍与读屏用户都拿不到
+ * 级别。字用语义色当文字色（`--ui-warn` / `--ui-bad` 都是 700 档，对纸面
+ * 过 AA），但**词本身**已经说明一切，颜色只是第二道加速。
+ *
+ * 11px 与 `.logp__badge` 同档：它是标签不是正文，不该抢 `logp__text` 的注意力。
+ */
+.logp__level {
+  justify-self: start;
+  font-size: var(--text-label);
+  font-weight: var(--w-medium);
+  line-height: 1.55;
+  white-space: nowrap;
+}
+
+.logp__level[data-level='warn'] {
+  color: var(--ui-warn);
+}
+
+.logp__level[data-level='error'] {
+  color: var(--ui-bad);
+}
+
+/*
  * 可展开正文：与叙述同列对齐（第 4 列），左侧一条 0.5px 竖线。
  *
  * 竖线用最细的那一档：它是「这段是引出来的」的记号，不是分隔条。
@@ -1507,7 +1538,7 @@
   align-items: baseline;
   gap: 8px;
   font-size: 0.625rem;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   cursor: pointer;
   list-style: none;
 }
@@ -1591,7 +1622,7 @@
   padding: 0 4px 4px;
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 待重启是唯一需要被看见的一格：它表示有改动还没落地。 */
@@ -1650,7 +1681,7 @@
 
 .ext__group-count {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1660,7 +1691,7 @@
   margin: 0 4px 4px;
   font-size: var(--text-micro);
   line-height: 1.55;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .ext__list {
@@ -1718,7 +1749,7 @@
   flex: none;
   margin-left: auto;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .ext__state[data-tone='live'] {
@@ -1741,7 +1772,7 @@
    */
   min-height: 20px;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 包名用等宽：用户报问题时复制的是它，字符宽度不一致会看错 l/1。 */
@@ -1800,7 +1831,7 @@
   margin-bottom: 8px;
   font-size: var(--text-label);
   letter-spacing: var(--track-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   cursor: pointer;
   list-style: none;
 }

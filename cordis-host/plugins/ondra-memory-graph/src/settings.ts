@@ -157,6 +157,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 3650,
     advancedOnly: true,
     doc: '边衰减间隔（天）。手册「90 天未激活 ×0.5」。',
+    unit: '天',
   },
   decayFactor: {
     kind: 'number',

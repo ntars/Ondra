@@ -103,6 +103,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 20,
     max: 2000,
     doc: '正文上限（字）。手册要求条目 ≤200 字，超长截断而不是整条拒。',
+    unit: '字',
   },
   maxSummaryChars: {
     kind: 'number',
@@ -110,6 +111,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 10,
     max: 500,
     doc: '摘要上限（字）。手册要求 summary ≤80 字。',
+    unit: '字',
   },
   minQuoteChars: {
     kind: 'number',

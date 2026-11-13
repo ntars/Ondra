@@ -115,7 +115,7 @@
   font-size: var(--text-caption);
   font-weight: var(--w-medium);
   letter-spacing: var(--track-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   margin-bottom: 8px;
 }
 
@@ -291,7 +291,7 @@
   display: block;
   margin-top: 8px;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -368,7 +368,7 @@
 
 .pref__cue-hint {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -487,10 +487,16 @@
 /*
  * 外链指示符：仓库地址点开即跳系统浏览器，加一个 ↗ 让"这是站外链接"
  * 一眼可辨（WCAG 1.4.1：不能只靠颜色区分链接）。
+ *
+ * 字号用 `--text-caption` 而不是写死的 0.85rem：0.85 不在字号刻度上
+ * （label 0.6875 / caption 0.75 / body 0.875 / lead 1），它是当初随手
+ * 调出来的一个「比正文小一点点」。这类游离值一旦出现，后面每加一个
+ * 箭头都会照抄它，刻度就散了。箭头跟链接同号即可——`↗` 的字面高度
+ * 本来就比汉字矮一截，不需要再缩。
  */
 .pref__link::after {
   content: ' \2197';
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 
 /*
@@ -516,7 +522,7 @@
 }
 
 .pref__facts dt {
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .pref__facts dd {
@@ -881,7 +887,7 @@
   margin: 0;
   font-size: var(--text-micro);
   line-height: 1.55;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -943,7 +949,7 @@
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 「当前」不是按钮：它描述状态，点它没有任何事会发生。 */
@@ -999,7 +1005,7 @@
 .sec-fields__count {
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 

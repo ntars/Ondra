@@ -1566,19 +1566,50 @@ async function checkPlatformFidelity() {
    * 中间那一格最早漏了：只查 `window.rs` 里有没有函数，函数是有的，
    * 但把 `main.rs` 的调用点删掉，脚本照样全绿——反向验证时实测踩到。
    */
-  const mainRs = await read(join(REPO, 'src-tauri/src/main.rs')).catch(() => '')
   ok('壳拦截关闭并区分三种去留',
     /fn intercept_close/.test(windowRs)
       && /CloseAction::Quit/.test(windowRs)
       && /CloseAction::Hide/.test(windowRs)
       && /close-requested/.test(windowRs),
     '关闭不是退出（§2.1）；首次必须拦下来问一次，不能默默隐藏')
+
+  /*
+   * 读**整个壳层源码**，不只 `main.rs`。
+   *
+   * 原先只读 `main.rs`，因为那时窗口逻辑就写在那儿。后来为了复用给
+   * Android 动态库，`run()` 与事件循环整体搬进了 `lib.rs`，`main.rs`
+   * 只剩 `fn main()` 一行——断言于是永远读不到 `CloseRequested`，
+   * 明明接得好也报红。这是判据过期，不是代码坏了。
+   *
+   * 所以判据改成「这三件事出现在壳层的任意一个源文件里」：搬文件不该
+   * 让断言失效，但把调用点删掉仍然会红——`intercept_close(` 与
+   * `prevent_close()` 都消失，两处一起缺，正是要拦的那种。
+   */
+  const shellSrc = (await Promise.all(
+    ['main.rs', 'lib.rs', 'window.rs'].map(
+      (name) => read(join(REPO, 'src-tauri/src', name)).catch(() => ''),
+    ),
+  )).join('\n')
+  /*
+   * 去掉注释行再断言。
+   *
+   * `lib.rs` 的注释里就写着「`api.prevent_close()` 必须无条件调用」，
+   * 直接拿全文匹配的话，把真正的调用删掉、注释还在，断言照样绿——
+   * 反向验证时实测踩到。判据要看的是**代码**，不是文档。
+   */
+  const shellCode = shellSrc
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim()
+      return !trimmed.startsWith('//') && !trimmed.startsWith('*') && !trimmed.startsWith('/*')
+    })
+    .join('\n')
   ok('关闭拦截真接在窗口事件上',
-    /WindowEvent::CloseRequested\s*\{[^}]*\}/.test(mainRs)
-      && /intercept_close\(/.test(mainRs)
-      && /prevent_close\(\)/.test(mainRs),
+    /WindowEvent::CloseRequested\s*\{[^}]*\}/.test(shellCode)
+      && /intercept_close\(/.test(shellCode)
+      && /api\.prevent_close\(\);/.test(shellCode),
     '缺 prevent_close 窗口在判断完成前就销毁了；缺调用点则拦截逻辑是死代码',
-    `事件=${String(/WindowEvent::CloseRequested/.test(mainRs))} 调用=${String(/intercept_close\(/.test(mainRs))} 阻止=${String(/prevent_close\(\)/.test(mainRs))}`)
+    `事件=${String(/WindowEvent::CloseRequested/.test(shellCode))} 调用=${String(/intercept_close\(/.test(shellCode))} 阻止=${String(/api\.prevent_close\(\);/.test(shellCode))}`)
   ok('界面接住关闭询问', /close-requested/.test(appTsx) && /close-degraded/.test(appTsx),
     '壳发了事件而界面没监听，用户点关闭会毫无反应')
 

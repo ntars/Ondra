@@ -108,7 +108,7 @@
   margin-top: 4px;
   font-size: var(--text-micro);
   line-height: 1.65;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .field__reset {
@@ -118,7 +118,7 @@
   padding: 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   transition:
     background-color var(--motion-f) var(--ease-fluid),
     color var(--motion-f) var(--ease-fluid);

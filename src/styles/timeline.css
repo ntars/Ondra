@@ -75,7 +75,7 @@
   font-size: var(--text-body);
   font-weight: var(--w-regular);
   letter-spacing: 0.12em;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   vertical-align: 0.15em;
 }
 
@@ -96,7 +96,7 @@
   margin-top: 32px;
   font-size: var(--text-caption);
   letter-spacing: 0.06em;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* ===========================================================================
@@ -457,7 +457,7 @@
   width: 24px;
   height: 24px;
   border-radius: var(--r-xs);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   transition:
     background-color var(--motion-f) var(--ease-fluid),
     color var(--motion-f) var(--ease-fluid);
@@ -504,7 +504,7 @@
   gap: 8px;
   margin: 8px 0 4px;
   font-size: 0.6875rem;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   user-select: none;
 }
 
@@ -618,5 +618,5 @@
   margin: 8px 0;
   text-align: center;
   font-size: 0.6875rem;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }

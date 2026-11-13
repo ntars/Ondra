@@ -119,6 +119,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 3650,
     advancedOnly: true,
     doc: '荒诞联想的最短时间差（天）。手册「同实体但时间差 >3 天」。',
+    unit: '天',
   },
   maxSurrealPerNight: {
     kind: 'number',
@@ -150,6 +151,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 1,
     max: 8760,
     doc: '卡片的半衰期（小时）。手册「未用卡片 168 小时半衰期」。用过的卡片从「用」的那一刻重新起算。',
+    unit: '小时',
   },
   cardArchiveWeight: {
     kind: 'number',

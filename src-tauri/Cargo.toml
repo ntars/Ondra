@@ -1,6 +1,6 @@
 [package]
 name = "ondra"
-version = "1.0.3-alpha"
+version = "1.1.1-alpha"
 description = "空谷 Ondra：全插件式桌面 AI 陪伴体应用"
 authors = ["Ntarstudio（星玖工作室）"]
 edition = "2024"
@@ -9,10 +9,31 @@ license = "AGPL-3.0-only"
 repository = "https://github.com/ntars/Ondra"
 homepage = "https://ai.ntars.cn/"
 
-# 不声明 [lib]：空谷只出桌面端（dmg / app / nsis）。
-# Tauri 的 lib + cdylib 结构是为移动端准备的——iOS / Android 需要把 Rust
-# 编成一个被原生工程链接的动态库。桌面端只要一个二进制，多这一层只会让
-# 入口分成 main.rs 与 lib.rs 两处、编译产物翻倍。
+# lib + bin 双入口。桌面端与移动端共用同一份 lib.rs。
+#
+# ## 为什么现在必须有 [lib]
+#
+# 上一版这里的注释写着「不声明 [lib]：空谷只出桌面端」——那时候是对的。
+# 现在要出 Android 包，而 Android **不能**直接运行一个可执行文件：系统把
+# Rust 编成 cdylib（`libondra.so`），由 Kotlin 侧的 Activity 通过 JNI 加载。
+# 没有 [lib] 就没有那个 .so，`tauri android build` 会在链接阶段报
+# 「library not found for -londra」。
+#
+# ## 为什么 crate-type 是 ["staticlib", "cdylib", "rlib"] 三个
+#
+# 三个平台要的东西不同：
+#   - `cdylib`  → Android / iOS 要的动态库
+#   - `staticlib` → iOS 静态链接用（留在这，避免以后为 iOS 再改一次）
+#   - `rlib`    → 桌面端的 bin 要 `use ondra::run()`，这是 Rust 内部链接
+# 少写 `rlib` 时，桌面端的 `main.rs` 无法引用同 crate 的 lib，只能把整份
+# 逻辑复制一遍——两份真源必然漂移。
+[lib]
+name = "ondra"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ondra"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }

@@ -210,19 +210,138 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  android:
+    name: Android (arm64 APK)
+    # 为什么是 ubuntu 而不是 macos：安卓打包只需要 JDK + SDK + NDK，
+    # 三样在 Linux 上都有官方发行版，而 Linux runner 的分钟费是 mac 的
+    # 十分之一。这个 job 要跑 Gradle，比两个桌面 job 都慢，选便宜的。
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.9.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      # JDK 17 而不是 21/25：Gradle 8.x 对 21+ 的支持看 AGP 版本，
+      # 而 Tauri 生成的工程用的是 AGP 8.x，17 是它的默认目标。
+      # 装 25 会在 `:app:compileReleaseJavaWithJavac` 报
+      # 「Unsupported class file major version」。
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      # NDK 版本必须与 Tauri 期望的一致。写死一个具体版本而不是 `latest`：
+      # NDK 的 r26 → r27 改过 libc++ 的链接方式，版本漂移会让「昨天能编、
+      # 今天不能」变成一道无从查起的谜题。
+      - name: 安装 Android NDK 与构建工具
+        run: |
+          sdkmanager --install \
+            "ndk;27.0.12077973" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: 安装 Rust 工具链与 Android 目标
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: 缓存 cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          # 与桌面端分开缓存：目标架构不同，混在一起会让缓存命中率归零。
+          shared-key: android
+
+      - name: 安装工作区依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 校验版本号与 tag 一致
+        run: |
+          node -e "
+            const tag = process.env.ONDRA_RELEASE_TAG.replace(/^v/, '');
+            const { version } = require('./package.json');
+            if (version !== tag) {
+              console.error('版本不一致：package.json=' + version + '，tag=' + tag);
+              process.exit(1);
+            }
+          "
+        env:
+          ONDRA_RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+      # 前端必须先编出来：Tauri 的 beforeBuildCommand 会在 android build 时
+      # 再跑一次，但那次跑的是主配置里的 `pnpm run build:web`（非本地模式），
+      # 而安卓必须走 `build:mobile`（ONDRA_LOCAL=1）。
+      # tauri.android.conf.json 已经把 beforeBuildCommand 覆盖成 build:mobile，
+      # 这里再显式跑一次是为了让失败点落在「编译前端」而不是 Gradle 深处。
+      - name: 编译前端（本地模式）
+        run: pnpm run build:mobile
+
+      # 只初始化一次。gen/ 在 .gitignore 里，所以 CI 每次都要重新 init。
+      # `--ci` 跳过所有交互提问（不跳会卡在「用哪个包名」上直到超时）。
+      - name: 初始化 Android 工程
+        run: pnpm exec tauri android init --ci
+
+      # 只出 aarch64 一个架构：全架构的 universal APK 约 185 MB，
+      # 而 arm64 单架构约 40 MB。GitHub Release 单文件上限 100 MB，
+      # 全架构包会直接上传失败。手机端现在 99% 是 arm64。
+      - name: 打包 APK
+        run: pnpm exec tauri android build --apk --target aarch64
+
+      # 产物路径随 Tauri 版本变过两次（apk/release → apk/universal/release）。
+      # 用 find 找而不是写死路径：路径错了会静默上传一个空工件。
+      - name: 找到 APK
+        id: find-apk
+        run: |
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -type f | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::没有找到 APK，构建可能静默失败"
+            find src-tauri/gen/android/app/build/outputs -type f | head -50
+            exit 1
+          fi
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          ls -lh "$APK"
+
+      - name: 上传 APK 工件
+        uses: actions/upload-artifact@v4
+        with:
+          name: ondra-android
+          path: ${{ steps.find-apk.outputs.apk }}
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
     name: 发布发行版
-    # 等两个平台都结束再发布。
+    # 等三个平台都结束再发布。
     #
     # 原来只写 `needs: [windows]`：macOS 那个 job 带 `continue-on-error`，
     # 不放进 needs 就不会被等——publish 完全可能在 macOS 还没传完工件时就
     # 去下载，于是正文少一条链接、release 少一个包，而且不报错。现在 macOS
-    # 已经能在云端跑通，就该等它。
+    # 已经能在云端跑通，就该等它。Android 同理。
     #
     # `always()` 是必需的：`needs` 里任何一个 job 失败或被取消，dependent
-    # job 默认直接跳过。macOS 失败时我们仍要发 Windows 那一份，所以只要
-    # Windows 成功就继续。
-    needs: [windows, mac]
+    # job 默认直接跳过。macOS 或 Android 失败时我们仍要发 Windows 那一份，
+    # 所以只要 Windows 成功就继续——另两份缺了就少一行链接，由正文的
+    # glob 自动处理（只为实际存在的文件生成行）。
+    needs: [windows, mac, android]
     if: "always() && needs.windows.result == 'success'"
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -271,6 +390,10 @@ jobs:
                   name = f'Ondra-{ver}-macos-{arch}.dmg'
               elif low.endswith('.exe'):
                   name = f'Ondra-{ver}-windows-{arch}-setup.exe'
+              elif low.endswith('.apk'):
+                  # APK 的架构由构建参数决定（CI 只出 aarch64），文件名里
+                  # 通常不带架构字样，所以这里直接写死 arm64 而不是从名字里猜。
+                  name = f'Ondra-{ver}-android-arm64.apk'
               else:
                   print(f'跳过（不认识的文件类型）: {base}')
                   continue
@@ -318,7 +441,8 @@ jobs:
           base = f'https://github.com/{repo}/releases/download/{tag}'
           rows = []
           for pattern, label in (('*.dmg', 'macOS（Apple Silicon）'),
-                                 ('*.exe', 'Windows（x64）')):
+                                 ('*.exe', 'Windows（x64）'),
+                                 ('*.apk', 'Android（arm64）')):
               for path in sorted(glob.glob('upload/' + pattern)):
                   name = os.path.basename(path)
                   size = os.path.getsize(path) / (1024 * 1024)
@@ -338,15 +462,19 @@ jobs:
               '',
               '### 首次打开会被系统拦下',
               '',
-              '**两个包都没有签名，也没有公证**（macOS 是链接器 ad-hoc 签名，Windows 没有代码签名证书）。',
+              '**三个包都没有正式签名**（macOS 是链接器 ad-hoc 签名，Windows 没有代码签名证书，Android 是 debug 签名）。',
               '',
               '- **macOS**：右键点应用 →「打开」；或执行',
               '  `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`',
               '- **Windows**：SmartScreen 提示时点「更多信息」→「仍要运行」',
+              '- **Android**：系统会提示「未知来源」。允许浏览器/文件管理器安装即可；',
+              '  这个包只支持 arm64（近几年的手机都是），老设备装不上是正常的。',
               '',
               '### 装完之后',
               '',
-              '首次启动会拉起本机的插件宿主与内核，自带 Node 运行时，不需要另装。',
+              '桌面端首次启动会拉起本机的插件宿主与内核，自带 Node 运行时，不需要另装。',
+              '**安卓端不跑 Node**：记忆与情绪在 WebView 里用 IndexedDB 直接算，',
+              '推理直连你在设置里填的接口，所以 APK 只有几十 MB，也不需要额外依赖。',
               '数据全部留在本机，无账号、无遥测。推理来源在设置里三选一：在线接口 / 本地大模型 / 免费模型。',
               '',
               f'完整变更见 [README 的更新日志](https://github.com/{repo}/blob/main/README.md)。',
@@ -375,3 +503,4 @@ jobs:
           files: |
             upload/*.dmg
             upload/*.exe
+            upload/*.apk

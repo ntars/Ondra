@@ -19,6 +19,8 @@
  * 之后任何环节都只碰这一个小字符串。
  */
 
+import { isUsableStamp } from './time.ts'
+
 /**
  * 单条的字数上限（§5.6 计数提示、§12.14 超长确认共用这一个数）。
  *
@@ -101,9 +103,13 @@ function pad(value: number): string {
  * 用冒号而不是连字符：这是一个**展示名**，永远不会变成磁盘路径
  * （缩略图存在内存里）。冒号读起来更像时间，而 `14-30-05` 会被当成日期。
  *
+ * 不可用时给空串，由调用方退回不带时间前缀的名字。这个值会成为附件名
+ * 的一部分，拼出 `NaN:NaN:NaN` 会出现在缩略图的角标上，看起来像软件坏了。
+ *
  * @param at 时刻。默认现在，测试时可注入。
  */
 export function stamp(at: number = Date.now()): string {
+  if (!isUsableStamp(at)) return ''
   const date = new Date(at)
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
@@ -171,6 +177,11 @@ export async function makeThumb(file: File): Promise<string> {
  */
 export async function toPastedImages(files: readonly File[], at: number = Date.now()): Promise<PastedImage[]> {
   const label = stamp(at)
+  /*
+   * 时间不可用时不拼时间前缀，名字退回「粘贴的图片-1」这种纯序号形。
+   * 保留那个多余的连字符会得到「粘贴的图片--1」，看起来像拼串出了 bug。
+   */
+  const prefix = label === '' ? '粘贴的图片' : `粘贴的图片-${label}`
   const result: PastedImage[] = []
   for (const [index, file] of files.entries()) {
     const thumb = await makeThumb(file)
@@ -179,7 +190,7 @@ export async function toPastedImages(files: readonly File[], at: number = Date.n
      * 用户在列表里无法区分该删哪一个。
      */
     const suffix = files.length > 1 ? `-${String(index + 1)}` : ''
-    result.push({ name: `粘贴的图片-${label}${suffix}`, thumb })
+    result.push({ name: `${prefix}${suffix}`, thumb })
   }
   return result
 }

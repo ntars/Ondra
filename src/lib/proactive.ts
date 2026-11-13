@@ -23,6 +23,7 @@
  */
 
 import { useSyncExternalStore } from 'react'
+import { isUsableStamp } from './time.ts'
 
 /** 计数落盘的键前缀。日期由 {@link dayKey} 拼在后面。 */
 const KEY_PREFIX = 'ondra.proactive.declines.'
@@ -49,7 +50,13 @@ function notify(): void {
 
 /** 当日键，形如 `2026-11-07`。用本地时区：用户感受到的「今天」是本地的。 */
 export function dayKey(at: number = Date.now()): string {
-  const date = new Date(at)
+  /*
+   * 不可用时退回今天。这个键会进 `localStorage` 的键名——拼出
+   * `NaN-NaN-NaN` 的话，那条拒绝计数会落进一个永远读不回来的桶，
+   * 表现为「拒绝次数一直是 0，主动消息永远不被静音」。
+   */
+  const stamp = isUsableStamp(at) ? at : Date.now()
+  const date = new Date(stamp)
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${String(date.getFullYear())}-${month}-${day}`

@@ -161,6 +161,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     max: 20,
     advancedOnly: true,
     doc: '贴纸最小间隔（条）。手册 §4.2 原值 3，下限锁 3。',
+    unit: '条',
   },
   verbose: {
     kind: 'boolean',

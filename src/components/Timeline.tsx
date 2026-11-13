@@ -37,6 +37,7 @@ import { ScrollArea } from './ScrollArea.tsx'
 import { useToast } from './Toast.tsx'
 import type { ChatMessage } from '../lib/useAppState.ts'
 import { UNDO_WINDOW_MS } from '../lib/proactive.ts'
+import { isUsableStamp } from '../lib/time.ts'
 
 /** 星期名。中文界面只用中文，不出现 `Thu` 这种。 */
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const
@@ -66,8 +67,12 @@ function isEditable(target: EventTarget | null): boolean {
  *
  * 用本地时区而不是 UTC：用户说「今天」指的是他自己那天，
  * 用 UTC 会让东八区的人在 0–8 点看到「昨天」。
+ *
+ * 不可用的时间戳返回 `null`（而不是 `NaN`）：`null` 在 `===` 比较下
+ * 自等，多条无时间的消息会归进同一个「时间未知」分组，不会一条一行。
  */
-function startOfDay(ts: number): number {
+function startOfDay(ts: number | undefined): number | null {
+  if (!isUsableStamp(ts)) return null
   const date = new Date(ts)
   date.setHours(0, 0, 0, 0)
   return date.getTime()
@@ -78,12 +83,16 @@ function startOfDay(ts: number): number {
  *
  * 三档（§12.6）：今天 / 昨天 / `11 月 6 日 周四`。
  * 跨年时补年份，否则「11 月 6 日」在两年前的对话里会有歧义。
+ *
+ * 时间不可用时给「时间未知」：这是一句诚实的说明，比 `NaN 年 NaN 月 NaN 日`
+ * 既不吓人也不骗人——用户看得出「这条没记时间」，而不是「软件坏了」。
  */
-function dayLabel(ts: number, now: number): string {
+function dayLabel(ts: number | undefined, now: number): string {
+  if (!isUsableStamp(ts)) return '时间未知'
   const day = startOfDay(ts)
   const today = startOfDay(now)
-  if (day === today) return '今天'
-  if (day === today - DAY) return '昨天'
+  if (day !== null && day === today) return '今天'
+  if (day !== null && today !== null && day === today - DAY) return '昨天'
   const date = new Date(ts)
   const base = `${String(date.getMonth() + 1)} 月 ${String(date.getDate())} 日 ${WEEKDAYS[date.getDay()] ?? ''}`
   return date.getFullYear() === new Date(now).getFullYear()
@@ -96,8 +105,12 @@ function dayLabel(ts: number, now: number): string {
  *
  * 只给悬停时浮现的时间沟槽用（见 `timeline.css` 的 `.message::after`）。
  * 不显示秒：对话里没人需要知道是 14:32:07。
+ *
+ * 不可用时返回空串：`data-time` 是给 CSS 的 `content: attr(data-time)` 用的，
+ * 空串时悬停不浮出 `NaN:NaN`；时间沟槽本身还有别的信息，不会因此塌掉。
  */
-function clockOf(ts: number): string {
+function clockOf(ts: number | undefined): string {
+  if (!isUsableStamp(ts)) return ''
   const date = new Date(ts)
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
@@ -335,19 +348,32 @@ export function Timeline({
     const now = Date.now()
     const result: Row[] = []
     /** 首条消息所在的那一天，用来算「第 N 天」。 */
-    const firstAt = messages[0]?.at
-    const firstDay = firstAt === undefined ? undefined : startOfDay(firstAt)
+    const firstDay = startOfDay(messages[0]?.at)
 
-    let lastDay: number | undefined
+    /*
+     * `lastDay` 用 `null` 表示「还没开始」而不是 `undefined`。
+     *
+     * `startOfDay` 对不可用的时间戳返回 `null`，而 `null === null` 为真，
+     * 所以连续多条无时间的消息会归进同一个日期行；若仍用 `undefined`
+     * 表示初始态，第一条无时间的消息会与初始态撞成「不换行」，反而丢掉
+     * 那个日期行。这里用一个显式的哨兵对象区分「没开始」与「时间未知」。
+     */
+    let lastDay: number | null | undefined
     messages.forEach((message, index) => {
       const day = startOfDay(message.at)
       if (day !== lastDay) {
         lastDay = day
+        /*
+         * 「第 N 天」只在两端都有真实日期时才算得出。
+         * 任一端是「时间未知」就给 `undefined`——按 `NaN` 算出来的
+         * 「第 NaN 天」比不显示更糟。
+         */
         const dayIndex =
-          firstDay === undefined ? undefined : Math.round((day - firstDay) / DAY) + 1
+          firstDay === null || day === null ? undefined : Math.round((day - firstDay) / DAY) + 1
         result.push({
           kind: 'day',
-          key: `day-${String(day)}`,
+          // 时间未知的日期行共用同一个 key，不会再撞成多个 `day-NaN`。
+          key: day === null ? 'day-unknown' : `day-${String(day)}`,
           at: message.at,
           label: dayLabel(message.at, now),
           // 「第 N 天」只在第一条日期行出现（§12.6）。

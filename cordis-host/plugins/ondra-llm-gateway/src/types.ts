@@ -455,6 +455,8 @@ export interface FieldSpecLike {
   readonly secret?: boolean
   readonly advancedOnly?: boolean
   readonly doc?: string
+  /** 数字读数的量纲（天 / 分钟 / 毫秒 / 字 / 轮）。空表示无量纲。 */
+  readonly unit?: string
 }
 
 /** O-005 段声明的结构对位（`SectionDecl` 的子集）。 */

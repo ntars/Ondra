@@ -65,6 +65,8 @@ export interface PunctSpec {
   readonly ms: number
   /** 一句话说明。 */
   readonly doc: string
+  /** 数字读数的量纲（天 / 分钟 / 毫秒 / 字 / 轮）。空表示无量纲。 */
+  readonly unit?: string
 }
 
 /**

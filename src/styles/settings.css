@@ -124,7 +124,7 @@
 
 .settings__count {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -236,7 +236,7 @@
   padding: 8px 24px;
   border-top: var(--rule) solid var(--ui-line-soft);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -244,7 +244,7 @@
   padding: 32px 0;
   text-align: center;
   font-size: var(--text-caption);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -408,7 +408,7 @@
 .settings__count-note {
   display: block;
   margin-top: 4px;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -425,7 +425,7 @@
   border-top: var(--rule) solid var(--ui-line-soft);
   font-size: var(--text-micro);
   line-height: 1.6;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 纸片出现：从 98% 微放大，配合遮罩淡入。 */
@@ -580,7 +580,7 @@
   margin: 4px 0 0;
   font-size: var(--text-micro);
   line-height: 1.5;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -637,7 +637,7 @@
   margin: 8px 0 0;
   font-size: var(--text-micro);
   line-height: 1.5;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -738,7 +738,7 @@
   flex: 1;
   min-width: 0;
   font-size: var(--text-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -820,7 +820,7 @@
 
 .scene__time-label {
   font-size: var(--text-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .scene__time-input {
@@ -844,7 +844,7 @@
 .scene__time-dash {
   padding-bottom: 4px;
   font-size: var(--text-caption);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /* 跨零点说明：一行小字，比正文轻一档，但不弱化成提示条。 */
@@ -878,7 +878,7 @@
   font-size: var(--text-micro);
   font-weight: var(--w-medium);
   letter-spacing: var(--track-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   text-align: left;
 }
 
@@ -898,7 +898,7 @@
 .raw__value {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 0.6875rem;
-  color: var(--ui-ink-3);
+  color: var(--ui-ink-2);
   word-break: break-all;
 }
 
@@ -916,7 +916,7 @@
   display: block;
   margin-top: 4px;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -929,7 +929,7 @@
 .raw__kind {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: var(--text-label);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
@@ -937,11 +937,19 @@
  * 「默认」列比「当前」列浅一档。
  *
  * 两列数字并排时，如果同色同重，眼睛会分不清哪一列是"现在生效的"。
- * 当前值用 `--ui-ink-3`，默认值降到 `--ui-ink-4`——这个差值刚好够
- * 扫视时把注意力落在左边那一列。
+ *
+ * ## 为什么靠字重而不是靠墨色
+ *
+ * 这里原本让默认值降到 `--ui-ink-4`。但 ink-4 是 3.9:1 的占位灰，
+ * 而「默认值是多少」是用户要读的真实信息——它承载的是"这一项原本
+ * 是什么"，不是装饰。降到 4.5 以下等于把信息藏起来。
+ *
+ * 两列都要 ≥ 4.5:1 之后，层级差交给**墨色深浅的合法档位**：当前值
+ * 升到 `--ui-ink-2`（7.2:1），默认值留 `--ui-ink-3`（4.9:1）。两档
+ * 都过 AA，差别仍然够眼睛分出主次。
  */
 .raw__value--muted {
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
@@ -987,7 +995,7 @@
   border-radius: var(--r-xs);
   background: var(--ui-bg-sunken);
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
@@ -1021,20 +1029,20 @@
 
 .module__hint {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*
  * 段头右侧的计数：「12 项 · 已改 3」。
  *
  * 它是**可跳过**的信息，但不能省——用户在折叠状态下要能一眼看出
- * "这一段里我改过东西没有"。字号降一档、用 `--ui-ink-4`，
- * 读的时候眼睛可以滑过去，需要时能找到。
+ * "这一段里我改过东西没有"。字号降一档到 `--text-micro`，
+ * 用 `--ui-ink-3`（4.9:1，过 AA）：读的时候眼睛可以滑过去，需要时能找到。
  */
 .module__meta {
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1125,7 +1133,7 @@
   margin: 4px 0 0;
   font-size: var(--text-micro);
   line-height: 1.5;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1234,7 +1242,7 @@
 
 .module__group-count {
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1244,7 +1252,7 @@
   margin: 0;
   font-size: var(--text-micro);
   line-height: 1.5;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 /*

@@ -23,6 +23,7 @@
 
 import { request } from './host.ts'
 import { invokeShell } from './shell.ts'
+import { isUsableStamp } from './time.ts'
 
 /** 导出接口返回的一段会话。字段与宿主 `SessionPayload` 一一对应。 */
 interface SessionPayload {
@@ -64,9 +65,15 @@ export interface ImportOutcome {
  *
  * 不用 `toLocaleDateString`：它按系统地区设置排版，同一份文件在不同机器上
  * 会得到 `2/14/2026` 或 `14.02.2026`，而文件名应该是可排序、可比较的。
+ *
+ * 非法值退回今天（`??` 只挡 `undefined`，挡不住 `NaN`）：这个值会进文件名，
+ * 拼出 `NaN-NaN-NaN` 的话导出的文件既不可排序也不好认。
+ *
+ * 判可用走共享的 `isUsableStamp`：它比「有限且大于 0」多一道范围检查，
+ * 挡住 `1.7e18` 这类能通过有限性检查、却超出 Date 表示范围的量纲错位。
  */
 function stamp(at: number | undefined): string {
-  const date = new Date(at ?? Date.now())
+  const date = new Date(isUsableStamp(at) ? at : Date.now())
   const pad = (value: number): string => String(value).padStart(2, '0')
   return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }

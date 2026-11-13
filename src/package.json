@@ -1,6 +1,6 @@
 {
   "name": "@ondra/web",
-  "version": "1.0.3-alpha",
+  "version": "1.1.1-alpha",
   "private": true,
   "description": "空谷 Ondra 前端界面：React 单页应用，经本地 HTTP 与 Cordis 宿主通信。",
   "type": "module",

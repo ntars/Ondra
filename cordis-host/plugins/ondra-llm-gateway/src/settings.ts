@@ -86,6 +86,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 1000,
     max: 600000,
     doc: '首块超时（毫秒）：从发请求到第一个块。本地大模型首次加载可能超过 20 秒，按来源单独调大。',
+    unit: '毫秒',
   },
   idleTimeoutMs: {
     kind: 'number',
@@ -93,6 +94,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 1000,
     max: 600000,
     doc: '块间隔超时（毫秒）：两个块之间最长能等多久。流式回复的总时长不可预测，所以卡间隔而不是卡总时长。',
+    unit: '毫秒',
   },
   maxAttempts: {
     kind: 'number',
@@ -107,6 +109,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 0,
     max: 10000,
     doc: '重试退避基数（毫秒），按 2 的幂递增并加对称抖动。',
+    unit: '毫秒',
   },
   maxBackoffMs: {
     kind: 'number',
@@ -114,6 +117,7 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
     min: 0,
     max: 60000,
     doc: '重试退避上限（毫秒）。',
+    unit: '毫秒',
   },
   retryableCodes: {
     kind: 'json',

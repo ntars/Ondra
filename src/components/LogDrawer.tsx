@@ -41,7 +41,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './Icon.tsx'
 import { IconRefresh } from './icons.ts'
 import { getChannelLogs, getSystemLogs, type SystemLogRow } from '../lib/api.ts'
-import { groupRounds, projectLog, ACTOR_LABEL, CATEGORY_LABEL } from '../lib/logModel.ts'
+import { groupRounds, projectLog, ACTOR_LABEL, CATEGORY_LABEL, LEVEL_LABEL } from '../lib/logModel.ts'
+import { isUsableStamp } from '../lib/time.ts'
 import type { LogEntry } from '../lib/types.ts'
 
 /** 只保留最近多少条会话日志。再多也没有人往下翻，而渲染几千行会卡。 */
@@ -54,11 +55,36 @@ const SESSION_LIMIT = 200
  */
 const STICK_THRESHOLD_PX = 48
 
-/** 时钟写法 `HH:mm:ss`。日志是同一小时内的高频事件，日期在这里是噪声。 */
+/**
+ * 时钟写法 `HH:mm:ss`。日志是同一小时内的高频事件，日期在这里是噪声。
+ *
+ * 时间不可用时返回 `—`（破折号）而不是 `NaN:NaN:NaN`：日志条目的 `at`
+ * 来自宿主，老数据可能没有这个字段。用破折号与同一列里其他「无时间」
+ * 的行保持同形，用户一眼就知道是「这条没记时间」，而不是软件坏了。
+ */
 function clockOf(at: number): string {
+  if (!isUsableStamp(at)) return '—'
   const date = new Date(at)
   const pad = (value: number): string => String(value).padStart(2, '0')
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+/**
+ * `<time datetime>` 的值，或空对象（不渲染该属性）。
+ *
+ * ## 为什么不能就地写 `new Date(at).toISOString()`
+ *
+ * 那是我上一版留下的真实缺陷：守卫写的是 `row.at > 0`，而 `1.7e18`
+ * （纳秒时间戳）与 `Infinity` 都 `> 0`，于是守卫放行，`toISOString()`
+ * **抛 RangeError**。这不是显示一串 NaN，是渲染期抛错——整棵子树会被
+ * React 卸掉，用户看到白屏。`> 0` 只挡住负数与 0，挡不住「有限但越界」。
+ *
+ * 返回空对象而不是空串：`dateTime=""` 在语义上是「时间是空字符串」，
+ * 读屏会念出一个空的日期；不渲染这个属性才是「没有机器可读的时间」。
+ */
+function isoStamp(at: number): { dateTime: string } | Record<string, never> {
+  if (!isUsableStamp(at)) return {}
+  return { dateTime: new Date(at).toISOString() }
 }
 
 /** 正文体积的写法。一个中文字算一个字，与「多少字」的直觉一致。 */
@@ -195,7 +221,7 @@ export function LogDrawer({ sessionId, logs }: LogDrawerProps): React.JSX.Elemen
                   <div key={row.id} className="logp__row" data-category={row.category} data-actor={row.actor}>
                     <time
                       className="logp__time"
-                      {...(row.at > 0 ? { dateTime: new Date(row.at).toISOString() } : {})}
+                      {...isoStamp(row.at)}
                     >
                       {row.at > 0 ? clockOf(row.at) : '—'}
                     </time>
@@ -265,10 +291,13 @@ export function LogDrawer({ sessionId, logs }: LogDrawerProps): React.JSX.Elemen
             {/* 系统日志按时间升序给，这里倒序：最近发生的事在最上面。 */}
             {[...system].reverse().map((row) => (
               <div key={row.id} className="logp__row logp__row--system" data-level={row.level}>
-                <time className="logp__time" {...(row.at > 0 ? { dateTime: new Date(row.at).toISOString() } : {})}>
+                <time className="logp__time" {...isoStamp(row.at)}>
                   {row.at > 0 ? clockOf(row.at) : '—'}
                 </time>
                 <span className="logp__dot" data-level={row.level} aria-hidden="true" />
+                {LEVEL_LABEL[row.level] === '' ? null : (
+                  <span className="logp__level" data-level={row.level}>{LEVEL_LABEL[row.level]}</span>
+                )}
                 <span className="logp__text">{row.text}</span>
               </div>
             ))}

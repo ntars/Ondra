@@ -26,6 +26,7 @@
  */
 
 import type { LogEntry } from './types.ts'
+import type { SystemLogRow } from './api.ts'
 import { spokenDuration, toolDuration, toolLine, toolSubject } from './logText.ts'
 
 /** 日志的五类。顺序即徽标的调色顺序。 */
@@ -38,6 +39,24 @@ export const CATEGORY_LABEL: Readonly<Record<LogCategory, string>> = Object.free
   tool: '工具',
   pace: '节奏',
   error: '出错',
+})
+
+/**
+ * 系统日志的级别词。
+ *
+ * 为什么必须有字：`.logp__dot` 是一枚 4px 圆点，级别只体现在它的颜色上，
+ * 而且它带 `aria-hidden`——色觉障碍用户看不出 warn 与 error 的差别，
+ * 读屏用户则完全拿不到这一维。项目在 `titlebar.css` 里已经定过规矩
+ * 「状态词用文字，不只靠颜色」（`titlebar__presence` 就是那么做的），
+ * 这里必须同一口径。
+ *
+ * `info` 给空串：常态不必逐行标注，标了反而让满屏都是噪声；warn / error
+ * 才是需要一眼挑出来的少数。
+ */
+export const LEVEL_LABEL: Readonly<Record<SystemLogRow['level'], string>> = Object.freeze({
+  info: '',
+  warn: '注意',
+  error: '错误',
 })
 
 /** 角色词。与消息气泡的「你 / 她」同口径，不另起说法。 */
