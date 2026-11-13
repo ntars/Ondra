@@ -16,11 +16,28 @@
  */
 
 import { createServer } from 'node:http'
-import { readFile, mkdir } from 'node:fs/promises'
+import { readFile, mkdir, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
+
+/**
+ * 递归列出目录下所有 `.ts` / `.tsx` 文件（绝对路径）。
+ *
+ * 提到模块级而不是写在各条断言里：单位覆盖与 `sinceText` 单例两条断言都要
+ * 扫全 `src/`，各抄一份遍历等于给「同一件事」留两处实现——本轮的缺陷
+ * 正是这么来的。
+ */
+async function walkSources(dir) {
+  const found = []
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) found.push(...(await walkSources(full)))
+    else if (/\.tsx?$/.test(entry.name)) found.push(full)
+  }
+  return found
+}
 
 const ROOT = new URL('../dist/', import.meta.url).pathname
 const OUT = new URL('../.shots/', import.meta.url).pathname
@@ -1520,13 +1537,16 @@ async function checkTimeGuards() {
      */
     { file: join('src', 'lib', 'proactive.ts'), fn: 'dayKey', fallback: 'Date.now()' },
     /*
-     * 这两个 `sinceText` 是**同名两份私有实现**，各自给「快照」与「记忆体检」
-     * 用，都不经过 `time.ts`。上一轮的表只收了 9 个函数，两份都漏在外面：
-     * `undefined` 走 `NaN 天前`，`null` 被当 0 算出 `20770 天前`（1970 年）。
-     * 这类「同一套措辞抄两份」最该收进表——分叉时只有一份会被修。
+     * `sinceText` 原来在 `SnapshotBlock` 与 `MemoryHealth` 里各有一份同名私有
+     * 实现，两份都漏在表外，且措辞已经分叉（前者有「N 天前」档，后者只到
+     * 「N 小时前」）。两块在检查器里是同一个折叠区的相邻两节，同屏可见：
+     * 快照说「2 天前」、体检说「48 小时前」。
+     *
+     * 现在合成 `time.ts` 的单一导出，这里核那一份。**两份都收进表**的老写法
+     * 只是「各自加守卫」，措辞仍会漂——断言必须核「只有一份实现」，
+     * 见下面的 checkSingleSinceText。
      */
-    { file: join('src', 'components', 'SnapshotBlock.tsx'), fn: 'sinceText', fallback: '时间未知' },
-    { file: join('src', 'components', 'MemoryHealth.tsx'), fn: 'sinceText', fallback: '时间未知' },
+    { file: join('src', 'lib', 'time.ts'), fn: 'sinceText', fallback: '时间未知' },
   ]
 
   for (const item of formatters) {
@@ -1669,6 +1689,35 @@ async function checkTimeGuards() {
     }
   } catch {
     problems.push('src/components/Timeline.tsx 读不到——日期分组断言失效')
+  }
+
+  /*
+   * `sinceText` 只许有一份实现，且必须在 `time.ts`。
+   *
+   * 这条守的是**「抄两份」这个动作本身**，不是某一份写得对不对。上面那张
+   * formatters 表只能核「表里列出的函数有没有守卫」——它天然核不到
+   * 「有人又抄了一份新的」：新抄的那份不在表里，表永远是绿的。
+   *
+   * 上一轮就是这么漏的：两份 `sinceText` 各自加了守卫、各自转绿，
+   * 但措辞已经分叉（一份有「N 天前」，一份只到「N 小时前」）。两块在
+   * 检查器的同一个折叠区相邻，同屏一个说「2 天前」一个说「48 小时前」。
+   * 所以判据必须是「实现只有一处」，位置也钉死——散在组件里迟早再分叉。
+   */
+  const sinceImpls = []
+  for (const file of await walkSources(join(repo, 'src'))) {
+    const text = await readFile(file, 'utf8')
+    /* 剥掉注释再找：文档注释里正拿 `function sinceText` 当反例讲道理。 */
+    const bodyless = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+    if (/function\s+sinceText\s*\(/.test(bodyless)) sinceImpls.push(file.replace(repo, ''))
+  }
+  const expectedSince = join('src', 'lib', 'time.ts')
+  if (sinceImpls.length === 0) {
+    problems.push(`找不到 sinceText 的实现——相对时间标注无从核对（期望在 ${expectedSince}）`)
+  } else if (sinceImpls.length > 1 || sinceImpls[0] !== expectedSince) {
+    problems.push(
+      `sinceText 有 ${String(sinceImpls.length)} 份实现（${sinceImpls.join('、')}）——`
+      + `只许 ${expectedSince} 一份，多份必然分叉成两套说法`,
+    )
   }
 
   console.log('\n时间字段：')
@@ -1852,6 +1901,93 @@ async function checkFieldUnits() {
   }
   if (!/\{prefs\.soundVolume\}%/.test(generalSrc)) {
     problems.push('SettingsGeneral.tsx 的音量视觉读数是裸数字——屏幕上写「50」，与另两处滑块的带单位读数不一致')
+  }
+
+  /*
+   * --- 5. 每一处 `type="range"` 都必须被上面某一条覆盖 ---
+   *
+   * 前四组各自钉死了「某一条已知路径」：`ModuleLayer`（走 `field.unit`
+   * 透传）、`SettingsGeneral`（硬编码音量）、`SceneLayer`（走 `scenes.ts`
+   * 的 `item.unit`）。问题在于这份名单是**手工维护**的——新加一个手写滑杆，
+   * 四组全绿，因为没有任何一条在问「还有没有别处」。
+   *
+   * 本轮实测确认过这个缺口：把 `SceneLayer` 的 `aria-valuetext` 改成裸
+   * `String(draft)`（界面上单位全没了），前四组一条都不报红。它当时能被
+   * 守住纯属巧合——`checkNumberStep` 要求那里出现 `step={stepOf(...)}`，
+   * 与单位无关。
+   *
+   * 判据落在**文件集合**上而不是代码写法：扫出所有含 `type="range"` 的
+   * 组件文件，逐个核对它是否出现在一份「已被单位断言覆盖」的名单里。
+   * 名单漏了新文件就报红，逼着人来补——这才是「新加控件不会静默掉队」。
+   */
+  const rangeFiles = new Set()
+  const rangeSrc = new Map()
+  for (const file of await walkSources(join(repo, 'src'))) {
+    const text = await readText(file)
+    /* 剥注释：`ModuleLayer` 的文档里正拿 `type="range"` 当反例讲道理。 */
+    const bodyless = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+    if (/type="range"/.test(bodyless)) {
+      rangeFiles.add(file.replace(repo, ''))
+      rangeSrc.set(file.replace(repo, ''), bodyless)
+    }
+  }
+  /*
+   * 已覆盖名单：每一条都必须自带**具体判据**，不能只列个名字。
+   *
+   * 只列名字是假绿——本轮实测过：把 `SceneLayer` 的 `aria-valuetext` 改成
+   * 裸 `String(draft)`，只核文件名的写法一条都不报。判据必须落在这份源码里
+   * 「单位真的被拼进去」这个事实上，否则名单只是把缺陷原地圈起来。
+   *
+   * 每项两条：
+   * - `aria`：`aria-valuetext` 那一处必须出现单位拼接（`unit` 变量或 `%`）；
+   * - `visual`：视觉读数那一处也必须出现（否则看得见的人仍要猜）。
+   */
+  const unitCovered = new Map([
+    [
+      join('src', 'components', 'ModuleLayer.tsx'),
+      { aria: /aria-valuetext=\{ariaText\}/, visual: /\{unitSuffix\}/ },
+    ],
+    [
+      join('src', 'components', 'SettingsGeneral.tsx'),
+      { aria: /aria-valuetext=\{`\$\{String\(prefs\.soundVolume\)\}%`\}/, visual: /\{prefs\.soundVolume\}%/ },
+    ],
+    [
+      join('src', 'components', 'SceneLayer.tsx'),
+      /*
+       * 场景层走 `scenes.ts` 的 `item.unit`，与 `field.unit` 是两条独立链路，
+       * 所以必须单独核。`unit === ''` 那一档是「没有量纲」的合法分支——
+       * 判据要的是「有 unit 时拼了」，故核 `String(draft)} ${unit}` 这种
+       * 带单位的拼法出现过，而不是要求恒拼。
+       */
+      { aria: /aria-valuetext=\{[^}]*unit[^}]*\}/s, visual: /\{unit === '' \? null : <span className="scene__unit">\{unit\}<\/span>\}/ },
+    ],
+  ])
+  for (const file of rangeFiles) {
+    if (!unitCovered.has(file)) {
+      problems.push(`${file} 有 type="range" 但没有任何单位断言覆盖它——读数会退回裸数字`)
+    }
+  }
+  /*
+   * 名单里的每一条都真的成立。这才是「覆盖」而不是「登记」。
+   */
+  for (const [file, rules] of unitCovered) {
+    const src = rangeSrc.get(file)
+    if (src === undefined) continue
+    if (!rules.aria.test(src)) {
+      problems.push(`${file} 的滑杆 aria-valuetext 没有拼单位——读屏拿到裸数字`)
+    }
+    if (!rules.visual.test(src)) {
+      problems.push(`${file} 的滑杆视觉读数没有拼单位——屏幕上与读屏两套口径`)
+    }
+  }
+  /*
+   * 反向也要守：名单里列了、文件里却没有 range 了，说明这条判据已经过期，
+   * 留着只是噪音。过期判据比没有判据更糟——它会让人以为这里被守着。
+   */
+  for (const file of unitCovered.keys()) {
+    if (!rangeFiles.has(file)) {
+      problems.push(`${file} 在单位覆盖名单里，但已经没有 type="range" 了——这条判据已过期`)
+    }
   }
 
   if (problems.length === 0) {

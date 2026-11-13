@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getMemoryHealth, repairMemory } from '../lib/api.ts'
 import type { MemoryFinding, MemoryHealth } from '../lib/api.ts'
-import { isUsableStamp } from '../lib/time.ts'
+import { sinceText } from '../lib/time.ts'
 
 /** 三档的中文名与一句话说明。顺序即显示顺序：最安全的在最前。 */
 const TIERS: ReadonlyArray<{
@@ -39,16 +39,6 @@ const TIERS: ReadonlyArray<{
   { tier: 'confirm', label: '需确认', hint: '不可逆' },
   { tier: 'advise', label: '建议别人修', hint: '不归这里' },
 ]
-
-/** 相对时间：只给「刚刚 / N 分钟前」这种量级，不引第二套措辞。 */
-function sinceText(at: number): string {
-  /* 同上：不可用时间戳给「时间未知」，不让 NaN 走到「NaN 小时前」。 */
-  if (!isUsableStamp(at)) return '时间未知'
-  const diff = Date.now() - at
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${String(Math.floor(diff / 60_000))} 分钟前`
-  return `${String(Math.floor(diff / 3_600_000))} 小时前`
-}
 
 /** 渲染记忆体检。 */
 export function MemoryHealthBlock(): React.JSX.Element | null {

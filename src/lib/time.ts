@@ -76,3 +76,33 @@ export function relativeTime(ts: number, now: number = Date.now()): string {
   const date = new Date(ts)
   return `${String(date.getMonth() + 1)} 月 ${String(date.getDate())} 日`
 }
+
+/**
+ * 相对时间的「只到天」版本，给「这件事多久以前发生」这类标注用。
+ *
+ * ## 为什么不是 `relativeTime`
+ *
+ * `relativeTime` 服务列表：超过一周改给绝对日期（「3 周前」还得用户自己
+ * 换算）。而这里标的是**一个时刻**——「查于 2 天前」「建于 2 天前」——
+ * 换算成「9 月 8 日」反而丢掉了「多久以前」这个正是要说的事。所以这条
+ * 一路给「N 天前」，不转日期。
+ *
+ * ## 为什么要提到这里（原来是两份私有实现）
+ *
+ * 快照块与记忆体检块各写了一份同名 `sinceText`，且**措辞已经分叉**：
+ * 快照那份有「N 天前」档，记忆体检那份只到「N 小时前」。这两块在检查器
+ * 里是**同一个折叠区的相邻两节**，同一次打开、同一屏可见：快照说「2 天前」，
+ * 体检说「48 小时前」，读起来像两套系统。抄两份时不会错，分叉时才错，
+ * 而分叉发生的那一刻没有任何断言或编译错误会提示。
+ */
+export function sinceText(at: number, now: number = Date.now()): string {
+  if (!isUsableStamp(at)) return '时间未知'
+  const diff = now - at
+  const minute = 60_000
+  const hour = 60 * minute
+  const day = 24 * hour
+  if (diff < minute) return '刚刚'
+  if (diff < hour) return `${String(Math.floor(diff / minute))} 分钟前`
+  if (diff < day) return `${String(Math.floor(diff / hour))} 小时前`
+  return `${String(Math.floor(diff / day))} 天前`
+}
