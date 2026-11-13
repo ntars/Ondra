@@ -20,6 +20,7 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 | Inference source | Cloud API / local model / free model, switchable at any time |
 | License | [AGPL-3.0](./LICENSE) |
 | Repository | [ntars/Ondra](https://github.com/ntars/Ondra) |
+| Download | [Internal beta 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha): macOS `.dmg` (Apple Silicon) + Windows `.exe`. Marked Pre-release — not a stable build |
 | Website | <https://ai.ntars.cn/> |
 | Publisher | Ntarstudio（星玖工作室） |
 
@@ -2051,7 +2052,8 @@ The bar is simple: **once any row above has been walked through manually on its 
 - The version is `1.0.1-alpha`, synchronised in seven places (four `package.json` files, `tauri.conf.json`, `Cargo.toml`, `Cargo.lock`).
 - New `pnpm version:alpha`: patch +1 (`1.0.1 → 1.0.2`), local only, no release.
 - New `pnpm version:alpha:minor`: minor +1 (`1.0.2 → 1.1.0`), commits the version files, tags `v*` and pushes; `.github/workflows/release.yml` then builds macOS (arm64 dmg) and Windows (x64 installer) and publishes a **pre-release**. Promoting to public beta or stable is always a manual act, never part of the pipeline.
-- How the first internal build is obtained: macOS is built locally → dmg; Windows is built in the cloud by GitHub Actions → the artefact is downloaded and attached to the same release.
+- How the first internal build is obtained: macOS is built locally → `.dmg` (signing needs the local keychain); Windows is built in the cloud by GitHub Actions → the `.exe` is downloaded and attached to the same release. Both assets now sit under `v1.0.1-alpha`.
+- Four traps found while getting the cloud build green; each one is explained in a comment at the place it bit, so it is not repeated: `sidecar` must be built first inside `pnpm run build` (type-reference order); launching `pnpm.cmd` without a shell fails with `EINVAL` on Node 20+ (now `node` calls the Tauri CLI directly); the NSIS template must not define `.onGUIInit` (it collides with the one MUI2 generates — use `MUI_CUSTOMFUNCTION_GUIINIT`); and the `macos-14` label no longer gets a runner (the job is cancelled with zero steps — use `macos-latest`).
 
 ## 17. Roadmap
 

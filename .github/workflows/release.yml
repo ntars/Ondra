@@ -94,15 +94,20 @@ jobs:
       - name: 校验版本号与 tag 一致
         run: |
           node -e "
-            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            const tag = process.env.ONDRA_RELEASE_TAG.replace(/^v/, '');
             const { version } = require('./package.json');
             if (version !== tag) {
               console.error('版本不一致：package.json=' + version + '，tag=' + tag);
               process.exit(1);
             }
           "
+        # 变量名**不能**叫 GITHUB_REF_NAME。GITHUB_ 前缀由 GitHub 保留：
+        # step 的 env 里写它会被静默忽略，runner 照样把 GITHUB_REF_NAME 设成
+        # 当前 ref（workflow_dispatch 时是 `main`），于是校验永远拿 `main`
+        # 去比 `1.0.1-alpha` 而失败。日志的 env 块里显示的却是我们写的值，
+        # 很难看出问题——踩过一次，记在这里。
         env:
-          GITHUB_REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          ONDRA_RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
       - name: 编译前端、插件、宿主与内核
         run: pnpm run build
@@ -159,15 +164,20 @@ jobs:
       - name: 校验版本号与 tag 一致
         run: |
           node -e "
-            const tag = (process.env.GITHUB_REF_NAME || '').replace(/^v/, '');
+            const tag = (process.env.ONDRA_RELEASE_TAG || '').replace(/^v/, '');
             const { version } = require('./package.json');
             if (version !== tag) {
               console.error('版本不一致：package.json=' + version + '，tag=' + tag);
               process.exit(1);
             }
           "
+        # 变量名**不能**叫 GITHUB_REF_NAME。GITHUB_ 前缀由 GitHub 保留：
+        # step 的 env 里写它会被静默忽略，runner 照样把 GITHUB_REF_NAME 设成
+        # 当前 ref（workflow_dispatch 时是 `main`），于是校验永远拿 `main`
+        # 去比 `1.0.1-alpha` 而失败。日志的 env 块里显示的却是我们写的值，
+        # 很难看出问题——踩过一次，记在这里。
         env:
-          GITHUB_REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          ONDRA_RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
       - name: 编译前端、插件、宿主与内核
         run: pnpm run build

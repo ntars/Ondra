@@ -20,6 +20,7 @@
 | 推理来源 | 在线接口 / 本地大模型 / 免费模型，三选一随时切换 |
 | 许可 | [AGPL-3.0](./LICENSE) |
 | 仓库 | [ntars/Ondra](https://github.com/ntars/Ondra) |
+| 下载 | [内测版 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)：macOS `.dmg`（Apple Silicon）+ Windows `.exe`。标记为 Pre-release，不是稳定版 |
 | 官网 | <https://ai.ntars.cn/> |
 | 出品 | Ntarstudio（星玖工作室） |
 
@@ -2108,8 +2109,15 @@ Ondra/
   提交版本文件、打 `v*` tag 并推送，由 `.github/workflows/release.yml`
   构建 macOS（arm64 dmg）与 Windows（x64 安装程序）并发布 **pre-release**。
   转公测或正式版始终是人工动作，不在流水线里。
-- 首次内测包的取得方式：macOS 本地构建 → dmg；Windows 由 GitHub Actions
-  云端构建 → 下载产物并附在同一条 release 上。
+- 首次内测包的取得方式：macOS 本机构建 → `.dmg`（签名依赖本机钥匙串）；
+  Windows 由 GitHub Actions 云端构建 → 下载 `.exe` 后附在同一条 release 上。
+  两个资产现都挂在 `v1.0.1-alpha` 下。
+- 打通云端构建时踩到的坑，原因都写进了对应位置的注释，不重复踩：
+  `pnpm run build` 里 sidecar 必须排在最前（类型引用顺序）；`pnpm.cmd` 在
+  Node 20+ 下无 shell 启动会报 `EINVAL`（改用 node 直调 tauri CLI）；NSIS
+  模板不能自定义 `.onGUIInit`（与 MUI2 生成的同名函数冲突，改用
+  `MUI_CUSTOMFUNCTION_GUIINIT`）；`macos-14` 标签已不再分配 runner
+  （job 会零步骤被取消，改用 `macos-latest`）。
 
 ## 十七、后续路线图
 
