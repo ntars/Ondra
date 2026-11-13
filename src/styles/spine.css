@@ -70,7 +70,13 @@
      两字拉散，10px 在 820 × 580 的小窗里笔画发糊。 */
   font-size: var(--text-label);
   letter-spacing: 0.08em;
-  color: var(--ui-ink-4);
+  /*
+   * ink-3 而不是 ink-4。「此刻」是这一栏的标题，「精力」「平静」是读数
+   * 的注解——它们都是真实信息，不是占位符。ink-4 在 stone-0 底上只有
+   * 4.66:1，看着够，但这一栏的字号是 11px，小字比大字更难读，阈值该更严
+   * 而不是更松。ink-3 在同一底上是 5.21:1，留出了余量。
+   */
+  color: var(--ui-ink-3);
   writing-mode: vertical-rl;
   text-orientation: upright;
   line-height: 1.1;
@@ -193,7 +199,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
 }
@@ -204,10 +210,11 @@
  * 只有一个数字时读者不知道它在说什么；补一行「精力」把量名说清楚，
  * 心情仍由颜色 + 词各表达一次。字号与其它辅助文字统一到 11px。
  */
+/* 同 `.spine__caption`：读数旁的单位是真实信息，不用占位符的灰。 */
 .spine__unit {
   font-size: var(--text-label);
   letter-spacing: 0.08em;
-  color: var(--ui-ink-4);
+  color: var(--ui-ink-3);
 }
 
 .spine__energy {
@@ -224,7 +231,7 @@
 }
 
 .spine__memory {
-  margin-top: 12px;
+  margin-top: 8px;
   /* 统一到 11px。9px 与设置原始层的 .raw__tag 是仅有的两处小字号，
      中文笔画会糊；「记忆 148」约 45px，56px 栏宽装得下，不必单开一档。 */
   font-size: var(--text-label);
@@ -246,7 +253,7 @@
 /* 静音/今天安静：竖排胶囊。 */
 .spine__muted {
   margin-top: auto;
-  padding: 8px 3px;
+  padding: 8px 4px;
   border-radius: var(--r-xs);
   background: var(--ui-her-bg);
   font-size: var(--text-label);

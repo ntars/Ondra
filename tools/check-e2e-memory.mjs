@@ -40,7 +40,7 @@
 
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -154,6 +154,40 @@ function sessionIdOf(text) {
 }
 
 const dataDir = await mkdtemp(join(tmpdir(), 'ondra-e2e-memory-'))
+
+/*
+ * 供应商必须在**宿主启动之前**写进配置文件。
+ *
+ * ## 为什么不能等宿主起来再 POST /api/config/profiles
+ *
+ * 网关的来源清单是 `apply()` 时的快照：宿主入口读一次
+ * `config.read().profiles`，派生 `sources` 塞进插件配置，之后
+ * `LlmGateway.settings` 就是 `readonly`，`probe()` 只重算可用性缓存、
+ * 不改来源清单。所以「先起宿主、后配供应商」这条路走到提炼那一步必然
+ * 是 `no-source`——而症状只是一句 `failed=1`，说不出「配置没生效」。
+ *
+ * 上一版脚本正是这个顺序，于是七条断言里六条红，看起来像"记忆链断了"，
+ * 实际链是好的，是测试自己把配置写晚了。
+ *
+ * 先写文件再启动，也正是真实用户的路径：填完供应商 → 重启应用 → 对话。
+ */
+await writeFile(
+  join(dataDir, 'config.json'),
+  JSON.stringify({
+    currentModel: 'fake/memory',
+    profiles: [{
+      id: 'fake/memory',
+      label: '假供应商',
+      baseUrl: `http://127.0.0.1:${String(upstreamPort)}/v1`,
+      model: 'fake-model',
+      apiKey: 'test',
+      contextWindow: 32_768,
+    }],
+    permission: 'chat',
+  }, null, 2),
+  'utf8',
+)
+
 const host = spawn(process.execPath, [join(REPO, 'cordis-host', 'lib', 'index.js')], {
   stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, ONDRA_DATA_DIR: dataDir, ONDRA_PORT: '0' },
@@ -230,36 +264,34 @@ try {
   )
 
   /* ------------------------------------------------------------ *
-   * 2. 配一个供应商，指向假上游
+   * 2. 供应商是启动前写进配置的，这里只确认它真的被读到了
    * ------------------------------------------------------------ */
 
-  console.log('\n--- 2. 配一个供应商 ---')
+  console.log('\n--- 2. 供应商已随配置生效 ---')
 
-  const configured = await post('/api/config/profiles', {
-    profiles: [{
-      id: 'fake/memory',
-      label: '假供应商',
-      baseUrl: `http://127.0.0.1:${String(upstreamPort)}/v1`,
-      model: 'fake-model',
-      apiKey: 'test',
-    }],
-  })
-  check('配置供应商成功', configured.status === 200, `HTTP ${String(configured.status)}`)
-
-  const selected = await post('/api/models/select', { id: 'fake/memory' })
-  check('选中供应商成功', selected.status === 200, `HTTP ${String(selected.status)}`)
+  const configNow = await get('/api/config')
+  const profilesNow = Array.isArray(configNow.json?.profiles) ? configNow.json.profiles : []
+  check(
+    '宿主读到了启动前写入的供应商',
+    profilesNow.some((profile) => profile.id === 'fake/memory'),
+    `${String(profilesNow.length)} 条`,
+  )
+  check(
+    '当前模型指向那个供应商',
+    configNow.json?.currentModel === 'fake/memory',
+    String(configNow.json?.currentModel),
+  )
 
   /*
-   * 换完配置要重读一次诊断：网关的来源清单是 `apply()` 时的快照，
-   * 而运行时那层会**按当前配置**决定真实模型。这里断言的是运行时
-   * 已经看到新供应商——漏了这一步，下一段会以「模型不存在」失败，
-   * 而那个报错说不出「你换配置没生效」。
+   * 来源清单必须在这一步就已经非空。它是 `apply()` 快照，**运行时改不了**——
+   * 所以这里红就说明启动顺序又写错了，而不是"稍后会自愈"。
    */
   const afterConfig = await get('/api/diagnostics/memory')
   check(
-    '换配置后网关仍可用',
-    afterConfig.json.gateway?.available === true,
-    String(afterConfig.json.gateway?.reason ?? 'ok'),
+    '启动即派生出来源（无需重启补一次）',
+    Array.isArray(afterConfig.json.gateway?.stats?.sources)
+      && afterConfig.json.gateway.stats.sources.length >= 1,
+    `${String(afterConfig.json.gateway?.stats?.sources?.length ?? 0)} 条`,
   )
 
   /* ------------------------------------------------------------ *
@@ -611,6 +643,72 @@ try {
    */
   console.log(`  · context.applied = ${String(ctxCell?.applied)}`
     + `${ctxCell?.applied === 0 ? '（干净库上这是正确答案：没有旧事可说）' : ''}`)
+
+  /*
+   * ## 9b. 注入正文里**真的有**那两条事实
+   *
+   * 上面三条只验到「注册了、名字对、这一轮产出了正文」。它们全部通过，
+   * 而提示词里一个字都没有记忆，是完全可能的：
+   *
+   * | 断在哪 | `registered` | `names` | `applied` | 提示词里有没有事实 |
+   * | --- | --- | --- | --- | --- |
+   * | 插件没装 | 0 | — | — | 没有 |
+   * | 挂错对象 | >0 | 不含 injection | 0 | 没有 |
+   * | 库是空的 | >0 | 含 injection | 0 | 没有 |
+   * | **装配时丢段** | >0 | 含 injection | **>0** | **没有** ← 前三格全绿 |
+   *
+   * 第四行是这条要抓的：段落产出了（`applied` 涨了），但拼进系统提示词
+   * 那一步被裁掉或漏掉。症状与「她记性不好」在界面上完全一样。
+   *
+   * 判据取「假上游收到的 system 正文里含那两条事实的关键词」。这是
+   * **外部事实**——前面每一环都能用「我产出了」自证，只有上游收到的
+   * 请求体证明那句话真的走完了全程。
+   */
+  console.log('\n--- 9b. 提示词里真的有那两条事实 ---')
+  /*
+   * 这里必须再打一轮对话：上面那些请求发生在事实落库之前（第 3 段），
+   * 它们的 system 里不可能有这两条。`requests` 记的是全部请求体。
+   */
+  const beforeCount = bodies.length
+  const probe = await post('/api/inference', { input: '我今天有点累。' })
+  check('探针轮返回 200', probe.status === 200, `HTTP ${String(probe.status)}`)
+  await new Promise((resolve) => { setTimeout(resolve, 1200) })
+  /*
+   * 取这一轮里**非提炼**的那次请求。判据与假上游一致：不含提炼开场白。
+   * 索引从 `beforeCount` 起，避免拿到前面几轮的旧请求。
+   */
+  const probeBodies = bodies.slice(beforeCount).filter((body) => body !== undefined)
+  const systemOf = (body) => {
+    const messages = Array.isArray(body?.messages) ? body.messages : []
+    return messages
+      .filter((message) => message.role === 'system')
+      .map((message) => String(message.content ?? ''))
+      .join('\n')
+  }
+  const systems = probeBodies.map(systemOf).filter((text) => !text.includes('你是记忆提炼器'))
+  const systemText = systems.length === 0 ? '' : systems[systems.length - 1]
+  check('探针轮的请求里有 system 正文', systemText.length > 0, `${String(systemText.length)} 字`)
+  check('系统提示词里有「杭州」（地点那条真的进了提示词）', systemText.includes('杭州'))
+  check('系统提示词里有「小玖」（姓名那条真的进了提示词）', systemText.includes('小玖'))
+  /*
+   * 反证：记忆不能出现在**用户消息**里。
+   *
+   * 若注入层把记忆拼进了用户那一轮，模型会以为「用户刚刚又说了这句话」，
+   * 于是当成新信息再记一遍——库里条数翻倍，而她开始复述。这种错法在
+   * 只看 system 的断言里完全看不出来。
+   */
+  const lastBody = probeBodies.length === 0 ? undefined : probeBodies[probeBodies.length - 1]
+  const userText = (Array.isArray(lastBody?.messages) ? lastBody.messages : [])
+    .filter((message) => message.role === 'user')
+    .map((message) => String(message.content ?? ''))
+    .join('\n')
+  check('记忆没有被错拼进用户消息', !userText.includes('杭州'), `用户消息 ${String(userText.length)} 字`)
+  /*
+   * 人格段也在同一份提示词里。系统提示词有预算，记忆装箱与人格装配共用
+   * 这一段；若记忆无节制占满预算，人格会被裁掉——表现是她说话没人设，
+   * 而「记忆注入成功」照样全绿。两件事必须一起看。
+   */
+  check('人格段没有被记忆挤掉', systemText.includes('鲸') || systemText.includes('人格'))
 
   /* ------------------------------------------------------------ *
    * 10. 判重：同一句话再说一遍，库里不该多一条

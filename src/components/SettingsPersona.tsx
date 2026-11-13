@@ -14,10 +14,15 @@ import { invokeShell } from '../lib/shell.ts'
 import { useT } from '../lib/i18n.ts'
 import { setPreferences, usePreferences } from '../lib/preferences.ts'
 import { reloadPersonas, usePersona } from '../lib/usePersona.ts'
+import { getSettings, saveSetting } from '../lib/settings.ts'
+import type { SettingsSection } from '../lib/settingTypes.ts'
+import type { SceneValues } from '../lib/scenes.ts'
 import { Avatar } from './Avatar.tsx'
 import { FilterCard } from './FilterCard.tsx'
 import { OralCard } from './OralCard.tsx'
 import { RhythmCard } from './RhythmCard.tsx'
+import { SceneLayer } from './SceneLayer.tsx'
+import { SectionFields } from './SectionFields.tsx'
 import { VoiceCard } from './VoiceCard.tsx'
 import { Heading, Note } from './settingsUi.tsx'
 
@@ -35,6 +40,26 @@ interface Entry {
 function blank(): Entry {
   return { id: '', title: '', category: '', body: '' }
 }
+
+/**
+ * 单个段的场景项集合。
+ *
+ * ## 为什么按段分给各张卡，而不是在页首列一个「日常调整」
+ *
+ * 试过页首集中：6 个旋钮排在一起，看起来整齐，但它们分属口吻、节奏、
+ * 记忆三件不同的事——用户在「说话口吻」那一节读到「记忆保留深度」，
+ * 得先意识到「这是另一件事」，再跳到下面找它的完整字段。同一件事被
+ * 拆到两处，只是这次拆在同一个页面里。
+ *
+ * 现在的排法是「一张卡 + 它自己的旋钮 + 它的完整字段」：读到哪儿、
+ * 调到哪儿，不用来回找。
+ */
+function one(section: string): ReadonlySet<string> {
+  return new Set([section])
+}
+
+/** 记忆一节有两个段各有场景项：保留深度与复核周期。 */
+const MEMORY_SCENE_SECTIONS: ReadonlySet<string> = new Set(['memory-core', 'memory-audit'])
 
 /** 头像边长。24 是显示尺寸，96 是存储尺寸——四倍像素密度足够 Retina。 */
 const AVATAR_PIXELS = 96
@@ -114,6 +139,75 @@ export function SettingsPersona(): React.JSX.Element {
   const [receipt, setReceipt] = useState<{ tone: 'ok' | 'bad'; text: string } | undefined>(undefined)
   /** 正在编辑的草稿。undefined 表示没有打开编辑器。 */
   const [draft, setDraft] = useState<Entry | undefined>(undefined)
+
+  /*
+   * 四张卡各自的配置段与用户层取值。
+   *
+   * ## 为什么提到这一层
+   *
+   * 原先四张卡各自 `getSettings()`，各自只取自己那一段的 `enable`。段里
+   * 其余十几个字段没有任何入口——用户看到「朗读」开关，想调声音，被告知
+   * 去「扩展功能 · 模块」里找 `tts` 段。
+   *
+   * 现在这一层读一次快照，卡片下面嵌 `SectionFields` 原地展开整段字段。
+   * 读一次而不是五次，也顺手省掉五次往返。
+   */
+  const [sections, setSections] = useState<SettingsSection[]>([])
+  const [settingsUser, setSettingsUser] = useState<SceneValues>({})
+  /*
+   * 开发者模式取自**偏好**，与扩展功能页同一个开关。
+   *
+   * 不在这里另记一份：两处各记一份，用户在一个页面打开、到另一个页面
+   * 看不到高级字段，会以为「同一段在不同页面字段数不同」。
+   */
+  const developerMode = preferences.developerMode
+
+  const refreshSettings = useCallback(async (): Promise<void> => {
+    try {
+      const snapshot = await getSettings()
+      setSections(snapshot.sections)
+      setSettingsUser(snapshot.user)
+    } catch {
+      /* 读不到就保持空：卡片本身有各自的失败态，这里不再叠一条 */
+    }
+  }, [])
+
+  useEffect(() => { void refreshSettings() }, [refreshSettings])
+
+  const writeSetting = useCallback(async (section: string, key: string, value: unknown): Promise<void> => {
+    const previous = settingsUser[section]?.[key]
+    const had = previous !== undefined
+    setSettingsUser((current) => {
+      const bucket = { ...current[section] }
+      if (value === undefined) delete bucket[key]
+      else bucket[key] = value
+      const next = { ...current }
+      if (Object.keys(bucket).length === 0) delete next[section]
+      else next[section] = bucket
+      return next
+    })
+    try {
+      await saveSetting(section, key, value)
+    } catch (caught) {
+      /* 失败回滚，否则界面显示已改、文件里没变，下次启动又变回去 */
+      setSettingsUser((current) => {
+        const bucket = { ...current[section] }
+        if (had) bucket[key] = previous
+        else delete bucket[key]
+        const next = { ...current }
+        if (Object.keys(bucket).length === 0) delete next[section]
+        else next[section] = bucket
+        return next
+      })
+      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '写入失败' })
+    }
+  }, [settingsUser])
+
+  /** 按段 id 取段声明。插件没装时返回 undefined。 */
+  const sectionOf = useCallback(
+    (id: string): SettingsSection | undefined => sections.find((item) => item.id === id),
+    [sections],
+  )
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -258,19 +352,107 @@ export function SettingsPersona(): React.JSX.Element {
         </ul>
       )}
 
+      {/*
+        人设变量紧跟在人设包之后：包决定「她是谁」，变量决定「她怎么称呼你」。
+        两者是同一件事的两层——先选包，再调称呼。
+      */}
+      <SectionFields
+        section={sectionOf('persona-vars')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.vars')}
+      />
+
       <Heading>{t('persona.voice')}</Heading>
       <VoiceCard />
+      <SceneLayer sections={sections} user={settingsUser} onWrite={writeSetting} only={one('tts')} />
+      <SectionFields
+        section={sectionOf('tts')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.voice')}
+      />
+      <SectionFields
+        section={sectionOf('tts-gate')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.voiceGate')}
+      />
 
       <Heading>{t('persona.tone')}</Heading>
       <OralCard />
+      <SceneLayer sections={sections} user={settingsUser} onWrite={writeSetting} only={one('persona-vars')} />
+      <SectionFields
+        section={sectionOf('oral')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.tone')}
+      />
+      <SectionFields
+        section={sectionOf('lexicon')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.lexicon')}
+      />
+      <SectionFields
+        section={sectionOf('expression-decide')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.expression')}
+      />
 
       <Heading>{t('persona.pace')}</Heading>
       <RhythmCard />
+      <SceneLayer sections={sections} user={settingsUser} onWrite={writeSetting} only={one('rhythm')} />
+      <SectionFields
+        section={sectionOf('rhythm')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.pace')}
+      />
 
       <Heading>{t('persona.rules')}</Heading>
       <FilterCard />
+      <SectionFields
+        section={sectionOf('filter-chain')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.rules')}
+      />
 
       <Heading>{t('persona.memory')}</Heading>
+      <Note>{t('persona.memory.note')}</Note>
+      <SceneLayer sections={sections} user={settingsUser} onWrite={writeSetting} only={MEMORY_SCENE_SECTIONS} />
+      <SectionFields
+        section={sectionOf('memory-core')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.memoryCore')}
+      />
+      <SectionFields
+        section={sectionOf('memory-decay')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.memoryDecay')}
+      />
+      <SectionFields
+        section={sectionOf('memory-audit')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={developerMode}
+        label={t('persona.more.memoryAudit')}
+      />
+
       <Note>{t('kb.note')}</Note>
 
       <div className="pref__actions">

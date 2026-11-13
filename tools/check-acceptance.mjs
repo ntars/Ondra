@@ -1162,6 +1162,126 @@ async function checkShellConfig() {
     `top16+gap8=${String(tlTopGap)} dot12=${String(tlDot)} hidden=${String(tlHidden)}`)
 
   /*
+   * --- 2.5 Windows 必须关掉系统装饰 ---
+   *
+   * `titleBarStyle: "Overlay"` 是 **macOS 专属字段**，Windows 读它等于没写，
+   * 系统照旧画一条原生标题栏；而界面在 Windows 上又自绘了一套三键。
+   * 两套并存的症状用户截图拍到过：窗口顶部出现两排按钮，上面是系统的
+   * `− □ ×`，下面是自绘的 `− ×`，版本号还被压在 `×` 底下。
+   *
+   * 这条断言钉的是「平台配置里必须有 decorations:false」——它是让自绘
+   * 三键真正接管的唯一开关。漏了它不会报任何错，只是按钮悄悄变成两排。
+   *
+   * 顺带验 `app.windows` 的尺寸没在平台文件里被写丢：Tauri 的平台配置
+   * 对**数组是整体替换**（JSON Merge Patch），少写一个字段就回退默认值。
+   */
+  const winConf = JSON.parse(await read(join(REPO, 'src-tauri/tauri.windows.conf.json')))
+  const winMain = (winConf?.app?.windows ?? []).find((win) => win.label === 'main')
+  ok('Windows 关闭系统装饰，自绘三键接管', winMain?.decorations === false,
+    '不关 decorations，系统标题栏与自绘三键会叠成两排按钮',
+    `decorations=${String(winMain?.decorations)}`)
+  ok('Windows 平台配置没有写丢窗口尺寸', winMain?.minWidth === 820 && winMain?.minHeight === 580
+    && winMain?.width === 820 && winMain?.height === 580,
+    '平台配置的 app.windows 是整体替换，漏字段会回退成 Tauri 默认尺寸',
+    `${String(winMain?.width)}×${String(winMain?.height)} min ${String(winMain?.minWidth)}×${String(winMain?.minHeight)}`)
+
+  /*
+   * --- 2.6 编辑供应商时不能抹掉密钥 ---
+   *
+   * 宿主对密钥有一条约定：回传值里**含圆点**（`••••••••abcd` 这种打码串）
+   * 表示"用户没改"，此时沿用已存的原文；回传空串则表示"用户主动清空"，
+   * 会真的把密钥写没。
+   *
+   * 于是「编辑」这条路必须把打码值回填进草稿。留空看着更"干净"，
+   * 但改一个标签名就会顺手把密钥删掉——而且界面不会提示，下一次对话
+   * 才报 401。这条断言钉住回填，防止将来有人"顺手清理"成空串。
+   */
+  const providersTsx = await read(join(REPO, 'src/components/SettingsProviders.tsx'))
+  const draftFn = /function toDraft\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(providersTsx)?.[1] ?? ''
+  ok('编辑供应商时回填打码密钥（否则改个名字就把 key 抹了）',
+    /apiKey:\s*profile\.apiKey/.test(draftFn),
+    'toDraft 把 apiKey 填成空串会让宿主以为是主动清空，真密钥被覆盖',
+    draftFn === '' ? '没找到 toDraft' : 'apiKey 来源=' + (/apiKey:\s*([^,\n]+)/.exec(draftFn)?.[1] ?? '?'))
+
+  /*
+   * --- 2.7 出厂配置不能预置连不上的供应商 ---
+   *
+   * 上一版出厂写一条 `http://127.0.0.1:3425/v1` 的本地网关，注释说「本机上
+   * 它已经可用」——那是开发机的现实。用户装到另一台机器上，3425 没有进程
+   * 在听，而 `currentModel` 恰好指着它，于是第一句话必然拿到
+   *
+   *     无法连接供应商（http://127.0.0.1:3425/v1）：fetch failed
+   *
+   * 这三条断言用**真实的 ConfigStore**跑三种输入，不是文本匹配：
+   *   ① 首次启动 → 空清单 + 空 currentModel（界面落到本地演示，一定能说话）
+   *   ② 旧配置带着出厂项 → 清掉，currentModel 让回空串
+   *   ③ 用户自己填的网关（地址同样是 3425）→ 一条不动
+   *
+   * ③ 是这套清理的边界：只有我们塞进去过的那个 id 才该被判死，
+   * 用户填的地址连不上是他自己的事，宿主无从替他判断。
+   */
+  const { ConfigStore } = await import(
+    pathToFileURL(join(REPO, 'cordis-host/lib/src/config.js')).href
+  )
+  const { mkdtemp, writeFile: writeText } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+
+  /** 用一个临时目录跑一次 ConfigStore.open。 */
+  const withConfig = async (initial) => {
+    const dir = await mkdtemp(join(tmpdir(), 'ondra-accept-'))
+    const path = join(dir, 'config.json')
+    if (initial !== undefined) await writeText(path, JSON.stringify(initial), 'utf8')
+    const store = await ConfigStore.open(path)
+    return { store, path }
+  }
+
+  try {
+    const fresh = await withConfig(undefined)
+    const freshCfg = fresh.store.read()
+    ok('首次启动不预置任何供应商（只有本地演示可用）',
+      freshCfg.profiles.length === 0 && freshCfg.currentModel === '',
+      '预置一个本机不存在的网关，用户第一句话就会撞 fetch failed',
+      `profiles=${String(freshCfg.profiles.length)} currentModel=${JSON.stringify(freshCfg.currentModel)}`)
+
+    const legacy = await withConfig({
+      currentModel: 'magpie-dsv4',
+      profiles: [
+        { id: 'magpie-dsv4', label: 'DeepSeek V4.1 Flash', baseUrl: 'http://127.0.0.1:3425/v1', model: 'auto/deepseek-v4.1-flash', apiKey: '' },
+        { id: 'my-deepseek', label: '我的 DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: 'sk-test' },
+      ],
+      permission: 'workspace',
+    })
+    const legacyCfg = legacy.store.read()
+    ok('旧配置里的出厂供应商被清掉，选中项让回本地演示',
+      !legacyCfg.profiles.some((item) => item.id === 'magpie-dsv4') && legacyCfg.currentModel === '',
+      '只删内置不够：currentModel 还指着它，界面上依旧选中一条死链',
+      `profiles=${legacyCfg.profiles.map((item) => item.id).join(',') || '(空)'} currentModel=${JSON.stringify(legacyCfg.currentModel)}`)
+    ok('清理不会连累用户自己配的供应商与密钥',
+      legacyCfg.profiles.length === 1
+        && legacyCfg.profiles[0].id === 'my-deepseek'
+        && legacyCfg.profiles[0].apiKey === 'sk-test',
+      '清理范围必须收窄到出厂那一个 id，否则用户填好的密钥会被一起删掉',
+      legacyCfg.profiles.map((item) => `${item.id}:${item.apiKey === '' ? '无key' : '有key'}`).join(' ') || '(空)')
+
+    const own = await withConfig({
+      currentModel: 'my-gateway',
+      profiles: [
+        { id: 'my-gateway', label: '自己的网关', baseUrl: 'http://127.0.0.1:3425/v1', model: 'auto/deepseek-v4.1-flash', apiKey: '' },
+      ],
+      permission: 'full',
+    })
+    const ownCfg = own.store.read()
+    ok('用户自己填的网关（哪怕地址相同）不被误删',
+      ownCfg.profiles.length === 1 && ownCfg.currentModel === 'my-gateway',
+      '判据必须是 id 而不是地址：地址相同不代表它是我们塞进去的那条',
+      `profiles=${ownCfg.profiles.map((item) => item.id).join(',')} currentModel=${JSON.stringify(ownCfg.currentModel)}`)
+  } catch (caught) {
+    ok('出厂配置清理可被验证', false,
+      '读不到 cordis-host 的编译产物，先跑 pnpm --filter @ondra/cordis-host run build',
+      String(caught))
+  }
+
+  /*
    * --- 3. 深色启动无白帧的双保险 ---
    *
    * 两半都必须有：

@@ -1243,6 +1243,12 @@ function Shell(): React.JSX.Element {
               setSettingsAt(sectionId)
               setSettings(true)
             }}
+            /*
+              窄屏下抽屉内部自己切。宽屏由 CSS 藏起这组页签（Rail 已在做
+              同一件事），所以这里不必判断宽度——CSS 决定可见性，
+              JS 不重复一次测量。
+            */
+            onSwitch={(next) => { setDrawer(next) }}
             onClose={() => { setDrawer(undefined) }}
           />
 
@@ -1287,6 +1293,11 @@ function Shell(): React.JSX.Element {
           {...(settingsAt === undefined ? {} : { initialSection: settingsAt })}
           {...(state.sessionId === undefined ? {} : { sessionId: state.sessionId })}
           onImported={() => { void state.reload() }}
+          /*
+           * 供应商增删改之后重拉模型列表。不重拉的话，设置里加完供应商，
+           * 顶栏选择器仍是旧列表——用户只能重启应用才看到，会以为没保存。
+           */
+          onModelsChanged={() => { void state.refreshModels() }}
           onClose={() => {
             setSettings(false)
             setSettingsAt(undefined)

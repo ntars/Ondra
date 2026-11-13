@@ -57,37 +57,46 @@ function defaultConfig(): HostConfig {
 }
 
 /**
- * 首次启动时写入的内置网关配置。
+ * 历史版本内置过的供应商 id。
  *
- * ## 为什么内置一条
+ * ## 为什么是"历史"而不是"内置"
  *
- * 这个应用出厂时没有任何密钥，而用户打开它第一件事就是想说话。若此时
- * 界面上只有一个"未配置"的模型选择器，第一次体验就是"装了个不能用"。
+ * 上一版出厂会写一条指向 `http://127.0.0.1:3425/v1` 的 magpie 网关，理由是
+ * 「本机上它已经可用」。那句话对开发机成立，对用户不成立：3425 是开发时
+ * 自建的本地网关，随发布包一起出去时它并不存在，用户说的第一句话必然拿到
  *
- * ## 为什么是 magpie
+ *     无法连接供应商（http://127.0.0.1:3425/v1）：fetch failed
  *
- * magpie 是本机上的 OpenAI 兼容网关（`127.0.0.1:3425`），不需要密钥，
- * 且聚合了多个上游模型。对本机用户来说它是**已经可用**的那个，
- * 不是让用户去申请 key 才能用。
+ * 而默认选中的恰好是它，于是「装好了、说一句试试」的第一步就是红的。
+ * 这不是偶发网络抖动，是出厂即坏。
  *
- * ## 为什么只在首次写入
+ * ## 为什么还要留着这个清单
  *
- * 只在配置文件不存在时写。用户后来删掉这条、或改成自己的供应商，
- * 都是他的选择；每次启动都补回来会变成"删不掉的项"。
+ * 已经装过旧版本的用户，配置里那条坏项还在，且 `currentModel` 指着它。
+ * 光把内置去掉不够——旧文件读进来照旧会选中它。所以启动时按这份清单做一次
+ * 清理：删掉这些条目，并把它占着的 `currentModel` 让回空串（内核会把空串
+ * 当成本地演示模型，界面立刻可用）。
+ *
+ * ## 为什么只删这一小撮 id，不是"删掉所有连不上的"
+ *
+ * 用户自己填的地址连不上是他要处理的问题，宿主无从判断「他是暂时关着自己
+ * 的 Ollama，还是填错了」。唯一有资格被判死的，只有**我们塞进去过的那条**。
  */
-function builtinProfiles(): StoredProfile[] {
-  return [
-    {
-      id: 'magpie-dsv4',
-      label: 'DeepSeek V4.1 Flash',
-      baseUrl: 'http://127.0.0.1:3425/v1',
-      model: 'auto/deepseek-v4.1-flash',
-      // 本地网关不校验密钥，留空即可。留空也让同步给内核的请求不带
-      // Authorization 头——带一个空 Bearer 有的网关会当成非法凭据拒绝。
-      apiKey: '',
-      contextWindow: 1_000_000,
-    },
-  ]
+const LEGACY_BUILTIN_PROFILE_IDS: ReadonlySet<string> = new Set(['magpie-dsv4'])
+
+/**
+ * 清掉历史版本塞进来的出厂供应商。
+ *
+ * @param config 从磁盘读到的配置（已通过 {@link normalize} 收窄）。
+ * @returns 清理后的配置；没有可清的东西时原样返回同一个对象引用。
+ */
+function dropLegacyBuiltins(config: HostConfig): HostConfig {
+  const profiles = config.profiles.filter((profile) => !LEGACY_BUILTIN_PROFILE_IDS.has(profile.id))
+  if (profiles.length === config.profiles.length) return config
+  // 选中的那条被删了：回落空串。空串不是"没配"的错误态，内核会据此用
+  // 本地演示模型（见内核 `inference.run`），界面因此立刻能说话。
+  const stillThere = profiles.some((profile) => profile.id === config.currentModel)
+  return { ...config, profiles, currentModel: stillThere ? config.currentModel : '' }
 }
 
 /**
@@ -129,12 +138,33 @@ export class ConfigStore {
    * 文件不存在或损坏时退回默认值而不是抛错：首次启动没有配置文件是正常状态，
    * 而一个手改坏了的文件不该让应用起不来。损坏的原文件会留一份 `.bak` 副本。
    *
-   * 首次启动（含损坏回退）时顺手写入内置网关，让应用开箱就能说话。
+   * ## 首次启动写的是空供应商
+   *
+   * 出厂不预置任何供应商。理由见 {@link LEGACY_BUILTIN_PROFILE_IDS}：曾经
+   * 预置过一条本机网关，结果用户在另一台机器上第一次说话就撞 `fetch failed`。
+   * 空清单下界面显示的是「本地演示（不联网）」——它一定会回应，用户能立刻
+   * 分清「软件是好的，只是还没配模型」与「软件坏了」。
+   *
+   * ## 旧配置要清一次
+   *
+   * 已有配置的用户读进来的那份会带着历史内置项，走 {@link dropLegacyBuiltins}
+   * 清掉并落盘，免得每次启动都清一遍内存、磁盘却永远是脏的。
    */
   static async open(path: string): Promise<ConfigStore> {
     try {
       const raw = await readFile(path, 'utf8')
-      return new ConfigStore(path, normalize(JSON.parse(raw)))
+      const normalized = normalize(JSON.parse(raw))
+      const cleaned = dropLegacyBuiltins(normalized)
+      const store = new ConfigStore(path, cleaned)
+      // 只在真的清掉了东西时才回写：无谓的写盘会让 mtime 每次都变，
+      // 外部工具（备份、同步盘）会以为配置一直被修改。
+      if (cleaned !== normalized) {
+        process.stderr.write('[host] 已移除历史版本内置的失效供应商\n')
+        await store.persist().catch((caught: unknown) => {
+          process.stderr.write(`[host] 清理后的配置回写失败：${String(caught)}\n`)
+        })
+      }
+      return store
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT') {
@@ -142,8 +172,7 @@ export class ConfigStore {
         // 保留原件，便于用户找回自己填过的密钥。
         await rename(path, `${path}.bak`).catch(() => {})
       }
-      const profiles = builtinProfiles()
-      const store = new ConfigStore(path, { ...defaultConfig(), profiles, currentModel: profiles[0]?.id ?? '' })
+      const store = new ConfigStore(path, defaultConfig())
       // 落盘失败不阻断启动：内存里的这份配置已可用，只是下次启动会重来一遍。
       await store.persist().catch((caught: unknown) => {
         process.stderr.write(`[host] 写入初始配置失败：${String(caught)}\n`)

@@ -728,37 +728,6 @@ pub async fn kb_delete(app: tauri::AppHandle, id: String) -> Result<(), String> 
   write_json_array(&app, "kb.json", &items)
 }
 
-/// 列出用户添加的自定义模型提供商。
-#[tauri::command]
-pub async fn providers_list(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
-  Ok(read_json_array(&app, "providers.json"))
-}
-
-/// 新增或更新一个提供商。
-#[tauri::command]
-pub async fn providers_upsert(app: tauri::AppHandle, entry: serde_json::Value) -> Result<serde_json::Value, String> {
-  let mut items = read_json_array(&app, "providers.json");
-  let id = entry
-    .get("id")
-    .and_then(|value| value.as_str())
-    .map(str::to_string)
-    .unwrap_or_else(|| format!("prov-{}", now_secs()));
-  let mut merged = entry.clone();
-  merged["id"] = serde_json::Value::String(id.clone());
-  items.retain(|item| item.get("id").and_then(|value| value.as_str()) != Some(id.as_str()));
-  items.push(merged.clone());
-  write_json_array(&app, "providers.json", &items)?;
-  Ok(merged)
-}
-
-/// 删除一个提供商。
-#[tauri::command]
-pub async fn providers_remove(app: tauri::AppHandle, id: String) -> Result<(), String> {
-  let mut items = read_json_array(&app, "providers.json");
-  items.retain(|item| item.get("id").and_then(|value| value.as_str()) != Some(id.as_str()));
-  write_json_array(&app, "providers.json", &items)
-}
-
 /// 语音转写的结果。成功与失败都走正常返回（前端据此给提示），不抛错——
 /// 「没装本地模型」是预期状态，不是异常。
 #[derive(Serialize)]

@@ -69,6 +69,23 @@ export interface SceneItem {
   /** 控件旁的一行提示。 */
   hint?: string
   /**
+   * 数字读数的单位，如「天」「分钟」「字」「轮」。
+   *
+   * ## 为什么必须有这一项
+   *
+   * 滑杆只显示一个裸数字时，用户读到的信息是不完整的：「记忆保留深度」
+   * 显示 `30`，到底是 30 天、30 条、还是 30 次？字段 `archive-normal-days`
+   * 的名字里写着 days，但那个名字用户看不到。`aria-valuetext` 同样是裸
+   * 数字，读屏用户拿到的信息更少。
+   *
+   * 单位属于**字段语义**，不属于渲染：同一个数字在不同场景里可以是天、
+   * 分钟或轮。所以它跟着场景项定义走，渲染处只负责拼在读数后面——
+   * 一份真源，两处（视觉与 `aria-valuetext`）共用。
+   *
+   * 布尔与枚举项不需要，留空即可。
+   */
+  unit?: string
+  /**
    * 预演函数。只有 §5.13 点名的 6 项有。
    *
    * 返回一句人话，说明「这组参数会产生什么效果」。**不调模型**，
@@ -94,6 +111,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '记忆内核',
     key: 'archive-normal-days',
     control: 'number-anchored',
+    unit: '天',
     // 四档只是 30 / 90 / 365 / 3650 的显示名。字段 min:1 max:3650，
     // 所以滑杆必须能拉到任意天数（步长 1），不能只给这四档。
     options: [
@@ -130,7 +148,12 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
      * 唯一的真开关在主动闸门：`proactive-gate.enable=false` 会在第一道闸
      * 就 drop/disabled，那才是「她不再主动说话」。
      */
-    hint: '如需完全关闭主动发言，请在「原始」层关闭「主动闸门」',
+    /*
+     * 指引改到「通用 · 主动发言」：那三个段已从扩展功能上移，界面上
+     * 有了名字叫「开口时机与限额」的折叠区。继续指「原始」层会让用户
+     * 按旧路径去找一个已经不在那里的东西。
+     */
+    hint: '如需完全关闭主动发言，到「通用 · 主动发言」里关掉「开口时机与限额」的总开关',
     preview: (values) => {
       const profile = readString(values, 'proactive-quota', 'profile', 'standard')
       const perDay = profile === 'slow' ? 1 : profile === 'fast' ? 6 : 3
@@ -157,6 +180,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '主动闸门',
     key: 'idle-minutes',
     control: 'number-anchored',
+    unit: '分钟',
     /*
      * 四档只是显示名。字段 min:0 max:1440，滑杆必须仍能拉到任意分钟——
      * 0–1440 的线性滑杆把常用的 5–60 分钟挤在最左边几个像素里，
@@ -177,6 +201,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '人格变量与浓度',
     key: 'tone-level',
     control: 'number',
+    unit: '%',
     scale: ['克制', '自然', '热情'],
     preview: (values) => {
       const level = readNumber(values, 'persona-vars', 'tone-level', 50)
@@ -193,6 +218,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '节奏',
     key: 'max-chars-per-message',
     control: 'number',
+    unit: '字',
     scale: ['短', '适中', '长'],
     hint: '长度越短，越接近即时消息节奏',
     preview: (values) => {
@@ -209,6 +235,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '节奏',
     key: 'chars-per-second',
     control: 'number',
+    unit: '字/秒',
     scale: ['慢', '自然', '快'],
     preview: (values) => {
       const speed = readNumber(values, 'rhythm', 'chars-per-second', 6)
@@ -224,6 +251,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '对话',
     key: 'max-turns',
     control: 'number-anchored',
+    unit: '轮',
     // 用 max-turns 而不是 max-tokens：后者默认 0 表示「不设上限」，
     // 做成滑杆后最左端等于「无限」，语义是反的。
     options: [
@@ -263,6 +291,7 @@ export const SCENE_ITEMS: readonly SceneItem[] = Object.freeze([
     sectionTitle: '遗忘审计',
     key: 'resurface-days',
     control: 'number',
+    unit: '天',
   },
   {
     id: 'tts',

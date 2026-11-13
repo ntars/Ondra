@@ -12,6 +12,19 @@
  * | Windows | 自绘菜单按钮 32×32 | 自绘三键 138×32 |
  * | Linux | 系统装饰 | 系统装饰 |
  *
+ * ## Windows 为什么必须关掉系统装饰
+ *
+ * 上一版只在 `tauri.conf.json` 写了 `titleBarStyle: "Overlay"`——那是
+ * **macOS 专属字段**，Windows 读它等于没写，系统照样画一条原生标题栏。
+ * 而这里又渲染了一套自绘三键，于是窗口上出现两排按钮（用户截图实测：
+ * 上排是系统的 `− □ ×`，下排是自绘的 `− ×`）。
+ *
+ * 修法不是删掉自绘，而是补上 `src-tauri/tauri.windows.conf.json` 的
+ * `decorations: false`，让自绘真正接管。为什么敢关：无边框窗口在
+ * tao 里仍保留 `WS_OVERLAPPEDWINDOW` 的其余样式位，最大化不会盖住任务栏，
+ * 边缘拖拽缩放由 `WM_NCHITTEST` 单独处理（`RESIZABLE` 为真时生效）。
+ * 关掉之后，`data-tauri-drag-region` 这条整栏拖拽才真正是唯一入口。
+ *
  * ## 为什么这里不放会话标题
  *
  * 上一版把当前会话标题放在标题栏正中。两个问题：

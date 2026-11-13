@@ -54,14 +54,14 @@
 }
 
 .dialog__extra {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .dialog__check {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 8px;
   font-size: var(--text-caption);
   color: var(--ui-ink-3);
   cursor: pointer;
@@ -220,7 +220,7 @@
 .toast__body {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px 16px;
   border-radius: var(--r-md);
   background: var(--ui-bg-glass-strong);

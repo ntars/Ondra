@@ -45,7 +45,7 @@
 
 import { Context } from '@ntars/cordis'
 import { join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 // 插件按包名导入而非相对路径：包名让依赖关系可被 pnpm 与 tsc 的工程引用追踪，
 // 相对路径则会绕过 workspace 链接，把插件源码编进宿主产物——那样插件的
@@ -127,6 +127,67 @@ function parseEnableList(raw: string | undefined): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item !== '')
+}
+
+/**
+ * 列出**随包安装**的全部插件 id。
+ *
+ * ## 为什么从磁盘派生，而不是维护一份清单
+ *
+ * 产品口径是「插件随包分发即默认生效」。若启用判据是一份手写数组，那么
+ * 「新加一个插件包」这件事就多了一个**必须记得**的步骤，而忘记它的症状
+ * 是：插件装进了包、代码全对、服务没注册、`ctx.get` 恒 `undefined`，
+ * 每一处消费方都写好了降级路径——**没有任何一处报错**。
+ *
+ * 本仓在这个形态上反复踩了八次（README 里有逐条记录），每次都是靠人工
+ * 排查发现的。所以判据换成「目录里有没有这个包」：加包即生效，
+ * 不需要第二处记得改。
+ *
+ * ## 为什么读目录而不是读 `package.json` 的依赖表
+ *
+ * `plugins/*` 下的目录就是打包时真正被复制进产物的那些（`prepare-plugins`
+ * 按目录收集）。依赖表描述的是"谁依赖谁"，不是"有哪些包"——两者会漂。
+ * 目录是产物本身，最不会说谎。
+ *
+ * ## 失败时返回空数组而不是抛错
+ *
+ * 读不到目录（比如打包后的布局不同）时返回空，让宿主退回上面那份
+ * `DEFAULT_CORE_ENABLE` 白名单。**降级到"少装"而不是"起不来"**：
+ * 少装一个插件的症状是功能缺失，起不来是应用打不开，后者严重得多。
+ *
+ * @returns 插件 id 列表，形如 `['ondra-clock', 'ondra-memory-core', …]`。
+ */
+function listInstalledPlugins(): string[] {
+  /*
+   * 目录布局：本文件在 `cordis-host/lib/index.js`（构建后）或
+   * `cordis-host/index.ts`（开发态）。两种情况的上两级都是仓库根，
+   * 插件在 `cordis-host/plugins/<id>`。
+   *
+   * 用 `import.meta.dirname` 而不是 `process.cwd()`：cwd 取决于用户
+   * 从哪个目录启动应用，而插件目录相对的是**这个文件的位置**。
+   */
+  const pluginsRoot = join(import.meta.dirname, '..', 'plugins')
+  try {
+    return readdirSync(pluginsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      /*
+       * 只要 `ondra-*`。`desktop-bridge` / `dsh-client` 是宿主常驻，
+       * 在 `loadCore` 之前就已经挂好（见 `RESIDENT_PLUGINS`），
+       * 放进这份名单会让它们被装载两次。
+       *
+       * `ondra-core` 是"核心清单"包本身（它只导出注册表，不含服务），
+       * 也不是可独立装载的成员。
+       */
+      .filter((name) => name.startsWith('ondra-') && name !== 'ondra-core')
+      .sort()
+  } catch (error) {
+    process.stderr.write(
+      `[host] 读不到插件目录（${pluginsRoot}）：${String(error)}。`
+      + ' 退回内置启用名单——功能可能不全，但应用能起来。\n',
+    )
+    return []
+  }
 }
 
 /**
@@ -982,6 +1043,45 @@ async function main(): Promise<void> {
   ]
   const enableList = [...new Set([...DEFAULT_CORE_ENABLE, ...parseEnableList(process.env.ONDRA_CORE_ENABLE)])]
   /*
+   * ## 默认装载**全部**已安装插件（产品口径）
+   *
+   * 上面那份 `DEFAULT_CORE_ENABLE` 是历史上逐个补进来的白名单。它的每一
+   * 条目都附带一段"为什么现在才装"的说明，而那些说明本身就是证据：
+   * 白名单这个机制**一直在漏**。同一形态在本仓反复出现（README 里数到
+   * 第八次）：插件写完了、测试全绿、服务没注册、`ctx.get` 恒 `undefined`、
+   * 每一处消费方都写好了降级路径，于是**没有任何一处报错**，功能就是不生效。
+   *
+   * 产品口径现在是：**插件随包分发即默认生效**。装了什么就该跑什么，
+   * 「装了但没开」不该是一个用户需要理解的中间态。
+   *
+   * ### 为什么不是直接把上面那份名单删掉
+   *
+   * 它现在的作用变成了**优先级与装载顺序的注释载体**：那些段落解释了
+   * 「为什么 X 必须排在 Y 之前」「缺了 Z 会有什么症状」。删掉它们等于把
+   * 八轮排查换来的知识扔了。所以名单保留，但**不再作为启用的判据**——
+   * 真正的判据是「磁盘上有这个包」。
+   *
+   * ### 全量装载的依据
+   *
+   * 实测 75 个包一起装：78 个全部 `loaded`（含 3 个核心桥接），零失败、
+   * 零启动期错误。这不是推测，是把 `ONDRA_CORE_ENABLE` 填成全量跑出来的
+   * 结果。所以这里可以放心从目录派生。
+   *
+   * ### 排序怎么办
+   *
+   * 插件之间的先后由各自 `after` 声明决定（`ondra-core` 里的注册表），
+   * 不靠这份数组的顺序。数组只提供"要不要装"的集合语义，所以派生出来的
+   * 顺序无关紧要。
+   *
+   * ### 用户仍然能关
+   *
+   * 扩展抽屉里的「停用」写 `plugins.json` 的 `disabled`，在下面那一步
+   * 被减掉。默认全开 + 用户可关，这才是"默认生效"的正确形状：出厂即用，
+   * 想关再关。
+   */
+  const discovered = listInstalledPlugins()
+  const enableListAll = [...new Set([...enableList, ...discovered])]
+  /*
    * 用户在扩展抽屉里关掉的包。
    *
    * 名单来自代码常量 + 环境变量，两者用户都不方便改；扩展抽屉的开关就是
@@ -999,7 +1099,7 @@ async function main(): Promise<void> {
    * 同一个包会命中停用名单——用户看到的开关是开的，实际却没装载。
    */
   const enabledPlugins = new Set(
-    [...enableList, ...pluginSwitches.extra].filter((id) => !pluginSwitches.disabled.has(id)),
+    [...enableListAll, ...pluginSwitches.extra].filter((id) => !pluginSwitches.disabled.has(id)),
   )
 
   /*
@@ -2208,13 +2308,24 @@ function buildRoutes(
         /** 首帧是否已经放过（半拍走完）。 */
         let firstWordSent = false
         /**
-         * 首帧之后的排队链。
+         * 首帧的等待闸。
          *
          * `onEvent` 是同步回调，`await` 会阻塞内核的事件派发（思考帧也会
-         * 跟着卡住）。所以把「等半拍 → 发首帧」丢进这条链，
-         * 后续帧挂在链尾——顺序与内容都保持原样。
+         * 跟着卡住）。所以把「等半拍 → 放首帧」丢进一个 Promise，首帧到达
+         * 时挂上去，**不等**。
          */
-        let deltaChain: Promise<void> = Promise.resolve()
+        let holdGate: Promise<void> | undefined
+        /**
+         * 首帧是否已经真的放出去了。
+         *
+         * 与 `firstWordSent` 的区别：那个表示「首帧已到达并开始压着」，
+         * 这个表示「半拍走完、字真的发出去了」。两者之间是那 0.8–2 秒。
+         */
+        let firstReleased = false
+        /** 首帧内容。半拍走完才放出去，**一个字都不能丢**。 */
+        let pendingFirst = ''
+        /** 半拍期间到达、还没发出去的帧。半拍走完与首帧一起放。 */
+        const held: string[] = []
 
         // 只转发属于本会话的增量。内核可能同时在跑别的会话，
         // 不过滤会把 A 会话的字混进 B 会话的界面。
@@ -2241,33 +2352,72 @@ function buildRoutes(
            * 只是少一个字）。这里只延后发出，内容一个字不少。
            */
           const frame = { text: params.text }
-          if (!firstWordSent) {
-            firstWordSent = true
-            deltaChain = (async () => {
-              /*
-               * 先报阶段、再等。
-               *
-               * ## 为什么必须按这个顺序
-               *
-               * 反过来的话，那半拍里界面什么都没有：气泡是空的、三点也没亮
-               * （正文还没来，`pending` 的那条消息还没有内容可显示）。
-               * 用户看到的是「按了发送，一秒半毫无反应」。
-               *
-               * 先发 `presence` 帧，界面立刻把她标成「正在打字」，
-               * 这一秒半就成了「她在想怎么回」——同一段等待，两种观感。
-               */
-              if (firstWord.status === 'planned' && firstWord.holdMs > 0) {
-                emit.send('presence', presenceOf(ctx, finalSessionId, 'thinking'))
-                await pause(firstWord.holdMs)
-              }
-              emit.send('delta', frame)
-              emit.send('presence', presenceOf(ctx, finalSessionId, 'typing'))
-            })()
+          /*
+           * ## 半拍期间到达的帧：**攒起来，跟首帧一起放**
+           *
+           * 上一版把后续帧挂在 `deltaChain` 的尾巴上，于是它们要等首帧那
+           * 0.8–2 秒走完才轮到自己。本地模型几乎瞬间说完，所以看不出问题；
+           * 换成正常速度的远端，实测是这样的：
+           *
+           * ```
+           * 上游发送  0   301  602  903  1205 1507  ms
+           * 宿主入队  0   301  602  903  1205 1507  ms   ← 逐帧到达，正常
+           * 宿主发出  1832 1832 1832 1832 1832 1832 ms   ← 全挤在一起
+           * ```
+           *
+           * 用户看到的是「卡 1.8 秒 → 整段文字一次性蹦出来」。这**与首帧
+           * 延迟的设计意图正好相反**：那个停顿本意是「她想了想才开口」，
+           * 而整段蹦出读起来像「界面卡了然后加载完成」。
+           *
+           * 改成攒起来：半拍期间到达的每一帧都进 `held`，半拍走完一次性
+           * 放出去。内容一个字不丢、顺序不变，而**第一帧之后的字不再被
+           * 首帧的停顿连坐**。真实的人在思考完之后也不会一个字一个字地
+           * 往外挤——他会先说完第一句。
+           */
+          if (!firstReleased) {
+            if (!firstWordSent) {
+              firstWordSent = true
+              pendingFirst = String(params.text)
+              holdGate = (async () => {
+                /*
+                 * 先报阶段、再等。
+                 *
+                 * ## 为什么必须按这个顺序
+                 *
+                 * 反过来的话，那半拍里界面什么都没有：气泡是空的、三点也没亮
+                 * （正文还没来，`pending` 的那条消息还没有内容可显示）。
+                 * 用户看到的是「按了发送，一秒半毫无反应」。
+                 *
+                 * 先发 `presence` 帧，界面立刻把她标成「正在打字」，
+                 * 这一秒半就成了「她在想怎么回」——同一段等待，两种观感。
+                 */
+                if (firstWord.status === 'planned' && firstWord.holdMs > 0) {
+                  emit.send('presence', presenceOf(ctx, finalSessionId, 'thinking'))
+                  await pause(firstWord.holdMs)
+                }
+                /*
+                 * 放出去：首帧 + 半拍期间攒下的全部。
+                 *
+                 * `held` 里存的是**已经到达但还没发**的帧，顺序与到达一致。
+                 * 先放 `pendingFirst` 再放 `held`，保证第一个字仍是第一个字。
+                 */
+                firstReleased = true
+                emit.send('delta', { text: pendingFirst })
+                for (const text of held) emit.send('delta', { text })
+                held.length = 0
+                emit.send('presence', presenceOf(ctx, finalSessionId, 'typing'))
+              })()
+              return
+            }
+            /*
+             * 半拍还没走完：攒起来。上限 64 帧——一段话的增量通常几十帧，
+             * 超出说明上游在猛发，此时多攒几帧也只是把「一次性蹦出」的
+             * 观感放大一点，不该无限吃内存。
+             */
+            if (held.length < 64) held.push(String(params.text))
             return
           }
-          deltaChain = deltaChain.then(() => {
-            emit.send('delta', frame)
-          })
+          emit.send('delta', frame)
         })
         try {
           const result = await client.call('inference.run', {
@@ -2360,7 +2510,7 @@ function buildRoutes(
            * 顺序错乱只在「首帧半拍还没走完、而模型已经吐完」时出现，
            * 短回复 + 慢模型时最明显，因此线上极难复现。等一次链尾最稳。
            */
-          await deltaChain
+          await holdGate
           emit.send('presence', presenceOf(ctx, finalSessionId, 'idle'))
           emit.send('done', {
             text: reply,

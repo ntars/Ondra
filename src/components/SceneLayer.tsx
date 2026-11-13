@@ -37,6 +37,22 @@ export interface SceneLayerProps {
   user: SceneValues
   /** 写一个字段。`undefined` 表示恢复默认。 */
   onWrite(section: string, key: string, value: unknown): Promise<void>
+  /**
+   * 只渲染这些段下的场景项。
+   *
+   * ## 为什么需要按段过滤
+   *
+   * 12 个场景项原先全在「扩展功能」的场景层里，而其中 10 项对应的段已经
+   * 上移到「人物设定」与「通用」。用户在新页面看到「记忆保留与容量」的
+   * 十几个原始字段，却在扩展功能里另有一个叫「记忆保留深度」的滑杆——
+   * 两者改的是同一个键，出现在两个页面。
+   *
+   * 过滤之后每个场景项只在自己的归属页出现：日常旋钮（带预演）在专门页
+   * 的顶部，完整字段在它下面的「更多设置」里，扩展功能只剩真正底层的段。
+   *
+   * 不传表示全部渲染（向后兼容，测试里也用它一次渲染全部）。
+   */
+  only?: ReadonlySet<string>
 }
 
 /** 把一个值写成用户看得懂的一小段文字。 */
@@ -116,6 +132,12 @@ function NumberControl({
    */
   const fill = max > min ? `${String(((draft - min) / (max - min)) * 100)}%` : '0%'
 
+  /*
+   * 单位。空串表示这个数字没有量纲（极少数），此时不渲染也不拼进
+   * `aria-valuetext`——拼一个空的会让读屏多念一次停顿。
+   */
+  const unit = item.unit ?? ''
+
   return (
     <div className="scene__control">
       {item.options === undefined || item.options.length === 0 ? null : (
@@ -150,7 +172,23 @@ function NumberControl({
         step={1}
         value={draft}
         aria-label={item.name}
-        aria-valuetext={String(draft)}
+        /*
+         * 单位必须进 `aria-valuetext`。
+         *
+         * 读屏读滑杆时只会念这个字段，不会去念旁边的视觉读数。裸数字
+         * 「30」在听觉上完全没有量纲，用户无从判断是 30 天还是 30 条。
+         * 视觉读数与这里共用同一个 `unit`（`scenes.ts`），两处不会漂。
+         *
+         * 百分号不空格：「50 %」在中文排版里是错的，它紧贴数字读作
+         * 「百分之五十」。其余单位（天、分钟、字）按词处理，要空格。
+         */
+        aria-valuetext={
+          unit === ''
+            ? String(draft)
+            : unit === '%'
+              ? `${String(draft)}%`
+              : `${String(draft)} ${unit}`
+        }
         /* 已填充比例交给 CSS 画（见 `controls.css` 的 `.control-range`）。 */
         style={{ '--fill': fill } as React.CSSProperties}
         onChange={(event) => {
@@ -165,7 +203,10 @@ function NumberControl({
 
       <div className="scene__readout">
         {item.scale === undefined ? null : <span className="scene__scale">{item.scale.join(' —— ')}</span>}
-        <span className="scene__number">{draft}</span>
+        <span className="scene__number">
+          {draft}
+          {unit === '' ? null : <span className="scene__unit">{unit}</span>}
+        </span>
       </div>
     </div>
   )
@@ -380,7 +421,13 @@ export function SceneLayer({
   sections,
   user,
   onWrite,
+  only,
 }: SceneLayerProps): React.JSX.Element {
+  /** 实际要渲染的场景项。`only` 缺省时是全部。 */
+  const items = useMemo(
+    () => (only === undefined ? SCENE_ITEMS : SCENE_ITEMS.filter((item) => only.has(item.section))),
+    [only],
+  )
   /** 本次打开以来动过的项 id。用来决定预演区块是否展开。 */
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
 
@@ -396,7 +443,7 @@ export function SceneLayer({
   /** 供预演读取的完整取值表：用户层覆盖默认值，与界面显示同一套规则。 */
   const values = useMemo<SceneValues>(() => {
     const merged: SceneValues = {}
-    for (const item of SCENE_ITEMS) {
+    for (const item of items) {
       const state = resolveScene(item, sections, user)
       merged[item.section] = {
         ...merged[item.section],
@@ -405,12 +452,15 @@ export function SceneLayer({
       }
     }
     return merged
-  }, [sections, user])
+  }, [sections, user, items])
+
+  /* 这一页没有属于它的场景项时整块不渲染，不留一个空列表。 */
+  if (items.length === 0) return <></>
 
   return (
     <div className="settings__scene">
       <ul className="scene__list">
-        {SCENE_ITEMS.map((item) => {
+        {items.map((item) => {
           const state = resolveScene(item, sections, user)
           const missing = state.field === undefined
 

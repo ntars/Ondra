@@ -39,7 +39,7 @@
   }
 
   .composer {
-    padding: 8px 12px 12px;
+    padding: 8px 8px 8px;
   }
 
   .composer__card {
@@ -68,6 +68,18 @@
     width: min(320px, 88vw);
   }
 
+  /*
+   * 窄屏才显示抽屉内的切换页签。
+   *
+   * 与上面 `.rail` 的 `display: none` 是同一个查询、同一件事的两半：
+   * Rail 一消失，「日志」与「扩展」就没有入口了，必须由这排页签接住。
+   * 两处若用不同断点，中间会留出一段宽度——Rail 已经藏了、页签还没出来，
+   * 那两个功能在那段宽度里彻底不可达。
+   */
+  .drawer__tabs {
+    display: flex;
+  }
+
   .inspector {
     width: min(300px, 86vw);
   }
@@ -82,7 +94,7 @@
   }
 
   .pref__nav {
-    padding: 12px 8px;
+    padding: 8px 8px;
   }
 
   .pref__content {
@@ -90,7 +102,7 @@
   }
 
   .sheet {
-    padding: 32px 12px 12px;
+    padding: 32px 8px 8px;
   }
 
   .toast {
@@ -118,11 +130,11 @@
   }
 
   .timeline__measure {
-    padding: 0 12px;
+    padding: 0 8px;
   }
 
   .composer {
-    padding: 8px 12px 8px;
+    padding: 8px 8px 8px;
   }
 }
 
@@ -198,7 +210,7 @@
 
   .control-segment {
     height: 34px;
-    padding: 0 12px;
+    padding: 0 8px;
   }
 
   .control-switch {

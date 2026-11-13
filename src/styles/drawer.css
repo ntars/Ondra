@@ -60,6 +60,58 @@
 }
 
 /*
+ * 窄屏专用的抽屉切换页签。
+ *
+ * ## 为什么默认不显示
+ *
+ * 宽屏有 Rail，三个抽屉各有自己的图标入口。这时再给面板内部一排页签，
+ * 「点哪个」就变成了一次多余的选择——两个入口做同一件事，用户会先愣一下。
+ *
+ * 所以默认 `display: none`，只在 `compact.css` 的窄屏分支里打开。判据是
+ * 容器宽度而不是窗口宽度，与 Rail 的消失用同一个查询——两者必须同进同退，
+ * 否则会出现「Rail 没了但页签也没开」的死角。
+ *
+ * ## 为什么贴着头部分隔线
+ *
+ * 它是头部的一部分（"这个抽屉里还能看什么"），不是正文的一部分。
+ * 独立占一行 32px，比塞进标题行更清楚：标题行已经有标题和关闭键。
+ */
+.drawer__tabs {
+  display: none;
+  flex: none;
+  gap: var(--s-1);
+  padding: 8px 8px;
+  border-bottom: var(--rule) solid var(--ui-line-soft);
+}
+
+.drawer__tab {
+  flex: 1;
+  height: 28px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-label);
+  color: var(--ui-ink-3);
+  background: transparent;
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    color var(--motion-f) var(--ease-fluid);
+}
+
+.drawer__tab:hover {
+  background: var(--ui-bg-raise);
+  color: var(--ui-ink-2);
+}
+
+/*
+ * 选中态用实底而不是下划线：这排按钮只有 28px 高，下划线在深色底上
+ * 几乎看不见，而「我现在在哪一页」必须一眼可辨。
+ */
+.drawer__tab[aria-selected='true'] {
+  background: var(--ui-bg-raise);
+  color: var(--ui-ink);
+  font-weight: var(--w-medium);
+}
+
+/*
  * 关闭键。
  *
  * 抽屉头部一直有这个按钮，样式表里却没有 `drawer__close`——它回落到
@@ -71,17 +123,29 @@
  * 与 `.drawer__title` 的字号是同一档呼吸。
  */
 .drawer__close {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: var(--hit-icon);
+  height: var(--hit-icon);
   border-radius: var(--r-xs);
   color: var(--ui-ink-3);
   transition:
     background-color var(--motion-f) var(--ease-fluid),
     color var(--motion-f) var(--ease-fluid);
+}
+
+/*
+ * 命中区由伪元素外扩到 34（26 + 2 × 4）。视觉尺寸与 hover 面积不变。
+ * 令牌与理由见 `tokens.css` 的 `--hit-icon`。
+ */
+.drawer__close::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--hit-icon-pad) * -1);
+  border-radius: var(--r-sm);
 }
 
 .drawer__close:hover {
@@ -105,7 +169,7 @@
  */
 .drawer__empty {
   margin: 0;
-  padding: 12px 12px;
+  padding: 8px 8px;
   font-size: var(--text-caption);
   line-height: 1.6;
   color: var(--ui-ink-3);
@@ -113,7 +177,7 @@
 
 .drawer__search {
   flex: none;
-  padding: 12px 16px 8px;
+  padding: 8px 16px 8px;
 }
 
 .drawer__search-input {
@@ -142,16 +206,16 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 12px 16px;
+  padding: 8px 8px 16px;
 }
 
 .drawer__row {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 8px;
   border-radius: var(--r-sm);
   text-align: left;
   transition: background-color var(--motion-f) var(--ease-fluid);
@@ -205,7 +269,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -265,17 +329,26 @@
  * 若要统一改，应该收成令牌，而不是靠选择器合并。
  */
 .inspector__close {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: var(--hit-icon);
+  height: var(--hit-icon);
   border-radius: var(--r-xs);
   color: var(--ui-ink-3);
   transition:
     background-color var(--motion-f) var(--ease-fluid),
     color var(--motion-f) var(--ease-fluid);
+}
+
+/* 同 `.drawer__close`：命中区 34，视觉 26。 */
+.inspector__close::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--hit-icon-pad) * -1);
+  border-radius: var(--r-sm);
 }
 
 .inspector__close:hover {
@@ -310,7 +383,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   padding: 4px 0;
 }
 
@@ -388,7 +461,7 @@
 .inspector__memory {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .inspector__memory-text {
@@ -490,8 +563,8 @@
 .drawer__memory {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 8px 8px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -517,8 +590,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin: 2px 0 12px;
-  padding: 12px 12px 12px;
+  margin: 4px 0 8px;
+  padding: 8px 8px 8px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
   background: var(--ui-bg-raise);
@@ -583,7 +656,7 @@
 .health__group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .health__group-head {
@@ -660,7 +733,7 @@
 .health__fix-all {
   align-self: flex-start;
   height: 28px;
-  padding: 0 12px;
+  padding: 0 8px;
   border: var(--rule) solid transparent;
   border-radius: var(--r-sm);
   background: var(--ui-action);
@@ -702,8 +775,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin: 2px 0 12px;
-  padding: 12px 12px 12px;
+  margin: 4px 0 8px;
+  padding: 8px 8px 8px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
   background: var(--ui-bg-raise);
@@ -808,7 +881,7 @@
 .dream__cards {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .dream__cards-head {
@@ -826,7 +899,7 @@
 .dream__card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 4px 0;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
@@ -859,8 +932,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin: 2px 0 12px;
-  padding: 12px 12px 12px;
+  margin: 4px 0 8px;
+  padding: 8px 8px 8px;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
   background: var(--ui-bg-raise);
@@ -983,7 +1056,8 @@
 }
 
 /* 首次进入记忆抽屉：三条示例用引用的形式排列，明确标注「这是示例」。 */
-.drawer__first {  display: flex;
+.drawer__first {
+  display: flex;
   flex-direction: column;
   gap: var(--s-3);
   padding: 16px 8px;
@@ -996,7 +1070,7 @@
 }
 
 .drawer__sample {
-  padding: 8px 12px;
+  padding: 8px 8px;
   border-left: 1px solid var(--ui-line);
   font-size: var(--text-label);
   color: var(--ui-ink-3);
@@ -1014,8 +1088,8 @@
 .sess {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 4px 2px 0;
+  gap: 8px;
+  padding: 4px 4px 0;
 }
 
 .sess__head {
@@ -1038,7 +1112,7 @@
 /* 状态徽标：描边、无底色。它不是按钮，别做得像能点。 */
 .sess__badge {
   flex: none;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-full);
   font-size: var(--text-micro);
@@ -1048,7 +1122,7 @@
 .sess__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
+  gap: 4px;
   overflow: hidden;
   border: var(--rule) solid var(--ui-line-soft);
   border-radius: var(--r-md);
@@ -1059,9 +1133,9 @@
 .sess__cell {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   margin: 0;
-  padding: 8px 12px;
+  padding: 8px 8px;
   background: var(--ui-bg-raise);
 }
 
@@ -1088,7 +1162,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 2px 0;
+  padding: 4px 0;
 }
 
 .sess__path {
@@ -1120,7 +1194,7 @@
 */
 .sess__clear {
   height: 30px;
-  padding: 0 12px;
+  padding: 0 8px;
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-sm);
   background: transparent;
@@ -1168,17 +1242,17 @@
 .logp {
   display: flex;
   flex-direction: column;
-  padding: 2px 0 0;
+  padding: 4px 0 0;
 }
 
 .logp__section {
-  padding: 12px 0 12px;
+  padding: 8px 0 8px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
 .logp__section:first-child {
   border-top: 0;
-  padding-top: 2px;
+  padding-top: 4px;
 }
 
 .logp__head {
@@ -1244,7 +1318,7 @@
 }
 
 .logp__group + .logp__group {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 /*
@@ -1257,7 +1331,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   font-size: var(--text-micro);
   font-weight: var(--w-medium);
   color: var(--ui-ink-3);
@@ -1289,13 +1363,13 @@
   grid-template-columns: 46px 34px 22px minmax(0, 1fr);
   align-items: baseline;
   gap: 8px;
-  padding: 3px 0;
+  padding: 4px 0;
 }
 
 /* 系统日志没有徽标与角色：三列，时间列同宽，两边正文左边缘对齐。 */
 .logp__row--system {
   grid-template-columns: 46px 4px minmax(0, 1fr);
-  padding: 2px 0;
+  padding: 4px 0;
 }
 
 /*
@@ -1423,7 +1497,7 @@
  */
 .logp__detail {
   grid-column: 4;
-  margin: 1px 0 2px;
+  margin: 4px 0 4px;
   border-left: var(--rule) solid var(--ui-line-soft);
   padding-left: 8px;
 }
@@ -1499,13 +1573,13 @@
   gap: 8px;
   height: 100%;
   min-height: 0;
-  padding: 2px 0 0;
+  padding: 4px 0 0;
 }
 
 .ext__search {
   flex: none;
   /* 与抽屉容器的搜索框同一内边距，切到这一屏时它不会跳一下。 */
-  padding: 0 0 2px;
+  padding: 0 0 4px;
 }
 
 .ext__totals {
@@ -1513,8 +1587,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 0 2px 4px;
+  gap: 8px;
+  padding: 0 4px 4px;
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
   color: var(--ui-ink-4);
@@ -1555,7 +1629,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 4px 2px 4px;
+  padding: 4px 4px 4px;
   /* 段头是表头，不该被当成正文选中。 */
   user-select: none;
   cursor: pointer;
@@ -1583,7 +1657,7 @@
 /* 段说明只出现一次，比描述字号更小：它解释的是「这一段是什么」，
    不是「这个包能做什么」。 */
 .ext__group-note {
-  margin: 0 2px 4px;
+  margin: 0 4px 4px;
   font-size: var(--text-micro);
   line-height: 1.55;
   color: var(--ui-ink-4);
@@ -1598,7 +1672,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 8px 2px;
+  padding: 8px 4px;
   border-top: var(--rule) solid var(--ui-line-soft);
 }
 
@@ -1611,7 +1685,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .ext__line {
@@ -1657,6 +1731,15 @@
   /* 这一行现在挂了一个固定高 20 的按钮，靠中线对齐才不会比文字高半行。 */
   align-items: center;
   gap: 8px;
+  /*
+   * 最小高度钉在 20（`--hit-icon` 的一半）：这一行里只有「有配置段」的包
+   * 才挂那个 20 高的「配置」键，其余行只有 18 高的文字节点。
+   *
+   * 不钉的话，78 行列表的行高会在 91 / 92 / 93 / 94 之间跳——每一行都
+   * 各自正确，整列读起来却像参差不齐。这类差异在滚动时最刺眼：视线跟着
+   * 行移动，行高一直在变。
+   */
+  min-height: 20px;
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
 }
@@ -1707,7 +1790,7 @@
 
 .inspector__fold {
   border-top: var(--rule) solid var(--ui-line-soft);
-  padding-top: 12px;
+  padding-top: 8px;
 }
 
 .inspector__fold-head {
@@ -1741,7 +1824,7 @@
 .inspector__fold-body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   /* 三块内部自带外边距，这里只做一层轻微缩进，表示它们属于这一段。 */
-  padding-left: 2px;
+  padding-left: 4px;
 }

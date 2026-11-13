@@ -44,7 +44,7 @@
   display: flex;
   align-items: center;
   height: var(--h-titlebar);
-  padding: 0 12px;
+  padding: 0 8px;
   background: var(--ui-bg-canvas);
   box-shadow: 0 0.5px 0 var(--ui-line-soft);
   -webkit-app-region: drag;
@@ -86,6 +86,7 @@
 }
 
 .traffic-lights__dot {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -98,6 +99,31 @@
   cursor: default;
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+
+/**
+ * 命中区 20×20，由伪元素外扩，**视觉仍是 12 的圆**。
+ *
+ * ## 为什么不能直接把按钮做大
+ *
+ * 12 是 macOS 窗口按钮的直径。改成 20 会让标题栏左边出现三个大圆点，
+ * 一眼就不是系统窗口了——而这三个按钮存在的意义恰恰是"看起来像系统窗口"。
+ *
+ * ## 为什么是 20 而不是 44
+ *
+ * 44 是触摸目标的通用建议值，但它在这里会把相邻两个圆的命中区**叠在一起**：
+ * 圆点间距 8，圆心距 20。命中区一到 20 就已经首尾相接，再大就开始互相
+ * 抢点击——用户按"关闭"却关掉了窗口旁边的按钮，比按不准更糟。
+ *
+ * 所以取 20：恰好填满 12 + 2×4 的空隙，三个圆之间不重叠，且比原来的
+ * 12 大 67%。真正的 44 留给 `@media (hover: none)`——触屏没有精确指针，
+ * 那时宁可让命中区重叠也不能让用户点不中。
+ */
+.traffic-lights__dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--r-full);
 }
 
 .traffic-lights__dot--close {
@@ -142,6 +168,20 @@
   background: var(--ui-traffic-idle);
 }
 
+/*
+ * 触屏：命中区升到 44，视觉仍是 12。
+ *
+ * 与 `.rail__item` 的 `@media (hover: none)` 同一条规矩。触屏没有精确
+ * 指针，20 的命中区在 375 宽的屏上仍然偏小；那时允许三个命中区互相
+ * 重叠——**点得中**比"点得准"重要，而重叠区落在圆点之间的空隙里，
+ * 那里本来就没有别的东西可点。
+ */
+@media (hover: none) {
+  .traffic-lights__dot::before {
+    inset: -16px;
+  }
+}
+
 .shell[data-window-blurred] .traffic-lights__glyph {
   opacity: 0;
 }
@@ -181,22 +221,51 @@
 }
 
 /*
- * 版本号。
+ * 版本号的外观唯一在这里定义。
  *
  * 用 10px（--text-micro）而不是 11px：它必须比应用名明显小一档，
  * 否则两者会读成并列的两个名字。底色用 raise、描边用 soft——
  * 一颗最小的徽标，同时**左右各留 8px 内距**，字不贴边。
+ *
+ * ## 为什么这里要显式声明 `flex: none`
+ *
+ * 它和窗口三键、撑杆在同一个 flex 行里。撑杆 `flex: 1` 吃掉剩余空间，
+ * 版本号作为可收缩项会被压到「放不下就截断」——这个宽度本来就是由内容
+ * 决定的（`1.0.1-alpha` 是定值），让它参与收缩只会换来一个省略号。
+ *
+ * ## 为什么右内距要按平台分
+ *
+ * Windows 的自绘三键是 `position: absolute`（不占文档流），只有 8px 的
+ * margin 挡不住 138px 宽的三键——版本号会被 `×` 直接压住（截图实测）。
+ * 这里按平台让出真实宽度：Windows 138 + 8 呼吸，macOS 红绿灯在左边、
+ * 右边没有东西需要避让，8px 就够。
+ *
+ * 让位放在这里而不是给三键改成 `position: static`：三键必须覆盖在
+ * 标题栏的拖拽区之上（`data-tauri-drag-region` 是整条 header），一旦
+ * 进入文档流，它们会把身份块和人设浮层的定位基准一起挤歪。
  */
 .titlebar__version {
-  padding: 2px 8px;
+  flex: none;
+  margin-right: 8px;
+  padding: 4px 8px;
   border-radius: var(--r-xs);
   background: var(--ui-bg-raise);
   box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
-  color: var(--ui-ink-4);
+  /*
+   * ink-3 而不是 ink-4：版本号是用户排查「我装的是哪一版」的唯一依据，
+   * 属于真实信息。ink-4 对 stone-3 底只有 3.88:1，读起来要凑近看。
+   */
+  color: var(--ui-ink-3);
   white-space: nowrap;
+  user-select: none;
+}
+
+:root[data-platform='win32'] .titlebar__version {
+  /* 138 是三键总宽（46 × 3），8 是它与版本号之间的呼吸。 */
+  margin-right: 146px;
 }
 
 .titlebar__menu {

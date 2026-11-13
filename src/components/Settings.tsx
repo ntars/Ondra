@@ -64,13 +64,25 @@ interface PageEntry {
    * 两个滚动条。所以它显式 opt out，其余页保持默认。
    */
   scroll?: boolean
-  /** 渲染这一页的主体。部分页面需要外部上下文，由下面传入。 */
-  render(context: { sessionId: string | undefined; initialSection: string | undefined; onImported(): void }): React.JSX.Element
+  /**
+   * 渲染这一页的主体。部分页面需要外部上下文，由下面传入。
+   *
+   * `onModelsChanged` 只给「模型与 API」页用：供应商增删改之后，顶栏的
+   * 模型选择器与当前选中项都得跟着变。让它自己改主界面状态是不可能的
+   * （那是 `useAppState` 的地盘），所以这里把「变了，重拉一次」这个信号
+   * 一路传出去。
+   */
+  render(context: {
+    sessionId: string | undefined
+    initialSection: string | undefined
+    onImported(): void
+    onModelsChanged(): void
+  }): React.JSX.Element
 }
 
 const PAGES: PageEntry[] = [
   { key: 'general', labelKey: 'nav.general', render: () => <SettingsGeneral /> },
-  { key: 'models', labelKey: 'nav.models', render: () => <SettingsProviders /> },
+  { key: 'models', labelKey: 'nav.models', render: ({ onModelsChanged }) => <SettingsProviders onChanged={onModelsChanged} /> },
   { key: 'persona', labelKey: 'nav.persona', render: () => <SettingsPersona /> },
   {
     key: 'backup',
@@ -114,6 +126,12 @@ export interface SettingsProps {
   sessionId?: string
   /** 导入成功后让主界面重读当前会话。 */
   onImported(): void
+  /**
+   * 供应商或当前模型变化后让主界面重拉模型列表。
+   *
+   * 可选：主界面若不关心（比如测试里单独挂这个面板）可以不传。
+   */
+  onModelsChanged?(): void
   onClose(): void
 }
 
@@ -122,11 +140,23 @@ export function Settings({
   initialSection,
   sessionId,
   onImported,
+  onModelsChanged,
   onClose,
 }: SettingsProps): React.JSX.Element {
   const t = useT()
   const [page, setPage] = useState<SettingsPage>(initialPage)
   const panelRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * 供应商变化后的通知。
+   *
+   * 包一层空实现而不是直接把可选的 `onModelsChanged` 传下去：`PAGES` 的
+   * 渲染函数要求它是必填，而调用方可以不给。写成一个稳定的引用也避免
+   * 每次渲染都产生新函数、把「模型与 API」页的 `useCallback` 依赖打穿。
+   */
+  const handleModelsChanged = useCallback((): void => {
+    onModelsChanged?.()
+  }, [onModelsChanged])
 
   /**
    * 外部落点变化时切页。
@@ -201,11 +231,11 @@ export function Settings({
           */}
           {entry === undefined ? null : entry.scroll === false ? (
             <div className="settings__plug-host" key={page}>
-              {entry.render({ sessionId, initialSection, onImported })}
+              {entry.render({ sessionId, initialSection, onImported, onModelsChanged: handleModelsChanged })}
             </div>
           ) : (
             <div className="settings__scroll" key={page}>
-              {entry.render({ sessionId, initialSection, onImported })}
+              {entry.render({ sessionId, initialSection, onImported, onModelsChanged: handleModelsChanged })}
             </div>
           )}
         </div>

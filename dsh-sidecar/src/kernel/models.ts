@@ -126,8 +126,22 @@ export class ChatAdapter implements ModelAdapter {
 
   /** 向供应商发起一次流式请求。 */
   private async *stream(profile: ModelProfile, request: InferenceRequest): AsyncIterable<InferenceChunk> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => { controller.abort() }, this.timeoutMs)
+    /*
+     * 两层中断合并成一个信号。
+     *
+     * - `request.signal`：用户点了「停止生成」。
+     * - 本地 `controller`：本适配器自己的超时闸。
+     *
+     * 为什么用 `AbortSignal.any` 而不是只传 `request.signal`：超时那条
+     * 必须继续生效（远端不说话时不能永远挂着），而两者任一触发都该立刻
+     * 断开连接。合成之后只留一个信号，`fetch` 与读取循环共用它，
+     * 不会出现「用户中断了但超时定时器还在数」这种半开状态。
+     */
+    const timeout = new AbortController()
+    const timer = setTimeout(() => { timeout.abort() }, this.timeoutMs)
+    const signal = request.signal === undefined
+      ? timeout.signal
+      : AbortSignal.any([request.signal, timeout.signal])
 
     try {
       const response = await fetch(joinChatCompletionsUrl(profile.baseUrl), {
@@ -141,13 +155,26 @@ export class ChatAdapter implements ModelAdapter {
           messages: toWireMessages(request.messages),
           stream: true,
         }),
-        signal: controller.signal,
+        signal,
       })
 
       if (!response.ok) {
-        // 把供应商的原文带回界面：401 是 key 错了、404 是模型名错了、
-        // 429 是额度用完了——这些都需要用户自己去改，笼统的"请求失败"帮不上忙。
-        const detail = (await response.text()).slice(0, 500)
+        /*
+         * 供应商的原文要带回来，但**不能整段摊给用户**。
+         *
+         * 401 是 key 错了、404 是模型名错了、429 是额度用完了——这些都需要
+         * 用户自己去改，笼统的「请求失败」确实帮不上忙。但上一版把
+         * `{"error":{"message":"Authentication Fails (governor) (request_id:
+         * 1fd86f7c-9cad-4520-90b4-5d2ebb434298)","type":"authentication_error"}}`
+         * 原样拼进界面，用户读到的是 `governor`、`request_id` 这些对
+         * 「我该改哪一项」毫无帮助的词。
+         *
+         * 所以只取其中的 `message` 字段——那才是供应商写给人看的一句。
+         * 取不到就只留状态码那句中文，绝不把整包 JSON 顶上去。
+         * `request_id` 之类仍然有用，但它属于排障日志，不属于对话界面。
+         */
+        const raw = (await response.text()).slice(0, 2000)
+        const detail = upstreamMessage(raw)
         throw new RpcHandlerError(
           KernelErrorCode.NotImplemented,
           `供应商返回 ${String(response.status)}：${describeStatus(response.status)}${detail === '' ? '' : `（${detail}）`}`,
@@ -158,7 +185,7 @@ export class ChatAdapter implements ModelAdapter {
         throw new RpcHandlerError(KernelErrorCode.NotImplemented, '供应商没有返回内容')
       }
 
-      for await (const payload of readSseData(response.body)) {
+      for await (const payload of readSseData(response.body, signal)) {
         if (payload === '[DONE]') break
         for (const piece of extractDeltas(payload)) {
           if (piece.text === '') continue
@@ -169,6 +196,21 @@ export class ChatAdapter implements ModelAdapter {
     } catch (error) {
       if (error instanceof RpcHandlerError) throw error
       if (error instanceof DOMException && error.name === 'AbortError') {
+        /*
+         * 中断要分清是谁按的。
+         *
+         * - 用户点了「停止生成」→ 这不是错误，是一等公民的操作结果。
+         *   抛一个 Timeout 会让界面在消息末尾挂一条红色「模型响应超时」，
+         *   而用户明明是自己停的。所以原样返回：把已产出的部分正常收尾。
+         * - 本地超时闸触发 → 这才是超时，要说清楚。
+         *
+         * 判据是 `request.signal.aborted` 而不是 `timeout.signal.aborted`：
+         * 合成信号里两者都会让 `signal.aborted` 为真，只有分开问才分得清。
+         */
+        if (request.signal?.aborted === true) {
+          // 用户中断：不抛，让外层按「正常结束」收尾（已产出的文本照常落盘）。
+          return
+        }
         throw new RpcHandlerError(
           KernelErrorCode.Timeout,
           `模型响应超时（${String(Math.round(this.timeoutMs / 1000))} 秒）`,
@@ -233,12 +275,56 @@ function joinChatCompletionsUrl(baseUrl: string): string {
  * 为什么手写而不引库：SSE 的分帧规则只有"按行读、以 data: 开头的取冒号后内容"
  * 一条，引一个库进来反而要处理它的重连策略。这里只需要读。
  */
-async function* readSseData(stream: ReadableStream<Uint8Array>): AsyncIterable<string> {
+/**
+ * 从 SSE 流里逐条读出 `data:` 的内容。
+ *
+ * ## `signal` 为什么必须传进来
+ *
+ * `fetch` 收到 abort 只会取消**请求**，已经拿到手的 `response.body` 流不会
+ * 自动报错——`reader.read()` 会继续挂着等下一块，上游不发就永远不返回。
+ * 于是消费侧的 `for await` 卡在这一行，生成器不结束，内核 `finally` 里的
+ * `running.delete(sessionId)` 永远跑不到。
+ *
+ * 实测症状：用户点一次「停止生成」，这个会话**再也发不出消息**，一直报
+ * 「该会话正在进行一轮对话」。用本地模型时上游几乎瞬间结束，看不出问题；
+ * 换成慢速远端就是彻底死锁，且要等到 30 秒宿主超时才"看起来恢复"。
+ *
+ * 所以读取循环自己也要认这个信号：abort 时立刻 `reader.cancel()` 并抛出
+ * `AbortError`，让调用链以中断收尾（`stream()` 里那个 catch 会把用户中断
+ * 识别成正常结束）。
+ */
+async function* readSseData(stream: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncIterable<string> {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  /*
+   * abort 时把 reader 关掉。
+   *
+   * ## 为什么 `cancel()` 的 rejection 必须自己接住
+   *
+   * `reader.cancel()` 返回 Promise。当它被用来打断一个**正在 `read()`**
+   * 的流时，那个挂起的 `read()` 会以 `AbortError` 拒绝，而 `cancel()`
+   * 自己也常常以同样的理由拒绝。上一版写 `void reader.cancel()` 只丢了
+   * 返回值的引用，没有挂 catch —— 于是在 `void` 之外留下一个未处理的
+   * 拒绝，进程级 `unhandledRejection` 会打出一行
+   * 「未处理的 Promise 拒绝：AbortError」。用户只是点了停止，却看到一条
+   * 像是程序出错的日志。
+   *
+   * 所以这里显式 `.catch(() => {})`：取消失败没有可补救的后续，
+   * 真正的中断结论由下面的 `signal.aborted` 分支给出。
+   */
+  const onAbort = (): void => {
+    reader.cancel().catch(() => { /* 取消本身失败无需上报，见上 */ })
+  }
+  /*
+   * 监听器 `{ once: true }` 并在 finally 里摘掉：一条流可能被读很多次
+   * 回调，留着不清会在长会话里累积成泄漏。
+   */
+  signal?.addEventListener('abort', onAbort, { once: true })
   try {
     while (true) {
+      // 每轮先看信号：已经中断就不必再等下一块。
+      if (signal?.aborted === true) throw abortError()
       const { done, value } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
@@ -260,8 +346,20 @@ async function* readSseData(stream: ReadableStream<Uint8Array>): AsyncIterable<s
       if (payload !== '') yield payload
     }
   } finally {
+    signal?.removeEventListener('abort', onAbort)
     reader.releaseLock()
   }
+}
+
+/**
+ * 造一个与 `fetch` 抛出的同形 `AbortError`。
+ *
+ * 为什么不用 `new Error('aborted')`：上游 `stream()` 的 catch 是按
+ * `DOMException` + `name === 'AbortError'` 判中断的，形状不对就落进
+ * 「无法连接供应商」那一支——用户自己按的停止会变成一条红色网络错误。
+ */
+function abortError(): DOMException {
+  return new DOMException('The operation was aborted.', 'AbortError')
 }
 
 /**
@@ -317,6 +415,63 @@ function extractDeltas(payload: string): Array<{ text: string; reasoning: boolea
 }
 
 /** 把状态码翻译成一句用户能照着改的话。 */
+/**
+ * 从供应商的错误响应里挑出**给人看的那一句**。
+ *
+ * ## 为什么不一整段返回
+ *
+ * OpenAI 兼容端点的错误体是 JSON，其中 `error.message` 是写给人看的，
+ * 其余字段（`type`、`code`、`request_id`）是给支持团队定位用的。
+ * 把整包 JSON 拼进对话界面，用户读到的是
+ * `Authentication Fails (governor) (request_id: 1fd86f7c-…)` ——
+ * 一句话里三个他既改不了也不需要知道的词。
+ *
+ * ## 解析失败时返回空串
+ *
+ * 有些网关在 502 时返回 HTML 错误页。那种内容一个字都不该进界面
+ * （标签、堆栈、内网地址），所以宁可不显示细节，只留 `describeStatus`
+ * 那句中文。信息少一点，但每一句都是能照着做的。
+ */
+function upstreamMessage(raw: string): string {
+  const text = raw.trim()
+  if (text === '') return ''
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (typeof parsed === 'object' && parsed !== null) {
+      const error = (parsed as { error?: unknown }).error
+      if (typeof error === 'object' && error !== null) {
+        const message = (error as { message?: unknown }).message
+        if (typeof message === 'string' && message.trim() !== '') return trimNoise(message)
+      }
+      // 少数端点把话直接放在顶层 `message`。
+      const top = (parsed as { message?: unknown }).message
+      if (typeof top === 'string' && top.trim() !== '') return trimNoise(top)
+    }
+  } catch {
+    // 不是 JSON：不返回原文，理由见上。
+  }
+  return ''
+}
+
+/**
+ * 去掉供应商在 message 里夹带的排障尾巴。
+ *
+ * 实测 DeepSeek 的 401 原文是
+ * `Authentication Fails (governor) (request_id: 1fd86f7c-…)`——
+ * `governor` 是它内部的限流组件名，`request_id` 是给工单用的。
+ * 这两样对「我该改哪一项」没有任何帮助，反而把一句 12 词的话撑成 40 词。
+ *
+ * 只剥括号里含 `request_id` / `trace_id` 的那一段，其余原样保留：
+ * 供应商有时把真正的原因写在括号里（`(insufficient balance)`），
+ * 一律删括号会连那句话一起删掉。
+ */
+function trimNoise(message: string): string {
+  return message
+    .replace(/\s*\((?:[^()]*?(?:request|trace)_id[^()]*?)\)/gi, '')
+    .trim()
+    .slice(0, 300)
+}
+
 function describeStatus(status: number): string {
   switch (status) {
     case 401: return '密钥无效或未提供'

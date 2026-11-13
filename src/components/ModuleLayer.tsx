@@ -36,7 +36,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { SettingsField, SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
-import { SETTINGS_CATEGORIES, categoryOfSection, isHighRisk } from '../lib/settingsTaxonomy.ts'
+import { SETTINGS_CATEGORIES, categoryOfSection, isDedicated, isHighRisk } from '../lib/settingsTaxonomy.ts'
 
 export interface ModuleLayerProps {
   sections: SettingsSection[]
@@ -372,13 +372,28 @@ function FieldRow({
 }
 
 /** 一段。展开后才渲染字段——120 段一次全渲染会有 1116 个受控输入框。 */
-function SectionBlock({
+/**
+ * 一个配置段的可折叠块。
+ *
+ * ## 为什么导出
+ *
+ * 「人物设定」页的四张卡（朗读 / 口吻 / 节奏 / 规矩）各自只绑了对应段的
+ * `enable` 一个字段，而那个段还有 14–22 个字段留在这一页里。同一件事被
+ * 劈成两处：用户在人物设定页看到「朗读」开关，想调声音却发现要跑到
+ * 「扩展功能 · 模块」里找 `tts` 段。
+ *
+ * 导出这个块之后，专门页可以**原地**嵌进完整字段，扩展功能不再重复渲染
+ * 同一段——一份字段，一个入口。
+ */
+export function SectionBlock({
   section,
   user,
   onWrite,
   expanded,
   onToggle,
   developerMode,
+  chrome = 'full',
+  omitKeys,
 }: {
   section: SettingsSection
   user: SceneValues
@@ -386,15 +401,36 @@ function SectionBlock({
   expanded: boolean
   onToggle(): void
   developerMode: boolean
+  /**
+   * 外壳形态。
+   *
+   * - `full`：段头 + 折叠 + 字段。模块层用它。
+   * - `fields`：只给字段区，不带段头。专门页面（人物设定）把这一段嵌在
+   *   自己的卡片下面，卡片标题已经说明了这是什么，再叠一个段名会让读者
+   *   犹豫「这是两个东西吗」。
+   */
+  chrome?: 'full' | 'fields'
+  /**
+   * 不渲染的字段键。
+   *
+   * 专门页面把段嵌进自己的卡片时用它排除 `enable`——卡片上那个开关
+   * 与段里的 `enable` 是同一个字段，渲染两遍会得到两个互相联动的开关，
+   * 而界面上没有任何线索说明它们是同一个。
+   */
+  omitKeys?: ReadonlySet<string>
 }): React.JSX.Element {
   const changedCount = Object.keys(user[section.id] ?? {}).length
   const advancedCount = section.fields.filter((field) => field.advancedOnly).length
   /* 普通视图只给非高级；开发者模式给全部。两种视图共用同一段折叠状态。 */
-  const visible = developerMode ? section.fields : section.fields.filter((field) => !field.advancedOnly)
+  const base = developerMode ? section.fields : section.fields.filter((field) => !field.advancedOnly)
+  const visible = omitKeys === undefined ? base : base.filter((field) => !omitKeys.has(field.key))
   const highRisk = isHighRisk(section.id)
 
+  const full = chrome === 'full'
+
   return (
-    <section className="module" data-inactive={section.active ? undefined : ''}>
+    <section className="module" data-inactive={section.active ? undefined : ''} data-chrome={chrome}>
+      {full ? (
       <button type="button" className="module__head" aria-expanded={expanded} onClick={onToggle}>
         <span className="module__title">
           {section.title}
@@ -410,17 +446,32 @@ function SectionBlock({
           {changedCount > 0 ? ` · 已改 ${String(changedCount)}` : ''}
         </span>
       </button>
+      ) : null}
 
       {/*
        * 停用标注（§6.7）。
        *
        * 插件停用后它的段必须灰显并注明，不允许看起来还能调——
        * 那是最容易让人失去信任的一类缺陷。
+       *
+       * ## 为什么补上「去哪启用」
+       *
+       * 上一版只有前半句「插件已停用，改了不生效」。新用户第一次进这一页
+       * 会看到 27 处这句话，而他并不知道"停用"是自己关的还是坏的、
+       * 更不知道去哪里开。只说"不能用"而不说"怎么让它能用"，
+       * 等于把问题丢回给用户。
+       *
+       * 这里不直接给一个开关：启停的语义在扩展抽屉里（那里能看包名、
+       * 版本与依赖），在这一页再放一个就是第二个真源。所以只指路。
        */}
-      {section.active ? null : <p className="module__off">插件已停用，改了不生效</p>}
-      {section.registered ? null : <p className="module__off">未注册配置段，不参与四层合并</p>}
+      {section.active ? null : (
+        <p className="module__off">
+          插件已停用，改了不生效。到左栏「扩展」里找到它并启用，重启后生效。
+        </p>
+      )}
+      {section.registered || !full ? null : <p className="module__off">未注册配置段，不参与四层合并</p>}
 
-      {expanded ? (
+      {expanded || !full ? (
         <div className="module__body">
           {visible.length === 0 ? <p className="module__off">这一段只有高级字段，打开开发者模式可见</p> : null}
           {visible.map((field) => (
@@ -451,9 +502,28 @@ export function ModuleLayer({
    * 用户可能搜"作息"（段名）、"life-rhythm"（段 id）、"rest-start"（字段键）、
    * "休息"（说明里的词）。少任何一项，都会出现"明明有这个设置却搜不到"。
    */
+  /*
+   * 已由专门页面承载的段在这里不再出现（见 `DEDICATED_SECTIONS`）。
+   *
+   * ## 为什么搜索也过滤
+   *
+   * 只在「无搜索词」时过滤会得到最坏的一种行为：用户在扩展功能里搜「朗读」，
+   * 搜不到（好），但搜「tts」又能搜到（坏）——同一个段一会儿在、一会儿不在，
+   * 用户会认为搜索坏了。既然它已经有专门页面，两个路径都不该给。
+   *
+   * 代价是「搜段 id 定位」这条路径对已上移的段失效。扩展抽屉的「配置」
+   * 按钮不受影响：它带的是 `initialSection`，走的是模块层的 `query`，
+   * 而那一步在 `SettingsPlugins.load()` 里——那里会把目标段的专门页面
+   * 直接打开（见该文件的 `onOpenDedicated`）。
+   */
+  const owned = useMemo(
+    () => sections.filter((section) => !isDedicated(section.id)),
+    [sections],
+  )
+
   const matched = useMemo(() => {
-    if (keyword === '') return sections
-    return sections.filter((section) => {
+    if (keyword === '') return owned
+    return owned.filter((section) => {
       if (section.title.toLowerCase().includes(keyword)) return true
       if (section.id.toLowerCase().includes(keyword)) return true
       if (section.dir.toLowerCase().includes(keyword)) return true
@@ -462,7 +532,7 @@ export function ModuleLayer({
         || (field.doc ?? '').toLowerCase().includes(keyword)
       ))
     })
-  }, [sections, keyword])
+  }, [owned, keyword])
 
   /**
    * 无段字段的条数（§5.13 的 `ondra-memory-intake`）。

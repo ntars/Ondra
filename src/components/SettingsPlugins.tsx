@@ -32,6 +32,19 @@ const TABS = [
 
 type TabKey = typeof TABS[number]['key']
 
+/**
+ * 仍留在扩展功能里的场景段。
+ *
+ * 只有两项：`dialogue`（上下文长度）与 `privacy`（高风险操作）。它们
+ * 没有专门的日常页面——上下文是推理参数，风险档位属于安全边界，都更像
+ * 「程序怎么跑」而不是「她是谁」。其余 10 项随段上移到了各自页面。
+ *
+ * 写成显式集合而不是「取反 `DEDICATED_SECTIONS`」：取反会把将来新增的
+ * 场景项默认留在这里，而新增项多半属于某个专门页面——默认留在底层
+ * 比默认上移更难被发现。
+ */
+const SCENE_STAYS_HERE: ReadonlySet<string> = new Set(['dialogue', 'privacy'])
+
 export interface SettingsPluginsProps {
   /**
    * 打开时直接定位到的配置段 id。
@@ -235,7 +248,24 @@ export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React
         {phase === 'ready' ? (
           <>
             {tab === 'scene' ? (
-              <SceneLayer sections={sections} user={user} onWrite={onWrite} />
+              /*
+               * 只渲染**没有**上移到专门页面的场景项。
+               *
+               * ## 为什么这一层也要过滤
+               *
+               * 12 个场景项原先全在这里，其中 10 项对应的段已经搬去
+               * 「人物设定」与「通用」。不过滤的话，同一件事会在两个页面
+               * 各有一个滑杆——用户在人物设定调完「记忆保留深度」，
+               * 到扩展功能又看见一个同名滑杆，会以为改错了地方。
+               *
+               * 判据与模块层同源（`isDedicated`），不另写一张表。
+               */
+              <SceneLayer
+                sections={sections}
+                user={user}
+                onWrite={onWrite}
+                only={SCENE_STAYS_HERE}
+              />
             ) : null}
 
             {tab === 'module' ? (

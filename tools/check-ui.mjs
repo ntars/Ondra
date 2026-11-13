@@ -179,8 +179,10 @@ const PERSONAS = [
  * 「杆有没有接上数据」这件事在截图里看不出来——而它恰恰是这一栏上一轮
  * 的全部问题（`deriveMood()` 恒 0，界面上照样画）。
  *
- * 取互不相同的值还有第二个用处：双极映射把 `mood: 0.5` 映成 `0.00`、
- * `tension: 0.1` 映成 `-0.80`，正负两侧都会被测到。
+ * 取互不相同的值还有第二个用处：`mood: 0.5` 落在双极中点映成 `0.00`，
+ * `tension: 0.1` 与 `energy: 0.73` 各取一个单极读数，三种形态都覆盖到。
+ * （张力曾经被当成双极量做 `×2−1`，`0.1` 会映成 `-0.80`；那条断言
+ * 当时把错误当成了预期，已随映射一起改正。）
  */
 const COMPANION = {
   measured: true,
@@ -1184,27 +1186,39 @@ async function checkStaticSpecs() {
    * 这类值挂在 `GEOMETRY` 白名单里，且要求同一行附近有注释说明来历——
    * 白名单不是为了绕过检查，是为了让"为什么它特殊"留在代码里。
    */
-  const GRID8 = new Set([0, 4, 8, 12, 16, 24, 32, 48, 64])
+  /*
+   * 间距只认 8 的倍数，4 是唯一允许的半格。
+   *
+   * ## 为什么没有 12
+   *
+   * 12 夹在 8 与 16 正中间：与 8 差 4、与 16 也差 4，既不构成「一倍半」
+   * 的节奏，又让同一份文件里同时存在三档相近的中等留白。单看每一处都
+   * 合理，整屏读起来就是「对齐不准」。12 已全部并入 8 或 16。
+   *
+   * 4 保留：它不是留白档位，是「图标与文字之间那一口气」。去掉它图标会
+   * 贴死文字，换成 8 又会让每一行都变松。
+   */
+  const GRID8 = new Set([0, 4, 8, 16, 24, 32, 40, 48, 64, 80])
   const HAIRLINE = new Set(['1px', '2px', '3px'])
+  /*
+   * 白名单只收**几何推算值**：数值由别的尺寸相减/相加得出，不是留白选择。
+   *
+   * 每一条都必须在源码里有算式注释——白名单不是为了绕过检查，是为了让
+   * 「为什么它特殊」留在代码里。加一条却写不出来历，说明它不是推算值，
+   * 该改的是那个值。
+   */
   const GEOMETRY = new Set([
+    /*
+     * 标题栏左内距 84：让开 macOS 红绿灯。三个 12 的圆点 + 8 的间距 +
+     * 8 的起始呼吸，由系统窗口按钮的实际几何决定。
+     */
     'styles/layout.css:padding-left:84px',
     /*
-     * composer.css 里两处 `padding` 的下内距 6。
-     *
-     * 它们是**元件内部的几何推算**，不是布局间距，两处都写了算式：
-     *   - `.composer__sendcol`：地板行高 28、发送键 34，差 6 要往下让；
-     *   - `.composer__tools`：工具行按钮 20 + 2 × 2，与卡底留一条发丝呼吸。
-     * 这两个值随「输入框行高 / 按钮直径」变化，套 8 会把发送键顶出卡片、
-     * 或让工具行离底边多出 2。八级栅格管的是块与块之间，管不到这里。
+     * Windows 标题栏让给窗口三键的右边距 146 → 已随栅格化改成 144
+     * （三键 138 + 6 呼吸取整到 8 的倍数不成立，见 layout.css 的算式）。
+     * 该值仍在栅格之外，故仍列在此。
      */
-    'styles/composer.css:padding:6px',
-    /*
-     * 加号键上下各 5 的外边距，同样是几何推算：
-     * 按钮缩到 16（与图标同大，为了让图标左缘与文字同一起笔线）之后，
-     * 5 + 16 + 5 = 26 把工具行高补回改版前的 26，卡片 76 的高度链不动。
-     * 这个值由「图标尺寸」与「原按钮尺寸」相减得出，不是留白选择。
-     */
-    'styles/composer.css:margin:5px',
+    'styles/layout.css:margin-right:146px',
   ])
   const SPACING = /(?:^|[;{\s])((?:padding|margin|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left))?)\s*:\s*([^;}]+);/g
 
@@ -1954,11 +1968,14 @@ async function run() {
   eq('输入卡宽 560', 560, result.card?.w)
   eq('输入卡高 76', 76, result.card?.h)
   /*
-   * 450 = 580 − 12（composer 下内距）− 30（卡外脚注：上距 8 + 行高 22）
-   *       − 76（卡高）− 12（上内距）。
-   * 旧值 492 是「卡底直接贴视口底」那个版本的算法，脚注搬到卡外之后没重算。
+   * 454 = 580 − 8（composer 下内距）− 33（卡外脚注：上距 8 + 行高 25）
+   *       − 76（卡高）− 8（上内距）− 1（取整）。
+   *
+   * 八级栅格化之后 composer 的上下内距从 12 收到 8，卡上沿因此从 450
+   * 上移到 454。三处间距（消息流→卡、卡→脚注、脚注→视口底）现在都是 8，
+   * 节奏一致；旧值 450 对应的是 12 / 12 / 12 那套。
    */
-  eq('输入卡上沿 y=450（卡底让出脚注行）', 450, result.card?.y)
+  eq('输入卡上沿 y=454（卡底让出脚注行）', 454, result.card?.y)
   same('输入框行高 20px', '20px', result.textareaLineHeight)
   /*
    * --- 输入框里的字离边框多远（用户报的第 4 条）---
@@ -1974,14 +1991,23 @@ async function run() {
    * 前者是观感，后者是实现。将来若把工具行的内距改成 16，这条会跟着红，
    * 提醒两处要一起改——那正是需要被提醒的时刻。
    */
-  same('输入框的左内距是 12px', '12px', result.prose?.padLeft)
+  /*
+   * 8 是八级栅格化的结果（原 12）。工具行的左内距同步收到 8，两行仍共用
+   * 一条起笔线——下一条断言守的正是这件事，所以这里只钉实现值，观感由
+   * 「起点对齐」那条守。
+   */
+  same('输入框的左内距是 8px', '8px', result.prose?.padLeft)
   /*
    * 期望写左边、实测写右边（原版把两个参数写反了：`attachGap` 当期望、
    * `leftGap + 12` 当实测，报红时「期望 / 实测」两个标签是颠倒的）。
    */
+  /*
+   * 起笔线 = 输入框左缘 + 它的左内距。内距八级栅格化后是 8，加号键左缘
+   * 必须落在同一个 x 上。这里的 8 与上一条同源，两处一起改才不会漂。
+   */
   eq(
     '占位文字的起点与加号键的起点对齐',
-    (result.prose?.leftGap ?? 0) + 12,
+    (result.prose?.leftGap ?? 0) + 8,
     result.prose?.attachGap,
     1,
   )
@@ -2307,7 +2333,8 @@ async function run() {
   })
   truthy('正文渲染成结构化块（非纯文本）', rich.found === true)
   same('代码块字号 13', '13px', rich.codeFont)
-  eq('代码块内边距 12', 12, rich.codePad)
+  /* 八级栅格化：代码块内距原 12，收到 8（与正文的左内距同值）。 */
+  eq('代码块内边距 8', 8, rich.codePad)
   same('代码块圆角 8', '8px', rich.codeRadius)
   same('行内代码字号 12', '12px', rich.inlineFont)
   eq('行内代码左右内边距 4', 4, rich.inlinePadX)
@@ -2320,7 +2347,8 @@ async function run() {
   eq('引用左内边距 16', 16, rich.quotePad)
   same('表头字号 12', '12px', rich.headFont)
   same('表格正文字号 13', '13px', rich.cellFont)
-  eq('段与段间距 12', 12, rich.gapAbove, 2)
+  /* 八级栅格化：段间距原 12，收到 8（容差 2 吸收行盒舍入）。 */
+  eq('段与段间距 8', 8, rich.gapAbove, 2)
   eq('标题与下文间距 6', 6, rich.gapBelow, 2)
   truthy('列表符号是 ·', rich.bulletContent.includes('·'))
   /* 列表缩进 20 → 24：`ul` 的 padding-left 本轮随 §11.1 吸附到八级。
@@ -2580,6 +2608,40 @@ async function run() {
   await page.waitForTimeout(400)
   const drawerOpen = await page.evaluate(() => document.querySelector('.drawer[data-open]') !== null)
   truthy('点 Rail 打开抽屉', drawerOpen === true)
+
+  /*
+   * 抽屉关闭键的热区必须在**抽屉打开之后**量：收起时 `.drawer__panel`
+   * 是 `opacity: 0`，元素没有可命中的几何，探针一律返回 0。
+   * （第一版把这条写在抽屉打开之前，报红的是"期望 17、实测 0"——
+   * 断言没错，量的时候抽屉还没开。）
+   */
+  const drawerCloseReach = await page.evaluate(() => {
+    const el = document.querySelector('.drawer__close')
+    if (el === null) return null
+    const r = el.getBoundingClientRect()
+    if (r.width < 1 || r.height < 1) return null
+    const cx = r.left + r.width / 2
+    const cy = r.top + r.height / 2
+    const hits = (x, y) => {
+      const hit = document.elementFromPoint(x, y)
+      return hit !== null && (hit === el || el.contains(hit))
+    }
+    const walk = (dy) => {
+      let last = 0
+      for (let d = 1; d <= 40; d += 1) {
+        if (hits(cx, cy + dy * d)) last = d
+        else break
+      }
+      return last
+    }
+    return { boxH: Math.round(r.height), up: walk(-1), down: walk(1) }
+  })
+  eq(
+    '热区·抽屉关闭键上下可达各 17（合计 34，视觉仍 26）',
+    17,
+    drawerCloseReach?.up ?? -1,
+  )
+  same('热区·抽屉关闭键视觉尺寸仍是 26', 26, drawerCloseReach?.boxH ?? -1)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(400)
   const afterDrawerEsc = await page.evaluate(() => ({
@@ -2795,6 +2857,22 @@ async function run() {
    * 「读不到设置」——截图上看是个合理的错误态，于是**一个控件都没被验过**
    * 却看不出来。所以这里断言控件真的渲染了，且五种控件各至少出现一次。
    */
+  /*
+   * ## 场景项现在按归属分散在三页
+   *
+   * 12 项原先全在「扩展功能 · 场景」。段上移到专门页面之后，场景项跟着走：
+   * 人物设定 6 项、通用 4 项、扩展功能 2 项。
+   *
+   * 所以这里分两步验：
+   * 1. 在**人物设定**页采控件（它那一组里有滑杆、锚点、分段、开关、时间区间
+   *    五种里的四种，是控件覆盖最全的一页）；
+   * 2. 跨三页累加项数，确认 12 项一个没丢。
+   *
+   * 只在一页里数会得到 2 或 6，而"少了 10 项"看起来和"这一页本来就只有
+   * 这么多"一模一样——这正是必须跨页核对的理由。
+   */
+  await page.locator('.pref__nav-item', { hasText: '人物设定' }).click()
+  await page.waitForTimeout(400)
   const scene = await page.evaluate(() => {
     const items = [...document.querySelectorAll('.scene__item')]
     const texts = items.map((node) => node.textContent ?? '')
@@ -2836,8 +2914,11 @@ async function run() {
     }
   })
 
-  // 12 项是全量（pet 场景随插件一并删除）。少一项说明某个段没扫到，那一行的控件就整块消失。
-  same('设置·场景层 12 项全渲染', 12, scene.count)
+  /*
+   * 人物设定页这一组应有 6 项：记忆保留深度 / 人格浓度 / 单条消息长度 /
+   * 打字的节奏 / 遗忘复核周期 / 语音。
+   */
+  same('设置·人物设定页场景项 6 个', 6, scene.count)
   /*
    * 一项都不该缺。
    *
@@ -2853,21 +2934,89 @@ async function run() {
    * 而那时面板标题恒为「设置」，两个值相同，反着也过。现在标题是页名，
    * 反着就报红。断言要比较的两个东西必须分清哪个是"应该"、哪个是"实测"。
    */
-  same('设置·标题是当前页的名字', '扩展功能', scene.head)
+  same('设置·标题是当前页的名字', '人物设定', scene.head)
 
-  // 五种控件各至少一次：滑杆带锚点、滑杆、分段、开关、时间区间。
+  /*
+   * 五种控件各至少一次。
+   *
+   * ## 为什么要跨页看
+   *
+   * 场景项按归属分散之后，没有哪一页同时包含全部五种：
+   * 人物设定有锚点 / 滑杆 / 开关 / 时间区间，**没有分段**；
+   * 通用页有分段（主动发言频率是三档 enum）。
+   *
+   * 只在人物设定页数，分段那一条会红——而这不是缺陷，是「这一页本来
+   * 就没有分段控件」。所以分段单独到通用页验。
+   */
   truthy('设置·锚点按钮存在（number-anchored）', scene.anchors > 0)
   truthy('设置·滑杆存在（number）', scene.ranges > 0)
-  truthy('设置·分段存在（enum）', scene.segments > 0)
   truthy('设置·开关存在（boolean）', scene.switches > 0)
-  same('设置·时间区间是两个输入（range-time）', scene.times, 2)
 
-  // 用户层只覆盖一项，所以「已改」恰好一行、其余都是未改。
+
+  /* 分段在通用页：主动发言频率是三档 enum。 */
+  await page.locator('.pref__nav-item', { hasText: '通用' }).click()
+  await page.waitForTimeout(400)
+  const generalSegments = await page.evaluate(
+    () => document.querySelectorAll('.scene__segment').length,
+  )
+  truthy('设置·分段存在（enum，通用页的主动发言频率）', generalSegments > 0)
+
+  /*
+   * 用户层只覆盖一项（`memory-core.archive-normal-days`），而它在
+   * **人物设定**页的场景项里——所以这一页恰好一行标着「已改」。
+   */
   same('设置·恰有一项标记为已改', scene.changed, 1)
-  truthy('设置·未改项也显示默认值', scene.unchanged >= 11)
+  truthy('设置·未改项也显示默认值', scene.unchanged >= 5)
 
-  // 底部统计来自 totals，是「真的读到了 121 段」的证据。
-  truthy('设置·底部统计显示字段总数', /\d+ 个字段/.test(scene.foot))
+  /*
+   * 底部统计只存在于「扩展功能」页——它是那一页的页脚，报「N 个配置段 /
+   * M 个字段」。人物设定页没有这个页脚，所以这一条要回到扩展功能页验。
+   */
+  await page.locator('.pref__nav-item', { hasText: '扩展功能' }).click()
+  await page.waitForTimeout(500)
+  const pluginFoot = await page.evaluate(
+    () => document.querySelector('.settings__foot')?.textContent ?? '',
+  )
+  truthy('设置·底部统计显示字段总数', /\d+ 个字段/.test(pluginFoot))
+
+  /* 跨三页累加场景项：12 项一个都不能丢。 */
+  const sceneTotals = {}
+  for (const pageName of ['人物设定', '通用', '扩展功能']) {
+    await page.locator('.pref__nav-item', { hasText: pageName }).click()
+    await page.waitForTimeout(350)
+    sceneTotals[pageName] = await page.evaluate(
+      () => document.querySelectorAll('.scene__item').length,
+    )
+  }
+  same(
+    '设置·场景项跨三页合计 12（一个都没丢）',
+    12,
+    sceneTotals['人物设定'] + sceneTotals['通用'] + sceneTotals['扩展功能'],
+  )
+
+  /*
+   * 时间区间（作息）在通用页：两个 HH:MM 输入。
+   *
+   * 上面那个循环的最后一页是「扩展功能」，所以这里必须先切回来——
+   * 否则量到的是扩展功能页（那里没有作息），得到 0，看起来像控件丢了。
+   */
+  await page.locator('.pref__nav-item', { hasText: '通用' }).click()
+  await page.waitForTimeout(400)
+  const generalTimes = await page.evaluate(
+    () => document.querySelectorAll('.scene__time-input').length,
+  )
+  same('设置·时间区间是两个输入（range-time，通用页的作息）', 2, generalTimes)
+
+  /*
+   * 切回通用页。
+   *
+   * 后面那段要量开关的配色（挑「语音输入」造一个打开态），它只在这一页。
+   * 上面为了跨页数场景项把页面切走了，不切回来后续会取到错误的元素——
+   * 而 `locator.nth(2)` 在元素不存在时抛的是超时错误，不是断言失败，
+   * 症状会更难读。
+   */
+  await page.locator('.pref__nav-item', { hasText: '通用' }).click()
+  await page.waitForTimeout(400)
 
   /*
    * 内容不出边界。
@@ -2939,8 +3088,16 @@ async function run() {
    * 唯独数字是编的——而"编的数字"与"测出来的数字"在截图里无法区分。
    *
    * 所以桩给了六个互不相同、有正有负的读数（`COMPANION`），断言读回来的
-   * 文字必须与它逐个对上：`mood 0.5` → `0.00`、`tension 0.1` → `-0.80`、
-   * `energy 0.73` → `0.73`。任何一条断掉，都说明某段映射又回到了常量。
+   * 文字必须与它逐个对上：`mood 0.5` → `0.00`（双极中点）、
+   * `tension 0.1` → `0.10`（单极，不换算）、`energy 0.73` → `0.73`。
+   * 任何一条断掉，都说明某段映射又回到了常量。
+   *
+   * ## 张力这一条为什么从 `-0.80` 改成 `0.10`
+   *
+   * 它曾经断言 `0.1` 映成 `-0.80`，等于把「把单极量当双极量」这个缺陷
+   * 钉成了预期——映射错了，断言反而全绿。张力在数据模型里是 0–1、
+   * 基线 0（`AXIS_SPEC.tension`），0 的含义是「没有张力」而不是「中点」，
+   * 所以它不该有任何换算，也不该带正负号。
    */
   const readouts = await page.evaluate(() => {
     const rows = [...document.querySelectorAll('.inspector__row')]
@@ -2950,8 +3107,8 @@ async function run() {
     }))
   })
   const readout = (label) => readouts.find((row) => row.label === label)?.value ?? '(缺)'
-  same('侧写·心情取实测值（0.5 映成 0.00）', '0.00', readout('心情'))
-  same('侧写·张力取实测值（0.1 映成 -0.80）', '-0.80', readout('张力'))
+  same('侧写·心情取实测值（0.5 映成双极中点 0.00）', '0.00', readout('心情'))
+  same('侧写·张力取实测值且不换算（0.1 原样 0.10）', '0.10', readout('张力'))
   /*
    * 精力是单极量，界面上与双极量并排，刻度必须也是 0..1。
    * 它曾经写成 `mood.energy.toFixed(2)` 而 `energy` 已经是 0..100，
@@ -4284,6 +4441,138 @@ async function run() {
    * 旧深链接由 `App.tsx` 的 alias 表兜住，落到归位后的页。
    */
   same('设置六页齐全且有序', '通用/模型与 API/人物设定/备份与还原/扩展功能/关于', set_panel.navLabels)
+
+  /*
+   * --- 归属：已上移到专门页面的段，扩展功能不得重复列出 ---
+   *
+   * ## 这条守的是什么
+   *
+   * 人物设定页的四张卡原先只有 `enable` 一个开关，段里其余十几个字段
+   * 躺在扩展功能的模块层。同一件事两个入口，而且界面自己在指路——
+   * `VoiceCard` 的原话是「可以在『模块』里调闸门的三个数」。
+   *
+   * 现在专门页原地展开整段字段（`SectionFields`），扩展功能按
+   * `DEDICATED_SECTIONS` 排除它们。这条断言守三件事：
+   *
+   * 1. 已上移的段**确实不在**模块层里（否则两个入口并存）；
+   * 2. 专门页**确实有**对应的折叠区（否则那个段从界面上消失了）；
+   * 3. 两边的段 id 是同一份真源（`DEDICATED_SECTIONS`），不是各写一遍。
+   *
+   * 第 2 条最容易漏：只做第 1 条的话，忘了在专门页加折叠区就等于
+   * 把这个段藏了起来——而「找不到」比「位置不对」严重得多。
+   */
+  /*
+   * 判据落在**源码**而不是当前页面：这段代码跑在「通用」页刚验完的位置，
+   * 模块层根本没挂载，读 DOM 会得到空数组——断言恒真，反向验证也抓不住。
+   *
+   * 三个来源各读一次：
+   * - `settingsTaxonomy.ts` 的 `DEDICATED_SECTIONS`：唯一的归属真源；
+   * - `ModuleLayer.tsx`：是否真的用 `isDedicated` 过滤；
+   * - `SettingsPersona.tsx` / `SettingsGeneral.tsx`：专门页是否真的把
+   *   这些段嵌了进去。
+   */
+  const readSrc = async (rel) => await readFile(new URL(`../src/${rel}`, import.meta.url).pathname, 'utf8')
+  const [taxonomySrc, moduleSrc, personaSrc, generalSrc] = await Promise.all([
+    readSrc('lib/settingsTaxonomy.ts'),
+    readSrc('components/ModuleLayer.tsx'),
+    readSrc('components/SettingsPersona.tsx'),
+    readSrc('components/SettingsGeneral.tsx'),
+  ])
+
+  /* 归属真源里必须列出这些段。 */
+  const MUST_BE_MOVED = ['tts', 'tts-gate', 'oral', 'rhythm', 'filter-chain', 'memory-core', 'memory-audit']
+  const notListed = MUST_BE_MOVED.filter((id) => !taxonomySrc.includes(`'${id}'`))
+  same('归属表列出了全部应上移的段', 0, notListed.length)
+  if (notListed.length > 0) console.log(`    未列入：${notListed.join('、')}`)
+
+  /* 模块层必须真的过滤，否则归属表只是一张没人读的清单。 */
+  truthy(
+    '模块层按归属表过滤（不是只写了一张表）',
+    /isDedicated\(section\.id\)/.test(moduleSrc),
+  )
+
+  /*
+   * 专门页必须真的把这些段嵌进去。
+   *
+   * 这一条是三条里最容易被漏掉的：只在模块层做排除、忘了在专门页加
+   * 折叠区，那个段就从界面上消失了——「找不到」比「位置不对」严重。
+   */
+  const personaOwned = ['tts', 'tts-gate', 'oral', 'rhythm', 'filter-chain', 'memory-core', 'memory-decay', 'memory-audit']
+  const personaMissing = personaOwned.filter((id) => !personaSrc.includes(`sectionOf('${id}')`))
+  same('人物设定页嵌入了全部归它的段', 0, personaMissing.length)
+  if (personaMissing.length > 0) console.log(`    人物设定页缺少：${personaMissing.join('、')}`)
+
+  const generalOwned = ['proactive-gate', 'proactive-quota', 'proactive-reason']
+  const generalMissing = generalOwned.filter((id) => !generalSrc.includes(`sectionOf('${id}')`))
+  same('通用页嵌入了全部归它的主动发言段', 0, generalMissing.length)
+  if (generalMissing.length > 0) console.log(`    通用页缺少：${generalMissing.join('、')}`)
+
+  /* 原始层不能给已上移的段留一个点了会空结果的跳转按钮。 */
+  const rawSrc = await readSrc('components/RawLayer.tsx')
+  truthy(
+    '原始层对已上移的段不给跳转（否则点了搜不到）',
+    /isDedicated\(row\.section\.id\)/.test(rawSrc),
+  )
+
+  /*
+   * --- 场景项也按归属分发，不在两个页面各放一个滑杆 ---
+   *
+   * 12 个场景项原先全在「扩展功能 · 场景」里。段上移之后，如果场景项
+   * 留在原地，用户会在人物设定调完「记忆保留深度」，到扩展功能又看见
+   * 一个同名滑杆——同一件事两个入口，而两边改的是同一个键。
+   *
+   * 判据落在**源码里的过滤集合**：三页各自声明了 `only`，且三者并集
+   * 必须覆盖全部 12 项（`SCENE_ITEMS` 的数量）。少一项就是某个场景项
+   * 从界面上消失了——它既不在专门页，也不在扩展功能。
+   */
+  const [personaSrc2, generalSrc2, pluginsSrc2, scenesSrc] = await Promise.all([
+    readSrc('components/SettingsPersona.tsx'),
+    readSrc('components/SettingsGeneral.tsx'),
+    readSrc('components/SettingsPlugins.tsx'),
+    readSrc('lib/scenes.ts'),
+  ])
+  const totalSceneItems = (scenesSrc.match(/\n    id: '/g) ?? []).length
+  same('场景项总数 12（源码真源）', 12, totalSceneItems)
+
+  /* 三页都必须真的传 `only`，否则场景项会全量渲染在该页。 */
+  /*
+   * 正则要匹配「传了一个**具名集合**」，不能只匹配 `only={`。
+   * 写成 `/only=\{/` 时，`only={undefined}` 也算通过——而那正是要抓的
+   * 回退形态（撤销过滤）。判据收紧到「花括号里是标识符，不是 undefined」。
+   */
+  for (const [label, src] of [['人物设定', personaSrc2], ['通用', generalSrc2], ['扩展功能', pluginsSrc2]]) {
+    /*
+     * 匹配「花括号里是一个**非 undefined 的表达式**」。
+     *
+     * 用否定前瞻而不是枚举合法形态：`only={one('tts')}` 与
+     * `only={MEMORY_SCENE_SECTIONS}` 都要通过，`only={undefined}` 必须红。
+     */
+    truthy(
+      `${label}页的场景层传了 only（不是全量渲染）`,
+      /only=\{(?!undefined\})[^}]+\}/.test(src),
+    )
+  }
+
+  /*
+   * 扩展功能只保留 dialogue / privacy 两项。
+   *
+   * 这两项没有日常页面：上下文是推理参数，风险档位属于安全边界，
+   * 都更像「程序怎么跑」而不是「她是谁」。
+   */
+  truthy(
+    '扩展功能只剩 dialogue 与 privacy 两项场景',
+    /SCENE_STAYS_HERE[\s\S]{0,200}new Set\(\['dialogue', 'privacy'\]\)/.test(pluginsSrc2),
+  )
+
+  /* 上移的场景段必须真的在专门页的 only 集合里，否则那一项没人渲染。 */
+  const personaOnly = personaSrc2.slice(personaSrc2.indexOf('only={one('))
+  truthy('人物设定的节奏场景项绑在 rhythm 段', /one\('rhythm'\)/.test(personaSrc2))
+  truthy('人物设定的口吻场景项绑在 persona-vars 段', /one\('persona-vars'\)/.test(personaSrc2))
+  truthy('人物设定的记忆场景项覆盖 core 与 audit', /MEMORY_SCENE_SECTIONS[\s\S]{0,120}'memory-core'[\s\S]{0,60}'memory-audit'/.test(personaSrc2))
+  truthy('通用页的主动发言场景项覆盖四个段', /GENERAL_SCENE_SECTIONS[\s\S]{0,200}'proactive-gate'/.test(generalSrc2))
+  void personaOnly
+
+
   eq('设置左导航宽 168', 168, set_panel.navWidth)
   same('设置默认停在通用页', '通用', set_panel.current)
   same('标题跟着当前页走', '通用', set_panel.title)
@@ -4591,7 +4880,17 @@ async function run() {
    * 取「语音输入」：它是纯本地偏好，`onChange` 直接写 `setPreferences`，
    * 没有异步回滚，点一下就真的进打开态。
    */
-  const voiceToggle = setPage.locator('.pref__switch', { hasText: '' }).nth(2)
+  /*
+   * 按 aria-label 精确取「语音输入」，不按位置取。
+   *
+   * 原先写 `nth(2)`，靠的是"这一页第 3 个开关恰好是语音输入"。场景层
+   * 搬进通用页之后，页面顶部多了「主动消息可解释」等开关，`nth(2)` 落到
+   * 「提示音」上——点它确实会变成打开态，但那条断言量的是「关回去之后
+   * 剩几个打开态」，取错元素就会得到 1，看起来像复位失败。
+   *
+   * 位置会随页面结构变，名字不会。
+   */
+  const voiceToggle = setPage.locator('.pref__switch[aria-label="语音输入"]')
   const switchBefore = await setPage.evaluate(() => {
     const all = [...document.querySelectorAll('.pref__switch')]
     return {
@@ -4660,10 +4959,25 @@ async function run() {
    */
   await voiceToggle.click()
   await setPage.waitForTimeout(240)
-  const switchRestored = await setPage.evaluate(
-    () => document.querySelectorAll(".control-switch[aria-checked='true']").length,
-  )
-  truthy(`量完把开关关回去（剩 ${String(switchRestored)} 个打开态）`, switchRestored === 0)
+  /*
+   * 判据改成「刚点的那一个回到关闭」，而不是「全页没有打开态」。
+   *
+   * ## 为什么不能数全页
+   *
+   * 原写法数 `control-switch[aria-checked='true']` 的总数。场景层搬进
+   * 通用页之后，页面里多了「主动消息可解释」这类**默认就是开**的开关
+   * （默认 true，不是用户点的）。于是无论语音输入有没有关回去，
+   * 总数都至少是 1——断言恒红，而真正要守的那件事（点过的那个要复位）
+   * 反而没被验到。
+   *
+   * 数「全页状态」在页面里存在默认开启项时永远不成立。判据必须锚在
+   * **被操作的那一个元素**上。
+   */
+  const switchRestored = await setPage.evaluate(() => {
+    const node = document.querySelector('.pref__switch[aria-label="语音输入"]')
+    return node === null ? 'missing' : node.getAttribute('aria-checked')
+  })
+  same('量完把语音输入开关关回去', 'false', switchRestored)
 
   await setPage.screenshot({ path: join(OUT, 'settings-sound.png') })
 
@@ -5432,9 +5746,99 @@ async function run() {
   const shortPad = await breakPage.evaluate(
     () => getComputedStyle(document.querySelector('.composer')).paddingTop,
   )
-  same('§12.8 高度 561 时输入区上间距 12', '12px', tallPad)
-  same('§12.8 高度 559 时输入区上间距收到 8', '8px', shortPad)
+  same('§12.8 高度 561 时输入区上间距 8', '8px', tallPad)
+  same('§12.8 高度 559 时输入区上间距收到 0', '0px', shortPad)
 
+  /*
+   * --- 14d. 小热区不得小于 24×24 ---
+   *
+   * ## 为什么这条必须量**命中测试**而不是量盒子
+   *
+   * 这一栏里有一批控件视觉上很小（红绿灯 12、关闭键 26），靠伪元素或
+   * padding 把命中区补大。上一版 `composer__model-button` 写了
+   * `::before { inset: -3px }`，几何算出来是 28×28，**但按钮自己有
+   * `overflow: hidden`（为了省略号），伪元素被裁掉，实际点上去只命中
+   * 22**。量 `getBoundingClientRect()` 会得到 28 并通过——一个量错对象
+   * 还照常出结论的检查，比没有检查更危险。
+   *
+   * 所以这里用 `elementFromPoint` 在控件边缘**外侧 2px** 取点，看命中的
+   * 是不是它自己（或它的子节点）。这才回答「点得中吗」。
+   *
+   * 阈值 24 而不是 44：桌面端有精确指针，24 是这一套里视觉尺寸的上限
+   * （图标钮 26、胶囊 22）。44 留给 `@media (hover: none)`——触屏那档
+   * 由 `.rail__item` 与红绿灯各自实现，不在这个判据里重复要求。
+   */
+  await breakPage.setViewportSize({ width: 820, height: 580 })
+  await breakPage.waitForTimeout(200)
+  const hitProbe = await breakPage.evaluate(() => {
+    /**
+     * 量一个元素**真实可点的范围**：从中心向外逐像素走，直到点不中为止。
+     *
+     * ## 为什么不量盒子、也不量"盒子外面 2px"
+     *
+     * 两种补热区的做法得到的几何不同：
+     * - `::before { inset: -3px }`：热区**超出**盒子，量盒子会少算；
+     * - `padding` + 负 `margin`：热区**就是**盒子，去探盒子外面必然不中。
+     *
+     * 而 `getBoundingClientRect()` 又不含伪元素，对第一种量不准。
+     * 只有"从中心往外走"这一种量法对两种做法都成立，且它直接回答
+     * 「点得中吗」——这正是要守的东西。
+     */
+    const reach = (selector) => {
+      const el = document.querySelector(selector)
+      if (el === null) return null
+      const r = el.getBoundingClientRect()
+      if (r.width < 1 || r.height < 1) return null
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const hits = (x, y) => {
+        const hit = document.elementFromPoint(x, y)
+        return hit !== null && (hit === el || el.contains(hit))
+      }
+      /** 沿某个方向逐像素探，返回最后一个命中点的距离。 */
+      const walk = (dx, dy) => {
+        let last = 0
+        for (let d = 1; d <= 60; d += 1) {
+          if (hits(cx + dx * d, cy + dy * d)) last = d
+          else break
+        }
+        return last
+      }
+      return {
+        boxW: Math.round(r.width),
+        boxH: Math.round(r.height),
+        up: walk(0, -1),
+        down: walk(0, 1),
+        left: walk(-1, 0),
+        right: walk(1, 0),
+      }
+    }
+    return {
+      modelButton: reach('.composer__model-button'),
+      attach: reach('.composer__attach'),
+      trafficDot: reach('.traffic-lights__dot'),
+    }
+  })
+
+  /*
+   * 模型按钮：padding 方案，热区就是盒子。上下各能走 ~14（28 的一半），
+   * 合计 28 —— 比原来的 22 高 27%。
+   */
+  const modelReach = hitProbe.modelButton
+  eq(
+    '热区·模型按钮上下可达各 14（合计 28 高）',
+    14,
+    modelReach?.up ?? -1,
+  )
+  eq('热区·模型按钮热区高度 28', 28, modelReach === null ? -1 : modelReach.up + modelReach.down + 1)
+  /*
+   * 附加键：`::before` 外扩 5，盒子 16 → 热区 26。上下各能走 13。
+   */
+  eq(
+    '热区·附加键上下可达各 13（合计 26，视觉仍 16）',
+    13,
+    hitProbe.attach?.up ?? -1,
+  )
   /*
    * --- 14c. `Cmd+N` 回首页，而不是「在三栏里再开一个空会话」---
    *

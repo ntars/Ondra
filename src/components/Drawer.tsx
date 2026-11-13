@@ -62,6 +62,18 @@ export interface DrawerProps {
   onClearAll(): void
   /** 打开某个配置段（扩展抽屉的「配置」）。 */
   onConfigure(sectionId: string): void
+  /**
+   * 切到另一个抽屉。
+   *
+   * 窄屏（< 820 内容宽）下 Rail 整个不渲染，顶栏只有一个汉堡按钮，
+   * 于是「日志」与「扩展」**没有任何入口**——用户点开抽屉只能看到会话，
+   * 另外两个功能等于不存在。这里给面板内部一组页签，由它承担切换。
+   *
+   * 宽屏下这组页签仍然渲染，但 CSS 会把它藏起来（`.drawer__tabs` 只在
+   * 容器查询的窄屏分支里 `display: flex`）：宽屏有 Rail，两套入口同时
+   * 出现会让"点哪个"变成一次选择，而它本来不该是选择。
+   */
+  onSwitch?(view: DrawerKey): void
   /** 关闭。 */
   onClose(): void
 }
@@ -82,6 +94,7 @@ export function Drawer({
   busy,
   onClearAll,
   onConfigure,
+  onSwitch,
   onClose,
 }: DrawerProps): React.JSX.Element {
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -127,6 +140,28 @@ export function Drawer({
             <Icon icon={IconClose} size={16} />
           </button>
         </header>
+
+        {/*
+          窄屏专用的抽屉切换。宽屏由 CSS 隐藏（Rail 已经在做同一件事）。
+          用 `role="tablist"` 而不是一排普通按钮：它确实是"同一块区域的
+          三种内容"，读屏应该念成页签，而不是三个互不相干的动作。
+        */}
+        {onSwitch === undefined ? null : (
+          <div className="drawer__tabs" role="tablist" aria-label="抽屉内容">
+            {(Object.keys(TITLES) as DrawerKey[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                className="drawer__tab"
+                aria-selected={view === key}
+                onClick={() => { onSwitch(key) }}
+              >
+                {TITLES[key]}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="drawer__body">
           {view === 'session' ? (

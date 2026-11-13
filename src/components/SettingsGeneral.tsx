@@ -21,8 +21,21 @@ import type { SoundCue } from '../lib/sound.ts'
 import { readPermission, requestPermission } from '../lib/notify.ts'
 import type { NotifyPermission } from '../lib/notify.ts'
 import { useT } from '../lib/i18n.ts'
+import { getSettings, saveSetting } from '../lib/settings.ts'
+import type { SettingsSection } from '../lib/settingTypes.ts'
+import type { SceneValues } from '../lib/scenes.ts'
 import { Dialog } from './Dialog.tsx'
+import { SceneLayer } from './SceneLayer.tsx'
+import { SectionFields } from './SectionFields.tsx'
 import { Choices, Heading, Note, Row, Toggle } from './settingsUi.tsx'
+
+/** 归这一页的场景段：主动发言三项 + 作息。 */
+const GENERAL_SCENE_SECTIONS: ReadonlySet<string> = new Set([
+  'proactive-quota',
+  'proactive-gate',
+  'proactive-reason',
+  'life-rhythm',
+])
 
 /** 三种提示音的展示清单。顺序即用户在会话里听到它们的顺序。 */
 const CUES: Array<{ key: SoundCue; labelKey: 'general.sound.cueSend' | 'general.sound.cueSpeak' | 'general.sound.cueError'; hintKey: 'general.sound.cueSendHint' | 'general.sound.cueSpeakHint' | 'general.sound.cueErrorHint' }> = [
@@ -34,6 +47,63 @@ const CUES: Array<{ key: SoundCue; labelKey: 'general.sound.cueSend' | 'general.
 export function SettingsGeneral(): React.JSX.Element {
   const t = useT()
   const prefs = usePreferences()
+
+  /*
+   * 主动发言的三个段（门控 / 节律 / 话由）。
+   *
+   * ## 为什么在通用页而不是人物设定
+   *
+   * 这三段回答的是「她什么时候开口」——那是**这个应用用起来什么样**，
+   * 不是「她是谁」。原先它们只在扩展功能的模块层里，用户想让她少说两句，
+   * 得先知道有个叫「主动门控」的插件段。
+   *
+   * 场景层有「主动发言频率」与「静默阈值」两个旋钮，但那只是两档显示名；
+   * 完整的 21 + 9 + 4 个字段在这里原地展开。
+   */
+  const [sections, setSections] = useState<SettingsSection[]>([])
+  const [settingsUser, setSettingsUser] = useState<SceneValues>({})
+
+  useEffect(() => {
+    let alive = true
+    void getSettings()
+      .then((snapshot) => {
+        if (!alive) return
+        setSections(snapshot.sections)
+        setSettingsUser(snapshot.user)
+      })
+      .catch(() => { /* 读不到就不展开：这一节本身不是必答项 */ })
+    return () => { alive = false }
+  }, [])
+
+  const writeSetting = async (section: string, key: string, value: unknown): Promise<void> => {
+    const previous = settingsUser[section]?.[key]
+    const had = previous !== undefined
+    setSettingsUser((current) => {
+      const bucket = { ...current[section] }
+      if (value === undefined) delete bucket[key]
+      else bucket[key] = value
+      const next = { ...current }
+      if (Object.keys(bucket).length === 0) delete next[section]
+      else next[section] = bucket
+      return next
+    })
+    try {
+      await saveSetting(section, key, value)
+    } catch (caught) {
+      setSettingsUser((current) => {
+        const bucket = { ...current[section] }
+        if (had) bucket[key] = previous
+        else delete bucket[key]
+        const next = { ...current }
+        if (Object.keys(bucket).length === 0) delete next[section]
+        else next[section] = bucket
+        return next
+      })
+      setPermissionError(caught instanceof Error ? caught.message : t('general.permissionWriteFail'))
+    }
+  }
+
+  const sectionOf = (id: string): SettingsSection | undefined => sections.find((item) => item.id === id)
 
   /* ---- 系统通知 ---- */
   /** 通知权限。默认 `default`（还没问过）。 */
@@ -160,6 +230,41 @@ export function SettingsGeneral(): React.JSX.Element {
         ]}
       />
       <Note>{t('general.localeNote')}</Note>
+
+      <Heading>{t('general.proactive')}</Heading>
+      <Note>{t('general.proactiveNote')}</Note>
+      {/*
+        四个日常旋钮在前（频率、静默阈值、作息、可解释），
+        完整字段在后面的折叠区里。前者是「她多久说一次」，后者是「闸门
+        具体怎么算」——两种问题分开回答，不必让用户先读懂阈值再动手。
+      */}
+      <SceneLayer
+        sections={sections}
+        user={settingsUser}
+        onWrite={writeSetting}
+        only={GENERAL_SCENE_SECTIONS}
+      />
+      <SectionFields
+        section={sectionOf('proactive-gate')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={prefs.developerMode}
+        label={t('general.proactive.gate')}
+      />
+      <SectionFields
+        section={sectionOf('proactive-quota')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={prefs.developerMode}
+        label={t('general.proactive.quota')}
+      />
+      <SectionFields
+        section={sectionOf('proactive-reason')}
+        user={settingsUser}
+        onWrite={writeSetting}
+        developerMode={prefs.developerMode}
+        label={t('general.proactive.reason')}
+      />
 
       <Heading>{t('general.send')}</Heading>
       <Choices<SendMode>

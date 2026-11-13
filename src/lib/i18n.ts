@@ -149,15 +149,33 @@ const DICT = {
     '首次使用麦克风时，系统会请求授权。语音转写在本机完成，需要您的环境中装有本地语音识别模型（如 whisper）；未安装时，录音后会给明确提示而非静默失败。',
     'The system asks for microphone access on first use. Transcription runs locally and needs a local speech model (such as whisper) in your environment; without one, recording ends with a clear message instead of failing silently.',
   ],
+  /*
+   * 主动发言。
+   *
+   * ## 为什么从「扩展功能」搬到这里
+   *
+   * 原先这三段只在模块层里，名字是「主动门控」「主动节律」「主动话由」。
+   * 用户想让她少说两句时，需要先知道有个叫「主动门控」的插件段——那是
+   * 实现者的词汇，不是用户的。它们回答的问题（她什么时候开口）属于
+   * 「这个应用用起来什么样」，也就是这一页。
+   */
+  'general.proactive': ['主动发言', 'Proactive messages'],
+  'general.proactiveNote': [
+    '她不会一直沉默，也不会一直说话。这一节决定她多久可以主动开口一次、在什么时段保持安静、以及每条主动消息要不要说明理由。收起时只显示项数，点开可逐项调。',
+    'She neither stays silent nor talks constantly. This section decides how often she may speak up, when she stays quiet, and whether each proactive message explains why it was sent.',
+  ],
+  'general.proactive.gate': ['开口时机与限额', 'Timing and limits'],
+  'general.proactive.quota': ['每日节奏', 'Daily rhythm'],
+  'general.proactive.reason': ['消息理由', 'Message rationale'],
 
   /* --- 模型与 API --- */
   'models.title': ['模型提供商', 'Model providers'],
   'models.note': [
-    '模型来源分两类。官方预设：内置的在线、本地与免费三档，在顶栏的模型选择器里直接切换，其中免费模型无需密钥；自定义模型：本页添加您自己的 OpenAI 兼容端点（Ollama、vLLM、magpie 等本地网关或自建服务），填基址、API Key 与模型名即可。API Key 按机密字段处理，不在界面明文回显。设为默认后，对话将使用所选来源，实际推理切换由宿主按此选择生效。',
-    'Model sources come in two kinds. Official presets: the built-in online, local and free sources, switched directly in the model picker in the top bar — the free source needs no key. Custom models: add your own OpenAI-compatible endpoints on this page (local gateways such as Ollama, vLLM or magpie, or self-hosted services) with a base URL, an API key and a model name. The API key is treated as a secret and never echoed back. After a default is set, conversations use the chosen source; the host applies the switch.',
+    '模型来源只有两类：一是内置的「本地演示」，不联网、只会回声，用来确认链路通不通，无需任何配置；二是您在本页添加的 OpenAI 兼容端点（DeepSeek、Moonshot、Ollama、vLLM 等），填基址、API Key 与模型名即可。添加后它会出现在输入框下方的模型选择器里，点「设为默认」即可用于对话。API Key 按机密字段处理，读回时打码，不在界面明文回显。',
+    'There are exactly two kinds of model source. The built-in Local demo never goes online and only echoes your text — it exists to prove the pipeline works and needs no configuration. Everything else is an OpenAI-compatible endpoint you add on this page (DeepSeek, Moonshot, Ollama, vLLM and so on) with a base URL, an API key and a model name. Once added it appears in the model picker under the composer; choose Set as default to use it for conversations. The API key is treated as a secret: it is masked when read back and never echoed in plain text.',
   ],
   'models.add': ['添加提供商', 'Add provider'],
-  'models.empty': ['尚无自定义提供商。点击上方「添加提供商」可接入自建的模型后端。', 'No custom providers yet. Click Add provider above to connect your own model backend.'],
+  'models.empty': ['还没有添加任何提供商。此时对话使用的是内置的「本地演示」——它只会把您的话回声一遍，不产生真实回答。点上方「添加提供商」接入一个真实的模型后端。', 'No providers yet. Conversations currently use the built-in Local demo, which only echoes your text and produces no real answer. Click Add provider above to connect a real model backend.'],
   'models.defaultTag': ['默认', 'Default'],
   'models.setDefault': ['设为默认', 'Set as default'],
   'models.edit': ['编辑', 'Edit'],
@@ -181,7 +199,18 @@ const DICT = {
   'models.err.load': ['读不到提供商列表', 'Cannot read the provider list'],
   'models.err.save': ['保存失败', 'Failed to save'],
   'models.err.remove': ['删除失败', 'Failed to delete'],
-  'models.err.required': ['请填写名称与基址', 'Fill in the name and the base URL'],
+  'models.err.required': ['请填写名称、基址与模型名', 'Fill in the name, the base URL and the model'],
+  /*
+   * 「存下了，但还差密钥」——不是失败，也不是成功。
+   *
+   * 上一版这种情况下也回「已保存提供商」，用户以为配好了，切过去发第一句
+   * 才收到 401；那时他已经在对话里，回不到这个表单，也不知道该改哪一项。
+   * 本机端点（Ollama 等）不需要密钥，所以这条只在远端端点出现。
+   */
+  'models.warn.noKey': [
+    '已保存，但还没有填 API Key：现在切到这个提供商，对话会返回「密钥无效」。补上密钥后再试。',
+    'Saved, but no API key yet: switching to this provider now will fail with "invalid key". Add the key and try again.',
+  ],
 
   /* --- 人物设定 --- */
   'persona.pack': ['人设包', 'Persona pack'],
@@ -213,6 +242,30 @@ const DICT = {
   'persona.pace': ['说话节奏', 'Pace'],
   'persona.rules': ['说话的规矩', 'Rules'],
   'persona.memory': ['记忆', 'Memory'],
+  /*
+   * 四张卡下方的「更多设置」。
+   *
+   * ## 为什么按卡片分别命名，不共用一个「更多设置」
+   *
+   * 一页里有四个长得一样的折叠按钮，读屏用户靠名字区分它们。四个都叫
+   * 「更多设置」时，屏幕阅读器的元素列表里会出现四条同名项，用户只能
+   * 靠位置猜。带上是哪张卡的，才说得清点开的是哪一个。
+   */
+  'persona.more.vars': ['她怎么称呼你', 'How she addresses you'],
+  'persona.more.voice': ['朗读的更多设置', 'More voice settings'],
+  'persona.more.voiceGate': ['朗读时机的更多设置', 'More speech-gate settings'],
+  'persona.more.tone': ['口吻的更多设置', 'More tone settings'],
+  'persona.more.lexicon': ['语感与语气词', 'Speech habits and particles'],
+  'persona.more.expression': ['表情判定', 'Emoji and expression'],
+  'persona.more.pace': ['节奏的更多设置', 'More rhythm settings'],
+  'persona.more.rules': ['规矩的更多设置', 'More rule settings'],
+  'persona.memory.note': [
+    '这里决定她记多久、怎么淡忘、什么时候回头复核。日常只需要「记忆保留深度」一个数，其余按需展开。下面的知识库是您手写给她看的内容，与自动记忆是两回事。',
+    'This decides how long she remembers, how memories fade, and when she revisits them. Day to day only one number matters; the rest can stay folded. The knowledge base below is what you write for her — separate from automatic memory.',
+  ],
+  'persona.more.memoryCore': ['记忆保留与容量', 'Retention and capacity'],
+  'persona.more.memoryDecay': ['遗忘曲线', 'Fading curve'],
+  'persona.more.memoryAudit': ['复核与复查', 'Review and audit'],
   'kb.note': [
     '这里是您可自己维护的知识清单：把常用背景、人物设定、项目资料录进来，她会在对话时参考。支持分类，便于管理与检索。数据保存在本机，不上传。',
     'A knowledge list you maintain yourself: record background, persona notes and project material, and she will refer to it in conversation. Entries support categories for easier management and lookup. Data stays on this machine and is never uploaded.',
@@ -263,6 +316,17 @@ const DICT = {
   'data.ok.restoredArchived': ['已恢复 {0} 条消息，上一段已归档', 'Restored {0} messages; the previous session was archived'],
   'data.err.import': ['导入失败', 'Import failed'],
   'data.err.generic': ['操作未完成', 'The operation did not finish'],
+  /*
+   * 「需要桌面端」与「未授权」是两件完全不同的事。
+   *
+   * 上一版这里没有这一条，前端直接把宿主对 HTTP 401 的原文「未授权」
+   * 摊给用户——用户会去翻权限设置，而真实原因是这个功能只能由应用外壳
+   * 完成（文件选择与写入），浏览器预览里根本没有那个能力。
+   */
+  'data.err.desktopOnly': [
+    '这一步需要桌面端才能完成：选择与写入文件由应用外壳负责，浏览器预览里没有这个能力。',
+    'This step needs the desktop app: choosing and writing files is handled by the app shell, which a browser preview does not have.',
+  ],
   'backup.title': ['备份与恢复', 'Backup & restore'],
   'backup.note': [
     '备份会复制本应用的全部本地数据（会话、记忆、世界书、知识库、模型配置与偏好）到数据目录下的「backups」文件夹，互不覆盖，可保留多份。恢复会把整库回到所选备份的时刻——此操作会覆盖当前全部数据，请先确认。',

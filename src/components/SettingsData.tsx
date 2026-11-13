@@ -16,12 +16,26 @@
 
 import { useState } from 'react'
 import { importSession, pickImportFile, saveAllJson, saveCurrentJson, saveCurrentMarkdown } from '../lib/transfer.ts'
+import { isShellUnavailable } from '../lib/shell.ts'
 import { useT } from '../lib/i18n.ts'
 
 /** 一次动作的结果。成功与失败都落在这里，界面只有一条回执。 */
 interface Receipt {
   tone: 'ok' | 'bad'
   text: string
+}
+
+/**
+ * 把一次失败翻译成用户能照着做的一句话。
+ *
+ * `fallback` 只在异常根本不是 `Error` 时用——那时确实没有任何信息可透出。
+ * 判据见 `isShellUnavailable()`：它按"错误来自哪一层"判断，而不是按
+ * HTTP 状态码，理由写在那边的注释里。
+ */
+function explainFailure(caught: unknown, fallback: string, desktopOnly: string): string {
+  if (!(caught instanceof Error)) return fallback
+  if (isShellUnavailable(caught)) return desktopOnly
+  return caught.message
 }
 
 export interface SettingsDataProps {
@@ -43,6 +57,18 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
    * 三个动作的失败长相完全不同（没有会话、文件写不进去、JSON 不合法），
    * 但界面只需要一个位置显示它们——所以统一收成一个 `receipt`。
    * 用 `busy` 挡住重入：连点两下「导出」会写两个同名文件，第二个覆盖第一个。
+   *
+   * ## 为什么不直接把 `caught.message` 摊给用户
+   *
+   * 上一版就是那么写的，于是「导出为 Markdown」在非桌面环境里弹出一句
+   * **「未授权」**——那是宿主对 HTTP 401 的内部措辞（`server.ts`），
+   * 而真实原因是 `invokeShell` 抛的「桌面能力不可用：不在壳内运行」，
+   * 它俩撞在一起时后者被前者的状态码盖掉了。用户看到「未授权」只会
+   * 以为自己权限不够，去翻权限设置——方向完全错了。
+   *
+   * 所以这里按「用户能不能自己解决」分两类说：壳能力缺失要说清楚是
+   * 环境问题（去桌面端），其余才照原文透出（"文件写不进去"这类本来就
+   * 是可执行的）。
    */
   const run = async (kind: 'current' | 'markdown' | 'all', action: () => Promise<Receipt>): Promise<void> => {
     if (busy !== '') return
@@ -51,7 +77,7 @@ export function SettingsData({ sessionId, onImported }: SettingsDataProps): Reac
     try {
       setReceipt(await action())
     } catch (caught) {
-      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('data.err.generic') })
+      setReceipt({ tone: 'bad', text: explainFailure(caught, t('data.err.generic'), t('data.err.desktopOnly')) })
     } finally {
       setBusy('')
     }

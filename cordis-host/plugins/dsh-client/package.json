@@ -13,11 +13,13 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["lib"],
+  "files": [
+    "lib"
+  ],
   "license": "AGPL-3.0",
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
     "@ntars/cordis": "*"

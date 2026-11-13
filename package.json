@@ -2,7 +2,7 @@
   "name": "ondra",
   "productName": "空谷 Ondra",
   "description": "空谷 Ondra：全插件式桌面 AI 陪伴体应用",
-  "version": "1.0.1-alpha",
+  "version": "1.0.3-alpha",
   "private": true,
   "license": "AGPL-3.0",
   "author": {
@@ -63,6 +63,7 @@
     "check:host-persona": "node tools/check-host-persona.mjs",
     "check:e2e": "node tools/check-e2e-proactive.mjs",
     "check:e2e-memory": "node tools/check-e2e-memory.mjs",
+    "check:e2e-abort": "node tools/check-e2e-abort.mjs",
     "check:voice": "node tools/check-voice.mjs",
     "check:plugins": "node tools/check-plugins.mjs",
     "check:intake-switch": "node tools/check-intake-switch.mjs",
@@ -82,7 +83,8 @@
     "check:cors": "node tools/check-cors.mjs",
     "check:dedupe-tally": "node tools/check-dedupe-tally.mjs",
     "check:dedupe-digit": "node cordis-host/check-dedupe-digit.mjs",
-    "check:recall-archived": "node tools/check-recall-archived.mjs"
+    "check:recall-archived": "node tools/check-recall-archived.mjs",
+    "check:e2e-stream": "node tools/check-e2e-stream.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.4"

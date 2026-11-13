@@ -24,7 +24,7 @@
    =========================================================================== */
 
 .md__p {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
 }
 
 .md__p:last-child {
@@ -32,7 +32,7 @@
 }
 
 .md__h {
-  margin: 12px 0 8px;
+  margin: 8px 0 8px;
   font-size: 1.0625rem;
   font-weight: var(--w-medium);
   letter-spacing: var(--track-title);
@@ -87,14 +87,14 @@ del {
    =========================================================================== */
 
 .md__list {
-  margin: 4px 0 12px;
+  margin: 4px 0 8px;
   padding-left: 24px;
   list-style: none;
 }
 
 .md__list > li {
   position: relative;
-  margin: 2px 0;
+  margin: 4px 0;
 }
 
 /* 无序列表符号「·」，有序列表用计数器——浏览器默认的 1. 2. 字体与缩进不可控。 */
@@ -138,7 +138,7 @@ del {
  */
 .md__quote {
   margin: 16px 0;
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-left: 3px solid var(--ui-accent-soft);
   border-radius: 0 var(--r-xs) var(--r-xs) 0;
   background: var(--ui-bg-raise);
@@ -154,7 +154,7 @@ del {
    =========================================================================== */
 
 .md__code {
-  padding: 1px 4px;
+  padding: 4px 4px;
   border-radius: var(--r-xs);
   /*
    * 底纹从 `--ui-bg-sunken` 减到 6% 墨。
@@ -247,7 +247,7 @@ del {
 
 .md__pre-body {
   margin: 0;
-  padding: 12px 48px 12px 12px;
+  padding: 8px 48px 8px 8px;
   border-radius: inherit;
   overflow-x: auto;
   font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
@@ -268,7 +268,7 @@ del {
 .md__table-wrap {
   position: relative;
   margin: 16px 0;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
   overflow-x: auto;
   border-radius: var(--r-xs);
   /*
@@ -315,7 +315,7 @@ del {
 
 .md__table th {
   max-width: 260px;
-  padding: 8px 12px;
+  padding: 8px 8px;
   text-align: left;
   font-weight: var(--w-medium);
   font-size: 0.75rem;
@@ -326,7 +326,7 @@ del {
 
 .md__table td {
   max-width: 260px;
-  padding: 8px 12px;
+  padding: 8px 8px;
   font-size: 0.8125rem;
   border-bottom: var(--rule) solid var(--ui-line-soft);
   color: var(--ui-ink);
@@ -359,7 +359,7 @@ del {
   display: block;
   max-width: 100%;
   height: auto;
-  margin: 12px 0;
+  margin: 8px 0;
   border-radius: var(--r-sm);
   border: var(--rule) solid var(--ui-line);
 }

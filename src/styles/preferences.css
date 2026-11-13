@@ -25,7 +25,7 @@
 .pref__nav {
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 8px;
+  padding: 8px 8px;
   /*
    * 导航列比纸片暗一档（浅色 #ededed / 深色 #141414）。
    *
@@ -58,8 +58,8 @@
   gap: 8px;
   width: 100%;
   height: 34px;
-  margin-bottom: 2px;
-  padding: 0 12px;
+  margin-bottom: 4px;
+  padding: 0 8px;
   border-radius: var(--r-sm);
   font-size: var(--text-caption);
   color: var(--ui-ink-2);
@@ -116,7 +116,7 @@
   font-weight: var(--w-medium);
   letter-spacing: var(--track-label);
   color: var(--ui-ink-4);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 /*
@@ -150,8 +150,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 12px 24px 12px 12px;
+  gap: 4px;
+  padding: 8px 24px 8px 8px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-raise);
   box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
@@ -199,7 +199,7 @@
 
 .pref__choice-hint {
   display: block;
-  margin-top: 2px;
+  margin-top: 4px;
   font-size: var(--text-micro);
   color: var(--ui-ink-3);
 }
@@ -236,7 +236,7 @@
 
 .pref__row-hint {
   display: block;
-  margin-top: 2px;
+  margin-top: 4px;
   font-size: var(--text-micro);
   color: var(--ui-ink-3);
 }
@@ -274,7 +274,7 @@
 /* 字号预览：一段真实句子按当前比例排出来。 */
 .pref__sample {
   margin-top: 8px;
-  padding: 12px;
+  padding: 8px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-raise);
   border: var(--rule) solid var(--ui-line-soft);
@@ -336,8 +336,8 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 8px 8px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-field);
   box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
@@ -411,7 +411,7 @@
 
 .pref__note {
   margin-top: 16px;
-  padding: 12px 12px;
+  padding: 8px 8px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-raise);
   border: var(--rule) solid var(--ui-line-soft);
@@ -442,7 +442,7 @@
  * "需要注意，但不是错误"。
  */
 .pref__note--warn {
-  padding-left: 12px;
+  padding-left: 8px;
   border-left: 2px solid var(--ui-warn);
 }
 
@@ -563,7 +563,7 @@
     display: flex;
     gap: 4px;
     overflow-x: auto;
-    padding: 8px 12px;
+    padding: 8px 8px;
     border-right: 0;
     border-bottom: var(--rule) solid var(--ui-line-soft);
   }
@@ -598,7 +598,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 12px 0 16px;
+  margin: 8px 0 16px;
 }
 
 /*
@@ -614,6 +614,21 @@
   line-height: 1.6;
   color: var(--ui-ink-2);
   word-break: break-all;
+}
+
+/*
+ * 「存下了，但还差一步」——回执的第三档。
+ *
+ * 与成功回执同字号同位置，只换颜色。它不是错误：动作确实成功了，硬涂成
+ * 红色会让用户以为要重来一遍。但它也不能是中性的：这条提醒说的是
+ * 「现在切过去会失败」，被眼睛滑过去就等于没说。
+ *
+ * 用 `--ui-warn` 而不是自造一个琥珀色：状态色在 `tokens.css` 里已经
+ * 定义过一次，`check-contrast.mjs` 也按那套值验过 4.5:1（含 stone-3 底）。
+ * 另造一个色值就绕过了那条断言，等于给自己留一个没有护栏的新颜色。
+ */
+.pref__receipt--warn {
+  color: var(--ui-warn);
 }
 
 /*
@@ -637,7 +652,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 16px;
+  padding: 8px 16px;
 }
 
 .perm__item + .perm__item {
@@ -703,7 +718,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 16px;
+  padding: 8px 16px;
 }
 
 .backup__item + .backup__item,
@@ -750,7 +765,7 @@
   color: var(--ui-ink-2);
   background: var(--ui-bg-hover);
   border-radius: var(--r-xs);
-  padding: 1px 8px;
+  padding: 4px 8px;
 }
 
 .kb__body {
@@ -780,7 +795,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .kb__label {
@@ -798,7 +813,7 @@
   background: var(--ui-bg-paper);
   border: var(--rule) solid var(--ui-line);
   border-radius: var(--r-xs);
-  padding: 8px 12px;
+  padding: 8px 8px;
 }
 
 .kb__input:focus,
@@ -819,8 +834,8 @@
  * 的持续提示。用提醒色但不带错误态的强烈红，避免和真正的报错混在一起。
  */
 .pref__warn {
-  margin: 12px 0 0;
-  padding: 12px;
+  margin: 8px 0 0;
+  padding: 8px;
   font-size: var(--text-caption);
   line-height: 1.6;
   color: var(--ui-warn);
@@ -842,8 +857,8 @@
 .pref__identity {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 8px 0 12px;
+  gap: 8px;
+  margin: 8px 0 8px;
 }
 
 .pref__identity-main {
@@ -901,7 +916,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 8px;
 }
 
 .pref__pack-row + .pref__pack-row {
@@ -937,4 +952,70 @@
   font-size: var(--text-micro);
   color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
+}
+
+/* ===========================================================================
+   卡片下方的「更多设置」折叠区
+   =========================================================================== */
+
+/*
+ * 专门页面（人物设定）把对应配置段的**其余字段**原地收在卡片下面。
+ *
+ * ## 为什么是折叠而不是直接铺开
+ *
+ * `tts` 18 项、`filter-chain` 20 项。全铺开时，「朗读」那一节会从两行
+ * 变成二十行，而日常要调的通常只有开关本身。折叠让默认视图保持
+ * 「一句话 + 一个开关」，需要深调的人点一下就能到底。
+ *
+ * ## 为什么不用 `details` 元素
+ *
+ * 模块层用过 `details`（扩展抽屉里），那里合适——它自带键盘语义。
+ * 这里不行：折叠头要显示「12 项 · 已改 2」这种动态计数，而 `summary`
+ * 里放可变的 flex 子元素在各浏览器上的渲染差异较大。用 `button` +
+ * `aria-expanded` 语义等价，且与项目里其它折叠一致。
+ */
+.sec-fields {
+  margin-top: 8px;
+}
+
+.sec-fields__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+  border-top: var(--rule) solid var(--ui-line-soft);
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+  text-align: left;
+  transition: color var(--motion-f) var(--ease-fluid);
+}
+
+.sec-fields__toggle:hover {
+  color: var(--ui-ink);
+}
+
+.sec-fields__count {
+  flex: none;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 展开后的字段区。
+ *
+ * 左内距 8：让字段名与上方的折叠头、卡片标题形成一条左缘线。不缩进
+ * 也可以，但那样「折叠头」与「展开内容」会看起来同级——而它们是
+ * 「标题」与「正文」的关系。
+ */
+.sec-fields__body {
+  padding: 8px 0 8px 8px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+/* 嵌进来的段块不再画自己的段头，间距收到贴边。 */
+.sec-fields__body .module[data-chrome='fields'] .module__body {
+  padding-top: 0;
 }

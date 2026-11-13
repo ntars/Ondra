@@ -1639,6 +1639,11 @@ Key entries in `src-tauri/tauri.conf.json`:
 - **`build.frontendDist`**: `../dist`, matching Vite's output directory.
 - **`app.security.csp`**: `default-src 'self'`, with `connect-src` allowing only HTTP and WebSocket on `127.0.0.1`.
 - **`bundle.resources`**: packs `cordis-host/lib` and `dsh-sidecar/lib` into the installation package.
+- **`tauri.windows.conf.json` (Windows platform override)**: Tauri reads a platform-specific config and merges it into the main one with JSON Merge Patch. Here it does exactly one thing: `app.windows[0].decorations = false`, explained below. Note that **arrays are replaced wholesale**, so this file must repeat `label`, `width`, `height`, `minWidth`, `minHeight` and `backgroundColor`; omit one and it silently reverts to the Tauri default.
+
+**Why Windows must turn decorations off**: `titleBarStyle: "Overlay"` is a **macOS-only field**. On Windows it is ignored and the system still paints a native title bar, while `TitleBar.tsx` also renders its own window buttons on Windows — so the top of the window showed two rows of buttons. Disabling `decorations` lets the custom set take over for real: an undecorated window in tao still keeps the rest of `WS_OVERLAPPEDWINDOW` (maximising does not cover the taskbar), edge resizing is handled separately through `WM_NCHITTEST`, and dragging the whole bar relies on `data-tauri-drag-region`.
+
+The matching layout constraint: `.titlebar__controls` is `position: absolute` and takes no space in the flow, so the version badge must reserve room itself — `:root[data-platform='win32'] .titlebar__version { margin-right: 146px }` in `layout.css` (138 for the three buttons plus 8 of breathing room). Without it the badge sits underneath the close button.
 - **Windows installer size of 410 by 290**: macOS needs no installer window, since the disk image is provided by the system. The NSIS installer's default window size cannot be set to an arbitrary pixel size in configuration; reaching exactly 410 by 290 needs a custom NSIS template and a pointer to it in the bundle configuration. The approach is to run a Windows build once, take the complete generated script from the NSIS bundle output, adapt the dialog sizes, and feed it back into configuration. The default NSIS template is kept for now so that Windows packaging works, and the exact size awaits verification on a Windows build.
 
 ### 9.5 Capability permissions
@@ -1873,6 +1878,7 @@ Ondra/
     ├── Cargo.lock                Rust dependency lock
     ├── build.rs                  Build script
     ├── tauri.conf.json           Application configuration
+    ├── tauri.windows.conf.json   Windows platform override (no system decorations)
     ├── capabilities/
     │   └── default.json          Default capability set for both windows
     ├── icons/                    Application icons at each size
@@ -1979,7 +1985,7 @@ One real obstacle remains: `src-tauri/Cargo.toml` currently declares no `[lib]`,
 
 ## 15. Known Limitations
 
-1. **The model adapter covers only the OpenAI-compatible protocol.** The built-in adapter reads environment variables under a project prefix to select a provider and offers a local echo model, so the chain works without a key. Other third-party providers must be added one by one in settings.
+1. **The model adapter covers only the OpenAI-compatible protocol.** The kernel's `ChatAdapter` implements just the `/chat/completions` shape; every provider difference is expressed in configuration (`baseUrl` + `model` + `apiKey`). **No provider ships in the box.** On first launch the only model is `local/echo`, an offline echo model that never goes online and produces no intelligence, but does walk the entire chain — session persisted, streamed deltas, character-by-character rendering — so that "installed, and the pipeline works" is directly observable. Real models are added one by one under Settings → Models & API. Earlier builds shipped a preset pointing at `http://127.0.0.1:3425/v1`; that gateway existed on the development machine and nowhere else, so the user's very first message was guaranteed to fail with `fetch failed`. The preset is gone, and a one-time migration removes the leftover entry from existing configs.
 2. **The tool registry is empty.** The skeleton registers no tool that the model can call. Note that this is separate from the 75 loaded plugins: plugins provide application capabilities such as memory, emotion, expression and assembly, while tool calls refer to tools the model can invoke, which are not yet connected.
 3. **The shell command channel is not fully connected.** The desktop bridge's invoke does not yet reach the Tauri custom command endpoint on the host side, and calls return an explicit error.
 4. **Windows file selection is not implemented.** The file picker returns not implemented on platforms other than macOS.

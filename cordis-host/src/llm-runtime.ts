@@ -365,5 +365,25 @@ function sanitizeSourceId(raw: string): string {
   // 空串或纯符号：给一个能站住的默认名，不留空 id。
   if (cleaned === '') return 'profile'
   const prefixed = /^[a-z]/.test(cleaned) ? cleaned : `s${cleaned}`
-  return prefixed.slice(0, 64)
+  /*
+   * ## 最短长度 2：正则要求 `[a-z]` 之后还有 1–63 个字符
+   *
+   * 单字符 id（`f`、`a`、`x`）清洗后仍是单字符，**不满足 `NAME_RE`**，
+   * 于是网关把它当成非法来源跳过。而网关的 `completeConfig()` 在
+   * 来源清单被过滤成空之后抛 `invalid config`，整个插件**装载失败**：
+   *
+   * ```
+   * [host] 未装载 ondra-llm-gateway：invalid config:
+   * - 第 1 条来源的 id 必须是匹配 ^[a-z][a-z0-9_-]{1,63}$ 的小写串，已跳过
+   * ```
+   *
+   * 后果不是「模型用不了」那么轻——`ondra-memory-extract` 拿不到网关，
+   * 事实提炼恒 `no-gateway`，记忆永远只有原文没有事实。而界面上一片正常，
+   * 只有诊断里能看到这一行。
+   *
+   * 补一个后缀而不是丢掉：`f` → `f-profile`。丢掉会让用户的 id 消失，
+   * 补后缀至少还能认出是哪一条。
+   */
+  const safe = prefixed.length >= 2 ? prefixed : `${prefixed}-profile`
+  return safe.slice(0, 64)
 }

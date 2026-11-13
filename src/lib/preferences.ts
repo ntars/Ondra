@@ -70,13 +70,19 @@ export interface Preferences {
    */
   notify: boolean
   /**
-   * 当前选用的自定义模型提供商 id（§G3）。
+   * 当前选用的模型供应商 id。
    *
-   * 空串表示使用内置的三档预设来源。非空时指向用户在「对话」页添加的
-   * 某个 OpenAI 兼容端点。实际推理路由由宿主按此值切换——偏好只负责
-   * 「选了哪一个」，不负责「怎么连」。
+   * ## 这一项曾经在这里，现在不在了
+   *
+   * 上一版把「选了哪个供应商」存进 `localStorage`（`ondra.provider`），
+   * 而宿主另有一份 `config.json` 的 `currentModel`。两份都自称是"当前
+   * 模型"，却互不同步：设置里设为默认只改 localStorage，顶栏选择器读的是
+   * 宿主——于是「设了默认但对话仍用旧的」可以同时成立，且不报任何错。
+   *
+   * 现在唯一的真源是宿主的 `currentModel`（`GET /api/config` 读、
+   * `POST /api/models/select` 写）。这里不再保留这个字段：留着它，
+   * 下一个人很容易又拿它当"当前模型"用。
    */
-  provider: string
   /**
    * 是否启用语音输入（§G2）。
    *
@@ -139,7 +145,6 @@ const DEFAULTS: Preferences = {
    * 的人，通知最坏是让一屋子人看到你的屏幕。
    */
   notify: false,
-  provider: '',
   voiceInput: false,
   developerMode: false,
   /* 出厂头像就是应用图标本身，不预置一张图片。 */
@@ -167,7 +172,6 @@ const KEY_SEND = 'ondra.sendMode'
 const KEY_SOUND = 'ondra.sound'
 const KEY_VOLUME = 'ondra.soundVolume'
 const KEY_NOTIFY = 'ondra.notify'
-const KEY_PROVIDER = 'ondra.provider'
 const KEY_VOICE = 'ondra.voiceInput'
 const KEY_DEVELOPER = 'ondra.developerMode'
 const KEY_AVATAR = 'ondra.avatar'
@@ -246,7 +250,6 @@ export function loadPreferences(): Preferences {
      * 改它属于另一件事，不在本轮范围内混着动。
      */
     notify: read(KEY_NOTIFY) === undefined ? DEFAULTS.notify : read(KEY_NOTIFY) === 'on',
-    provider: read(KEY_PROVIDER) ?? DEFAULTS.provider,
     voiceInput: read(KEY_VOICE) === 'on',
     developerMode: read(KEY_DEVELOPER) === 'on',
     /*
@@ -315,7 +318,6 @@ export function setPreferences(patch: Partial<Preferences>): void {
   write(KEY_SOUND, next.sound ? 'on' : 'off')
   write(KEY_VOLUME, String(next.soundVolume))
   write(KEY_NOTIFY, next.notify ? 'on' : 'off')
-  write(KEY_PROVIDER, next.provider)
   write(KEY_VOICE, next.voiceInput ? 'on' : 'off')
   write(KEY_DEVELOPER, next.developerMode ? 'on' : 'off')
   write(KEY_AVATAR, next.avatar)

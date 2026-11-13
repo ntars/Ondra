@@ -38,29 +38,43 @@ function signed(value: number): string {
 }
 
 /**
- * 一条双极轨道的三种状态。
+ * 一条轨道的两种形态。
  *
- * ## 为什么不能只留「有值 / 没值」两种
+ * ## 为什么心情是双极、张力与精力是单极
  *
- * 张力这一路现在**恒为 `undefined`**（`App.tsx` 传 `tension={undefined}`，
- * 后端还没给这个数）。原来的写法是 `tension ?? 0` + `signed(...)`，
- * 于是空态渲染成 **`+0.00`**——一个看起来精确、实际是编的读数。
+ * 这不是审美分类，是三个量在数据模型里各自的取值范围决定的
+ * （`ondra-emotion-core/src/types.ts` 的 `AXIS_SPEC`）：
  *
- * 「张力刚好在正中间」和「张力根本没测到」是两件完全不同的事，
- * 画成一样就是撒谎。心情那一档同理：`mood.mood` 在无数据时是占位值，
- * 映射出的 `−1.00` 也不是真的。
+ * | 量 | 范围 | 基线 | 含义 |
+ * | --- | --- | --- | --- |
+ * | 心情 | 0–1 | **0.5** | 中点才是平静，两侧各有方向 |
+ * | 张力 | 0–1 | **0** | 0 就是没有张力，只会往上烧 |
+ * | 精力 | 0–100 | 60 | 0 是提不起劲 |
  *
- * 所以三个状态必须分开：
+ * 心情的中性点在中点，所以减半再乘二落回 −1..1 是有意义的：负数是低落、
+ * 正数是雀跃。张力没有「比 0 更低」的状态，把它也做双极映射，基线就会被
+ * 画成满格负值——一个读起来像「张力拉满」、实际是「完全没有张力」的读数。
+ * 这是本栏上一版的真实缺陷，不是假想。
  *
- * - `value` 有数 → 画轨道、给读数；
+ * ## 三个状态仍然必须分开
+ *
+ * - `value` 有数 → 画轨道、给读数（`0` 也是有效读数）；
  * - `value` 是 `undefined` → **整行不出现**（不是画成 0）；
  * - 整体 `hasData` 为 false → 整组显示引导句。
+ *
+ * 「刚好在中点」与「根本没测到」是两件事，画成一样就是撒谎。
  */
 interface Dial {
   key: string
   label: string
-  /** −1..1。undefined 表示这一路没有数据。 */
+  /** 0..1。undefined 表示这一路没有数据。 */
   value: number | undefined
+  /**
+   * `bipolar` 从中点向两侧填，`unipolar` 从左端向右填。
+   *
+   * 缺省为 `unipolar`——单极是这套量里更常见的那种，双极目前只有心情一个。
+   */
+  shape?: 'bipolar' | 'unipolar'
 }
 
 export interface InspectorProps {
@@ -79,7 +93,7 @@ export interface InspectorProps {
   memoryFault: string | undefined
   /** 「当前活动」的一行状态。空串表示没有。 */
   activity: string
-  /** 张力读数，−1..1。没有数据时 undefined。 */
+  /** 张力读数，0..1 单极量。没有数据时 undefined。 */
   tension: number | undefined
   /** 是否有真实读数。false 时全部分组显示引导句。 */
   hasData: boolean
@@ -115,21 +129,21 @@ export function Inspector({
   useRestoreFocus(true)
 
   /**
-   * 双极轨道。心情与张力都是 −1..1 的对称量，精力是 0..1 的单极量。
+   * 此刻的三条读数。
    *
-   * 心情从 0–100 映射到 −1..1：中点 50 是「平静」。
-   *
-   * ## `hasData` 与 `tension` 各自管各自的
+   * 心情从中点向两侧填（`(mood.mood - 50) / 50` 落回 −1..1，中点 50 是平静）；
+   * 张力与精力都从左端向右填——它们都是单极量，0 是起点而不是中点。
+   * 刻度差异写在这里一次，渲染处只认 `shape`，不再各自记公式。
    *
    * `hasData` 为 false 时整组走引导句，此时不该构造出任何数——所以整个
-   * `dials` 数组只在有数据时才建。而 `tension` 是另一层：即便有数据，
-   * 它也**可能这一路没有感知值**（现在恒为 `undefined`）。那就不渲染这一行，
-   * 而不是拿 0 顶上。
+   * `dials` 数组只在有数据时才建。而单条 `value` 仍可能是 `undefined`
+   * （这一路没有感知值），那就整行不渲染，而不是拿 0 顶上。
    */
   const dials: Dial[] = hasData
     ? [
-        { key: 'mood', label: '心情', value: (mood.mood - 50) / 50 },
+        { key: 'mood', label: '心情', value: (mood.mood - 50) / 50, shape: 'bipolar' },
         { key: 'tension', label: '张力', value: tension },
+        { key: 'energy', label: '精力', value: Math.min(1, Math.max(0, mood.energy / 100)) },
       ]
     : []
 
@@ -148,37 +162,44 @@ export function Inspector({
           <h3 className="inspector__caption">此刻</h3>
           {hasData ? (
             <>
-              {dials.map((dial) =>
-                dial.value === undefined ? null : (
+              {dials.map((dial) => {
+                if (dial.value === undefined) return null
+                /*
+                 * 双极与单极只在两处不同：填充起点、以及读数带不带符号。
+                 * 心情的负值是「低落」，符号本身承载信息；张力的 0 是
+                 * 「没有张力」，给它加个 `+` 反而像在报一个正向指标。
+                 */
+                const bipolar = dial.shape === 'bipolar'
+                const magnitude = bipolar ? Math.abs(dial.value) : dial.value
+                return (
                   <div className="inspector__row" key={dial.key}>
                     <span className="inspector__label">{dial.label}</span>
                     <span className="inspector__track" aria-hidden="true">
-                      {/* 双极：负值从中点向左填，正值向右。 */}
                       <span
-                        className="inspector__fill inspector__fill--bipolar"
-                        style={{
-                          transform: `scaleX(${String(Math.abs(dial.value))})`,
-                          transformOrigin: dial.value < 0 ? 'right center' : 'left center',
-                          left: dial.value < 0 ? 'auto' : '50%',
-                          right: dial.value < 0 ? '50%' : 'auto',
-                        }}
+                        className={
+                          bipolar
+                            ? 'inspector__fill inspector__fill--bipolar'
+                            : 'inspector__fill'
+                        }
+                        style={
+                          bipolar
+                            ? {
+                                /* 双极：负值从中点向左填，正值向右。 */
+                                transform: `scaleX(${String(magnitude)})`,
+                                transformOrigin: dial.value < 0 ? 'right center' : 'left center',
+                                left: dial.value < 0 ? 'auto' : '50%',
+                                right: dial.value < 0 ? '50%' : 'auto',
+                              }
+                            : { transform: `scaleX(${String(magnitude)})` }
+                        }
                       />
                     </span>
-                    <span className="inspector__value">{signed(dial.value)}</span>
+                    <span className="inspector__value">
+                      {bipolar ? signed(dial.value) : dial.value.toFixed(2)}
+                    </span>
                   </div>
-                ),
-              )}
-              {/* 精力是单极量，单独一行，避免与双极轨道共用同一套刻度。 */}
-              <div className="inspector__row">
-                <span className="inspector__label">精力</span>
-                <span className="inspector__track" aria-hidden="true">
-                  <span
-                    className="inspector__fill"
-                    style={{ transform: `scaleX(${String(Math.min(1, Math.max(0, mood.energy / 100)))})` }}
-                  />
-                </span>
-                <span className="inspector__value">{(mood.energy / 100).toFixed(2)}</span>
-              </div>
+                )
+              })}
             </>
           ) : (
             <p className="inspector__empty">尚未测量</p>

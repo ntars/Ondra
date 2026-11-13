@@ -81,7 +81,7 @@
   flex-wrap: wrap;
   gap: 8px;
   /* 上 8 与正文的上内距同值；左右 12 与输入行的左内距对齐。 */
-  padding: 8px 12px 0;
+  padding: 8px 8px 0;
 }
 
 .composer__attachment {
@@ -162,12 +162,12 @@
   min-height: 28px;
   max-height: 140px;
   /*
-   * 左内距 12 与工具行的左内距同值：两行文字共用一条竖线。
+   * 左内距 8 与工具行的左内距同值：两行文字共用一条竖线。
    *
    * 上 8 下 0：14px 的字在 20px 行盒里上下各有 3px 自带留白，所以 8 + 3 = 11
-   * 是眼睛看到的上距，与左边 12 基本齐平。
+   * 是眼睛看到的上距，与左边 8 基本齐平。
    */
-  padding: 8px 4px 0 12px;
+  padding: 8px 4px 0 8px;
   font-size: var(--text-body);
   line-height: 20px;
   color: var(--ui-ink);
@@ -196,7 +196,7 @@
   flex: none;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 8px 6px 0;
+  padding: 0 8px 8px 0;
 }
 
 /*
@@ -266,16 +266,18 @@
   gap: 8px;
   min-width: 0;
   /*
-   * 左内距 **12**，与 `.composer__input` 的 `padding-left: 12` 同值。
+   * 左内距 8，与 `.composer__input` 的 `padding-left` 同值：两行文字共用
+   * 一条竖线。
    *
-   * 上一版这里是 10，而注释一直写着「两行共用一个竖线」——实测占位文字
-   * 起点 13、加号起点 11，差 2px。2px 单看不算什么，但它落在输入卡最
-   * 显眼的两行起笔处，整张卡读起来会「有一点点歪」，且说不清歪在哪。
+   * 上一版是 12。八级栅格化之后，输入行与工具行一起收到 8——两处必须
+   * **同值**，差 1px 都会让「输入消息…」与加号图标的起笔点错开，而错开
+   * 的位置正在卡片最显眼的两行开头，看得出歪、却说不清歪在哪。
    *
-   * 上下 2 / 6 是几何推算：工具行高 24（按钮 20 + 2 × 2）与卡片底边之间
-   * 只需要一条发丝级的呼吸，不属于八级栅格的间距语义。
+   * 上下各 4：这 4 是加号与正文之间那一口气，也同时是卡片底边的呼吸。
+   * 行高 = 4 + 16（加号）+ 4 + 4（加号自身外边距）+ 4 = 32，与改版前
+   * 的 32 一致——卡的几何链一个像素没动。
    */
-  padding: 2px 12px 6px;
+  padding: 4px 8px;
 }
 
 .composer__attach {
@@ -298,14 +300,15 @@
   width: 16px;
   height: 16px;
   /*
-   * 上下各 5 的外边距把行高补回 26。
+   * 上下各 4 的外边距，与工具行的上下内距同值：两者相加把加号周围
+   * 撑出 8 的呼吸，行高落回 32（4 + 4 + 16 + 4 + 4），整张卡的 76
+   * 高度链不动。
    *
-   * 工具行的高度原来由「26 的按钮 + 上下内距」撑出来（34）。按钮缩到
-   * 16 之后行高只剩 24，整张卡从 76 掉到 66——高度链一动，卡上沿与
-   * 正文可视高度跟着变。5 + 16 + 5 = 26，与改版前的按钮同高，卡的
-   * 几何一个像素没动；热区伪元素的 -5 正好铺满这两段外边距。
+   * 八级栅格化之前这里是 5（5 + 16 + 5 = 26 补回旧按钮高度）。改成 4
+   * 之后由工具行的内距补上差值——两处必须一起改，只改一处会让卡高
+   * 在 76 与 80 之间跳。
    */
-  margin: 5px 0;
+  margin: 4px 0;
   border-radius: var(--r-xs);
   color: var(--ui-ink-4);
   transition:
@@ -344,8 +347,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: var(--hit-icon);
+  height: var(--hit-icon);
   border-radius: var(--r-xs);
   color: var(--ui-ink-4);
   transition:
@@ -457,11 +460,19 @@
   border-radius: var(--r-xs);
 }
 
+/*
+ * 命中区向外补 3：视觉仍是 22 高的胶囊，热区到 28。
+ *
+ * 这一行（脚注）只有 25 高，22 的控件上下各剩 1.5，指针很难稳稳落在
+ * 那 22 里。3 是这一行的极限——再多就会顶到卡片底边。`inset` 用负值
+ * 外扩而不是把控件做高：做高会把脚注行撑到 28，整张卡的高度链跟着变，
+ * 而卡高是 `--w-composer` 那套几何算出来的定值。
+ */
 .composer__select-input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
   opacity: 0;
   cursor: pointer;
   font-size: var(--text-micro);
@@ -470,7 +481,7 @@
 .composer__select-face {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   height: 22px;
   padding: 0 4px;
   border-radius: var(--r-xs);
@@ -498,9 +509,10 @@
 }
 
 .composer__model-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   height: 22px;
   max-width: 220px;
   padding: 0 4px;
@@ -508,6 +520,34 @@
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
   white-space: nowrap;
+  /*
+   * 用 padding 把热区撑到 28，再用负 margin 把多出来的高度从布局里收回，
+   * 视觉仍是 20 高的胶囊。
+   *
+   * ## 为什么不是 `::before { inset: -4px }`
+   *
+   * 试过了，点不中。两个原因叠在一起：
+   * 1. 这一行原来写着 `overflow: hidden`（为了省略号），它会把伪元素
+   *    一起裁掉——几何上是 28，实际命中 20，且没有任何报错；
+   * 2. 换成 `clip-path: inset(...)` 也一样，`clip-path` 同样参与命中测试。
+   *
+   * padding 方案不依赖溢出：热区就是盒子自己的边界，任何祖先的
+   * `overflow: hidden` 都裁不到它。
+   *
+   * 20 + 4 + 4 = 28；`margin: -4px 0` 把撑高的部分从文档流里收回，
+   * 脚注行高度不变，卡片高度链一个像素没动。
+   *
+   * ## 为什么 padding 与负 margin 必须同值
+   *
+   * 两者差 1px，收回来的高度就不等于撑出去的高度：脚注行会跟着变高或
+   * 变矮 1px，而它是卡片高度链的一环。八级栅格化之前这里是 3 / 3 配
+   * 22 的视觉高，两者也是同值——同值是这个方案成立的前提，不是巧合。
+   */
+  height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  margin-top: -4px;
+  margin-bottom: -4px;
   overflow: hidden;
   text-overflow: ellipsis;
   transition:
@@ -553,9 +593,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 8px;
   border-radius: var(--r-xs);
   font-size: var(--text-caption);
   color: var(--ui-ink-2);
@@ -579,7 +619,7 @@
  */
 .composer__model-empty {
   margin: 0;
-  padding: 8px 12px;
+  padding: 8px 8px;
   font-size: var(--text-caption);
   line-height: 1.5;
   color: var(--ui-ink-3);
@@ -607,7 +647,12 @@
   align-items: center;
   gap: 4px;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  /*
+   * ink-3 而不是 ink-4：这个百分比是**上下文已用多少**的唯一读数，
+   * 用户靠它判断"是不是快满了、要不要清空"。它是真实信息，
+   * 不是占位符，不该按 ink-4 那档 3:1 的门槛放行。
+   */
+  color: var(--ui-ink-3);
   font-variant-numeric: tabular-nums;
   cursor: default;
 }
@@ -699,7 +744,7 @@
 }
 
 .queue__note {
-  margin-left: 2px;
+  margin-left: 4px;
   color: var(--ui-ink-4);
   overflow: hidden;
   white-space: nowrap;
@@ -739,7 +784,7 @@
 .queue__text {
   flex: 1;
   min-width: 0;
-  padding: 2px 0;
+  padding: 4px 0;
   font-size: var(--text-caption);
   color: var(--ui-ink-2);
   text-align: left;
@@ -778,7 +823,7 @@
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  padding: 0 3px;
+  padding: 0 4px;
   border-radius: var(--r-xs);
   font-size: var(--text-micro);
   color: var(--ui-ink-4);
@@ -815,10 +860,21 @@
   }
 }
 
-/* 矮窗：压缩上下内距。 */
+/*
+ * 矮窗：去掉上内距，只留一格下内距。
+ *
+ * ## 为什么是 0 / 8，而不是原来的 8 / 8
+ *
+ * 默认档的上下内距在八级栅格化时从 12 收到 8，于是这条降级规则原先写的
+ * 8 / 8 与默认档**完全一样**——降级变成空操作，矮窗下什么都没省下来。
+ *
+ * 矮窗是「屏幕只剩这么高」的处境：消息流每多一行都值得，而输入卡与消息
+ * 流之间那条呼吸不是说话必需的。上内距收到 0，卡直接贴上沿；下内距留 8，
+ * 因为再收会让卡与窗口底边粘死，反而显得被裁掉。
+ */
 @media (max-height: 560px) {
   .composer {
-    padding-top: 8px;
+    padding-top: 0;
     padding-bottom: 8px;
   }
 

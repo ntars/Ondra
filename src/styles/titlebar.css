@@ -199,7 +199,12 @@
   gap: 4px;
   flex: none;
   font-size: var(--text-micro);
-  color: var(--ui-ink-4);
+  /*
+   * ink-3 而不是 ink-4：「在线 / 在想」是状态本身，而注释上面那句
+   * 「状态词用文字，不只靠颜色」正是为了让它可读。用一个按定义
+   * 「不承载信息」的灰来画一个承载信息的词，两件事自相矛盾。
+   */
+  color: var(--ui-ink-3);
   white-space: nowrap;
 }
 
@@ -246,17 +251,15 @@
 /*
  * 版本号：一枚极小的灰字，贴在窗口键左侧。
  *
- * 它是有用的（报问题、对更新日志），但不该争视线，所以只在标题栏右侧
- * 以 10px 出现，鼠标悬停有 `aria-label` 兜着。
+ * 外观（底色、描边、内距、Windows 的让位）统一定义在 `layout.css`。
+ * 这里曾经也有一份同名规则——两份都随 `main.tsx` 被导入，后一份
+ * （titlebar.css，导入更晚）的 `flex` / `margin` 与前者叠加，得到一颗
+ * 「有胶囊底色、却没有右边距让位」的徽标，Windows 上正好被三键压住。
+ *
+ * 单一真源：外观留在 `layout.css`（标题栏的框与留白归它管），
+ * 这里不再重复声明任何属性。删掉整块而不是留个空注释，是为了避免
+ * 下一个人看到「版本号在这里有规则」又往这儿加一条。
  */
-.titlebar__version {
-  flex: none;
-  margin-right: 8px;
-  font-size: var(--text-micro);
-  color: var(--ui-ink-4);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-}
 
 /* ===========================================================================
    人设切换浮层

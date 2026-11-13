@@ -23,7 +23,7 @@ import {
   setConnectionFailure,
   waitForHost,
 } from './host.ts'
-import { invokeShell, listenShell } from './shell.ts'
+import { invokeShell, isShellUnavailable, listenShell } from './shell.ts'
 import type { HostReadyPayload, ShellHostState } from './shell.ts'
 import {
   abortInference,
@@ -188,6 +188,19 @@ export interface AppState {
   modelId: string | undefined
   /** 切换模型。 */
   setModel(id: string): void
+  /**
+   * 重拉模型列表与当前选中项。
+   *
+   * ## 为什么需要它
+   *
+   * 列表与选中项都在宿主就绪时只拉一次。而「模型与 API」设置页可以随时
+   * 增删供应商——那之后不重拉，用户会看到「设置里明明加了、选择器里
+   * 没有」，只能重启应用才认。设置页存完就调这个。
+   *
+   * 读的是宿主的事实（`GET /api/config` + `GET /api/models`），不在前端
+   * 自己拼一份：拼出来的那份迟早与宿主的 `currentModel` 漂开。
+   */
+  refreshModels(): Promise<void>
 
   /** 已选附件。 */
   attachments: Attachment[]
@@ -233,10 +246,11 @@ export interface AppState {
   /** 右栏「TA 对你」统计。 */
   bond: BondStats
   /**
-   * 右栏「此刻」的张力，−1..1。
+   * 右栏「此刻」的张力，0..1 单极量。
    *
    * `undefined` 表示这一路没有读数（情绪服务缺席，或还没测量）。
-   * 与 `mood` 分开是因为刻度不同：张力是双极的，心情与精力是单极的。
+   * 0 是有意义的真值——它是静息态（没有冲突锁），**不是**「没测到」。
+   * 心情与精力也在 0..100 / 0..1 这套单极刻度里，三者不必再分开记刻度。
    */
   tension: number | undefined
   /** 右栏「记得的事」。 */
@@ -1553,15 +1567,74 @@ export function useAppState(): AppState {
     setPermissionState(next)
   }, [])
 
-  /** 切换模型：先更新本地，再通知宿主持久化。 */
+  /**
+   * 切换模型。
+   *
+   * ## 为什么失败必须回滚
+   *
+   * 上一版是「先改本地、再异步通知宿主，失败只 `console.error`」。于是当
+   * 用户从一条连不上的供应商切到「本地演示」时：界面立刻显示「本地演示」，
+   * 而宿主那次 `model.select` 若失败（内核里没有这个 id），内核的
+   * `currentModel` 还是原来那条坏的——下一句话照旧
+   * `无法连接供应商（http://127.0.0.1:3425/v1）：fetch failed`。
+   *
+   * 用户看到的是「明明选了本地演示，还是报供应商的错」。这个界面与事实
+   * 不一致的窗口可以无限长，因为没有任何东西会把它纠正回来。
+   *
+   * 现在等宿主确认：成功才落本地，失败就把选中项退回原值并把原因显示在
+   * 输入框上方。宁可让用户看到「切不过去」，也不要让界面撒谎。
+   */
   const setModel = useCallback((id: string): void => {
-    setModelId(id)
-    void selectModel(id).catch((caught) => {
-      console.error('切换模型失败', caught)
-    })
+    const previous = modelId
+    setChatError(undefined)
+    void (async () => {
+      try {
+        await selectModel(id)
+        setModelId(id)
+      } catch (caught) {
+        // 回滚到切换前的值。`previous` 为 undefined 时保持 undefined，
+        // 界面会显示「未选择模型」——那也是事实，好过一个假的选中态。
+        setModelId(previous)
+        setChatError(caught instanceof Error ? caught.message : '切换模型失败')
+      }
+    })()
+  }, [modelId])
+
+  /**
+   * 重拉模型列表与当前选中项。
+   *
+   * 与就绪时那段初始化走同一对接口，不另写一份逻辑：两处各算一次，
+   * 迟早会出现「重启后对了、设置里改完不对」。
+   */
+  const refreshModels = useCallback(async (): Promise<void> => {
+    try {
+      const [config, modelList] = await Promise.all([getConfig(), listModels()])
+      setModels(modelList)
+      /*
+       * 宿主说选中的那条若已不在列表里（被删了、或换了机器），退回列表
+       * 第一条。内核自己也会做同样的回落，但界面得先跟它对齐，否则
+       * 选择器上会挂一个已经不存在的高亮项。
+       */
+      const listed = modelList.some((model) => model.id === config.currentModel)
+      setModelId(listed ? config.currentModel : modelList[0]?.id)
+    } catch (caught) {
+      console.error('重拉模型列表失败', caught)
+    }
   }, [])
 
-  /** 弹出系统文件选择并附加。无壳（浏览器开发态）时静默无操作。 */
+  /**
+   * 弹出系统文件选择并附加。
+   *
+   * ## 「用户取消」与「能力缺席」必须分开
+   *
+   * 上一版把两者都吞进一句 `console.debug`，理由是"不必提示打断对话"。
+   * 对**取消**来说这是对的——用户自己按了取消，弹一句提示是噪音。
+   * 但对**不在壳内**来说，静默就是缺陷：用户点了「附加文件」，界面
+   * 毫无反应，既没有文件也没有解释，他会以为按钮坏了，再点几次。
+   *
+   * 所以这里只吞取消，其余照实说一句。提示走 `setChatError` 而不是
+   * toast：它与发送失败同一个槽位，用户已经知道去那里看原因。
+   */
   const addFiles = useCallback((): void => {
     void (async () => {
       try {
@@ -1578,7 +1651,14 @@ export function useAppState(): AppState {
         }))
         if (next.length > 0) setAttachments((previous) => [...previous, ...next])
       } catch (caught) {
-        // 不在壳内或用户取消都会落到这里，无需提示打断对话。
+        if (isShellUnavailable(caught)) {
+          setChatError('附加文件需要桌面端：文件选择由应用外壳负责，浏览器预览里没有这个能力。')
+          return
+        }
+        /*
+         * 剩下的大概率是用户按了取消（壳侧以错误形式返回）。
+         * 这条路径不该打扰对话，留一行调试痕迹即可。
+         */
         console.debug('附加文件未生效', caught)
       }
     })()
@@ -1712,6 +1792,7 @@ export function useAppState(): AppState {
     models,
     modelId,
     setModel,
+    refreshModels,
     attachments,
     queue,
     enqueue,
@@ -1731,12 +1812,24 @@ export function useAppState(): AppState {
     /*
      * 张力单列，不塞进 `MoodState`。
      *
-     * 它是双极量（−1..1），而心情与精力是 0–100 的单极量。塞进同一个
-     * 结构里，用的时候就必须记住「这个字段的刻度不一样」——那正是上一版
-     * `tension ?? 0` 画出「+0.00」的原因。
+     * ## 刻度：0–1 单极，原样透出，不做双极映射
+     *
+     * 上一版这里写的是 `axes.tension * 2 - 1`，把一个 0–1 的量硬掰成
+     * −1..1。后果是静息态（`AXIS_SPEC.tension.baseline = 0`，见
+     * `ondra-emotion-core/src/types.ts`）被映射成 **−1.00**，界面上读起来
+     * 像「张力拉满」。而它的真实含义恰恰相反：**0 就是没有张力**。
+     *
+     * 心情那一档能这么映射，是因为它的中性点确实在 0.5（`baseline: 0.5`），
+     * 减半再乘二才落回双极原点。张力没有「中点」这回事——它是冲突锁的
+     * 燃料，只会从 0 往上烧。拿心情的公式套张力，等于假设它也有一个
+     * 「比 0 更低」的负向状态，而那个状态在数据模型里不存在。
+     *
+     * 所以这里**不做任何换算**：0–1 进，0–1 出。界面按单极轨道画，
+     * 与精力同一套刻度。刻度统一之后，「这个字段刻度不一样」的额外记忆
+     * 负担也一并消失。
      */
     tension: companion !== undefined && companion.measured
-      ? companion.axes.tension * 2 - 1
+      ? companion.axes.tension
       : undefined,
     memories,
     memoryFault,

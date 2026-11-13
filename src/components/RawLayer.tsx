@@ -21,6 +21,7 @@
 import { useMemo, useState } from 'react'
 import type { SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
+import { isDedicated } from '../lib/settingsTaxonomy.ts'
 
 export interface RawLayerProps {
   sections: SettingsSection[]
@@ -47,6 +48,18 @@ interface RawRow {
   current: string
   changed: boolean
   advancedOnly: boolean
+}
+
+/** 已上移的段落在哪个页面。用于原始层的「已移至」标注。 */
+function movedTo(sectionId: string): string {
+  if (['tts', 'tts-gate', 'oral', 'rhythm', 'rhythm-typing', 'filter-chain',
+    'memory-core', 'memory-decay', 'memory-audit'].includes(sectionId)) {
+    return '人物设定'
+  }
+  if (['proactive-gate', 'proactive-quota', 'proactive-reason', 'life-rhythm'].includes(sectionId)) {
+    return '通用'
+  }
+  return '其它页'
 }
 
 /** 把值压成一行短文本。原始层不展开 json——展开会把表格撑破。 */
@@ -150,14 +163,35 @@ export function RawLayer({ sections, user, onJump }: RawLayerProps): React.JSX.E
                   * 用 `button` 而不是给 `td` 加 `onClick`：它要能被 Tab 到、
                   * 能被回车触发。给单元格挂点击事件只有鼠标用户碰得到。
                   */}
-                <button
-                  type="button"
-                  className="raw__jump"
-                  title={`在模块层查看 ${row.section.id}`}
-                  onClick={() => { onJump?.(row.section.id) }}
-                >
-                  {row.section.id}
-                </button>
+                {/*
+                  * 已上移到专门页面的段不给跳转。
+                  *
+                  * ## 为什么不能只靠模块层的过滤
+                  *
+                  * 模块层现在不列已上移的段（`DEDICATED_SECTIONS`）。若这里
+                  * 仍给一个「在模块层查看」的按钮，点下去会带着段 id 搜到
+                  * **空结果**——用户看到「没有匹配的设置」，而那个段其实
+                  * 好好地待在人物设定页里。按钮还在、点了没结果，比没有
+                  * 按钮更伤。
+                  *
+                  * 所以按段归属分成两种呈现：已上移的显示去向、不可点；
+                  * 其余的照旧跳到模块层。
+                  */}
+                {isDedicated(row.section.id) ? (
+                  <span className="raw__section-moved" title={`这一段已移到「${movedTo(row.section.id)}」`}>
+                    {row.section.id}
+                    <span className="raw__section-flag">已移至{movedTo(row.section.id)}</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="raw__jump"
+                    title={`在模块层查看 ${row.section.id}`}
+                    onClick={() => { onJump?.(row.section.id) }}
+                  >
+                    {row.section.id}
+                  </button>
+                )}
               </td>
             </tr>
           ))}

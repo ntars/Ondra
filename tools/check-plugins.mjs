@@ -276,9 +276,24 @@ for (const [label, body] of [['A', a.body], ['B', b.body]]) {
   check(`${label} 段待重启计数自洽`, pending === body.totals.pending, `${String(pending)} / ${String(body.totals.pending)}`)
 }
 
-/* 反向证明不是「一律 true」：至少还有一批包是诚实地报 false 的。 */
-const stillOff = a.body.items.filter((item) => !item.loaded).length
-check('仍有未装载的包（不是把 loaded 全写成 true）', stillOff > 0, `${String(stillOff)} 个未装载`)
+/*
+ * 反向证明 `loaded` 不是「一律写 true」。
+ *
+ * ## 判据为什么从「有未装载的包」改成「停用一个包它就报 false」
+ *
+ * 出厂口径改成「磁盘上有的包默认全装」之后，默认启动下**所有包都 loaded**，
+ * 原来那条「至少还有一批未装载」自然失效——它守的其实不是"有未装载"，
+ * 而是"loaded 有真假两种取值"。全量装载后这个反证要靠**主动停用**来做：
+ * 停掉一个，它就必须变成 `loaded=false`。
+ *
+ * 那一条在 E 段（`bootPlugins(['ondra-live'])`）里验，这里只留一句说明，
+ * 免得下一个人看到"没有未装载的包"以为是缺陷。
+ */
+check(
+  '默认启动下全部包都装载（出厂口径：装了就跑）',
+  a.body.items.filter((item) => item.loaded).length === a.body.items.length,
+  `${String(a.body.items.filter((item) => item.loaded).length)}/${String(a.body.items.length)}`,
+)
 
 /* ---------------------------------------------------------------- *
  * D 段：两处装载数必须相等
@@ -362,11 +377,23 @@ console.log('=== E 段 · 打开开关的包真的装上了 ===')
  * 它出厂关闭、不写用户数据、不占端口、不依赖模型——在临时数据目录里
  * 打开它没有副作用。换成任何写盘或联网的包，这一段都会变成一次真实运行。
  */
-const e = await bootPlugins([], ['ondra-live'])
-check('E 段启用项出现在清单里', rowOf(e.body, 'ondra-live') !== undefined)
+/*
+ * 停用一个包（而不是启用一个）。
+ *
+ * ## 为什么参数从 `extra: ['ondra-live']` 改成 `disabled: ['ondra-live']`
+ *
+ * 出厂口径改成全量默认装载之后，「启用」这个动作在干净数据目录上是空操作
+ * ——它本来就已经装了。唯一还能改变装载数的用户动作是**停用**。
+ *
+ * 而「停用是否真的生效」比「启用是否生效」更该被守住：用户点停用是明确
+ * 表达"这个我不要"，若装载链没收到这个名单，界面说"已停用"而服务照跑，
+ * 那就是最伤信任的一类谎。
+ */
+const e = await bootPlugins(['ondra-live'])
+check('E 段停用项出现在清单里', rowOf(e.body, 'ondra-live') !== undefined)
 check(
-  'E 段启用项报 loaded=true',
-  rowOf(e.body, 'ondra-live')?.loaded === true,
+  'E 段停用项报 loaded=false（停用真的进了装载链）',
+  rowOf(e.body, 'ondra-live')?.loaded === false,
   `loaded=${String(rowOf(e.body, 'ondra-live')?.loaded)}`,
 )
 check(
@@ -375,10 +402,10 @@ check(
   `默认=${String(a.chainLoaded)} / 启用后=${String(e.chainLoaded)}`,
 )
 check(
-  'E 段多启用一个包，装载链就多装一个（开关不是空响）',
+  'E 段停用一个包，装载链就少装一个（开关不是空响）',
   typeof a.chainLoaded === 'number'
     && typeof e.chainLoaded === 'number'
-    && e.chainLoaded === a.chainLoaded + 1,
+    && e.chainLoaded === a.chainLoaded - 1,
   `${String(a.chainLoaded)} → ${String(e.chainLoaded)}`,
 )
 /*
@@ -530,6 +557,76 @@ check(
   offWithoutSwitch.length === 0,
   offWithoutSwitch.join(' / '),
 )
+
+/*
+ * --- 默认装载：**磁盘上有的包，默认就要生效** ---
+ *
+ * ## 这条守的是产品口径，不是某个缺陷
+ *
+ * 出厂口径是「插件随包分发即默认生效」。此前启用判据是一份手写白名单
+ * （`DEFAULT_CORE_ENABLE`），于是「新加一个包」多了一个必须记得的步骤，
+ * 而忘记它的症状是：包进了产物、代码全对、服务没注册、`ctx.get` 恒
+ * `undefined`、每一处消费方都写好了降级路径——**没有任何一处报错**。
+ *
+ * 本仓在这个形态上反复踩了八次。所以判据换成「目录里有没有」，
+ * 这条断言把它钉住：只要 `cordis-host/plugins/ondra-*` 下有目录，
+ * 宿主就必须把它算进启用名单。
+ *
+ * ## 判据为什么读源码而不是跑起来问接口
+ *
+ * 跑起来问 `GET /api/plugins` 要起一个宿主、等它 ready，几十秒；
+ * 而这条断言的靶子是一个**静态事实**：`listInstalledPlugins()` 有没有
+ * 被接进 `enableList`。读源码就够，而且失败时的报错能直接指出改哪一行。
+ *
+ * 但静态判据有个风险：它可能"看起来接上了而实际没生效"。所以这里
+ * **两条一起查**：
+ * 1. 源码里 `listInstalledPlugins` 的结果进了 `enableList`；
+ * 2. 它扫描的正是 `plugins/ondra-*` 目录（不是别的目录）。
+ *
+ * 真正跑起来验证「78/78 装载」的那一条在 `check-e2e-stream` 的同类
+ * 脚本里由实跑覆盖，不在这里重复起进程。
+ */
+const hostSource = readFileSync(join(ROOT, 'cordis-host', 'index.ts'), 'utf8')
+{
+  const wired = /enableListAll\s*=\s*\[\.\.\.new Set\(\[\.\.\.enableList,\s*\.\.\.discovered\]\)\]/.test(hostSource)
+    && /const discovered = listInstalledPlugins\(\)/.test(hostSource)
+  check(
+    '默认启用名单包含"磁盘扫描"的结果（新加包无需改代码）',
+    wired,
+    wired ? 'enableListAll ← listInstalledPlugins()' : '未找到 enableListAll / discovered 的接线',
+  )
+}
+{
+  const usesAll = /\.\.\.enableListAll,/.test(hostSource)
+  check(
+    '启用名单的合成用的是全量那份（不是旧的 enableList）',
+    usesAll,
+    usesAll ? 'enabledPlugins ← enableListAll' : 'enabledPlugins 仍在用 enableList',
+  )
+}
+{
+  const filterOk = /startsWith\('ondra-'\)\s*&&\s*name\s*!==\s*'ondra-core'/.test(hostSource)
+  check(
+    '扫描函数读的是 plugins/ondra-*（与打包目录一致）',
+    filterOk,
+    filterOk ? "过滤 ondra-* 且排除 ondra-core" : 'listInstalledPlugins 的过滤条件与预期不符',
+  )
+}
+/*
+ * 读不到目录时降级而不是抛错。
+ *
+ * 这条是**可靠性**判据：打包后的布局若与开发态不同，扫描会失败。
+ * 那时应当退回白名单（少装几个，功能缺），而不是让宿主起不来
+ * （应用打不开）。两者的严重程度差一个量级。
+ */
+{
+  const degrade = /catch[\s\S]{0,400}退回内置启用名单/.test(hostSource)
+  check(
+    '扫描失败时降级到白名单（不让应用起不来）',
+    degrade,
+    degrade ? 'catch → 退回白名单' : 'listInstalledPlugins 的 catch 分支没有降级说明',
+  )
+}
 
 console.log('')
 if (failures.length === 0) {

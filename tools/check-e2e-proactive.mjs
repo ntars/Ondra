@@ -309,6 +309,121 @@ try {
   }
   check('主动那一轮没有新增待办', todosAfter === todoTexts.length, `${String(todoTexts.length)} → ${String(todosAfter)}`)
   check('主动那一轮没有新增原文', rawAfter === rawRows, `${String(rawRows)} → ${String(rawAfter)}`)
+
+  /* -------------------------------------------------------------- *
+   * 6. 一次说三件事：三件都该被记住，且各自独立开口
+   * -------------------------------------------------------------- *
+   *
+   * ## 这一条要防的是什么
+   *
+   * `detectIn()` 原先对**整段**判一次。用户说
+   *
+   * ```
+   * 明天提醒我把合同打印出来。后天记得给妈妈打电话。
+   * ```
+   *
+   * 得到的是一条待办，正文是两句连在一起的原话。两层后果：
+   *
+   * 1. **漏记**：两件事只留一件。用户以为都记下了，到日子只被提醒一件，
+   *    另一件从未存在过——她"忘"了，而库里根本没有那条。
+   * 2. **共用冷却**：话由的冷却按 `topic` 记，整段文本成了同一个 topic，
+   *    于是**两件事共用一次冷却**。放行一次之后两件都不能再说，
+   *    用户那边只是「她提过一回，之后再没提过」。
+   *
+   * 两种症状都不报错，且都与「她记性不好」在界面上无法区分。
+   *
+   * ## 为什么必须等过冷却窗口
+   *
+   * 闸门的 `privateCooldownMs` 默认 3 秒（防连发，不是内容冷却）。
+   * 不等就会把「刚说过所以 3 秒内不说」误读成「第二件事提不出来」。
+   */
+  console.log('\n--- 6. 一次说两件事：两件都记住，且各自开口 ---')
+  /*
+   * 换一个全新会话：同一会话里既有那句「合同」的冷却，也有刚才放行过的
+   * 记账，会把这个断言搅浑。新建会话后话由池是全局的，但会话冷却重新计。
+   */
+  /*
+   * 用**全新**的两件事，不复用前面段落里已经提过的「合同」。
+   *
+   * 第 4 段那次放行已经把「合同」打进 72 小时冷却（`cooldownHours`），
+   * 复用会让「合同没被提起」看起来像缺陷，实际是冷却在正常工作。
+   * 这一条要测的是「分句 + 各自开口」，不是「冷却能被绕过」。
+   */
+  const multi = await post('/api/inference', {
+    input: '明天提醒我去交物业费。后天记得给爸爸回电话。',
+  })
+  check('多句输入返回 200', multi.status === 200, `HTTP ${String(multi.status)}`)
+  const multiSession = sessionIdOf(multi.text)
+  check('拿到会话 id', multiSession !== '', multiSession)
+  await new Promise((resolve) => { setTimeout(resolve, 3500) })
+
+  const db3 = new DatabaseSync(dbPath)
+  let multiTodos = []
+  try {
+    multiTodos = db3.prepare('select text from working_todo where done = 0 order by created_at')
+      .all().map((row) => String(row.text))
+  } finally {
+    db3.close()
+  }
+  /*
+   * 判据取「两件都单独成条」，而不是「条数 >= 2」。
+   * 后者在「一条长文本 + 一条旧待办」这个错法下照样绿。
+   */
+  const hasContract = multiTodos.some((text) => text.includes('物业费'))
+  const hasCall = multiTodos.some((text) => text.includes('爸爸') || text.includes('回电话'))
+  check('物业费那件事单独成条', hasContract, multiTodos.join(' | '))
+  check('回电话那件事单独成条', hasCall, multiTodos.join(' | '))
+  /*
+   * 反证：任何一条待办都不该**同时**含两件事。
+   *
+   * 这是「没分句」的直接指纹——改造前那条待办的正文正是两句连在一起。
+   * 只查「两条都在」抓不到它：两句拼成一条时，`includes` 对两个关键词
+   * 都为真，上面两条断言全绿，而缺陷依然在。
+   */
+  const merged = multiTodos.find((text) => text.includes('物业费') && (text.includes('爸爸') || text.includes('回电话')))
+  check('没有一条待办把两件事拼在一起（分句真的发生了）', merged === undefined,
+    merged === undefined ? '' : `「${merged.slice(0, 40)}」`)
+
+  /*
+   * 两件事各自能开口一次。
+   *
+   * 每次之间等过 3 秒冷却窗口（`privateCooldownMs`），否则第二句会被
+   * 防连发挡住，看起来像「第二件事提不出来」。
+   */
+  const said = []
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await new Promise((resolve) => { setTimeout(resolve, 3500) })
+    const probe = await post('/api/proactive/check', { sessionId: multiSession, idleMinutes: 40 })
+    let verdict
+    try {
+      verdict = JSON.parse(probe.text)
+    } catch {
+      verdict = { allow: false, code: 'parse-failed' }
+    }
+    if (verdict.allow === true && typeof verdict.text === 'string') said.push(verdict.text)
+  }
+  /*
+   * 判据：两件**不同**的事各被提起一次。
+   *
+   * 用 `Set` 去重后看是否含两个不同关键词，而不是「提起次数 >= 2」：
+   * 后者在「同一件事提两遍」这个缺陷下照样绿，而那正是「共用冷却」
+   * 反过来失效（冷却没记上）时的症状。
+   */
+  const saidContract = said.some((text) => text.includes('物业费'))
+  const saidCall = said.some((text) => text.includes('爸爸') || text.includes('回电话'))
+  check('物业费那件事被提起过', saidContract, said.join(' | ') || '（一次都没开口）')
+  check('回电话那件事被提起过（没有与上一件共用冷却）', saidCall, said.join(' | ') || '（一次都没开口）')
+  /*
+   * 这条不能用「两个关键词都为真」判——那在**只有一次开口**时也成立：
+   * 一次开口提的是拼在一起的那段长文本，两个关键词都在里面。
+   * 反向验证时正是这样：撤销分句后上面两条仍然绿，只有这条会红。
+   *
+   * 判据改成「至少两次开口，且两次提的不是同一句」。
+   */
+  const uniqueSaid = [...new Set(said)]
+  check('两次开口提的不是同一件事（至少两次、且内容不同）',
+    said.length >= 2 && uniqueSaid.length >= 2,
+    `${String(said.length)} 次 / ${String(uniqueSaid.length)} 种`)
 } finally {
   host.kill()
   upstream.close()

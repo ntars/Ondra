@@ -166,7 +166,7 @@ a {
   justify-content: center;
   gap: var(--s-2);
   height: 32px;
-  padding: 0 12px;
+  padding: 0 8px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-field);
   border: var(--rule) solid var(--ui-line);
@@ -338,8 +338,8 @@ a {
 .control-segments {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
+  gap: 4px;
+  padding: 4px;
   border-radius: var(--r-sm);
   background: var(--ui-bg-sunken);
   box-shadow: var(--ui-shadow-well);
@@ -347,7 +347,7 @@ a {
 
 .control-segment {
   height: 26px;
-  padding: 0 12px;
+  padding: 0 8px;
   border-radius: calc(var(--r-sm) - 2px);
   font-size: var(--text-caption);
   color: var(--ui-ink-3);

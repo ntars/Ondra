@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { invokeShell } from '../lib/shell.ts'
+import { invokeShell, isShellUnavailable } from '../lib/shell.ts'
 import { useT } from '../lib/i18n.ts'
 import { Dialog } from './Dialog.tsx'
 import { Heading, Note } from './settingsUi.tsx'
@@ -28,6 +28,20 @@ function formatTime(seconds: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+/**
+ * 把一次失败翻译成用户能照着做的一句话。
+ *
+ * 与 `SettingsData` 里那份同构：壳能力缺席时说清楚"这一步需要桌面端"，
+ * 其余照原文透出。两处都写一遍而不是抽成公共组件，是因为它们各自
+ * 只有三行、且回执的落点不同（一个是 `receipt`，一个是页内提示）；
+ * 真正的判据已经收敛到 `isShellUnavailable()` 一处，重复的只是调用形状。
+ */
+function failText(caught: unknown, fallback: string, desktopOnly: string): string {
+  if (!(caught instanceof Error)) return fallback
+  if (isShellUnavailable(caught)) return desktopOnly
+  return caught.message
+}
+
 export function SettingsBackup(): React.JSX.Element {
   const t = useT()
   const [items, setItems] = useState<Backup[]>([])
@@ -42,7 +56,7 @@ export function SettingsBackup(): React.JSX.Element {
       const rows = await invokeShell<Backup[] | null>('backup_list')
       setItems(Array.isArray(rows) ? rows : [])
     } catch (caught) {
-      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('backup.err.list') })
+      setReceipt({ tone: 'bad', text: failText(caught, t('backup.err.list'), t('data.err.desktopOnly')) })
     }
   }, [t])
 
@@ -60,7 +74,7 @@ export function SettingsBackup(): React.JSX.Element {
         setReceipt({ tone: 'ok', text: t('backup.ok.created', formatTime(info.created_at)) })
         await refresh()
       } catch (caught) {
-        setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('backup.err.create') })
+        setReceipt({ tone: 'bad', text: failText(caught, t('backup.err.create'), t('data.err.desktopOnly')) })
       } finally {
         setBusy('')
       }
@@ -77,7 +91,7 @@ export function SettingsBackup(): React.JSX.Element {
         setReceipt({ tone: 'ok', text: t('backup.ok.restored') })
         await refresh()
       } catch (caught) {
-        setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('backup.err.restore') })
+        setReceipt({ tone: 'bad', text: failText(caught, t('backup.err.restore'), t('data.err.desktopOnly')) })
       } finally {
         setBusy('')
       }

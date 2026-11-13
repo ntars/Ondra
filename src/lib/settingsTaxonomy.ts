@@ -163,6 +163,71 @@ export const HIGH_RISK_SECTIONS: ReadonlySet<string> = new Set([
 const FALLBACK: SettingsCategoryId = 'runtime'
 
 /**
+ * 已有**专门页面**承载的段：扩展功能的模块层不再重复列出它们。
+ *
+ * ## 为什么需要这张表
+ *
+ * 人物设定页的四张卡（朗读声音 / 说话口吻 / 说话节奏 / 说话的规矩）各自
+ * 只绑了对应段的 `enable` 一个开关，而那个段还有十几个字段留在扩展功能里。
+ * 结果是同一件事被劈成两处，且**界面自己在提示这件事**——`VoiceCard` 的
+ * 末尾原话是「想让她什么都念，可以在『模块』里调闸门的三个数」。
+ *
+ * 用户读到这句的处境是：我在「她怎么说话」这一页，却被指去「底层每个字段
+ * 是什么」那一页。这不是提示不清楚，是归属错了。
+ *
+ * ## 判据：这个段的主要旋钮属于哪个问题
+ *
+ * 一张表按「这个问题归谁回答」判定，不按「哪个插件提供」判定：
+ *
+ * | 段 | 归谁 | 理由 |
+ * | --- | --- | --- |
+ * | `tts` / `tts-gate` | 人物设定 · 朗读声音 | 她的声音是什么样的 |
+ * | `oral` | 人物设定 · 说话口吻 | 她怎么用词、加不加语气词 |
+ * | `rhythm` / `rhythm-typing` | 人物设定 · 说话节奏 | 分几条、多快、停顿多久 |
+ * | `filter-chain` | 人物设定 · 说话的规矩 | 什么话不说、说什么会拦 |
+ * | `persona-vars` | 人物设定 · 人设包 | 她叫什么、怎么称呼你 |
+ * | `lexicon` | 人物设定 · 说话口吻 | 她学谁的语感、学多久、带几个语气词 |
+ * | `expression-decide` | 人物设定 · 说话口吻 | 什么时候配表情、门槛多高 |
+ * | `life-rhythm` / `proactive-gate` / `proactive-quota` / `proactive-reason` | 通用 · 主动发言 | 她什么时候开口、什么时候安静 |
+ * | `memory-core` / `memory-decay` / `memory-audit` | 人物设定 · 记忆 | 她记多久、怎么忘 |
+ *
+ * `window` **没有**上移：它的字段是 `platform` / `patch-target` /
+ * `expected-versions`，那是给窗口打补丁的开发配置，不是「窗口怎么开」。
+ * 放进通用页会让普通用户看到一串他自己不会填的键。
+ *
+ * 未列入的段（`privacy` / `sandbox` / `installer` / `llm-gateway` 等）
+ * 仍留在扩展功能：它们回答的是「程序怎么跑」，没有日常页面收它们。
+ */
+export const DEDICATED_SECTIONS: ReadonlySet<string> = new Set([
+  'tts',
+  'tts-gate',
+  'oral',
+  'rhythm',
+  'rhythm-typing',
+  'filter-chain',
+  'persona-vars',
+  'lexicon',
+  'expression-decide',
+  'life-rhythm',
+  'proactive-gate',
+  'proactive-quota',
+  'proactive-reason',
+  'memory-core',
+  'memory-decay',
+  'memory-audit',
+])
+
+/**
+ * 这一段是否已由专门页面承载。
+ *
+ * @param sectionId 段 id。
+ * @returns 是则扩展功能不应再列出它。
+ */
+export function isDedicated(sectionId: string): boolean {
+  return DEDICATED_SECTIONS.has(sectionId)
+}
+
+/**
  * 段 id → 分类 id。
  *
  * 在模块加载时建一次，之后查表是 O(1)。65 个段的线性查找发生在每次渲染，

@@ -133,7 +133,52 @@ function findMarkers(text: string, markers: readonly string[]): string[] {
 }
 
 /**
+ * 把一段话切成句子。
+ *
+ * ## 为什么必须切
+ *
+ * `detectIn` 原先对**整段**判一次。用户说
+ *
+ * ```
+ * 明天提醒我把合同打印出来。后天记得给妈妈打电话。下周要交房租。
+ * ```
+ *
+ * 得到的是一条待办，正文是那三句连在一起的原话。后果有两层：
+ *
+ * 1. **漏记**：三件事只留一件。用户以为三件都记下了，到日子只被提醒一件，
+ *    而另外两件从未存在过——她"忘"了，但库里根本没有那两条。
+ * 2. **正文失真**：待办正文成了「明天提醒我把合同打印出来。后天记得给妈妈
+ *    打电话。」这样一串。它会被当成**一句话**塞进主动开口的由头里，
+ *    于是她开口时念的是一整段，而不是一件事。
+ *
+ * 第二层还带来一个隐蔽后果：话由的冷却按 `topic` 记，整段文本成了同一个
+ * topic，于是**三件事共用一次冷却**——放行一次之后三件都不能再说，
+ * 而用户那边只是「她提过一回，之后再没提过」。
+ *
+ * ## 切分规则
+ *
+ * 只按句末标点切：`。！？；` 与英文 `.!?;`，外加换行。
+ *
+ * 不用逗号：中文口语里逗号连接的是同一件事的分句（「明天提醒我，把合同
+ * 打印出来」），切开会把一件事拆成两件——那比漏记更糟，因为她会分两次
+ * 催同一件事。
+ *
+ * 空句丢掉；切完只有一句时原样返回，不引入额外路径。
+ */
+function splitSentences(text: string): string[] {
+  const parts = text
+    .split(/[。！？；!?;\n]+/)
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+  return parts.length === 0 ? [] : parts
+}
+
+/**
  * 从一句话里认出承诺 / 待办。**纯函数**：同一个入参永远给同一个结果。
+ *
+ * 多句输入会逐句判定、把各句的结果合并返回（顺序与原文一致）。
+ * 切分理由见 `splitSentences()`。
+ *
  * @param text 原文。
  * @param at 参照时刻。
  * @param options 长度上下界、「一会儿」折算小时、时钟服务。
@@ -149,6 +194,40 @@ export function detectIn(
   },
 ): DetectedItem[] {
   const body = typeof text === 'string' ? text.trim() : ''
+  if (body === '') return []
+  const sentences = splitSentences(body)
+  /*
+   * 只有一句时走原路径。
+   *
+   * 这不只是省一次循环：单句是**最常见**的输入，而它必须与改造前
+   * 逐字一致（包括「长度超限就整句丢掉」那条）。多句时逐句判，
+   * 单句时行为不变——这样这次改动不会动到既有语料的表现。
+   */
+  if (sentences.length <= 1) return detectOne(body, at, options)
+  const out: DetectedItem[] = []
+  for (const sentence of sentences) {
+    out.push(...detectOne(sentence, at, options))
+  }
+  return out
+}
+
+/**
+ * 单句判定（改造前的 `detectIn` 本体，逐字保留）。
+ *
+ * @param body 已 trim 的一句原文。
+ * @param at 参照时刻。
+ * @param options 同 `detectIn()`。
+ */
+function detectOne(
+  body: string,
+  at: number,
+  options: {
+    readonly minChars: number
+    readonly maxChars: number
+    readonly soonHours: number
+    readonly clock?: ClockLike | undefined
+  },
+): DetectedItem[] {
   // 按码点数长度：中文一个字算一个，emoji 不会因为代理对被算成两个。
   const length = Array.from(body).length
   if (length < options.minChars || length > options.maxChars) return []

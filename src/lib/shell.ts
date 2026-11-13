@@ -98,3 +98,19 @@ export async function invokeShell<T>(command: string, args?: Record<string, unkn
   }
   return await api.core.invoke<T>(command, args)
 }
+
+/**
+ * 判断一次失败是不是「壳能力缺席」。
+ *
+ * ## 为什么不判断 HTTP 状态码
+ *
+ * 401 是宿主对**所有**令牌不对的请求的统一回答，它既可能来自"不在壳内
+ * 所以没拿到令牌"，也可能来自令牌真的过期。按状态码分支会把这两件事
+ * 混成一件事——而只有前者是用户能自己解决的（回桌面端打开）。
+ *
+ * 判据取 `invokeShell` 自己写的那句前缀，因为那是**唯一**一处能确定
+ * "这个错误来自壳层缺席"的地方。它变，这里跟着变，只有一个真源。
+ */
+export function isShellUnavailable(caught: unknown): boolean {
+  return caught instanceof Error && caught.message.startsWith('桌面能力不可用')
+}

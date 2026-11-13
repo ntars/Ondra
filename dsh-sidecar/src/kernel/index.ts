@@ -296,7 +296,12 @@ export async function createKernel(
 
       // 逐块消费适配器的输出：文本即时推送，工具调用留到流结束后执行
       // （工具可能改变后续对话，必须在模型本轮说完之后再跑）。
-      for await (const chunk of models.run({ model, messages, tools: [] })) {
+      //
+      // `signal` 必须传进去。只在循环里 `break` 是不够的：那只让内核不再
+      // 要下一块，适配器自己还在读上游流，`running` 上的锁要等它自然结束
+      // 才释放——用户点一次「停止生成」就再也发不出下一句。详见
+      // `InferenceRequest.signal` 的注释。
+      for await (const chunk of models.run({ model, messages, tools: [], signal: abort.signal })) {
         if (abort.signal.aborted) break
         if (chunk.type === 'text' && chunk.text !== undefined) {
           chunks.push(chunk.text)

@@ -172,6 +172,26 @@ export interface InferenceRequest {
   messages: readonly SessionMessage[]
   /** 本轮允许使用的工具名。空数组表示禁用工具。 */
   tools: readonly string[]
+  /**
+   * 中断信号。用户点「停止生成」时由内核传入。
+   *
+   * ## 为什么必须传进适配器，而不是只在消费侧 break
+   *
+   * 上一版内核在 `for await` 里检查 `aborted` 然后 `break`——看起来够用，
+   * 实际断不干净：`break` 只是不再向生成器要下一块，而**生成器自己还在跑**。
+   * 对 `fetch` 流来说，那意味着连接没关、上游继续发、`readSseData` 继续读。
+   * 而 `running.delete(sessionId)` 在 `finally` 里，要等生成器真的结束才执行。
+   *
+   * 实测症状：点一次「停止生成」之后，这个会话**再也发不出消息**，
+   * 一直报「该会话正在进行一轮对话」，直到上游把那一轮说完或 30 秒超时。
+   * 用本地模型时上游很快就完，所以看不出问题；换成慢速远端就是死锁。
+   *
+   * 所以信号必须到最里层：`fetch({ signal })` 收到 abort 会立刻抛
+   * `AbortError`，生成器随即结束，`finally` 才跑得到。
+   *
+   * 可选：不传表示不可中断（命令行一次性调用）。
+   */
+  signal?: AbortSignal
 }
 
 /** 推理输出的一个增量。 */
