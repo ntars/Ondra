@@ -8,6 +8,10 @@
 
 名称取自成语「空谷足音」——寂静的山谷中听见人的脚步声，喻极难得的音讯。英文 slogan 为 `On No Sound's Depth, Resonance Arises.`
 
+**[macOS 安装包 · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows 安装包 · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
+
+内测版 `1.0.1-alpha`，GitHub 标为 Pre-release。两个包都没有签名，首次打开会被系统拦下，绕行办法见[发布说明](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)。
+
 | 项目 | 内容 |
 | --- | --- |
 | 版本 | 1.0.1-alpha |
@@ -20,7 +24,7 @@
 | 推理来源 | 在线接口 / 本地大模型 / 免费模型，三选一随时切换 |
 | 许可 | [AGPL-3.0](./LICENSE) |
 | 仓库 | [ntars/Ondra](https://github.com/ntars/Ondra) |
-| 下载 | [内测版 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)：macOS `.dmg`（Apple Silicon）+ Windows `.exe`。标记为 Pre-release，不是稳定版 |
+| 下载 | [内测版 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)：macOS `arm64.dmg` + Windows `x64-setup.exe`，点开就下。标记为 Pre-release，不是稳定版 |
 | 官网 | <https://ai.ntars.cn/> |
 | 出品 | Ntarstudio（星玖工作室） |
 
@@ -2122,8 +2126,9 @@ Ondra/
   （macOS 用 `macos-latest`、Windows 用 `windows-latest`），产物挂到同一条
   release 上；Windows 那份另下载到本地留档。本机 `pnpm run build:app` 仍可
   独立出一份 `.dmg`（产物在 `releases/`），作为云端不可用时的兜底。
-  发布出去的资产名是纯 ASCII（`Ondra_1.0.1-alpha_aarch64.dmg`）——GitHub 会
-  把资产名里的中文洗掉，这一步现在由流水线自己做，理由见下文第④条。
+  发布出去的资产名由流水线自己定，形如 `Ondra-1.0.1-alpha-macos-arm64.dmg` /
+  `Ondra-1.0.1-alpha-windows-x64-setup.exe`：既要纯 ASCII（GitHub 会把中文洗掉，
+  理由见下文第④条），也要一眼看出平台与架构。
 - **两个包都没有签名，也没有公证**（macOS 是 ad-hoc 签名，`codesign -dv`
   显示 `flags=0x20002(adhoc,linker-signed)`；Windows 无代码签名证书）。
   因此首次打开会被系统拦：macOS 需右键 →「打开」，或执行

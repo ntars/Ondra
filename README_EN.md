@@ -8,6 +8,10 @@ Ondra is a fully plugin-based desktop AI companion application. It splits the th
 
 The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps in a silent valley, a metaphor for rare and precious news.
 
+**[macOS installer · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows installer · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
+
+Internal beta `1.0.1-alpha`, marked Pre-release on GitHub. Neither package is signed, so both are blocked on first launch — see the [release notes](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha) for the workaround.
+
 | Item | Value |
 | --- | --- |
 | Version | 1.0.1-alpha |
@@ -20,7 +24,7 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 | Inference source | Cloud API / local model / free model, switchable at any time |
 | License | [AGPL-3.0](./LICENSE) |
 | Repository | [ntars/Ondra](https://github.com/ntars/Ondra) |
-| Download | [Internal beta 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha): macOS `.dmg` (Apple Silicon) + Windows `.exe`. Marked Pre-release — not a stable build |
+| Download | [Internal beta 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha): macOS `arm64.dmg` + Windows `x64-setup.exe`, one click each. Marked Pre-release, not a stable build |
 | Website | <https://ai.ntars.cn/> |
 | Publisher | Ntarstudio（星玖工作室） |
 
@@ -2054,7 +2058,7 @@ The bar is simple: **once any row above has been walked through manually on its 
 - The version is `1.0.1-alpha`, synchronised in seven places (four `package.json` files, `tauri.conf.json`, `Cargo.toml`, `Cargo.lock`).
 - New `pnpm version:alpha`: patch +1 (`1.0.1 → 1.0.2`), local only, no release.
 - New `pnpm version:alpha:minor`: minor +1 (`1.0.2 → 1.1.0`), commits the version files, tags `v*` and pushes; `.github/workflows/release.yml` then builds macOS (arm64 dmg) and Windows (x64 installer) and publishes a **pre-release**. Promoting to public beta or stable is always a manual act, never part of the pipeline.
-- How the first internal build is obtained: both platforms are built in the cloud by GitHub Actions (`macos-latest` for the arm64 dmg, `windows-latest` for the x64 installer) and attached to the same release; the Windows artefact is additionally downloaded locally for archive. `pnpm run build:app` still produces an equivalent local `.dmg` into `releases/` as a fallback. Published asset names are pure ASCII (`Ondra_1.0.1-alpha_aarch64.dmg`) — GitHub strips non-ASCII characters from asset names, and the pipeline now does that renaming itself; see trap ④ below.
+- How the first internal build is obtained: both platforms are built in the cloud by GitHub Actions (`macos-latest` for the arm64 dmg, `windows-latest` for the x64 installer) and attached to the same release; the Windows artefact is additionally downloaded locally for archive. `pnpm run build:app` still produces an equivalent local `.dmg` into `releases/` as a fallback. Published asset names are chosen by the pipeline itself, e.g. `Ondra-1.0.1-alpha-macos-arm64.dmg` / `Ondra-1.0.1-alpha-windows-x64-setup.exe` — pure ASCII (GitHub strips non-ASCII, see trap ④) and readable enough to tell the platform and architecture at a glance.
 - **Neither package is signed or notarised** (macOS is ad-hoc signed — `codesign -dv` reports `flags=0x20002(adhoc,linker-signed)`; Windows has no code-signing certificate). Both will therefore be blocked on first launch: on macOS right-click the app → Open, or run `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`; on Windows click More info → Run anyway at the SmartScreen prompt. Signing is stable-release work, not an omission in this build.
 - Six traps found while getting the cloud release green; each is explained in a comment at the place it bit, so it is not repeated: ① `sidecar` must be built first inside `pnpm run build` (type-reference order); ② launching `pnpm.cmd` without a shell fails with `EINVAL` on Node 20+ (now `node` calls the Tauri CLI directly); ③ the NSIS template must not define `.onGUIInit` (it collides with the one MUI2 generates — use `MUI_CUSTOMFUNCTION_GUIINIT`); ④ non-ASCII asset names are rewritten by GitHub, so an upload that looks for the file by its original name never finds the old asset and hits `already_exists` — the pipeline renames before uploading; ⑤ the `macos-14` label no longer gets a runner (the job is cancelled with zero steps — use `macos-latest`); ⑥ under `workflow_dispatch` the version check must not read `GITHUB_REF_NAME` (reserved variable, overriding it silently fails) — it reads `ONDRA_RELEASE_TAG` instead.
 

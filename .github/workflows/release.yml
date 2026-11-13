@@ -205,8 +205,18 @@ jobs:
 
   publish:
     name: 发布 pre-release
-    # 只等 Windows：macOS 那一份由本机构建后手动补进同一条 release。
-    needs: [windows]
+    # 等两个平台都结束再发布。
+    #
+    # 原来只写 `needs: [windows]`：macOS 那个 job 带 `continue-on-error`，
+    # 不放进 needs 就不会被等——publish 完全可能在 macOS 还没传完工件时就
+    # 去下载，于是正文少一条链接、release 少一个包，而且不报错。现在 macOS
+    # 已经能在云端跑通，就该等它。
+    #
+    # `always()` 是必需的：`needs` 里任何一个 job 失败或被取消，dependent
+    # job 默认直接跳过。macOS 失败时我们仍要发 Windows 那一份，所以只要
+    # Windows 成功就继续。
+    needs: [windows, mac]
+    if: "always() && needs.windows.result == 'success'"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -220,25 +230,43 @@ jobs:
       - name: 列出待发布资产
         run: ls -lh dist-assets
 
-      - name: 资产名改成纯 ASCII
+      - name: 资产改成可读名
+        # 两件事一起做。
+        #
+        # 一、去掉非 ASCII。GitHub 会把资产名里的中文直接洗掉：「空谷 Ondra_x.dmg」
+        # 存进去就变成「Ondra_x.dmg」。由此产生一个很难看的坑——
+        # softprops/action-gh-release 的覆盖逻辑是「按本地文件名去已上传资产里
+        # 找同名的，找到就先删再传」。它拿中文原名去找，永远找不到洗过之后的
+        # 名字，于是不删；上传之后 GitHub 又洗一次，撞 already_exists 整步失败。
+        #
+        # 二、换成一眼能看出平台与架构的名字。tauri 的默认名
+        # `Ondra_1.0.1-alpha_aarch64.dmg` 里既没有 "mac"，也没有 "arm"，
+        # 而 `.exe` 那边写的是 x64——下载页上「哪个是我的」不该靠猜。
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          # GitHub 会把资产名里的非 ASCII 字符直接洗掉：「空谷 Ondra_x.dmg」
-          # 存进去就变成「Ondra_x.dmg」。由此产生一个很难看的坑——
-          # softprops/action-gh-release 的覆盖逻辑是「按本地文件名去已上传
-          # 资产里找同名的，找到就先删再传」。它拿「空谷 Ondra_x.dmg」去找，
-          # 永远找不到「Ondra_x.dmg」，于是不删；上传之后 GitHub 又把名字洗成
-          # 「Ondra_x.dmg」，撞 already_exists，整步失败。
-          #
-          # 所以这里先自己改成与 GitHub 洗过之后一致的名字，再交给下一步。
-          # 规则与 GitHub 一致：去掉非 ASCII 字符，空格换成下划线。
           python3 - <<'PYEOF'
-          import glob, os, shutil
+          import glob, os, re, shutil
+          tag = os.environ['TAG']
+          ver = tag[1:] if tag.startswith('v') else tag
+          # 同义写法归一：aarch64/arm64 都算 arm64，x86_64/amd64/x64 都算 x64。
+          arch_map = {'aarch64': 'arm64', 'arm64': 'arm64',
+                      'x86_64': 'x64', 'amd64': 'x64', 'x64': 'x64'}
           os.makedirs('upload', exist_ok=True)
-          for path in glob.glob('dist-assets/*'):
+          for path in sorted(glob.glob('dist-assets/*')):
               if os.path.isdir(path):
                   continue
               base = os.path.basename(path)
-              name = ''.join(ch for ch in base if ch.isascii()).strip().replace(' ', '_')
+              low = base.lower()
+              m = re.search(r'(aarch64|x86_64|amd64|x64|arm64)', low)
+              arch = arch_map.get(m.group(1), 'x64') if m else 'x64'
+              if low.endswith('.dmg'):
+                  name = f'Ondra-{ver}-macos-{arch}.dmg'
+              elif low.endswith('.exe'):
+                  name = f'Ondra-{ver}-windows-{arch}-setup.exe'
+              else:
+                  print(f'跳过（不认识的文件类型）: {base}')
+                  continue
               shutil.copy2(path, os.path.join('upload', name))
               print(f'{base} -> {name}')
           PYEOF
@@ -266,27 +294,74 @@ jobs:
                                   f'repos/{repo}/releases/{rel["id"]}'], check=True)
           PYEOF
 
+      - name: 生成 release 正文
+        # 正文里直接给下载链接。默认的 Assets 区在页面最底部，缩成一行行
+        # 小字；「下载」应该是打开页面第一眼就能做的事。
+        #
+        # 只为**实际存在**的文件生成行：云端 macOS 是可选备份，跑失败了
+        # 也不该在正文里留一条点进去 404 的链接。
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          python3 - <<'PYEOF'
+          import glob, os
+          tag = os.environ['TAG']
+          ver = tag[1:] if tag.startswith('v') else tag
+          repo = os.environ['GITHUB_REPOSITORY']
+          base = f'https://github.com/{repo}/releases/download/{tag}'
+          rows = []
+          for pattern, label in (('*.dmg', 'macOS（Apple Silicon）'),
+                                 ('*.exe', 'Windows（x64）')):
+              for path in sorted(glob.glob('upload/' + pattern)):
+                  name = os.path.basename(path)
+                  size = os.path.getsize(path) / (1024 * 1024)
+                  rows.append(f'| {label} | [`{name}`]({base}/{name}) | {size:.1f} MB |')
+          if not rows:
+              rows = ['| — | 本次构建没有产出可下载的包 | — |']
+          lines = [
+              f'## 下载 `{ver}`',
+              '',
+              '| 平台 | 安装包 | 大小 |',
+              '| --- | --- | --- |',
+          ]
+          lines += rows
+          lines += [
+              '',
+              '内测版，GitHub 标为 **Pre-release**——不是公测版，也不是正式版。',
+              '',
+              '### 首次打开会被系统拦下',
+              '',
+              '**两个包都没有签名，也没有公证**（macOS 是链接器 ad-hoc 签名，Windows 没有代码签名证书）。',
+              '',
+              '- **macOS**：右键点应用 →「打开」；或执行',
+              '  `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`',
+              '- **Windows**：SmartScreen 提示时点「更多信息」→「仍要运行」',
+              '',
+              '### 装完之后',
+              '',
+              '首次启动会拉起本机的插件宿主与内核，自带 Node 运行时，不需要另装。',
+              '数据全部留在本机，无账号、无遥测。推理来源在设置里三选一：在线接口 / 本地大模型 / 免费模型。',
+              '',
+              f'完整变更见 [README 的更新日志](https://github.com/{repo}/blob/main/README.md)。',
+          ]
+          body = '\n'.join(lines) + '\n'
+          open('release-body.md', 'w', encoding='utf-8').write(body)
+          print(body)
+          PYEOF
+
       - name: 创建 pre-release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          name: '空谷 Ondra ${{ github.event.inputs.tag || github.ref_name }}（内测）'
+          name: '空谷 Ondra ${{ github.event.inputs.tag || github.ref_name }}（内测版）'
           prerelease: true
           draft: false
           # 不要求两个平台都齐：云端 macOS 是可选的备份，dmg 通常由本机
           # 构建后手动补进同一条 release。要求「文件必须都匹配上」会在
           # 只有 exe 时直接失败，而那时 release 本身是好的。
           fail_on_unmatched_files: false
-          body: |
-            内测版，不代表公测或正式版本。macOS 为 Apple Silicon（arm64）dmg，
-            Windows 为 x64 安装程序。
-
-            **两个包都没有签名，也没有公证。** 首次打开会被系统拦下：
-            - macOS：右键点应用 →「打开」，或执行
-              `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`
-            - Windows：SmartScreen 提示时点「更多信息」→「仍要运行」
-
-            完整变更见 README 的「更新日志」。
+          # 正文由上一步生成，含各平台的直链下载表。
+          body_path: release-body.md
           files: |
             upload/*.dmg
             upload/*.exe
