@@ -2109,9 +2109,15 @@ Ondra/
   提交版本文件、打 `v*` tag 并推送，由 `.github/workflows/release.yml`
   构建 macOS（arm64 dmg）与 Windows（x64 安装程序）并发布 **pre-release**。
   转公测或正式版始终是人工动作，不在流水线里。
-- 首次内测包的取得方式：macOS 本机构建 → `.dmg`（签名依赖本机钥匙串）；
-  Windows 由 GitHub Actions 云端构建 → 下载 `.exe` 后附在同一条 release 上。
-  两个资产现都挂在 `v1.0.1-alpha` 下。
+- 首次内测包的取得方式：macOS 本机构建 → `.dmg`；Windows 由 GitHub Actions
+  云端构建 → 下载 `.exe` 后附在同一条 release 上。两个资产现都挂在
+  `v1.0.1-alpha` 下。
+- **两个包都没有签名，也没有公证**（macOS 是 ad-hoc 签名，`codesign -dv`
+  显示 `flags=0x20002(adhoc,linker-signed)`；Windows 无代码签名证书）。
+  因此首次打开会被系统拦：macOS 需右键 →「打开」，或执行
+  `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`；
+  Windows SmartScreen 需点「更多信息」→「仍要运行」。签名是后续要补的
+  正式版工作，不是本版遗漏。
 - 打通云端构建时踩到的坑，原因都写进了对应位置的注释，不重复踩：
   `pnpm run build` 里 sidecar 必须排在最前（类型引用顺序）；`pnpm.cmd` 在
   Node 20+ 下无 shell 启动会报 `EINVAL`（改用 node 直调 tauri CLI）；NSIS

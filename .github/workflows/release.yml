@@ -10,9 +10,15 @@ name: Release Alpha
 #
 # ## 为什么 macOS 那个 job 允许失败
 #
-# 内测版的 macOS 包是**本机构建**的：签名与 notarize 依赖本机钥匙串，
-# CI 上没有那把钥匙。云端那一份只是「顺手也造一个」的备份，造不出来不该
-# 拦住发布——因此它 `continue-on-error`，且 `publish` 只 `needs` Windows。
+# 内测版的 macOS 包是**本机构建**的（理由见下），云端那一份只是「顺手也
+# 造一个」的备份，造不出来不该拦住发布——因此它 `continue-on-error`，且
+# `publish` 只 `needs` Windows。
+#
+# 注意：两个平台的包**都没有签名、也没有公证**。macOS 是 ad-hoc 签名
+# （`codesign -dv` 显示 `flags=0x20002(adhoc,linker-signed)`），Windows
+# 没有代码签名证书。所以「本机构建」的理由不是钥匙串，而是本机产出经过
+# 了安装验证（挂载 dmg、检查 Contents/Resources 里的三层运行时）；签名是
+# 正式版阶段的工作。
 #
 # ## 为什么发布要单独一个 job
 #
@@ -226,7 +232,12 @@ jobs:
           fail_on_unmatched_files: false
           body: |
             内测版，不代表公测或正式版本。macOS 为 Apple Silicon（arm64）dmg，
-            Windows 为未签名 x64 安装程序，首次运行需在系统提示中允许。
+            Windows 为 x64 安装程序。
+
+            **两个包都没有签名，也没有公证。** 首次打开会被系统拦下：
+            - macOS：右键点应用 →「打开」，或执行
+              `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`
+            - Windows：SmartScreen 提示时点「更多信息」→「仍要运行」
 
             完整变更见 README 的「更新日志」。
           files: |
