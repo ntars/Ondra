@@ -332,10 +332,25 @@ export class EvolveRepository implements PersonaEvolveService {
    * 互动与阈值
    * ---------------------------------------------------------------- */
 
+  /**
+   * 记互动次数（增量，只加不减）。
+   *
+   * **`enable=false` 时直接返回当前值、不写库**（第 16 轮补）。
+   *
+   * 补之前这个方法没有开关守卫，而同类的 `adjust()` 在它上面 60 行就有一行
+   * `if (!this.settings.enable) return undefined`。之所以一直没炸，是因为
+   * 宿主 `src/evolve.ts` 在调用前替它挡了一道 `available !== true`——
+   * 「调用方替我守契约」。任何第三个调用方（面板预览、迁移脚本、以后的自检）
+   * 都能在关闭状态下把计数写进库，而那时没人会想到去查这一层。
+   *
+   * 现在两道防线都在：调用方仍然先挡（省一次无意义的读），插件自己也挡
+   * （保证契约成立）。`adjust()` 的写法就是模板。
+   */
   noteInteraction(n?: number, at?: number): number {
     const now = at ?? this.clock()
     try {
       this.ensureLoaded()
+      if (!this.settings.enable) return this.count
       const add = Number.isFinite(n) ? Math.max(0, Math.trunc(n as number)) : 1
       if (add === 0) return this.count
       this.count = Math.min(MAX_INTERACTIONS, this.count + add)

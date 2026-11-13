@@ -331,7 +331,7 @@ export function apply(ctx: Context, config: unknown): void {
       return { facts: 0, reason: 'disabled' }
     }
 
-    log.info?.('收到一轮：%d 行', draft.lines.length)
+    if (settings.verbose) log.info?.('收到一轮：%d 行', draft.lines.length)
     const spoken = draft.lines.filter(line => line.text.trim() !== '')
     if (spoken.length === 0) {
       stats.skipped += 1
@@ -525,12 +525,14 @@ export function apply(ctx: Context, config: unknown): void {
       // 所以本步的价值是给每条事实一个**能命中的标签**，让寿命分层生效，
       // 而不是靠归池来放行。
       assignPools(poolFacts, draft.at)
-      log.info?.(
-        '提炼返回：ok=%s written=%s 路径=%s',
-        String(result?.ok),
-        String(written),
-        useDedupe ? 'propose+settle' : 'extract',
-      )
+      if (settings.verbose) {
+        log.info?.(
+          '提炼返回：ok=%s written=%s 路径=%s',
+          String(result?.ok),
+          String(written),
+          useDedupe ? 'propose+settle' : 'extract',
+        )
+      }
       if (result?.ok === false) {
         // 提炼失败不是本轮失败：原文已经在库里，只是这一轮没抽到事实。
         log.warn?.('提炼失败（原文已保留）：%s', result.reason ?? 'unknown')
@@ -619,14 +621,33 @@ export function apply(ctx: Context, config: unknown): void {
         log.warn?.('判重落库失败（这一条按「没记住」处理，其余照写）：%s', message(error))
       }
     }
-    log.info?.(
-      '判重裁决：新建 %d · 合并 %d · 复述 %d · 丢弃 %d · 冲突 %d',
-      tally.add + tally.conflict,
-      tally.merge,
-      tally.append,
-      tally.drop,
-      tally.conflict,
-    )
+    if (settings.verbose) {
+      /*
+       * 五个数字必须各对各的动作。
+       *
+       * ## 此前这里有两处标签错位（本轮修）
+       *
+       * | 栏位 | 错读成 | 实际是 |
+       * | --- | --- | --- |
+       * | 复述 | `append` | 应为 `drop`（`judge.ts:214` 判「复述」返回的动作是 `drop`） |
+       * | 丢弃 | `drop` | 没有对应动作——`append` 才是「灰区没写库」 |
+       *
+       * 错位的代价不是「日志不好看」：`append` 的落库语义是**只加固、不写库**
+       * （`dedupe/src/service.ts:219-225`），所以它才是真正的「这条新事实没进去」。
+       * 把它读成「复述」，排查者就会得出「已经记过了」的结论——
+       * 而用户的原话是「钥匙在**最上层**，编号 **K-9**」，旧条是「第二层」。
+       *
+       * 于是「用户纠正的事实被静默吞掉」这件事在日志里**完全看不见**。
+       */
+      log.info?.(
+        '判重裁决：新建 %d · 合并 %d · 灰区未写库 %d · 复述 %d · 冲突 %d',
+        tally.add + tally.conflict,
+        tally.merge,
+        tally.append,
+        tally.drop,
+        tally.conflict,
+      )
+    }
     return { written, landed }
   }
 

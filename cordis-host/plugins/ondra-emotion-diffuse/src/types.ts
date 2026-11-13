@@ -134,8 +134,19 @@ export type DiffuseUnavailableReason =
   | 'no-emotion'
   /** 情绪内核装了但自报不可用（多半是没存储）。 */
   | 'emotion-unavailable'
-  /** 标记表建不了（只在内存记，重启后可能重算一次）。 */
+  /** 没有存储端口：标记只在内存，重启后可能重算一次。 */
   | 'no-store'
+  /**
+   * 建表失败：存储端口在位，但标记表没建出来。
+   *
+   * 第 16 轮补这一档。此前建表失败复用 `'no-store'`，于是「磁盘写满导致
+   * `ensureTable` 抛错」与「压根没装存储插件」报同一个原因码——前者要清磁盘、
+   * 后者要检查装载，处置方式完全不同，却压成一个词。
+   *
+   * 对照 O-028 `StageUnavailableReason` 一直有 `'schema-failed'`，
+   * 本插件是唯一缺这一档的，属漏写而非取舍。
+   */
+  | 'schema-failed'
 
 /** 累计计数（**只在内存**，进程重启归零）。 */
 export interface DiffuseCounters {

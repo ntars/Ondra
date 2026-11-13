@@ -213,6 +213,53 @@ if (target !== undefined) {
   check('刚投递后 → 被冷却闸拦住', cooled.wake === false && cooled.blockedBy === 'cooldown', cooled.blockedBy)
 }
 
+console.log('\n--- 5. 最高那条在冷却里时，别的执念必须顶上（本轮修的真缺陷）---')
+
+/* ## 这条断言为什么必要
+ *
+ * 采集层原来只把 `highestTension()` 那**一条**递进候选表。于是最高那条一旦
+ * 进了 72 小时话题冷却，`pickOf()` 跳过它之后候选表就空了，整轮判
+ * `content-empty`——而池里同张力档的其它执念**从未被看过一眼**。
+ *
+ * 实测症状（2026-11-13 06:49 实机）：池里四条 open 执念张力
+ * 100/100/100/89 全都过唤醒线 80，而 `plan()` 候选数 = 1、`cooling=true`
+ * → `pick=undefined` → 宿主每 15 分钟判一次「正文为空」，她的四件心事
+ * 一句话都没说出口。
+ *
+ * `rank.ts` 的设计原话是「冷却不是砍掉，是标出来…答案是『有 3 条，
+ * 但全在冷却里』，而不是『一条都没有』」。本段锁的就是那句话。
+ *
+ * ## 判据为什么取「pick 非空」而不是「cooling=false 的条数」
+ *
+ * 冷却表是 `proactive-reason` 自己的私有状态（由 `markUsed()` 写入，
+ * 不是 `drive-gap` 的 `markDelivered()`——后者只记 picks 与 lastWakeAt，
+ * 两者记的不是同一件事，别混）。本脚本不去假定它怎么记，只用它的公开入口
+ * 标一条冷却，再看**结果**：`plan()` 还能不能挑出一条来。 */
+{
+  const firstPlan = reason.plan({ gapEligible: true })
+  const gapSeeds = (firstPlan.candidates ?? []).filter(item => item.kind === 'gap')
+  if (gapSeeds.length >= 2) {
+    /* 排序是 score 降序，同种类内 weight 高的在前；张力最高那条权重最大，
+     * 故 `gapSeeds[0]` 就是「最高那条」。 */
+    const highest = gapSeeds[0]
+    reason.markUsed(highest.topic)
+
+    const afterCool = reason.plan({ gapEligible: true })
+    const coolCount = (afterCool.candidates ?? []).filter(item => item.cooling).length
+    check('最高那条已进冷却（候选表里标出来，不是删掉）', coolCount >= 1, `cooling=${String(coolCount)}`)
+    check('其余执念仍能当 pick（不再是整轮 content-empty）',
+      afterCool.pick !== undefined, afterCool.pick === undefined ? 'pick=undefined' : afterCool.pick.key)
+    check('挑中的不是刚冷却那条', afterCool.pick?.key !== highest.key,
+      `${String(afterCool.pick?.key)} ≠ ${highest.key}`)
+    /* 候选数必须大于 1：若采集层退回「只递最高一条」，上面的 pick 断言
+     * 会因为「冷却是唯一一条」而恒红；这条把「多条」本身也钉住，
+     * 让人一眼看出是采集层退化了，而不是冷却算法坏了。 */
+    check('候选表里执念多于一条', gapSeeds.length > 1, `gap 候选=${String(gapSeeds.length)}`)
+  } else {
+    check('池里至少两条 open 执念（本段前提）', false, `gap 候选=${String(gapSeeds.length)}`)
+  }
+}
+
 await ctx.fiber.dispose()
 
 console.log('')

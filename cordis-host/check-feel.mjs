@@ -296,6 +296,70 @@ const view = express.stateOf()
 check('情绪确实偏离了基线（张力不为 0）', view.tension > 0.01, String(view.tension))
 check('六态不再是 calm', view.state !== 'calm', view.state)
 
+console.log('\n--- 9. 能量轴：`energy` 真的被写过（不是恒停基线）---')
+/*
+ * ## 这条为什么必须存在
+ *
+ * `emotion-core` 的六维里，`energy` 是唯一**曾经全仓零写入方**的那一轴：
+ * `FeelingInput.energy` 有字段、`service.feel()` 有分支、`SIGNAL_SHIFT`
+ * 却漏了它——类型里没有这个键，于是 `feel({...})` 永远不传，
+ * 轴值恒停基线 60。症状不是报错：
+ *
+ * | 下游 | 它以为的输入 | 实际输入 |
+ * | --- | --- | --- |
+ * | `tts-gate` 的强度闸 | `(energy−0.5)×0.5` | 恒 0.05，永远过不了 0.15 |
+ * | `emotion-core` 血清素 recover（`energy > 80`） | 有劲才回充 | 恒 60，该分支永不触发 |
+ * | `drive-gap` 唤醒/做梦（`energy > 30`） | 累到没劲就不做梦 | 恒 60，判据恒成立 |
+ *
+ * 三处都不报错，三处都「按设计」正常工作——这是本仓最熟悉的形态：
+ * 一个字段漏了，三条链路一起静默降级。
+ *
+ * ## 为什么放在最后一段
+ *
+ * 这两轮 `ingest()` 会真改情绪状态（心情、张力都会被带动一点），
+ * 放在第 1–8 段之间会污染它们依赖的累积起点——第 8 段「六态不再是 calm」
+ * 就是靠前序 `stumble` 留下的张力命中 `bristled`，插在中间会让它退到
+ * `calm` 而假红。**新段落只能追加在依赖累积的断言之后。**
+ *
+ * ## 判据为什么取「变了」而不是「变了多少」
+ *
+ * `SIGNAL_SHIFT` 的量级（6 / -4）是工程取值，可能被调；但「有没有人写它」
+ * 是结构问题，不该随调参变色。所以只钉方向：夸一次该往上、卡一次该往下。
+ * 反向验证做过：把 `SIGNAL_SHIFT` 里的 `energy` 删掉 → 这两条立刻红。
+ */
+const beforeEnergy = emotion.state()
+await intake.ingest({
+  turnId: 'feel-check-energy-up',
+  at: Date.now(),
+  lines: [
+    { role: 'user', text: '谢谢你，今天帮了大忙，真棒。' },
+    { role: 'assistant', text: '嗯……被你这么说，我有点不好意思。' },
+  ],
+})
+const afterEnergy = emotion.state()
+check('夸一句，能量轴往上走了（energy 有写入方）',
+  afterEnergy.axes.energy > beforeEnergy.axes.energy,
+  `${String(beforeEnergy.axes.energy)} → ${String(afterEnergy.axes.energy)}`)
+/*
+ * 反方向：`stumble` 该泄劲。
+ *
+ * 只钉「能升」不够——把两个信号都写正数也能让上面那条绿，
+ * 而那等于「她越卡越有精神」，是伪造情绪。两支都钉，方向才成立。
+ */
+const beforeEnergyDown = emotion.state()
+await intake.ingest({
+  turnId: 'feel-check-energy-down',
+  at: Date.now(),
+  lines: [
+    { role: 'user', text: '你确定吗？那这个字段到底叫什么？' },
+    { role: 'assistant', text: '我……我不太确定。' },
+  ],
+})
+const afterEnergyDown = emotion.state()
+check('答不上来，能量轴往下走了（方向不是一律向上）',
+  afterEnergyDown.axes.energy < beforeEnergyDown.axes.energy,
+  `${String(beforeEnergyDown.axes.energy)} → ${String(afterEnergyDown.axes.energy)}`)
+
 await ctx.fiber.dispose()
 
 console.log('')

@@ -162,7 +162,7 @@ export function apply(ctx: Context, config: FilterConfig): void {
   if (ctx.get('ondra-persona-core') === undefined) {
     log.warn('人格内核未装载：硬红线与关系越线两步不会命中（其余七步照跑）')
   }
-  if (ctx.get('ondra-emotion-stage') === undefined) {
+  if (ctx.get('ondra-emotion-stage') === undefined && settings.verbose) {
     log.info('阶段未装载：阶段越线这一步不会命中（表内七条句式不判）')
   }
   if (settings.reviewEnabled && ctx.get('ondra-llm-gateway') === undefined) {

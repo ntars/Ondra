@@ -129,9 +129,21 @@ export function apply(ctx: Context, config: EvolveConfig): void {
 
   // 2. 三张表：漂移日志必须落盘，否则重启等于「她一夜回到出厂」。
   //    这是产品语义问题（她真的变了没有），不是性能问题。
+  /*
+   * `enable=false` 时**三张表一张都不建**（第 16 轮修）。
+   *
+   * 修之前没有守卫：关掉人格演化之后重启，`EvolveStore.ensure()` 照样
+   * 对 `persona_trait` / `persona_trait_delta` / `persona_interaction`
+   * 逐个 `ensureTable()`，库里凭空多三张表。而 `stats().available` 返回
+   * false、`thresholdOf()` 原样返回 base，看起来开关是灵的——破绽只在库里。
+   *
+   * 与 `ondra-emotion-core/src/index.ts:172-186` 对齐：先判关，再判存储。
+   */
   const store = (ctx.get('ondra-store-sqlite') ?? ctx.get('ondra-store-memory')) as StoreLike | undefined
   let evolveStore: EvolveStore | undefined
-  if (store === undefined) {
+  if (!settings.enable) {
+    log.info('人格演化被配置关闭：服务仍注册，特质读基线、阈值不漂移，且不建表')
+  } else if (store === undefined) {
     log.warn('没有可用存储端口：人格漂移只活在内存里，重启等于「她一夜回到出厂」')
   } else {
     const created = new EvolveStore(store, log)

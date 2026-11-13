@@ -62,8 +62,6 @@ export interface DrawerProps {
   onClearAll(): void
   /** 打开某个配置段（扩展抽屉的「配置」）。 */
   onConfigure(sectionId: string): void
-  /** 一句提示。 */
-  onNote(text: string): void
   /** 关闭。 */
   onClose(): void
 }
@@ -84,7 +82,6 @@ export function Drawer({
   busy,
   onClearAll,
   onConfigure,
-  onNote,
   onClose,
 }: DrawerProps): React.JSX.Element {
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -144,7 +141,7 @@ export function Drawer({
           {view === 'log' ? <LogDrawer sessionId={sessionId} logs={logs} /> : null}
 
           {view === 'extension' ? (
-            <ExtensionDrawer onConfigure={onConfigure} onNote={onNote} />
+            <ExtensionDrawer onConfigure={onConfigure} />
           ) : null}
         </div>
       </div>

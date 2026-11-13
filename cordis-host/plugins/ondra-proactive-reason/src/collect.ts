@@ -27,12 +27,13 @@
  * 于是同一件事在几分钟内被说两遍——正是 72 小时冷却要防的那件事。
  */
 
-import { EMOTION_SEEDS, KIND_ORDER, UNKNOWN_EMOTION_WEIGHT } from './types.js'
+import { EMOTION_SEEDS, GAP_CANDIDATE_LIMIT, KIND_ORDER, UNKNOWN_EMOTION_WEIGHT } from './types.js'
 import type {
   CandidateSeed,
   DriveGapLike,
   EventSeed,
   ExpressLike,
+  GapViewLike,
   LogLike,
   ProspectiveLike,
   ReasonInput,
@@ -132,6 +133,34 @@ function dedupeByTopic(seeds: readonly CandidateSeed[]): readonly CandidateSeed[
 }
 
 /**
+ * 取本轮的执念视图（张力降序，最多 {@link GAP_CANDIDATE_LIMIT} 条）。
+ *
+ * ## 两条路径，必须都通
+ *
+ * | 池子能力 | 走哪条 | 为什么要保留 |
+ * | --- | --- | --- |
+ * | 有 `list()` | 取前 N 条 open | 本轮修的真缺陷：最高那条在冷却时仍有别的可选 |
+ * | 只有 `highestTension()` | 取那一条 | 可选能力缺席不该让整条主动链失声 |
+ *
+ * `list()` 抛错时也退回单条：两次调用都失败才真的没有候选，
+ * 而那种情况下 `source.gap` 仍为 true（池子在位），面板能看出「问到了但没东西」。
+ * @param gap 缺口池。
+ * @param at 时刻。
+ */
+function pickGapViews(gap: DriveGapLike, at: number): readonly GapViewLike[] {
+  if (typeof gap.list === 'function') {
+    try {
+      const list = gap.list({ status: 'open', limit: GAP_CANDIDATE_LIMIT, at })
+      if (list.length > 0) return list
+    } catch {
+      // 落到单条路径去。
+    }
+  }
+  const top = gap.highestTension(at)
+  return top === undefined ? [] : [top]
+}
+
+/**
  * 收集候选。
  * @param input 入参。
  * @param at 时刻。
@@ -148,11 +177,10 @@ export function collect(input: ReasonInput, at: number, deps: CollectDeps): Coll
   if (gap !== undefined) {
     gapReady = true
     try {
-      const top = gap.highestTension(at)
       /*
        * 执念要过两道：**池里有一条** 且 **它此刻够格开口**。
        *
-       * ## 为什么第二道是必须的（这是本轮修掉的真缺陷）
+       * ## 为什么第二道是必须的（这是某一轮修掉的真缺陷）
        *
        * `KIND_ORDER` 把 `gap` 排在第一位，而排序是字典序——任何一条执念
        * 都排在所有承诺、待办之前。可 `open()` 给的 `base` 默认 40，
@@ -166,10 +194,31 @@ export function collect(input: ReasonInput, at: number, deps: CollectDeps): Coll
        * ## 为什么用调用方给的 `gapEligible` 而不是在这里判 80
        *
        * `judgeWake()` 才是那四条判据的真源。这里再写一个 80，就是第二份。
+       *
+       * ## 为什么递**多条**而不是只递最高那条（本轮修的真缺陷）
+       *
+       * 只递 `highestTension()` 一条时，它一旦在 72 小时冷却里，
+       * `pickOf()` 跳过它之后候选表就空了，整轮判 `content-empty`。
+       * 实测症状：池里四条 open 执念张力 100/100/100/89 全都过唤醒线，
+       * 而 `plan()` 的候选表里只有一条、且 `cooling=true` → `pick=undefined`
+       * → 宿主判「正文为空」→ 她明明压着四件事却一句话都不说，
+       * 且每一刻钟重复一次同样的空转。
+       *
+       * `rank.ts` 的设计原话是「冷却不是砍掉，是标出来…答案是『有 3 条，
+       * 但全在冷却里』，而不是『一条都没有』」。要让那句话成立，
+       * 采集层必须把多条递上去，由排序层自己标冷却、自己跳过。
+       *
+       * `list()` 是可选方法：老池子没有它就退回单条旧行为，
+       * 不能因为一个可选能力缺席就让整条主动链失声。
        */
       const eligible = input.gapEligible
-      if (top !== undefined && top.status === 'open' && top.text.trim() !== '' && eligible !== false) {
-        seeds.push(seed('gap', top.id, top.text, top.tension / 100, 0, 'ondra-drive-gap'))
+      if (eligible !== false) {
+        const views = pickGapViews(gap, at)
+        for (const view of views) {
+          const text = view.text.trim()
+          if (view.status !== 'open' || text === '') continue
+          seeds.push(seed('gap', view.id, text, view.tension / 100, 0, 'ondra-drive-gap'))
+        }
       }
     } catch (error) {
       deps.log.warn('取缺口池失败（本轮少一类话由）：%s', messageOf(error))

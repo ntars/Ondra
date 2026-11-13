@@ -39,6 +39,9 @@ import type { ThemeMode } from './api.ts'
 /** 界面字号档位。百分比相对浏览器基准字号，因此系统放大仍叠加生效。 */
 export type FontScale = 'small' | 'standard' | 'large'
 
+/** 界面语言。文案由 `lib/i18n.ts` 按 `locale` 提供两套。 */
+export type Locale = 'zh-CN' | 'en'
+
 /** 生成中按 Enter 的行为（§5.6）。 */
 export type SendMode = 'queue' | 'interrupt'
 
@@ -46,6 +49,14 @@ export type SendMode = 'queue' | 'interrupt'
 export interface Preferences {
   theme: ThemeMode
   fontScale: FontScale
+  /**
+   * 界面语言（§语言）。
+   *
+   * 2.3.0 起提供英语。覆盖范围是**设置面板的静态文案**（导航、各页标题、
+   * 说明与按钮）；对话主界面的人格语料与宿主插件参数仍是简体中文——
+   * 那两部分分别是「她说话的内容」与「宿主下发的数据」，不属于界面壳层。
+   */
+  locale: Locale
   sendMode: SendMode
   /** 提示音开关（§12.12）。默认关闭。 */
   sound: boolean
@@ -83,12 +94,26 @@ export interface Preferences {
    * 也不会误触——所以持久化的风险为零。
    */
   developerMode: boolean
+  /**
+   * 自定义头像（data URL）。空串 = 用应用图标。
+   *
+   * ## 为什么存 data URL 而不是文件路径
+   *
+   * 头像要在**没有宿主**的时候也能画出来（连接失败页、首帧）。存路径就得
+   * 经过一次文件读取，而那条链在宿主没起来时是断的；data URL 随偏好一起
+   * 从 `localStorage` 同步读出，首帧就能用。
+   *
+   * 尺寸由写入方（人物设定页）压到 96×96 再存：`localStorage` 有 5MB 上限，
+   * 一张手机照片的 base64 就能吃掉一大半，而这一格只需要 24px 的显示尺寸。
+   */
+  avatar: string
 }
 
 /** 出厂默认值。 */
 const DEFAULTS: Preferences = {
   theme: 'system',
   fontScale: 'standard',
+  locale: 'zh-CN',
   sendMode: 'interrupt',
   /*
    * §12.12 第一行就是「默认关闭」。
@@ -117,6 +142,8 @@ const DEFAULTS: Preferences = {
   provider: '',
   voiceInput: false,
   developerMode: false,
+  /* 出厂头像就是应用图标本身，不预置一张图片。 */
+  avatar: '',
 }
 
 /**
@@ -135,6 +162,7 @@ const FONT_PERCENT: Record<FontScale, string> = {
 /** localStorage 的键。沿用 `ondra.theme`，旧版本存过的选择不会丢。 */
 const KEY_THEME = 'ondra.theme'
 const KEY_FONT = 'ondra.fontScale'
+const KEY_LOCALE = 'ondra.locale'
 const KEY_SEND = 'ondra.sendMode'
 const KEY_SOUND = 'ondra.sound'
 const KEY_VOLUME = 'ondra.soundVolume'
@@ -142,6 +170,7 @@ const KEY_NOTIFY = 'ondra.notify'
 const KEY_PROVIDER = 'ondra.provider'
 const KEY_VOICE = 'ondra.voiceInput'
 const KEY_DEVELOPER = 'ondra.developerMode'
+const KEY_AVATAR = 'ondra.avatar'
 
 /** 当前偏好。模块级单例：两个窗口各持一份内存副本，靠广播对齐。 */
 let current: Preferences = { ...DEFAULTS }
@@ -196,6 +225,7 @@ export function loadPreferences(): Preferences {
   current = {
     theme: pick(read(KEY_THEME), ['system', 'light', 'dark'] as const, DEFAULTS.theme),
     fontScale: pick(read(KEY_FONT), ['small', 'standard', 'large'] as const, DEFAULTS.fontScale),
+    locale: pick(read(KEY_LOCALE), ['zh-CN', 'en'] as const, DEFAULTS.locale),
     sendMode: pick(read(KEY_SEND), ['queue', 'interrupt'] as const, DEFAULTS.sendMode),
     // 开关只认 `'on'`：`localStorage` 里只可能有我们自己写的这一个值，
     // 出现别的一律当没开——声音这种东西，坏方向的默认才安全。
@@ -219,6 +249,15 @@ export function loadPreferences(): Preferences {
     provider: read(KEY_PROVIDER) ?? DEFAULTS.provider,
     voiceInput: read(KEY_VOICE) === 'on',
     developerMode: read(KEY_DEVELOPER) === 'on',
+    /*
+     * 头像：只接受 `data:` 开头的串。
+     *
+     * `localStorage` 是用户可改的地方，把它原样塞进 `<img src>` 就等于
+     * 允许一个 `javascript:` 或远程 URL 进来（前者在现代浏览器里不执行，
+     * 后者会把「头像」变成一次外部请求，泄露启动时间与 IP）。判据写死
+     * 在这里，因为读的地方有两个（标题栏与设置页），判两遍必然走散。
+     */
+    avatar: (read(KEY_AVATAR) ?? '').startsWith('data:image/') ? (read(KEY_AVATAR) ?? '') : '',
   }
   return current
 }
@@ -271,6 +310,7 @@ export function setPreferences(patch: Partial<Preferences>): void {
 
   write(KEY_THEME, next.theme)
   write(KEY_FONT, next.fontScale)
+  write(KEY_LOCALE, next.locale)
   write(KEY_SEND, next.sendMode)
   write(KEY_SOUND, next.sound ? 'on' : 'off')
   write(KEY_VOLUME, String(next.soundVolume))
@@ -278,6 +318,7 @@ export function setPreferences(patch: Partial<Preferences>): void {
   write(KEY_PROVIDER, next.provider)
   write(KEY_VOICE, next.voiceInput ? 'on' : 'off')
   write(KEY_DEVELOPER, next.developerMode ? 'on' : 'off')
+  write(KEY_AVATAR, next.avatar)
 
   applyPreferences(next)
   notify()

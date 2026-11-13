@@ -22,7 +22,12 @@ export interface Config {
   readonly maxSummaryChars: number
   /** 引文最短字数。默认 2。 */
   readonly minQuoteChars: number
-  /** 数字是否必须有 TOOL 引文覆盖。默认 `true`；关掉等于放行口述数字。 */
+  /**
+   * 数字是否**只**认 TOOL 引文。默认 `false`（TOOL 与 USER 都算出处）。
+   *
+   * 打开它等于严格照手册 §2.2 字面执行，代价是用户亲口说的数字
+   * （「我 28 岁」「尾号 3721」）会被整条拒掉——见 `verify.ts` 那段注释。
+   */
   readonly requireToolForDigits: boolean
   /** 采样温度。默认 0.2（提炼要稳，不要发挥）。 */
   readonly temperature: number
@@ -82,8 +87,8 @@ export const FIELD_SPECS: Readonly<Record<keyof Config, FieldSpecLike>> = Object
   },
   requireToolForDigits: {
     kind: 'boolean',
-    default: true,
-    doc: '数字必须有 TOOL 引文覆盖。关掉后「他说他 28 岁」这类口述数字也会入库。',
+    default: false,
+    doc: '数字的出处来源。关（默认）＝TOOL 与 USER 的逐字引文都算出处，与「证据门控 → digit-source」的 tool-or-user 同口径；开＝只认 TOOL，严格照手册字面。**两种情况都会检查**：正文里的数字必须被引文逐字覆盖，口述数字不会因为关掉它就不用有出处。',
   },
   temperature: {
     kind: 'number',

@@ -1,0 +1,215 @@
+name: Release Alpha
+
+# 内测版发布：打一个 `v*` tag，两个平台各自构建，最后由 publish 汇总成一个
+# pre-release。
+#
+# ## 为什么 macOS 与 Windows 分成两个 job
+#
+# Tauri 不能交叉编译：NSIS 安装包必须在 Windows 上由 WiX/NSIS 生成，
+# `.app` 必须在 macOS 上签名与打包。两个 job 并行，互不阻塞。
+#
+# ## 为什么 macOS 那个 job 允许失败
+#
+# 内测版的 macOS 包是**本机构建**的：签名与 notarize 依赖本机钥匙串，
+# CI 上没有那把钥匙。云端那一份只是「顺手也造一个」的备份，造不出来不该
+# 拦住发布——因此它 `continue-on-error`，且 `publish` 只 `needs` Windows。
+#
+# ## 为什么发布要单独一个 job
+#
+# 两个构建 job 各自往同一个 release 上传资产会打架（先后创建同一个 tag
+# 的 release）。汇总成一个 job 之后，「release 存在」这件事只有一个写入点，
+# 资产在它之前先落成 artifact。
+#
+# ## 为什么是 pre-release
+#
+# 内测版一律标 `Pre-release`。GitHub 会把它排除在「Latest」之外，
+# 不会有人把它当成稳定版下载。转为正式版是**人工动作**，不在这条流水线里。
+#
+# ## 版本号从哪来
+#
+# 真源是 `package.json`。tag 与它不一致时第一步就失败——否则会出现
+# 「包里写着 1.0.2、release 标题写着 1.0.1」这种对不上账的发布。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '已存在的 tag（例如 v1.1.0-alpha）'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mac:
+    name: macOS (arm64)
+    runs-on: macos-14
+    timeout-minutes: 120
+    # 见文件头：云端 mac 包是备份，不是发布的必要条件。
+    continue-on-error: true
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.9.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 cargo 与 tauri 构建产物
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: 安装工作区依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 校验版本号与 tag 一致
+        run: |
+          node -e "
+            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            const { version } = require('./package.json');
+            if (version !== tag) {
+              console.error('版本不一致：package.json=' + version + '，tag=' + tag);
+              process.exit(1);
+            }
+          "
+        env:
+          GITHUB_REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - name: 编译前端、插件、宿主与内核
+        run: pnpm run build
+
+      - name: 收集运行时
+        run: pnpm run build:runtime
+
+      - name: 打包 .app
+        run: node tools/tauri-build.mjs
+
+      - name: 生成 dmg
+        run: node tools/make-dmg.mjs
+
+      - name: 上传 dmg 工件
+        uses: actions/upload-artifact@v4
+        with:
+          name: ondra-macos
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows (x64)
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.9.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 cargo 与 tauri 构建产物
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: 安装工作区依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 校验版本号与 tag 一致
+        run: |
+          node -e "
+            const tag = (process.env.GITHUB_REF_NAME || '').replace(/^v/, '');
+            const { version } = require('./package.json');
+            if (version !== tag) {
+              console.error('版本不一致：package.json=' + version + '，tag=' + tag);
+              process.exit(1);
+            }
+          "
+        env:
+          GITHUB_REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - name: 编译前端、插件、宿主与内核
+        run: pnpm run build
+
+      - name: 收集运行时
+        run: pnpm run build:runtime
+
+      - name: 打包安装程序
+        run: node tools/tauri-build.mjs
+
+      - name: 上传安装包工件
+        uses: actions/upload-artifact@v4
+        with:
+          name: ondra-windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: 发布 pre-release
+    # 只等 Windows：macOS 那一份由本机构建后手动补进同一条 release。
+    needs: [windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 下载两个平台的工件
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-assets
+          merge-multiple: true
+
+      - name: 列出待发布资产
+        run: ls -lh dist-assets
+
+      - name: 创建 pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: '空谷 Ondra ${{ github.event.inputs.tag || github.ref_name }}（内测）'
+          prerelease: true
+          draft: false
+          # 不要求两个平台都齐：云端 macOS 是可选的备份，dmg 通常由本机
+          # 构建后手动补进同一条 release。要求「文件必须都匹配上」会在
+          # 只有 exe 时直接失败，而那时 release 本身是好的。
+          fail_on_unmatched_files: false
+          body: |
+            内测版，不代表公测或正式版本。macOS 为 Apple Silicon（arm64）dmg，
+            Windows 为未签名 x64 安装程序，首次运行需在系统提示中允许。
+
+            完整变更见 README 的「更新日志」。
+          files: |
+            dist-assets/*.dmg
+            dist-assets/*.exe

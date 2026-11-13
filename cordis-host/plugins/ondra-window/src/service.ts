@@ -105,6 +105,10 @@ export class WindowVault implements WindowService {
       ? verdict.findings.join('；')
       : '窗口规格关着（`enable=false`）：只出规格，不出计划'
 
+    if (settings.verbose) {
+      this.#deps.log.info('补丁计划：目标 %s · 判定 %s · %s', settings.patchTarget, reason, detail)
+    }
+
     return Object.freeze({
       target: settings.patchTarget,
       marker: PATCH_MARKER,
@@ -118,7 +122,11 @@ export class WindowVault implements WindowService {
   /** 版本边界判定。 */
   verify(): PatchVerdict {
     this.#counts.verifies += 1
-    return this.#judge()
+    const verdict = this.#judge()
+    if (this.#deps.settings().verbose) {
+      this.#deps.log.info('版本守卫：%s · %s', verdict.reason, verdict.findings.join('；'))
+    }
+    return verdict
   }
 
   /** 计数快照。 */

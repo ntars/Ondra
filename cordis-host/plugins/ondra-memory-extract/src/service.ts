@@ -229,6 +229,40 @@ export class MemoryExtractor implements ExtractService {
       verified.push(outcome.fact)
     })
 
+    /*
+     * 把「提炼出来了，但一条都没过闸」这件事说出来。
+     *
+     * ## 为什么必须在这里说（这是某一轮悬案的真正成因）
+     *
+     * 调用方（`ondra-memory-intake`）只打一行 `提炼返回：ok=true written=0`。
+     * 那一行把两种完全不同的情况压成同一个形状：
+     *
+     * | 真实情况 | 用户感受 | 日志 |
+     * | --- | --- | --- |
+     * | 模型答「这段没什么可记的」（`{"facts":[]}`） | 正常，本就该少记 | `written=0` |
+     * | 模型提炼出 4 条，全被 `attribution-without-user` 拒掉 | 「我说了你怎么不记」 | `written=0` |
+     *
+     * 后者是**真缺陷**（校验口径过严），但日志里与前者长得一模一样，
+     * 只能靠 `GET /api/diagnostics/memory` 的 `rejected` 计数才看得出来。
+     * 于是「她记不住」这件事被追查了很多轮都没定位——不是没人查，
+     * 是证据压根没落进日志。
+     *
+     * 判据用 `parsed.candidates.length` 而不是「有 rejections」：
+     * 超上限（`over-limit`）也会产生 rejection，但那种情况至少写进去了一些，
+     * 不值得刷 warn。
+     */
+    if (parsed.candidates.length > 0 && verified.length === 0) {
+      const codes = [...new Set(rejections.map(item => item.code))].join('、')
+      this.log.warn(
+        '提炼出 %d 条候选，全部没过闸（%s），本轮 0 条入库：这是「她记不住」的直接原因，不是模型没答',
+        parsed.candidates.length,
+        codes === '' ? '未记录原因' : codes,
+      )
+    } else if (parsed.path !== 'none' && parsed.candidates.length === 0) {
+      // 模型正常作答但答的是空数组：这是它该有的出口（提示词规则 6），记 info 不记 warn。
+      this.log.info('提炼答「这段没什么可记的」（%d 字输入），本轮 0 条', text.length)
+    }
+
     let written = 0
     const kept: ExtractedFact[] = []
     for (const fact of verified) {

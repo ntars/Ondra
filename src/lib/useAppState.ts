@@ -32,6 +32,7 @@ import {
   declineProactive as declineProactiveCall,
   deleteMessage as deleteMessageCall,
   fetchHealth,
+  getCompanionState,
   getConfig,
   getCurrentSession,
   getMessages,
@@ -42,9 +43,10 @@ import {
   runInference,
   selectModel,
 } from './api.ts'
-import type { ModelDescriptor, PermissionLevel, SessionMessage, SessionStats, ThemeMode } from './api.ts'
+import type { CompanionState, ModelDescriptor, PermissionLevel, SessionMessage, SessionStats, ThemeMode } from './api.ts'
 import { setPreferences, usePreferences } from './preferences.ts'
 import { relativeTime } from './time.ts'
+import { moodWord } from './moodColor.ts'
 import { playCue } from './sound.ts'
 import { notify } from './notify.ts'
 import { DECLINE_LIMIT, UNDO_WINDOW_MS, noteDecline, clearDeclines } from './proactive.ts'
@@ -230,6 +232,13 @@ export interface AppState {
   mood: MoodState
   /** 右栏「TA 对你」统计。 */
   bond: BondStats
+  /**
+   * 右栏「此刻」的张力，−1..1。
+   *
+   * `undefined` 表示这一路没有读数（情绪服务缺席，或还没测量）。
+   * 与 `mood` 分开是因为刻度不同：张力是双极的，心情与精力是单极的。
+   */
+  tension: number | undefined
   /** 右栏「记得的事」。 */
   memories: MemoryItem[]
   /** 记忆读不到的原因码。undefined 表示读取正常（空列表是真的没有）。 */
@@ -339,6 +348,13 @@ export function useAppState(): AppState {
    * 「她还没记住什么」——那是把故障说成了状态。
    */
   const [memoryFault, setMemoryFault] = useState<string | undefined>(undefined)
+  /**
+   * 她的此刻：情绪六维与关系七阶的宿主读数。
+   *
+   * `undefined` 表示**还没读到**（首帧、宿主未就绪），它与「读到了但
+   * 没测量」是两件事：前者不该让侧写闪一次「尚未测量」，后者必须显示它。
+   */
+  const [companion, setCompanion] = useState<CompanionState | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState('')
   const [chatError, setChatError] = useState<string | undefined>(undefined)
@@ -609,6 +625,47 @@ export function useAppState(): AppState {
       setMemoryFault('request-failed')
     }
   }, [])
+
+  /**
+   * 读她的此刻（情绪六维 + 关系阶与四维）。
+   *
+   * ## 为什么失败不写错误码
+   *
+   * 记忆那一路有 `memoryFault`，因为「读不到记忆」是用户能理解且能修的
+   * 一件事。这一路不同：宿主没就绪、情绪插件没装，界面上已经有各说各话
+   * 的出口（侧写里写「尚未测量」、诊断接口里写原因）。再往界面上塞一个
+   * 错误码，只会让右栏变成一个报错框。
+   *
+   * ## 为什么轮询 30 秒
+   *
+   * 情绪是**会自己衰减的**：不吃不喝 6 小时后心情回基线，这个变化没有
+   * 事件可订阅。30 秒的本地请求换来「开着窗口不动，数值也会变」，而
+   * 这一屏本来就不追求毫秒级实时。
+   */
+  const refreshCompanion = useCallback(async (): Promise<void> => {
+    try {
+      setCompanion(await getCompanionState())
+    } catch {
+      /* 宿主没起来或接口缺席：保持上一次的读数，不写假数据。 */
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshCompanion()
+    const timer = globalThis.setInterval(() => { void refreshCompanion() }, 30_000)
+    return () => { globalThis.clearInterval(timer) }
+  }, [refreshCompanion])
+
+  /*
+   * 一轮说完立刻刷新。
+   *
+   * 情绪与关系都是在**轮末**结算的（`feel()` / `touch()` 之后），等下一次
+   * 轮询最多差 30 秒——而用户刚聊完就打开侧写，看到的是聊天前的数，
+   * 那会让他以为「这个面板根本没在更新」。
+   */
+  useEffect(() => {
+    if (!busy) void refreshCompanion()
+  }, [busy, refreshCompanion])
 
   useEffect(() => {
     const offReady = listenShell<HostReadyPayload>('host-ready', (payload) => {
@@ -1669,8 +1726,18 @@ export function useAppState(): AppState {
     theme,
     setTheme,
     logs,
-    mood: deriveMood(),
-    bond: deriveBond(),
+    mood: moodOf(companion),
+    bond: bondOf(companion),
+    /*
+     * 张力单列，不塞进 `MoodState`。
+     *
+     * 它是双极量（−1..1），而心情与精力是 0–100 的单极量。塞进同一个
+     * 结构里，用的时候就必须记住「这个字段的刻度不一样」——那正是上一版
+     * `tension ?? 0` 画出「+0.00」的原因。
+     */
+    tension: companion !== undefined && companion.measured
+      ? companion.axes.tension * 2 - 1
+      : undefined,
     memories,
     memoryFault,
     companionUpdatedAt,
@@ -1728,21 +1795,38 @@ function withTimestamps(raw: SessionMessage[]): ChatMessage[] {
 }
 
 /**
- * 「此刻」的心情与精力。
+ * 「此刻」的心情与精力：把宿主读数换成界面刻度。
  *
- * ## 为什么现在一律返回 0
+ * ## 上一版这里恒为 0，而且是对的
  *
- * 真实情绪来自情绪引擎的心跳，本版本还没接。此前的做法是**从词频编一个数**：
- * 数一数回复里有几个"开心/累"，加点轮数加成，压进 40–82，然后画成横条。
- * 那个数看着像测量结果，实际与 TA 的状态毫无关系——它只反映用户自己
- * 用了哪些词。原版对这件事的态度写在 `EMPTY` 的注释里：
- * 「一个编出合理数字的页面，比一个承认缺口的页面更糟」。
+ * 当时情绪引擎还没接线，`deriveMood()` 直接返回 `{mood:0, energy:0}`，
+ * 界面显示「尚未测量」。那比编一个「按回复里的词频推算」的数诚实得多
+ * ——编出来的数看着像测量结果，实际只反映用户自己用了哪些词。
  *
- * 所以这里返回全 0：界面出"还没有心跳数据，聊两句 TA 就有了"，
- * 两条横条留在原位显示 0%。等心跳接上，改成读真实值即可，界面不用动。
+ * ## 现在改为读实测值
+ *
+ * `ondra-emotion-core` 一直在默认启用名单里，缺的只是宿主的一条路由
+ * （`GET /api/companion/state`）。六维都是 0–1，这里乘 100 换成界面的
+ * 百分制；`energy` 在核心里本来就是 0–100，接口已经归一过。
+ *
+ * `measured: false` 时仍然返回 0 与空标签——那不是「她很平静」，
+ * 是「没测到」，界面据此走空态。
  */
-function deriveMood(): MoodState {
-  return { mood: 0, energy: 0 }
+function moodOf(state: CompanionState | undefined): MoodState {
+  if (state === undefined || state.axes === undefined || !state.measured) return { mood: 0, energy: 0 }
+  const mood = Math.round(state.axes.mood * 100)
+  return {
+    mood,
+    energy: Math.round(state.axes.energy * 100),
+    /*
+     * 标签取四档心情词（雀跃 / 平静 / 低落 / 烦躁），由实测值决定。
+     *
+     * 不用 `dominant`（开心 / 委屈 / 得意…）：那十个标签描述的是**成因**，
+     * 而这里要的是水位线旁边的一个词。同一个位置换一套词，用户会以为
+     * 两个面板在描述两件事。
+     */
+    label: moodWord(mood),
+  }
 }
 
 /**
@@ -1761,20 +1845,34 @@ function formatSeconds(ms: number): string {
 }
 
 /**
- * 「TA 对你」的关系读数。
+ * 「TA 对你」：关系阶与四维。
  *
- * ## 为什么是空
+ * ## 为什么包含四个维度而不是三个
  *
- * 原版的形状只有两项：一个阶段标签（卡片右上角）与五个维度（0–100 横条）。
- * 这两项都由关系引擎产出，本版本还没接。
- *
- * 我此前自己补了「称谓 + 相处 N 天 · 说过 N 轮话」两行，理由是
- * 「这一栏该有这些信息」。但原版连对应的 CSS 类都不存在，
- * 而且那两个数是从会话列表里算出来的——它衡量的是**用户用了多久这个软件**，
- * 不是 TA 与用户的关系。挂上"关系"的名头展示，是拿统计冒充实测。
+ * 界面上原来打算画「好感 / 信任 / 亲密」三条。四条里的 `familiarity`
+ * （熟悉度 = 累计互动 / 5000）是**唯一有客观分子分母的一条**，其余三条
+ * 目前只有初始值，没有任何插件在推动它们（`adjust()` 仍然零调用方）。
+ * 把一条能算的藏起来、只显示三条不动的，等于把这一栏做成纯粹的装饰。
  */
-function deriveBond(): BondStats {
-  return { stage: '', dimensions: [] }
+function bondOf(state: CompanionState | undefined): BondStats {
+  /*
+   * `state.bond === undefined` 这一条防的是**宿主比界面旧**：接口换了形状
+   * 或路由 404 时，`request()` 会把一段别的 JSON 原样交回来，`bond` 就没了。
+   * 类型系统这时帮不上忙——它描述的是「应该有什么」，而这里是「实际收到
+   * 什么」。少一层判断，整个界面会随一个字段一起白屏。
+   */
+  if (state === undefined || state.bond === undefined || state.bond.stage === '') {
+    return { stage: '', dimensions: [] }
+  }
+  return {
+    stage: state.bond.stage,
+    dimensions: [
+      { key: 'affection', label: '好感', value: state.bond.affection },
+      { key: 'trust', label: '信任', value: state.bond.trust },
+      { key: 'intimacy', label: '亲密', value: state.bond.intimacy },
+      { key: 'familiarity', label: '熟悉', value: state.bond.familiarity },
+    ],
+  }
 }
 
 /**

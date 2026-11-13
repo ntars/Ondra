@@ -1,11 +1,13 @@
 /**
- * 设置 · 模型提供商（G3）。
+ * 设置 · 模型与 API。
  *
- * ## 它解决的是「换一个模型后端」
+ * ## 它解决的是「她的大脑连在哪里」
  *
- * 内置只有「在线 / 本地 / 免费」三档预设来源。这一节让用户添加自己的
- * OpenAI 兼容端点（包括 Ollama、vLLM、自建网关）：填基址、API Key、模型名，
- * 即可作为一个可选来源出现在对话里。API Key 以机密字段处理，不在界面明文回显。
+ * 模型来源分两类：**官方预设**（内置的在线 / 本地 / 免费三档，在顶栏的
+ * 模型选择器里切换）与**自定义提供商**（本页管理）。本页让用户添加自己的
+ * OpenAI 兼容端点——包括 Ollama、vLLM、magpie 等本地网关与自建服务：
+ * 填基址、API Key、模型名，即可作为一个可选来源。API Key 以机密字段处理，
+ * 不在界面明文回显。
  *
  * ## 推理路由的边界
  *
@@ -17,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { invokeShell } from '../lib/shell.ts'
 import { usePreferences, setPreferences } from '../lib/preferences.ts'
+import { useT } from '../lib/i18n.ts'
 import { Heading, Note } from './settingsUi.tsx'
 
 /** 一个自定义提供商。 */
@@ -34,6 +37,7 @@ function blank(): Provider {
 }
 
 export function SettingsProviders(): React.JSX.Element {
+  const t = useT()
   const { provider: activeId } = usePreferences()
   const [items, setItems] = useState<Provider[]>([])
   const [busy, setBusy] = useState(false)
@@ -46,9 +50,9 @@ export function SettingsProviders(): React.JSX.Element {
       const rows = await invokeShell<Provider[] | null>('providers_list')
       setItems(Array.isArray(rows) ? rows : [])
     } catch (caught) {
-      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '读不到提供商列表' })
+      setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('models.err.load') })
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void refresh()
@@ -56,18 +60,18 @@ export function SettingsProviders(): React.JSX.Element {
 
   const save = (): void => {
     if (draft === undefined || draft.name.trim() === '' || draft.baseUrl.trim() === '') {
-      setReceipt({ tone: 'bad', text: '请填写名称与基址' })
+      setReceipt({ tone: 'bad', text: t('models.err.required') })
       return
     }
     setBusy(true)
     void (async () => {
       try {
         await invokeShell<void>('providers_upsert', { entry: draft })
-        setReceipt({ tone: 'ok', text: '已保存提供商' })
+        setReceipt({ tone: 'ok', text: t('models.ok.saved') })
         setDraft(undefined)
         await refresh()
       } catch (caught) {
-        setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '保存失败' })
+        setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('models.err.save') })
       } finally {
         setBusy(false)
       }
@@ -82,10 +86,10 @@ export function SettingsProviders(): React.JSX.Element {
         await invokeShell<void>('providers_remove', { id })
         // 删掉的是当前默认时，一并取消默认选择。
         if (activeId === id) setPreferences({ provider: '' })
-        setReceipt({ tone: 'ok', text: '已删除' })
+        setReceipt({ tone: 'ok', text: t('models.ok.removed') })
         await refresh()
       } catch (caught) {
-        setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : '删除失败' })
+        setReceipt({ tone: 'bad', text: caught instanceof Error ? caught.message : t('models.err.remove') })
       } finally {
         setBusy(false)
       }
@@ -94,15 +98,13 @@ export function SettingsProviders(): React.JSX.Element {
 
   const setDefault = (id: string): void => {
     setPreferences({ provider: activeId === id ? '' : id })
-    setReceipt({ tone: 'ok', text: activeId === id ? '已取消默认提供商' : '已设为默认提供商' })
+    setReceipt({ tone: 'ok', text: activeId === id ? t('models.ok.defaultCleared') : t('models.ok.defaultSet') })
   }
 
   return (
     <section className="pref__section">
-      <Heading>模型提供商</Heading>
-      <Note>
-        添加您自己的 OpenAI 兼容端点（如 Ollama、vLLM、自建网关）。基址与模型名决定请求发往何处；API Key 按机密字段处理，不在界面明文回显。设为默认后，对话将使用所选来源，实际推理切换由宿主按此选择生效。
-      </Note>
+      <Heading>{t('models.title')}</Heading>
+      <Note>{t('models.note')}</Note>
 
       <div className="pref__actions">
         <button
@@ -111,12 +113,12 @@ export function SettingsProviders(): React.JSX.Element {
           aria-disabled={draft === undefined ? undefined : 'true'}
           onClick={() => { setDraft(blank()) }}
         >
-          添加提供商
+          {t('models.add')}
         </button>
       </div>
 
       {items.length === 0 && draft === undefined ? (
-        <Note>尚无自定义提供商。点击上方「添加提供商」可接入自建的模型后端。</Note>
+        <Note>{t('models.empty')}</Note>
       ) : (
         <ul className="kb__list">
           {items.map((item) => (
@@ -124,19 +126,19 @@ export function SettingsProviders(): React.JSX.Element {
               <div className="kb__text">
                 <span className="kb__title">
                   {item.name}
-                  {activeId === item.id ? <span className="kb__tag">默认</span> : null}
+                  {activeId === item.id ? <span className="kb__tag">{t('models.defaultTag')}</span> : null}
                 </span>
                 <span className="kb__body">{item.baseUrl}{item.model === '' ? '' : ` · ${item.model}`}</span>
               </div>
               <div className="kb__ops">
                 <button type="button" className="button button--ghost" aria-disabled={busy ? 'true' : undefined} onClick={() => { setDefault(item.id) }}>
-                  设为默认
+                  {t('models.setDefault')}
                 </button>
                 <button type="button" className="button button--ghost" onClick={() => { setDraft({ ...item }) }}>
-                  编辑
+                  {t('models.edit')}
                 </button>
                 <button type="button" className="button button--ghost" aria-disabled={busy ? 'true' : undefined} onClick={() => { remove(item.id) }}>
-                  删除
+                  {t('models.delete')}
                 </button>
               </div>
             </li>
@@ -146,29 +148,29 @@ export function SettingsProviders(): React.JSX.Element {
 
       {draft === undefined ? null : (
         <div className="kb__editor">
-          <Heading>{draft.id === '' ? '添加提供商' : '编辑提供商'}</Heading>
+          <Heading>{draft.id === '' ? t('models.editorNew') : t('models.editorEdit')}</Heading>
           <label className="kb__field">
-            <span className="kb__label">名称</span>
-            <input className="kb__input" value={draft.name} placeholder="例如：本地 Ollama" onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} />
+            <span className="kb__label">{t('models.field.name')}</span>
+            <input className="kb__input" value={draft.name} placeholder={t('models.field.namePh')} onChange={(event) => { setDraft({ ...draft, name: event.target.value }) }} />
           </label>
           <label className="kb__field">
-            <span className="kb__label">基址</span>
-            <input className="kb__input" value={draft.baseUrl} placeholder="https://… 或 http://localhost:11434/v1" onChange={(event) => { setDraft({ ...draft, baseUrl: event.target.value }) }} />
+            <span className="kb__label">{t('models.field.baseUrl')}</span>
+            <input className="kb__input" value={draft.baseUrl} placeholder={t('models.field.baseUrlPh')} onChange={(event) => { setDraft({ ...draft, baseUrl: event.target.value }) }} />
           </label>
           <label className="kb__field">
-            <span className="kb__label">API Key</span>
-            <input className="kb__input" type="password" autoComplete="off" value={draft.apiKey} placeholder="留空表示无需密钥" onChange={(event) => { setDraft({ ...draft, apiKey: event.target.value }) }} />
+            <span className="kb__label">{t('models.field.key')}</span>
+            <input className="kb__input" type="password" autoComplete="off" value={draft.apiKey} placeholder={t('models.field.keyPh')} onChange={(event) => { setDraft({ ...draft, apiKey: event.target.value }) }} />
           </label>
           <label className="kb__field">
-            <span className="kb__label">模型名</span>
-            <input className="kb__input" value={draft.model} placeholder="例如：llama3.1:8b" onChange={(event) => { setDraft({ ...draft, model: event.target.value }) }} />
+            <span className="kb__label">{t('models.field.model')}</span>
+            <input className="kb__input" value={draft.model} placeholder={t('models.field.modelPh')} onChange={(event) => { setDraft({ ...draft, model: event.target.value }) }} />
           </label>
           <div className="pref__actions">
             <button type="button" className="button" aria-disabled={busy ? 'true' : undefined} onClick={save}>
-              {busy ? '保存中…' : '保存'}
+              {busy ? t('models.saving') : t('models.save')}
             </button>
             <button type="button" className="button button--ghost" onClick={() => { setDraft(undefined) }}>
-              取消
+              {t('general.cancel')}
             </button>
           </div>
         </div>

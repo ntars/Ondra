@@ -253,7 +253,10 @@ export async function runPipeline(deps: PipelineDeps): Promise<InstallRun> {
       one = result(decl.id, 'failed', `这一步自己出错了：${textOf(error)}`, [path])
     }
     steps.push(one)
-    deps.log.info('[%s] %s → %s：%s', decl.id, one.title, one.status, one.detail)
+    // 失败与阻塞是故障信号，不受 `verbose` 约束；只有「成功做完一步」属于过程噪声。
+    if (one.status === 'failed' || one.status === 'blocked' || deps.settings.verbose) {
+      deps.log.info('[%s] %s → %s：%s', decl.id, one.title, one.status, one.detail)
+    }
     if (one.status === 'failed' || one.status === 'blocked') halted = decl.id
   }
 

@@ -473,8 +473,16 @@ export interface ToneSectionLike {
 export interface PersonaVarsLike {
   /** 上游是否可用。 */
   readonly available: boolean
-  /** 替换占位符。 */
-  substitute(text: string, input?: { readonly userAddress?: string }): SubstitutedLike
+  /**
+   * 替换占位符。
+   *
+   * `scope` 只用于告诉上游「这段是边界条目」。上游据此决定要不要受
+   * `substituteInBoundaries` 管——边界层能单独关，正文不能。
+   */
+  substitute(
+    text: string,
+    input?: { readonly userAddress?: string; readonly scope?: 'body' | 'boundary' },
+  ): SubstitutedLike
   /** 取浓度段。 */
   tone(input?: { readonly level?: number }): ToneSectionLike
 }

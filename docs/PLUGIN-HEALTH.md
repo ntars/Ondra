@@ -22,7 +22,13 @@
 | 2026-11-12 16:15 | 78 | 48 | **27**（`store-json` 进清单，第 11 轮实机首现） | **31/31 绿**（新增 `check:stale`） | 达标（修 3 处：语音闸门两行假告警、`proactive-quota` 日志说反话、`ondra-core` 注释把 75 写成 134；**首次出包并让修复真正上机**） |
 | 2026-11-12 19:50 | 78 | **75 + 常驻 3 = 78** | **0**（用户 17:26 手动打开 30 个包） | 29 项 pnpm + `check-ui` + `check-acceptance` + `check-contrast` 全绿（新增 `check:defaults`；`check:order` 扩 D 段） | 达标（修 4 处：两个默认值过不了自己的 pattern、四处 `after` 漏声明、装配器开关空响；**修复未上机**，前端正在编辑故未出包） |
 | 2026-11-12 20:51 | 78 | **78**（全部 enabled + loaded） | **0** | 30 项 pnpm + `check-ui` + `check-acceptance`(90/90) + `check-contrast`(66/66) 全绿（新增 `check:filter`；`check:order` D 段扩到 7 条） | 达标（修 3 处：深色第二真源、三条假告警、**删句链压平段落**；出包 2 次并上机复核） |
-| 2026-11-12 22:25 | 78 | **78** | **0** | 32 项 pnpm + `check-ui`（✗ 0）+ `check-acceptance`(90/90) + `check-contrast`(66/66) 全绿（`check:order` D 段 7 → **16 条**） | 达标（修 9 处 `after` 与装配期同步取值不一致，含 1 处假开关、1 处可真发作的顺序反转；出包 3 次上机复核，启动告警 8 → 7） |
+| 2026-11-12 22:25 | 78 | **78** | **0** | 32 项 pnpm + `check-ui`（✗ 0）+ `check-acceptance`(90/90) + `check-contrast`(66/66) 全绿（`check:order` D 段 7 → **16 条**） | 达标（修 9 处 `after` 与装配期同步取值不一致，含 1 处假开关，1 处可真发作的顺序反转；出包 3 次上机复核，启动告警 8 → 7） |
+| 2026-11-13 00:45 | 78 | **78 + 常驻 3**（清单 75 项 + 3 项宿主常驻，禁用 0） | **0** | 35 项 pnpm + `check-ui` + `check-acceptance`(90/90) + `check-contrast`(66/66) **全绿**（新增 `check:memory-digits`；`check:feel` 8 → 9 段） | 达标（修 2 处跨轮顽疾：`energy` 轴零写入方、数字出处两处口径打架；出包 1 次上机复核，**TTS 生产会话 14 轮以来首次真正出声**） |
+| 2026-11-13 01:14 | 78 | **78 + 常驻 3** | **0** | **37 项 pnpm** + `check-ui` + `check-acceptance`(90/90) + `check-contrast`(66/66) **全绿**（新增 `check:shape`、`check:disable`） | 达标（修 4 处：`ellipsis` 句形档缺键致困态静默失效、三处「关掉仍建表」的假开关；出包 1 次上机复核） |
+| 2026-11-13 05:02 | 78 | **78 + 常驻 3** | **0** | **46 项 pnpm**（新增 `check:config-used`）+ `check-ui` + `check-acceptance`(90/90) + `check-contrast`(66/66) **全绿** | 达标（修 8 处：`verbose` 假开关 ×7、`substituteInBoundaries` 假开关；出包 1 次上机复核，`verbose` A/B 生效） |
+| 2026-11-13 06:49 | 78 | **78 + 常驻 3** | **0** | **47 项 pnpm**（新增 `check:dedupe-tally`）+ `check-ui` + `check-acceptance`(90/90) + `check-contrast`(66/66) **全绿** | 达标（修 2 处：**主动链永久空转**——话由只递最高一条执念，它在冷却时整轮判 `content-empty`；判重日志栏位错位让「灰区丢内容」不可见；出包 1 次上机复核，主动链首次走到 `allow:true`） |
+| 2026-11-13 10:18 | 78 | **78 + 常驻 3** | **0** | **40 项 pnpm**（新增 `check:recall-archived`）+ `check-ui`（✗ 0）+ `check-acceptance`(90/90) + `check-contrast`(66/66) **全绿** | 达标（修 1 处假开关：`memory-recall` 的 `includeArchived` 配置被同名请求参数遮蔽；**推翻挂 18 轮的 TTS 归因**——不是阈值太高，是 `energy` 基线 0.6 与公式假定的 0.5 错位） |
+| 2026-11-13 14:05 | 78 | **78 + 常驻 3** | **0** | 37 项 pnpm + `check:ui`（✗ 0）+ `check-acceptance`(90/90) + `check-contrast`(66/66) **全绿** + 全仓 `typecheck` 通过 | 达标（修 3 处**日志语义**：记忆提炼「全被拒」与「答空数组」同形、主动链 `all-cooling` 被吞成 `undefined` 致八轮误判、唤醒判定 `blockedBy` 不可见；**全部不改行为只改可见性**；出包 2 次上机复核，记忆写入→召回与主动判定均实测。**本轮为破例运行**——锁龄 71.3 分钟 < 90，按第 0 步应跳过，主人明确指令覆盖） |
 
 ### 第 1 轮（2026-11-12 02:13）
 
@@ -1235,3 +1241,933 @@ A 组在报告后复核工作树，撤回 4 条（`memory-vector` / `store-sqlit
 若改成注册，它会去调 `create()` 拿到拒绝，于是「干净跳过」变成「备份失败」。**两种口径都自洽，
 差别是产品语义，不是对错**——需主人定：`snapshot` 无 SQL 时该「不注册（干净跳过）」还是「注册但报原因码」。
 影响面仅限「SQLite 打不开 + memory 关闭 + 只开 JSONL」这一种组合，当前无实机症状。
+
+---
+
+### 第 15 轮（2026-11-13 00:45）
+
+**基线对照**：仓库 78 包，装载 78（清单 75 项 + 3 项宿主常驻），**停用段 0**。
+`docs/PLUGIN-HEALTH.md` 中已无未判定的 `[插件停用]` 段——第 12 轮起主人手动打开了 30 个包，
+第 13/14 轮把剩余两处（`memory-vector`、`store-json`）判为「设计关闭 + 有开关可自开」，本轮复核仍成立。
+
+本轮不追装载数，只闭合两条从第 3 轮就挂着的疑点。两条都不是「装没装」的问题，**是装了但代码里有一处死角**。
+
+#### 修复一：`energy` 轴零写入方（挂 6 轮，第 9/14 轮记录为「待查」）
+
+**症状**：`emotion-express` 的六态里 `joyful`（`energy > 60`）与 `sleepy`（`energy < 30`）**恒不可达**；
+TTS 的情绪强度闸（`intensity ≥ 0.15`）在正常对话里永远差一个数量级；血清素 `recover`（`energy > 80`）永不触发；
+`drive-gap` 的唤醒/做梦判据 `energy > 30` 恒成立。三处下游同时静默降级，零报错。
+
+**根因**：`cordis-host/plugins/ondra-memory-intake/src/feel.ts` 的 `SIGNAL_SHIFT` **类型定义里根本没有 `energy` 字段**。
+`feelOnce()` 按类型构造 `emotion.feel({...})` 时不会传它，`service.ts:228` 的写入分支永远收不到值，
+轴值恒停基线 60。类型定义与写入方脱节——TS 不会报错，因为「少传一个字段」在结构化参数里永远合法。
+
+**修复**：
+
+| 文件:行 | 改动 |
+| --- | --- |
+| `ondra-memory-intake/src/feel.ts` `SIGNAL_SHIFT` 类型 | 补 `readonly energy?: number`，注释写明它是 **0–100 绝对尺度**（与其余五轴的 ±1 意图值不同尺度） |
+| 同上，`stumble` / `gratitude` 两条 | `stumble: energy -4`、`gratitude: energy +6`（一次夸奖 ≈ 6 点，从 60 走到 80 需要三轮半，与「夸一句不该立刻欢呼」的设计意图一致） |
+| 同上，`feelOnce()` 的 `emotion.feel()` 调用 | 加一行条件展开 `...shift.energy === undefined ? {} : { energy: shift.energy }`——`stumble`/`gratitude` 之外的两条信号没有 energy，不能展开成 `energy: undefined`（`exactOptionalPropertyTypes` 会拒，且会把基线写成空值） |
+
+**为什么不改手册阈值**：`intensity-min = 0.15` 是 §9.4 的规格值，改它等于改产品定义。
+本轮的取向是**让信号真正写进去**，让 0.15 这个门槛恢复正常语义（情绪真的起来了才念），而不是把门槛降下来迁就坏数据。
+
+**回归网**：`cordis-host/check-feel.mjs` 8 段 → **9 段**，新增「能量轴：`energy` 真的被写过（不是恒停基线）」，两条方向断言（夸一句升、卡一次降）。
+注释里写明它**必须追加在依赖累积的断言之后**——第一版插在第 5.5 段，两轮 `ingest()` 改变了 mood/tension 的累积起点，
+把第 8 段的 `bristled` 命中打成了 `calm`，造成假红（实测 `tension 0.492 < 0.5`）。
+
+**实机取证（决定性）**：连续 4 轮夸奖 → `gateStats.spoken: 2`、`lastReason: "ok"`、`ttsStats.calls: 2`、`cacheFiles: 8 → 9`。
+这是 **14 轮以来 TTS 在生产会话里第一次真正出声**，且未改任何手册阈值。
+
+#### 修复二：数字出处的两处口径打架（挂 3 轮，第 3 轮起记录）
+
+同一个产品里有两处管「数字要不要出处」，本轮之前**两处都错，方向相反**：
+
+| 位置 | 旧行为 | 后果 |
+| --- | --- | --- |
+| `ondra-memory-extract`（提炼侧） | `require-tool-for-digits` 默认 `true`，只认 `TOOL` | 用户亲口说的数字在**提炼阶段被整条拒掉** |
+| `ondra-evidence-gate`（入库侧） | `digit-source` 默认 `tool-or-user` | 那条正确口径**永远等不到这些候选** |
+
+**实机症状**：用户说「车牌尾号 3721，也写上了」，追问却答「车牌尾号我没记下」，`written=0`，日志只有一行 `提炼返回：ok=true written=0`。
+承诺与事实相反，比「没记住」更伤——用户以为记住了，从此不再提。
+
+**修复（分三处，缺一不可）**：
+
+| 文件:行 | 改动 |
+| --- | --- |
+| `ondra-memory-extract/src/verify.ts:232-263` | 数字闸由「开关打开才查」改为**无条件执行**，开关只切换「谁算出处」（`['TOOL']` vs `['TOOL','USER']`）。语义与 `evidence-gate` 的 `digit-source` 三档对齐：**闸门常在，只有来源可变** |
+| `ondra-memory-extract/src/settings.ts:88-92` | 默认值 `true` → `false`；`doc` 重写为「关/开切换的是来源，**两种情况都会检查**」 |
+| `ondra-memory-extract/src/prompt.ts:66`（原规则 4） | 见下 |
+
+**提示词这一处是本轮最晚发现、也最关键的一环**。旧规则 4 原文：
+
+> `4. 任何数字（日期、年龄、价格、数量、次数）必须来自 TOOL 引文。用户口述的数字不要写进 text。`
+
+第二句是**主动指令**——代码层放行 `USER` 引文，提示词却在命令模型丢弃口述数字。实测入库文本：
+「用户告诉她自己工位所在的楼层和房间号，以及工位密码，要她记住」（原话「7 楼 712 室，密码 8848」）。
+**不是被拒，是被抽象掉了**——闸门根本没机会看到数字。这是「口径不一致」的第二种形态：一处放宽，另一处仍在禁止。
+
+新规则 4 改为：
+
+> `4. 任何数字（日期、年龄、价格、数量、次数）都要**照抄原文**，不要抽象成「某排」「楼层号」这类模糊说法；同时该数字必须被某条引文**逐字覆盖**（USER 口述的由 USER 引文覆盖，工具给的由 TOOL 引文覆盖）。没有任何引文逐字覆盖的数字，一律不要写进 text。`
+
+**回归网**：新建 `cordis-host/check-memory-digits.mjs`（`check:memory-digits`），5 段 → **6 段 14 条断言**：
+
+1. 用户口述数字放行；**打开严格口径后被拒**（校准锚——少了它，第一条通过可能只是「数字闸整段没执行」）
+2. 编造数字被拒；只有 `SELF` 引文覆盖被拒（不许自证）
+3. `TOOL` 引文照旧放行
+4. 无数字正文不受影响
+5. 全角 / 小数 / 无数字的游程识别
+6. **提示词与代码同口径**：不含「用户口述的数字不要写进」（禁止丢弃指令）、不含「必须来自 TOOL 引文」（唯一出处）；同时正向断言规则 4 仍含「逐字」与 `USER`
+
+第 6 段的判据特意做成「断言不出现某文案」而非「断言出现某文案」——后者会把测试与文案措辞绑死，改一个字就红，于是没人敢改文案。
+
+**我自己的设计失误（记录在案）**：第一版把 `requireToolForDigits` 当作「查不查」的总闸，默认关掉后编造数字也一路放行。
+第 2 段的两条安全反例立刻抓到（`✗ 正文有数字但引文没有逐字覆盖 → 竟然放行了`）。这才改成「闸门无条件，开关只切来源」。
+**这次是回归网在我之前发现了错误，说明先写反例的顺序是对的。**
+
+**代价（如实记录）**：`SYSTEM_PROMPT` 是**逐字冻结的前缀缓存稳定段**（§8.5）。改它等于重置缓存前缀，
+下一轮起需要重新预热。实测代价量级：命中率归零时成本从 ¥19.96 涨回 ¥879.97。这是**为修一处逻辑冲突必须付的价**，
+没有替代方案——把新规则拼在 user 消息里同样会破坏缓存（而且更贵，每轮都变）。
+
+#### 文档同步（口径散落在四处，一处不改就留坑）
+
+| 文件 | 改动 |
+| --- | --- |
+| `ondra-memory-extract/src/index.ts:9-11` | 文件头「数字必须有 TOOL 来源」→「数字必须有出处」并写明开关切换语义 |
+| `ondra-memory-extract/README.md` 职责 3 + 配置表 | 同上；默认值 `true` → `false` |
+| `ondra-memory-extract/package.json` / `locale/zh.json` | `description` 里「数字必须有工具来源」→「数字必须有出处」 |
+| `README.md` 4 处 | 配置表默认值；亮点二「数字类断言必须有 `[TOOL]` 来源」→「必须被逐字引文覆盖」；两处包描述 |
+
+#### 实机取证（1 次 `build:app` + 1 次重启）
+
+| 能力 | 证据 |
+| --- | --- |
+| 数字完整入库 | `say "记住一件事：我的新工位在 12 楼 1207 室，门禁密码是 6633。"` → 库里两条：`用户的新工位在 12 楼 1207 室。` / `用户的门禁密码是 6633。`（此前同类原话被存成「楼层和房间号，以及工位密码」） |
+| 记忆写入 → 召回 | 紧接着问「我的新工位在几楼几室？门禁密码是多少？」→「12 楼，1207 室。门禁 6633。记着的，没丢」 |
+| 判重链路 | 日志 `判重裁决：新建 2 · 合并 0 · 复述 0 · 丢弃 0 · 冲突 0`、`共现边 +1`、`提炼返回：ok=true written=2 路径=propose+settle` |
+| TTS 出声 | 缓存目录新增 `d6961562575c1653.wav`（00:37，284KB），`ondra.voice` 日志「整段 32 字念不了，改念其中 12 字那句」——分句兜底与合成都真的跑了 |
+| 主动消息判定 | `proactive-reason`「1 条候选全在冷却里：这一轮没有可说的由头（这是正常状态，不是故障）」；`check:no-reason` 全绿 |
+| `phase: ready` + `say "自检"` | 界面 `phase: ready`、`busy: false`；`say "自检"` 拿到完整回复（912 段思考） |
+| 启动告警 | **7 条，与第 14 轮一致，一条没新增**。全部是诚实降级：`install-doctor` 空路径、`organ-gate` 无 `tools`、`process-host` 无 `subprocess`、`startup-check` 空 `root`、`window` 两条规格口径、`installer` 无清单 |
+
+#### 自检
+
+**35 项 pnpm 脚本** + `check-ui` + `check-acceptance`(90/90) + `check-contrast`(66/66) + `typecheck` **全绿**。
+（本轮新增 `check:memory-digits`；`check:feel` 8 段 → 9 段；`check-memory-digits` 5 段 → 6 段）
+
+#### 仍红 / 待裁决
+
+本轮**修复的两条从待裁决清单里划掉**。剩下的是上一轮就已登记、本轮复核仍成立的架构性问题，都不是装载缺陷：
+
+1. **`tools` / `subprocess` 两个服务键全仓无提供方**：`organ-gate` 报「工具注册表（tools）不在」、`process-host` 报「宿主没有 `subprocess` 服务」。
+   全仓无对应 provider 包（`node_modules/@cordisjs` 不存在）——属上游 Cordis 能力缺失，**登记为设计降级**，不在本仓修。
+   `organ-gate` 不是「拒绝所有工具」，是纯 no-op（`plainSkip('no-scope')`，不 deny）。
+2. **`ondra-persona-evolve` 的 `adjust()` 全仓零调用方** → 特质漂移永不发生，`drift_entries` 恒 0 行。接调用方属新行为，需定口径。
+3. **`ondra-breath` 服务键零消费方** → 「呼吸感 / 正在输入」从未显示（服务注册了，没人调 `presence()`）。
+4. **`ondra-multimodal-memory` 服务键零消费方** + 它的 `schema.register` 未挂 `ctx.effect`（15 个包里唯一违反这条纪律的）。
+5. **`proactive-quota` 的 `plan()` / `interval()` / `streak()` 零外部调用** → `min-interval-minutes`、放弃率、退场句是死配置；`noteUserSpoke()` 零调用 → `proactiveSinceUser` 永不复位。
+6. **`/api/plugins` 的 `loaded` 取自「请求装载名单」而非 `coreResult.loaded`**（`cordis-host/index.ts:1055` vs `:1256`）→ 任一成员 apply 抛错时仍报 `loaded=true`。当前 78/78 全装，无实机症状。
+7. **`ondra-snapshot` 无 SQL 时该「不注册」还是「注册但报原因码」**（第 14 轮附记，需主人定产品语义）。影响面仅限「SQLite 打不开 + memory 关闭 + 只开 JSONL」一种组合。
+
+下一轮建议：先啃第 2 条（特质漂移零调用方）——它是「服务全在、能力全死」这一类里唯一还能靠接一个调用方就活过来的，
+其余五条要么缺上游能力，要么需产品口径。接调用方前要先定口径（每 N 轮一次？只在重大事件后？），不能随手加。
+
+---
+
+### 第 16 轮（2026-11-13 01:14）
+
+**基线对照**：仓库 78 包，装载 78（清单 75 + 常驻 3），**停用段 0**，自检 37 项全绿。
+开场复核第 15 轮全部结论成立；`persona-evolve.adjust()` 零调用方经复核**不是缺陷**（见下），
+故本轮换角度：不再查「装没装」「声明全不全」，改查**两张表之间的键有没有对齐**。
+
+#### 本轮方法论：查「表与联合类型脱节」
+
+前 15 轮查过停用段、装载数、装配顺序、默认值、假开关。本轮的新盲区是
+**映射表的键与它消费的联合类型不在同一处维护**——两边各自合法，TS 不会报错，
+运行时一个 `??` 就把缺口吞掉。抓到的两处都属于这个形态。
+
+#### 修复一：`ellipsis` 句形档缺键 → 困态静默失效
+
+| 事实 | 证据 |
+| --- | --- |
+| `SentenceShape` 联合类型有六个值 | `ondra-emotion-express/src/types.ts:186-200`（`burst/medium/plain/long-single/clipped/ellipsis`） |
+| 困态的句形就是 `ellipsis` | `ondra-emotion-express/src/specs.ts:118-129` 的 `sleepy` |
+| 节奏侧映射表只有五个键 | `ondra-rhythm/src/service.ts:59-66`（**缺 `ellipsis`**） |
+| 缺键的后果 | `?? PLAIN_SHAPE` 静默回落常句；且 `adjusted` 因数值与默认相同判 `false`，连 `notes` 的 `{code:'shape'}` 都不产生 |
+
+**用户可见症状**：她困的时候语速确实慢下来（`tempo:'slow'` 走的是另一张有键的表），
+但**分条与单条字数完全按平常档**，面板「句形」一格照常显示 `ellipsis / 短句带省略`。
+看着全对。
+
+**修复**：`service.ts` 补 `ellipsis: { chars: 0.75, messages: null }`。
+系数抄 `burst` 的 0.75 而不另编数字——手册 §3.2 对「困」只写「短句含省略」，
+**短句**是硬要求（压字数），**含省略**归 `oral` 的 `hesitate()`（已实现），
+**没有一句要求分多条**，故 `messages` 为 `null`（只有 `long-single` 与 `clipped` 有手册明文条数要求）。
+
+顺手把 `?? PLAIN_SHAPE` 的无声道回落改为 `shapeOfStyle()`：查不到就**留一行 warn**，
+`undefined` 仍静默（调用方不给句形是正常情形，不是缺陷）。回落保留、但不再无声。
+
+#### 修复二 / 三 / 四：三处「关掉仍建表」的假开关
+
+三处同构：`settings` 已经算好了，`if (!settings.enable)` 就是没写。
+
+| 插件 | 关掉之后仍发生 | 表名 |
+| --- | --- | --- |
+| `ondra-emotion-stage` | `RelationStore.ensure()` 建表 | `emotion_relation_state` |
+| `ondra-emotion-diffuse` | `MarkStore.ensure()` 建表，且失败报成 `no-store` | `emotion_diffuse_mark` |
+| `ondra-persona-evolve` | `EvolveStore.ensure()` 建 3 张表；`noteInteraction()` 还能写计数 | `persona_trait` / `persona_trait_delta` / `persona_interaction` |
+
+对照 `ondra-emotion-core/src/index.ts:172-186` 一直是**先判关、再判存储**，说明这是漏写而非取舍。
+
+**diffuse 多修两处连带缺陷**：
+1. 原因枚举缺 `schema-failed`（`types.ts:130-138`），建表失败复用 `no-store` ——
+   「磁盘写满」与「没装存储」报同一个码，处置方式完全不同却压成一个词。
+2. `service.ts` 的 `reason` getter 让 `fallbackReason` 优先，会**把 `disabled` 盖掉**。
+   改为 `disabled` 先答——开关状态是本进程内已知的事实，比任何装载期快照都可靠。
+
+**evolve 多修一处**：`noteInteraction()` 自身无守卫，靠宿主 `src/evolve.ts` 替它挡。
+任何第三个调用方（面板、迁移脚本、自检）都能在关闭状态下写库。
+补 `if (!this.settings.enable) return this.count`，与同文件 `adjust()` 的写法对齐。
+
+#### 核实后判定「不是缺陷」的两条
+
+| 疑点 | 结论 | 依据 |
+| --- | --- | --- |
+| `persona-evolve.adjust()` / `defineTrait()` 零调用方（第 15 轮列为下轮第一优先） | **设计如此，不修** | 插件 README「关键取舍 5：不内置特质表」明写「硬凑五个词就是把没被裁决过的模型写进代码」；本仓两个 persona-skills 包都没有特质段（已 grep）。**要定的是产品口径，不是接线**。硬加特质表会立刻造出一份未经裁决的人格模型 |
+| 服务键矩阵 32 个「提供但零消费」 | 绝大多数是**正常**的端口模式 | 这些是「提供出去给面板/未来调用方」的服务。真正需要接线的已在第 15 轮登记清单里，本轮不重复 |
+
+#### 回归网（两条，都做过反向验证）
+
+| 脚本 | 判据 | 反向验证 |
+| --- | --- | --- |
+| `check-shape`（新） | 同一段正文、同一 `maxCharsPerMessage`，只换句形档 → `plan().maxCharsPerMessage` 必须随档变化。断言**每档与 `plain` 的关系**（不是两两不同——`medium` 与 `plain` 刻意相同） | 摘掉 `ellipsis` 键 → **恰好红 1 条**，位置精确（40 < 40 失败） |
+| `check-disable`（新） | 关掉三插件后，**五张表一张都不该存在**（判据是 `store.tableExists()`，不是 `available === false`——后者修复前就绿） | 三处守卫改 `if(false)` → **红 5 条**，与三处修复一一对应 |
+
+**踩坑记录（两条，都会重复踩）**：
+
+1. **表名必须去源码里读，不能按目录名猜。** 第一版把 `emotion-stage` 的表写成
+   `ondra_relation_state`（跟着目录名走），真名是 `emotion_relation_state`。
+   于是那条断言**永远绿**（表压根不存在），反向验证时也一直绿——
+   **一个永远不会红的断言比没有断言更糟**，它让人以为那一处被守住了。
+2. **`StageView` 的字段是 `base` / `effective`，不是 `stage`。** 第一版按直觉写
+   `view.stage`，断言立刻红（这次是脚本对、我错）。顺手记下：
+   `base` 是只升不降的棘轮底座，`effective` 是对外语域（锁定时才被覆盖成敌意）。
+
+#### 实机取证
+
+出包 1 次（51 秒）+ 重启 1 次，`pid 45815`。
+
+| 能力 | 证据 |
+| --- | --- |
+| 装载 | 78 个已装载、66 段 / 629 项，停用段 0 |
+| `phase: ready` | `ui state` → `phase: ready`、`busy: false` |
+| 记忆写入 → 召回 | `say "记一下：我的地铁常坐 4 号线，出站走 B 口"` → 「记下了。4 号线，B 口。」；追问「我地铁一般坐几号线」→「4 号线，B 口出。这个我记得」 |
+| TTS | `ondra.voice` 日志「整段 32 字念不了，改念其中 7 字那句」；缓存新增两个 wav（01:52） |
+| 主动判定 | `POST /api/proactive/check` → `allow:false / code:content-empty / quota:3 / gateMissing:false`（第 7 轮修的「不编兜底句」仍成立） |
+| 启动告警 | 仅 1 条 `ondra.installer`（no-manifest，安装期插件出厂告警），无新增 |
+
+#### 仍红 / 待裁决
+
+本轮**修复的四处全部清掉**。下列均为前轮已登记、本轮复核仍成立的架构性问题，不是装载缺陷：
+
+1. **`tools` / `subprocess` 无提供方**：上游 Cordis 能力缺失，登记设计降级（`organ-gate` 是纯 no-op，不 deny）。
+2. **`persona-evolve` 特质表未定义**：见上，等产品口径，不接线。
+3. **`breath` / `multimodal-memory` 服务键零消费方**：接线需先定「谁该调」。
+4. **`proactive-quota` 的 `plan()/interval()/streak()` 零外部调用**：间隔/放弃率/退场句是死配置。
+5. **`/api/plugins` 的 `loaded` 与 `coreResult.loaded` 脱钩**：当前 78/78 全装，无实机症状。
+6. **`tensionHighThreshold` 是假配置**（本轮新发现，未修）：`emotion-core/src/settings.ts:67` 可配 0–1，
+   但其产物 `tensionHigh` **全仓零运行期消费方**；「炸毛」的真判据写死在
+   `emotion-express/src/types.ts:161-166` 的 `{ gt: 0.5 }`。用户把它改成 0.7，六态判定一个字不变，
+   而启动日志还会照实打出「张力阈值 0.7」。
+   **未修的原因**：修它有两种做法——① 让 `express` 读 `emotion-core.tensionHigh`（需给 `STATE_SPECS`
+   加一张运行期覆盖表，等于在 express 里造第二份可变态）；② 删掉这个配置项（但它是
+   `types.ts:235` 契约的一部分，且面板可能在读）。**两条都要动被自检网锁定的结构**，属需裁决项。
+7. **`substituteInBoundaries` 是假配置**（本轮新发现，未修）：`persona-vars/src/settings.ts:93` 有完整
+   校验与文档，但 `persona-assemble/src/service.ts:453-468` 的 `boundaryUnits()` **永远替换**，
+   没有任何开关判断。用户关掉它，占位符照样被替换。修它只需把 `subst` 换成可选——但那个开关的
+   值目前**没有任何通道**从 vars 传到 assemble（`VarsService` 公开接口不含此 flag），需先定传法。
+
+下一轮建议：先啃第 6 条（`tensionHighThreshold`）——它是本轮唯一「用户改了设置、日志照实回报、
+行为完全不变」的三重错位，且影响六态里优先级最高的一态（炸毛）。
+第 7 条次之（影响面只在边界条目里的占位符）。
+
+### 第 18 轮（2026-11-13 05:02）
+
+**基线对照**：仓库 78 包，装载 78（清单 75 + 常驻 3），**停用段 0**，自检 **46 项全绿**（新增 `check:config-used`）。
+开场接管第 17 轮残留锁（pid 57700 已死、锁龄 126 分钟 > 90），第 17 轮未改任何源码，无半成品需回滚。
+
+#### 本轮方法论：查「配置项声明了 → 真的有人读」
+
+前 17 轮查过停用段、装载数、装配顺序、默认值、映射表键对齐。本轮补最后一个盲区：
+**把 66 个有配置段的插件里 624 个 `FIELD_SPECS` 字段逐个拿去包内源码里找消费者**。
+零消费的 11 个，逐个核实后分两类：假开关（接线缺失）+ 误报（引用在同文件的域内函数里）。
+
+这类缺陷比崩溃难发现，因为**三处都说「生效了」**——设置页显示已改、启动日志照实打出新值、
+类型定义完整无缺，只有「有没有人读这个字段」那一层是空的，而那一层没有界面。
+
+#### 修复一：`verbose` 假开关 × 7（影响面最大）
+
+七个插件的 `settings.ts` 都声明了 `verbose`，doc 一律写「降级/失败时打一行日志」，
+但 `index.ts` / `service.ts` **零读取**。用户关掉它日志照打，打开也不多一行。
+
+| 插件 | 接线的日志行 | 文件:行 |
+| --- | --- | --- |
+| `ondra-filter-chain` | 「阶段未装载：阶段越线这一步不会命中」 | `src/index.ts:166` |
+| `ondra-live` | 「时间服务未装载」「当前只有公历」 | `src/index.ts:183`、`:180` |
+| `ondra-prompt-inject` | 「记忆池未装载」+ 注入块 ③⑤ 的兜底取回 | `src/index.ts:251`、`src/blocks.ts:360`、`:454` |
+| `ondra-proactive-reason` | 三条「少一类话由」+「全在冷却里」 | `src/index.ts:172-186` |
+| `ondra-installer` | 每一步一行（成功步受开关管，**失败/阻塞不受管**） | `src/steps.ts:257` |
+| `ondra-window` | 文档写「每次 `verify()`/`plan()` 一行」，此前这两个方法**压根不打日志** → 按文档补上 | `src/service.ts:109`、`:127` |
+| `ondra-memory-intake` | 「收到一轮」「提炼返回」「判重裁决」三行过程日志 | `src/index.ts:334`、`:530`、`:626` |
+
+**纪律**：`warn` / `error` 一律**不**受 `verbose` 约束。开关管的是「过程噪声」，
+不是「故障信号」——把故障也压掉，就等于把「排查为什么她记不住」的工具收走了。
+
+**A/B 实机验证**（`proactive-reason` 是最干净的一例，它的降级行在启动期必然出现）：
+
+| 设置 | 启动日志 |
+| --- | --- |
+| `verbose=true`（默认） | `话由就绪…` **+** `当前 1 条候选全在冷却里…` |
+| `verbose=false` | `话由就绪…`（降级行**消失**） |
+
+配置已 `config reset` 复原，`settings.json` 与备份逐键一致。
+
+#### 修复二：`substituteInBoundaries` 假开关（第 17 轮遗留）
+
+| 事实 | 证据 |
+| --- | --- |
+| 设置声明完整（类型 + 校验 + 文档） | `ondra-persona-vars/src/settings.ts:93` |
+| 但包内**零读取** | 全包 grep 只在 `settings.ts` 内部出现 |
+| 拼装侧永远替换 | `ondra-persona-assemble/src/service.ts:214` 传的 `subst` **没有分层信息** |
+
+**修复**：`VarsInput` 加可选 `scope?: 'body' | 'boundary'`（`persona-vars/src/types.ts:180`），
+`substitute()` 见到 `scope:'boundary'` 且开关关闭时原样返回（`src/service.ts:98`）；
+`assemble` 侧新增 `substBoundary()` 并在 `boundaryUnits()` 使用（`src/service.ts:207`、`:231`）。
+
+**为什么不加 `substituteBoundaries()` 第二个方法**：那会让「替换」有两份实现，
+而这份实现的全部价值就是只有一份。参数化 `scope` 是一处改动，两条调用链共用同一个函数体。
+
+**受控 A/B**（直接打插件，绕过宿主黑盒）：
+
+```
+开关=开 | 正文: 不要用 主人 不喜欢的方式说话 | 边界: 不要用 主人 不喜欢的方式说话
+开关=关 | 正文: 不要用 主人 不喜欢的方式说话 | 边界: 不要用 {{user}} 不喜欢的方式说话
+```
+
+开关只挡边界层，正文照常替换——与 doc「边界条目里的 {{user}} 读不懂就不会被执行」的意图一致。
+
+#### 回归网：`tools/check-config-used.mjs`（`check:config-used`）
+
+三段判据，都做过反向验证：
+
+| 段 | 判据 | 反向验证 |
+| --- | --- | --- |
+| A | 每个 `FIELD_SPECS` 键在包内（除 `settings.ts`）至少被读到一次；豁免项必须仍在豁免清单里（防过期） | 撤掉 `filter-chain` 的 `verbose` 判定 → **红 2 条**，位置精确；把豁免项改成不存在的字段 → **红 2 条** |
+| B | 每条豁免理由 ≥ 30 字（够写清「为什么」+「谁裁决」） | 理由缩到 8 字 → 红 1 条 |
+| C | 声明 `verbose` 的包必须出现 `.verbose` 读取 | 同上第一条 |
+
+**A 段的反向验证为什么必须双向**：只验「漏网会红」不够——如果豁免清单能塞任意字符串，
+那它迟早变成坟场，下一轮的人会以为那些字段被看过了。所以同时验「豁免项必须真的还被豁免」。
+
+#### 未修（登记待裁决，均已写进 `check-config-used` 的豁免理由）
+
+1. **`ondra-proactive-gate.maxLen`**：声明「内容闸的扫描触发长度，超过就扫，不因此拒发」
+   （`settings.ts:182`，README 三处都写了 1800），但 `gate.ts` 只读 `hardMaxLen`，
+   `content.ts` 无任何扫描/截断函数——手册 §5.3-1 的「超长才扫」在本仓退化成「一律扫」。
+   **为何不修**：一律扫更严不会漏，只是每次多花一遍正则；补扫描分支要动 `gate.ts` 的判定顺序，
+   属行为变更。属性能口径，不是功能缺陷。
+2. **`ondra-proactive-reason.poolEnabled`**：声明「是否允许台词池兜底」，但 `collect()` 的
+   `input.pool` **全仓无调用方传参**——台词库本身属手册 §1.9 未迁移资产（README 裁决 5 已记）。
+   **为何不修**：开关无处生效，先要定「台词库迁不迁」。
+3. **`ondra-emotion-core.tensionHighThreshold`**（第 16 轮遗留，本轮复核后**结论反转**）：
+   上轮建议「让 `express` 读 `emotion-core.tensionHigh`」。本轮发现这条路会造出新问题——
+   「炸毛」判据 `{gt:0.5}` **已被 `persona-evolve` 的阈值漂移机制接管**
+   （`emotion-express/src/thresholds.ts` 的 `DRIFT_KEYS.bristled = ['tension']`）。
+   若再让 express 读 `tensionHigh`，同一判定就有两个主人（config 与 drift），
+   正是本仓反复踩的「一处两判」。**故不改**，等主人裁决单一真源归属（配置侧还是演化侧）。
+
+#### 仍红 / 待裁决（承接前轮，本轮复核无变化）
+
+1. `tools` / `subprocess` 无提供方：上游 Cordis 能力缺失，登记设计降级。
+2. `persona-evolve` 特质表未定义：等产品口径。
+3. `breath` / `multimodal-memory` 服务键零消费方：接线需先定「谁该调」。
+4. `proactive-quota` 的 `plan()/interval()/streak()` 零外部调用。
+5. `/api/plugins` 的 `loaded` 与 `coreResult.loaded` 脱钩：当前 78/78 全装，无实机症状。
+6. TTS 生产沉默（挂第 13 次）：0.15 门槛 vs 单次位移 0.048，需主人裁决。
+
+#### 实机取证（出包 1 次，51 秒；重启 2 次）
+
+| 能力 | 证据 |
+| --- | --- |
+| 装载 | 78 个已装载、66 段 / 629 项，停用段 0 |
+| `phase: ready` | `ui state` → `phase: ready`、`busy: false` |
+| 记忆写入 → 召回 | `say "记一下：我的蓝色保温杯放在书桌右手边第二个抽屉，编号 B-7"` → 「记下了。书桌右手边第二个抽屉，蓝色保温杯，编号 B-7。」；追问 →「书桌右手边第二个抽屉。B-7」 |
+| 主动判定 | `proactive-gate` 每 15 分钟判一次，`content-empty` 兜底仍成立（第 7 轮修的不编句仍在） |
+| TTS | `ondra.voice`「整段过长，且分句后仍无可念句（text-only）」；`tts-gate` 三档判定有输出 |
+| `verbose` A/B | 见上表，配置已复原 |
+| 启动告警 | 与重启前逐条一致，无新增；全为既有设计内降级（`subprocess`、`tools`、`windows` 规格口径、`installer` no-manifest） |
+
+下一轮建议：① `maxLen` 与 `poolEnabled` 两条等主人裁决（都是「手册有、实现退化或未迁移」，
+不是接线 bug）；② `tensionHighThreshold` 的三个选项写清让主人挑一项；
+③ 若无人裁决，转「`ondra-emotion-stage` 的 `tension` 写入频率」——它决定炸毛这一态在真实会话里的命中率，
+而炸毛是六态里优先级最高、影响 TTS 不朗读与长度 ×0.7 两处的一态。
+
+## 第 18 轮（2026-11-13 06:49）
+
+开场：锁目录为空，无并发巡检。78 包 / 78 已装载（核心链 75 + 常驻 3）/ 停用段 0 / 静态与界面自检全绿 / `phase: ready` / `busy: false`。
+
+**本轮换的角度**：前 17 轮核的是「服务键有没有提供方」（装载面）。本轮改核「**接口在、没人正确调用**」——
+不报错、不告警、`available` 恒真，只有真实数据流过才显形。
+
+### 缺陷一：主动链永久空转（本轮最高价值）
+
+**症状**：`debug.log` 每 15 分钟一行 `proactive-gate [content-empty] 正文为空`，连续 5 次以上。表面看是「她今天不想说话」。
+
+**取证**（真实数据目录，只读探针）：
+
+| 读数 | 值 |
+| --- | --- |
+| `drive_gap` 里 open 条目 | **4 条** |
+| 四条张力 | 100 / 100 / 100 / 89.3（唤醒线 80） |
+| `dueForWake({idleMinutes:60})` | `tension=100, energy=69.4, cooldown=0` → **`wake: true`** |
+| `reason.plan({gapEligible:true})` | 候选数 **1**，`cooling=true`，`pick=undefined` |
+
+**根因**：`collect.ts` 只把 `highestTension()` 那**一条**执念递进候选表。这一条恰在 72 小时话题冷却里
+（`proactive-reason.json` 的 `gap:g-mw8o9ahb-1`，`until` 比当时晚 14.6 小时），`pickOf()` 跳过它后候选表就空了。
+池里另外 3 条同张力档的执念**从未进过候选表**。
+
+**与设计原文相矛盾**：`rank.ts` 文件头写着
+
+> 冷却不是「砍掉」，是「标出来」：面板要能回答「她为什么这次没话说」——答案是「有 3 条，但全在冷却里」，
+> 而不是「一条都没有」。
+
+**修复**（2 个文件）：
+
+| 文件 | 改动 |
+| --- | --- |
+| `ondra-proactive-reason/src/types.ts:441` | `DriveGapLike` 加可选 `list()`（缺席时退回单条，不因可选能力缺失让她失声）；新增 `GAP_CANDIDATE_LIMIT = 8` |
+| `ondra-proactive-reason/src/collect.ts:112` | 新增 `pickGapViews()`；执念分支改为遍历多条，逐条 `seed()` |
+
+**为什么不把 `list()` 设成必选**：老池子没有它时不能整条链失声。`pickGapViews()` 两级兜底，
+`list()` 抛错也退回 `highestTension()`。
+
+**实机验证**（出包 1 次，35 秒）：
+
+```
+修复前：{"allow":false,"code":"content-empty","text":""}
+修复后：{"allow":false,"code":"quiet-hours","text":"有件事一直没放下：就这点碎片，别的记不清了"}
+受控空窗：{"allow":true,"code":"ok","text":"有件事一直没放下：…"}
+```
+
+判据从「没话可说」变成「有话可说，被时段闸拦下」——这是质变。静默窗 23:00–08:00 与防封窗
+00:30–07:30 均已复原（`settings.json` 与备份逐键一致）。
+
+**回归网**：`check-gap-wake.mjs` 新增第 5 段（4 条断言）。反向验证：`pickGapViews` 改成 `slice(0,1)` →
+立刻红「池里至少两条 open 执念（gap 候选=1）」。
+
+### 缺陷二：判重日志栏位错位，让「灰区丢内容」不可见
+
+**发现路径**：实机 `say "记一下：我的备用钥匙放在玄关鞋柜最上层，编号 K-9"`，她回「记下了…我把它改过来了」，
+但库里 `memory_fact` 仍只有「第二层」那一条。
+
+**机理**（`memory_dedupe_log`）：
+
+```
+text: 用户的备用钥匙放在玄关鞋柜最上层，编号 K-9。
+target_id: m-a625450a16e2（"第二层"那条）
+containment: 0.80   → 落在 mergeThreshold 0.4 与 duplicateThreshold 0.95 之间
+action: append
+written: 0
+```
+
+`append` 的落库语义是**只 `reinforce()`、不写库**（`dedupe/src/service.ts:219-225`）。而 `intake` 那行日志写的是
+
+```
+判重裁决：新建 %d · 合并 %d · 复述 %d · 丢弃 %d · 冲突 %d
+                          ↑ 收的是 tally.append
+```
+
+于是 `append`（灰区、**没写库**）被印成「复述」，`drop`（真复述）被印成「丢弃」。
+排查者读到「复述 1」必然得出「已经记过了」——**一句话都没进去，日志却完全自洽**。
+
+**全库统计**：`append` 16 条、`written` **全为 0**。其中含「用户让玖玖记住暗号『青柚第七码』」这种
+明确要求记住的内容。
+
+**本轮只修了「日志说谎」，未改灰区行为**——理由见下方「待裁决」。
+
+**修复**（1 个文件 + 1 个新脚本）：
+
+| 文件 | 改动 |
+| --- | --- |
+| `ondra-memory-intake/src/index.ts:624` | 标签改「新建 · 合并 · **灰区未写库** · 复述 · 冲突」，五栏与五动作一一对应 |
+| `tools/check-dedupe-tally.mjs` | 新增 `check:dedupe-tally`：11 条断言，锁「栏位数 = 动作数」「灰区栏收 append」「复述栏收 drop」双向不串位，另锁 `append` 分支确实不写库 |
+
+反向验证：标签改回旧版 → 红 5 条，位置精确。
+
+### 停用段判定
+
+停用段 **0**。78 个包全部 `enabled: true` + `loaded: true`，`pendingRestart: 0`（`/api/plugins` 实测）。
+
+### 自检结果
+
+- **47 项 pnpm** 全绿（38 个原有 + `check:stale` / `check:cors` / `check:brand` / `check:config-used` 等 + 新增 `check:dedupe-tally`）
+- `check-ui`：静态规格零违规、托盘三档齐备（其自报的「1 个待重启」是隔离宿主的中间态，生产 `/api/plugins` 实测 0）
+- `check-acceptance` 90/90、`check-contrast` 66/66
+
+### 实机取证（出包 1 次，35 秒；重启 4 次，含 2 次受控 A/B）
+
+| 能力 | 证据 |
+| --- | --- |
+| 装载 | 78 个已装载、66 段 / 629 项、停用段 0、`pendingRestart: 0` |
+| `phase: ready` | `ui state` → `phase: ready`、`busy: false` |
+| 记忆写入 | `say "记一下：备用钥匙在玄关鞋柜最上层，编号 K-9"` → 「记下了。玄关鞋柜最上层，K-9」 |
+| 记忆召回 | `say "我的备用钥匙放哪来着"` → 「玄关鞋柜第二层」（召回通，但拼的是旧条——见待裁决 ①） |
+| 主动判定 | `content-empty` → `quiet-hours` → 受控空窗 `allow: true` |
+| TTS | `check:voice` 全绿；生产仍 `flat`（既有口径，见待裁决 ③） |
+
+### 待裁决 / 仍红（下一轮入口）
+
+1. **灰区 `append` 丢内容**（本轮新发现，最高优先）：16 条 `append` 全部 `written=0`，含用户明确要求记住的内容。
+   三个选项，需主人挑一项：
+   - **A（保守）**：维持现状，但把 `needsModel` 接上——灰区真交模型再判一次，判成「有新内容」就 `merge`。
+     代价：每轮最多多一次模型调用；收益：不丢内容，且不必改任何阈值。
+   - **B（激进）**：灰区改走 `merge`（`revise()` 会把旧正文存进 `oldText`，可回溯）。
+     代价：`judge.ts:31-33` 的取舍「少记一句可以补，改错一句查不出」被推翻。
+   - **C（调阈值）**：把 `slotCoverage` 从 0.86 降到 0.6，让「第二层 → 最上层编号 K-9」命中槽位替换判成 `conflict`。
+     代价：0.6 会让大量「同一件事多说了两句」都判成冲突并双写，库会变脏。
+   **本轮选了「不选」**：这是产品口径（宁可少记也不改错），需主人裁决。
+2. **TTS 生产沉默**（挂第 14 次）：0.15 门槛 vs 单轮位移 0.048，需主人裁决。
+3. **`maxLen` / `poolEnabled`**（第 17 轮遗留）：等主人裁决，不是接线 bug。
+4. **`tensionHighThreshold`**（第 16/17 轮）：配置侧与演化侧争同一判定的单一真源，等主人裁决。
+5. `breath` / `multimodal-memory` / `proactive-quota` 的零消费方服务：接线需先定「谁该调」。
+
+下一轮建议：① 若主人不裁决 ①，转去查「提炼侧为何 `written=0` 时连候选都没有」——本轮两次 `say` 都是
+`提炼返回：ok=true written=0`，且 `memory_dedupe_log` 无新行，说明**事实根本没被提出来**，这可能是
+比灰区更上游的第二个丢内容点；② 复核 `append` 16 条里哪些是真重复、哪些是真丢失，给出 A/B/C 三案的
+实际样本量供主人判断。
+
+---
+
+## 第 19 轮（2026-11-13 10:18）
+
+### 结论
+
+**达标。** 78 包全 enabled + loaded / 停用段 **0** / **40 项 pnpm 全绿**（新增 `check:recall-archived`）
++ `check-ui`（✗ 0、令牌 0 未定义）+ `check-acceptance` 90/90 + `check-contrast` 66/66 /
+`phase: ready`、`busy: false` / `say` 有回复。
+
+### 开场：接管一把过期的锁
+
+`.workbuddy/locks/plugin-health.lock` 残留，内容 `72114` + `08:27:20`。
+`kill -0 72114` 已死，锁龄 **110.9 分钟 > 90 分钟阈值** → 按规则接管。
+
+接管前先查了它有没有留半成品：`find -newermt "07:50"` 只有 3 个 `.shots/` 临时文件，
+**零源码改动**、`docs/PLUGIN-HEALTH.md` 停在 07:09、`11-13.md` 未创建 →
+该轮停在**第 1 步采集期**（正在跑 `check-ui` 截图），一步修复都没做，无需回滚。
+
+这是第四次「锁龄低估真实占用」（第 15/17 轮同型），但本次方向相反：锁龄**够了**，
+所以接管是对的。判据依旧是「`kill -0` + 90 分钟」两条，不改成 mtime 以外的东西。
+
+### 主线：本轮换的角度 ——「同名键遮蔽」
+
+前 18 轮查过「服务有没有提供方」「字段有没有人读」「接口有没有人调」，本轮补一个形态：
+**配置字段与请求字段同名**。此时「字段名在源码里出现过」这类静态扫描永远判它已接线，
+而真正的读取点一直在读取请求那一侧。
+
+#### 修 1：`ondra-memory-recall` 的 `includeArchived` 是假开关
+
+- 声明：`src/settings.ts:87`（默认 `false`），设置页文案「是否把已沉底的记忆纳入候选」。
+- 实际：`src/service.ts:404` 原来是 `request.includeArchived === true`，
+  `:202` 是 `request.includeArchived !== true`——**两处都只看请求参数**。
+- 全仓唯一调用方 `ondra-prompt-inject/src/blocks.ts:293` 只传 `{ text, at }`，从不传该字段。
+- 后果：用户打开这一格、重启、去问沉底的事，答案与关闭时**逐字相同**。零报错、日志照实、界面照显示。
+
+**修复**（`src/service.ts`，只加一个私有方法 + 两处调用）：
+
+```ts
+private archivedIncluded(request: RecallRequest): boolean {
+  return typeof request.includeArchived === 'boolean'
+    ? request.includeArchived
+    : this.settings.includeArchived
+}
+```
+
+优先级是**请求参数 > 配置**：请求参数是单轮覆盖（原文「默认 `false`」说的是缺省往哪边倒，
+不是永远不许打开）。判据用 `typeof === 'boolean'` 而非真值判断——`false` 是显式值，
+不能因为配置是 `true` 就被翻回来。
+
+**回归网**：新增 `tools/check-recall-archived.mjs` + `check:recall-archived`（5 条）。
+不读源码、不看自报计数，而是构造真 `RecallRepository`（假内核只装一条沉底事实）、
+喂真请求、看 `hits` 里有没有那个 id。四段锁两个方向 × 配置/请求两维，外加一条锁
+`explain()` 与 `search()` 同判据。
+
+**反向验证**：两处改回 `request.includeArchived === true` → **红 2 条**，位置精确
+（「配置 true、请求不传」与「explain() 同判据」）。
+
+### 推翻一条挂了 18 轮的归因（本轮最高价值，不修代码只改判断）
+
+第 2 轮起，TTS 生产不出声一直被记为「阈值 0.15 太高，而单条情绪位移上限只有 0.12」。
+本轮实机读数 `decisions=7 / spoken=0 / blocked={flat:7}`，玖玖把公式拆开算了一遍：
+
+| 量 | 值 |
+| --- | --- |
+| 手册 §9.4 公式 | `max(\|mood−0.5\|, (energy−0.5)×0.5)` |
+| `mood` 基线 | 0.5 → 该轴贡献 0 |
+| `energy` 基线 | **0.6**（0–100 域的 60 除以 100） |
+| 基线下的强度 | `max(0, (0.6−0.5)×0.5)` = **0.05** |
+| 要够 0.15，`mood` 需 | **> 0.65 或 < 0.35** |
+| 要够 0.15，`energy` 需 | **> 0.80** |
+
+所以：**不是阈值太高，是 `energy` 的基线（0.6）与公式假定的 0.5 错位**。
+公式本身是手册逐字原文（`gate.ts:41` 注释已写明），不能改；`0.15` 也是手册值。
+真正的事实是——`mood` 那一路**站得住**，只要她心情偏离 0.5 超过 0.15 就该出声；
+而实测 `mood` 恒在 0.50–0.52，因为情绪写入太稀疏（**87 次结算只有 2 次 feeling**）。
+
+结论改写为：**TTS 沉默不是闸门缺陷，是上游「情绪写得太少」的表现**。
+把它记进待裁决时口径已变（原「要么降阈值要么放弃 TTS」，现「要么提高情绪写入密度、
+要么承认她大部分时候确实语气平」）。本轮**不动代码**：改阈值是产品口径，改写入密度是另一条链。
+
+### 顺带核清的三件事（都不是缺陷，防止下轮重查）
+
+1. **`peek()` 的 `dayBucket.used` 用 `daySent` 而非 `dayCount`** —— 看着像量错参数，
+   实为设计：`README.md:104` 明写「令牌桶日层 `perDay` 是防封语义，含回话」。
+   `budget.used` 才用 `dayCount`（只算主动）。两者各对各的语义，**没有缺陷**。
+2. **主动链每 15 分钟一行 `[content-empty]`** —— 看着像空转，实为**今日额度已用完**
+   （`daySent=3 / quota=3`）。`content-empty` 抢在 `budget-exhausted` 前面，
+   是因为宿主刻意递空串让门控自己判（`index.ts:2545` 有整段理由）。
+   玖玖用同一接口 A/B 确认过：传真正文 → 原因码立刻变 `budget-exhausted`。
+   **归因读法**：看到 `content-empty` 且 `used==quota`，真相是额度用完了。
+3. **`bristled`（炸毛）判据写死 `tension > 0.5`** —— 与 `emotion-core` 的
+   `tensionHighThreshold`（可配置）看着是「两套阈值」，实为**不同用途**：
+   express 的 0.5 是手册 §3.2 六态映射的逐字产品口径（`README:69` 明写「判据阈值…
+   是手册逐字的产品口径」），`tensionHighThreshold` 产出的 `tensionHigh` 是给面板看的派生布尔值。
+   **不改**：让 express 跟随配置，等于允许用户把「炸毛」这一态改到永不成立。
+
+### 本轮新增待裁决（替换第 18 轮清单）
+
+1. **灰区 `append` 丢内容**（**今天又实机复发一次**）：`say "自检：备用钥匙放在衣柜最上层那个铁盒里"`
+   → 她回「以你这条为准。衣柜最上层那个铁盒，我改过来了」→ 库里仍是
+   `m-625450a16e2「备用钥匙存放在玄关鞋柜第二层。」`，`written=0`、`灰区未写库 1`。
+   **第 18 轮修了日志标签，没修根因**，所以「她说到做不到」仍在。
+   `needsModel=true` 是全链路**唯一没人消费的字段**（只在 `intake/src/types.ts:123` 声明了类型）。
+   A/B/C 三案见第 18 轮记录，本轮仍不选。
+   **新增建议 D 案**：不改落库行为，改**她的话术**——灰区不写库时，回复不该说「我改过来了」。
+2. **TTS 沉默**（挂第 19 次，但归因已改）：见上，需在「提高情绪写入密度」与「接受平语气不出声」之间选。
+3. `maxLen` / `poolEnabled` / `tensionHighThreshold`：等主人裁决，不是接线 bug。
+
+### 下一轮入口
+
+① 若主人不裁决 ①，查**情绪写入密度**为什么只有 2/87：`feel.ts` 的四个信号（`stumble` /
+`apology` / `gratitude` / `reunion`）在真实对话里的命中条件是否过严。它同时是 TTS 沉默的上游，
+一次解决两个挂账。
+② 复核 `hits` 召回质量：库里 43 条，`prompt-inject` 注入块 ③ 一直报
+「没有 person 命中，按 person 类兜底取回 5 条」——**person 类自建库起从未命中过**，
+可能是分类器口径与真实对话不匹配。
+
+## 第 20 轮（2026-11-13 14:05）
+
+> **破例运行**：锁龄 71.3 分钟 < 90，按第 0 步应直接跳过、零改动、只输出跳过说明。
+> 主人明确指令「那个锁是 bug，本次破例运行」，遂接管（pid 36121 已死 → 改写为本进程 pid 54317）。
+> 台账在此留痕，**这是 20 轮里唯一一次未满足闸门条件而执行**，请勿据此认为闸门已废。
+
+### 本轮换的角度：日志语义
+
+前 19 轮查的是「服务有没有提供方 / 有没有消费方 / 配置有没有人读」。三者都是**结构性**问题，
+用脚本能扫出来。本轮换成**语义性**问题：代码没错、数据没错、行为也对，但**日志把真实成因
+写成了另一个成因**。
+
+这类缺陷不会让任何测试变红，代价却最贵——它让下一个读日志的人（包括下一轮的我）每次都从
+错的假设出发重新查一遍。本轮三处全是同一形态，其中两处已分别被绕回 8 次和 5 次。
+
+### 修复一：记忆提炼「全被拒」与「答空数组」同形（闭环第 18 轮悬案）
+
+**证据**（`/api/diagnostics/memory`）：
+
+```
+extract.calls = 7   succeeded = 7   factsWritten = 0
+rejected = { digit-without-tool: 1, attribution-without-user: 4 }
+```
+
+7 次调用全部成功，一条事实没入库。日志里只有一行 `ok=true written=0`。
+
+两种截然不同的情况在日志里完全同形：
+
+| 真实情况 | 该怎么记 | 原来记成 |
+| --- | --- | --- |
+| 提炼出 4 条候选，全被 `attribution-without-user` 拒了 | `warn` + 被拒原因 | `ok=true written=0` |
+| 模型按提示词规则 6 答 `{"facts":[]}`（这段没什么可记的） | `info` | `ok=true written=0` |
+
+前者是**产品纪律**在拒绝用户口述的事（`verify.ts:269`：`subject≠self` 且无 USER 引文时，
+不允许只靠她自己的话或 ACT 引文给人立事实），后者是正常空结果。把这两种混作一行，
+等于把「她记不住」这件事永久藏起来。
+
+**改动**（`ondra-memory-extract/src/service.ts:233-264`）：在 `verified` 收集之后、写库循环之前
+加两条出口。`this.rejected[code]` 原本只累加计数、从不落日志，这是整条链路唯一的信息出口缺失。
+
+```ts
+if (parsed.candidates.length > 0 && verified.length === 0) {
+  const codes = [...new Set(rejections.map(item => item.code))].join('、')
+  this.log.warn(
+    '提炼出 %d 条候选，全部没过闸（%s），本轮 0 条入库：这是「她记不住」的直接原因，不是模型没答',
+    parsed.candidates.length,
+    codes === '' ? '未记录原因' : codes,
+  )
+} else if (parsed.path !== 'none' && parsed.candidates.length === 0) {
+  this.log.info('提炼答「这段没什么可记的」（%d 字输入），本轮 0 条', text.length)
+}
+```
+
+**没有改产品口径**。`attribution-without-user` 是否过严是产品裁决，不是巡检能顺手动的：
+放松它，「她记不住」当天就好转；收紧它，「从她自己的话反推用户的事」就再没有闸。
+
+### 修复二：主动链 `all-cooling` 被吞成 `undefined`（第八次绕回）
+
+**实测读数**：
+
+- `drive_gap` 表 4 条 open 执念，张力 **286.5 / 249.3 / 234.9 / 105.9**，唤醒线 80 —— 全过
+- `proactive-reason.json`：4 条全在 72 小时冷却内（`until` = 11-13 21:36 / 11-16 07:00 / 08:11 / 09:21）
+- 接口返回：`{"allow":false,"code":"content-empty","reason":"正文为空：发出去就是一条空气泡"}`
+
+`rank.plan()` 如实返回 `code:'all-cooling'`、`candidates:4`、`cooling:4`。
+但 `takeReason()` 的返回类型是「拿到一条由头，或者 `undefined`」，**它把 `all-cooling`
+连同 `undefined` 一起吐掉了**。宿主拿不到任何解释，只能把空串递进门控，
+门控如实报「正文为空」。
+
+于是「4 条候选全在 72 小时冷却里」（设计内的正常节流）被写成「正文为空（疑似故障）」。
+`rank.ts` 文件头原话是「冷却不是砍掉，是标出来」——冷却本来就该被看见，只是这条链路把它丢了。
+
+**改动**：
+
+1. `src/proactive.ts:520` 新增**独立纯函数** `reasonDiagnosis()`，返回 `{ code, candidates, cooling }`。
+   **刻意不动 `takeReason()` 的签名与返回形状**——`tools/check-acceptance.mjs:2060-2062`
+   有 6 条断言依赖 `taken?.key === 'p1'` / `taken?.kind === 'promise'`，改形状会连带破掉验收。
+   判据仍只问插件自己的 `plan().code`，宿主不重新推一遍（两份推导必然漂移）。
+2. `index.ts:77` 导入；`index.ts:1379` 新增 `logDebug()` 辅助。
+   三条约束都在注释里写清了：
+   - `log.info` / `log.debug` 是可选方法，必须 `?.()`（第 9 轮踩过同一形态）
+   - 不进系统日志环形缓冲，因为 `SystemLogEntry['level']` 只有 `'info' | 'warn' | 'error'`
+   - 不回落 `process.stderr`，因为**宿主 stderr 不进 `debug.log`**（第 2 轮实测）
+3. `index.ts:2561-2576` 分三档：
+
+| `plan().code` | 级别 | 文案 |
+| --- | --- | --- |
+| `all-cooling` | `info` | 「N 条候选全在冷却里（M 条），这一轮不说话——**正常状态，不是故障**」 |
+| `no-candidate` | `debug` | 「上游一条候选都没有，这一轮不说话」 |
+| 其他非 `disabled` | `info` | 「话由服务没给出结论（code），这一轮不说话」 |
+
+### 修复三：唤醒判定 `blockedBy` 不可见
+
+`drive-gap/src/service.ts`：`dueForWake()` / `dueForDream()` 返回 `wake:false` 时不打任何日志。
+四种互不相同的原因在日志里全是同一句「没有候选」：
+
+- 张力没过线（`tension`）
+- 能量读不到（`energy === undefined`）
+- 闲置太短（`idleMinutes`）
+- 距上次唤醒太近（`sinceWakeMinutes`）
+
+改动（`service.ts:485-512`）：按 `settings.verbose` 门控补判定日志，叫醒与不叫醒各一条，
+把 `blockedBy` 与四个检查值一次打全。**故障信号不受 `verbose` 管**——这条纪律沿用第 18 轮。
+
+### 实机验证（非推断，均有日志原文）
+
+出包 2 次（`build:app` 各成功，各搬运 4912 个产物），重启后复核。
+
+```
+2026-11-13T06:03:34.655Z info  ondra.drive-gap 唤醒判定：叫醒（张力 100 过线 80）· 能量 62.7320008200401 · 闲置 45 分钟
+2026-11-13T06:03:34.657Z info  root 主动开口：4 条候选全在冷却里（4 条），这一轮不说话——正常状态，不是故障
+```
+
+接口返回仍是 `content-empty`，但**这次日志已经把真实原因说清楚了**：唤醒判定通过、候选 4 条
+都在、拦它的是 72 小时冷却。`content-empty` 从此只是门控对空正文的如实反应，不再是误导。
+
+**记忆写入→召回**（两轮，均实机）：
+
+| 轮次 | 输入 | 结果 | 追问 | 回答 |
+| --- | --- | --- | --- | --- |
+| 1 | 「我这周在学做红烧肉……」 | `written=1`，fact 44→45 | 「我刚说学做什么菜？」 | 「红烧肉。老师傅说先焯水再炒糖色」 |
+| 2 | 「我妈下个月要从哈尔滨来住一阵，她不吃辣」 | fact 46 | 「我妈有什么忌口？」 | 「哈尔滨那位 / 忌口就记了一条：不吃辣」 |
+
+**TTS**：`spoken=0 / blocked={flat:2}` — 定性维持第 19 轮结论（待裁决，非本轮可改）。
+
+### 本轮踩到的坑（供后续参考）
+
+1. 锁时间戳 `date '+%:z'` 在 macOS 产出 `13:23:20:z`（非法）→ 改 `+08:00` 字面量
+2. `logDebug` 未定义 `TS2304`：`logInfo` 是**函数定义**（1357 行）不是导入，照补一个即可
+3. 初版 `logDebug` 想写 `pushSystemLog('debug', …)` → 撞 `level` 联合类型，改为只走 `ctx.logger`
+4. 改 `takeReason()` 返回形状会破 6 条验收断言 → 回滚，改新增独立函数（教训见修复二）
+5. `log.debug()` 报 `TS2722 possibly undefined` → `?.()`（**第 9 轮同一形态**，记忆里已有，仍复发）
+6. `check:no-reason` 因产物过期变红（`index.ts 比产物新 63304 秒`）→ 先
+   `pnpm run build:host` + `pnpm --filter @ondra/cordis-plugin-ondra-memory-extract run build`
+7. 探针脚本放 `/tmp` 解析不到 `@ntars/cordis` → 移进 `cordis-host/`；`gap.remember?.()` 不存在，
+   公开方法是 `open(input, at?)`；`EmotionRepository` 是**位置参数** `(cfg, log, now, undefined, undefined)`，
+   传对象字面量会炸 `this.now is not a function`
+
+### 本轮改动文件
+
+| 文件 | 行 | 改动 |
+| --- | --- | --- |
+| `cordis-host/plugins/ondra-memory-extract/src/service.ts` | 233-264 | 「全被拒」`warn` + 「答空数组」`info` 两条出口 |
+| `cordis-host/src/proactive.ts` | 446-465, 520 | 新增 `reasonDiagnosis()` + 头部说明为何另开函数 |
+| `cordis-host/index.ts` | 77, 1379, 2561-2576 | 导入 + `logDebug()` + 主动链三档诊断 |
+| `cordis-host/plugins/ondra-drive-gap/src/service.ts` | 485-512 | 唤醒判定 `blockedBy` 日志（verbose 门控） |
+
+配置备份：`~/Library/Application Support/com.ntars.ondra/backups/settings-20261113-134130.json`
+（本轮未改配置，备份是流程要求留的）
+
+### 仍红 / 待裁决
+
+1. **`verify.ts` 的 `attribution-without-user` 是否过严** —— 7 次提炼里拒掉 4 条，用户亲口说的
+   偏好记不住。收紧是「防从她自己的话推断用户的事」的唯一闸；放宽则「她记不住」立刻好转。
+   **这是本轮最该先裁的一条**，因为它决定「她记不住」是 bug 还是设计。
+2. **TTS 沉默**（挂第 15 次）：0.15 门槛 vs 单轮位移上限 0.048，结构性差一个数量级。
+   归因已在第 19 轮改为「情绪写入太稀疏」（87 次结算只有 2 次 `feeling`）。
+3. **灰区 `append` 丢内容**：A 接 `needsModel` / B 走 `merge` / C 降 `slotCoverage` 0.86→0.6 /
+   D 只改话术不写库。本轮日志仍见「新建 0 · 合并 0 · 灰区未写库 1 · 复述 0 · 冲突 0」。
+4. `maxLen` / `poolEnabled` / `tensionHighThreshold`：等裁决，不是接线 bug。
+
+### 下一轮入口
+
+① **情绪写入密度**（2/87）：`feel.ts` 四信号（`stumble` / `apology` / `gratitude` / `reunion`）
+在真实对话里的命中条件是否过严。它同时是 TTS 沉默的上游，一次解两个挂账。
+② `prompt-inject` 注入块 ③ 一直报「没有 person 命中，按 person 类兜底取回 5 条」——
+**person 类自建库起从未命中**，怀疑分类器口径与真实对话不匹配。
+③ 灰区 D 案（只改话术、不动落库）风险最低，可考虑先落地。
+
+---
+
+## 第 21 轮（2026-11-13 15:15）
+
+> 版本升到 **2.3.0**（本轮出包 1 次 + 重启 1 次，因为改了前端）。
+
+### 概览
+
+| 项 | 值 |
+| --- | --- |
+| 仓库插件包 | 78 |
+| 宿主已装载 | 78（`enabled + loaded` 全对） |
+| `[插件停用]` 段 | **0** |
+| 自检 | 40 项 pnpm 全绿 · `check-ui` **380/380** · `acceptance` **90/90** · `contrast` **66/66** |
+| 界面 | `phase: ready`、`busy: false` |
+| 核心链路 | 记忆写入→召回 ✅（实机）· 主动消息判定 ✅（`idle-short` 正常） · TTS 通道 ✅（阈值未达，见待裁） |
+
+### 开局：并行重构期
+
+14:33–14:58 有**另一个开发会话**在改 17 个前端文件（2.3.0 设置页重构：十一页并成六页、
+删掉快捷键总表、设置纸片改铺满、`plugins` 页改名「扩展功能」）。锁目录空白，说明没有
+并发的**巡检**，但文件在我未编辑时 mtime 前进。
+
+处置原则：**不回滚别人的改动，等它稳定再动手**。连测 75 秒零写入后才开始修改。
+本轮 3 处修复全部落在它没碰或已定稿的文件上。
+
+> 判据教训：**并发期的「能不能动手」要看文件是否还在被写，不是看锁在不在**。
+> 锁只防同类巡检，防不住人开的另一个会话。
+
+### 修复一：灰区 `append` 吞掉新事实的取值（挂账三轮，本轮闭环）
+
+**症状**：她说「记下了」，库里 0 条。
+
+```
+用户：记住一件事：我的自行车锁密码是 4712
+她  ：记下了，写进账本里，跟车的位置放一块
+库  ：select count(*) from memory_fact where text like '%4712%'  →  0
+```
+
+**证据链**（`memory_dedupe_log`）：
+
+| 时刻 | action | 正文 | containment | target |
+| --- | --- | --- | --- | --- |
+| 14:45:50 | `append` | 用户的自行车锁密码是 4712。 | 0.46 | `m-121e17e680` |
+| 14:45:59 | `append` | 用户有一把自行车锁，需要密码开锁… | 0.44 | `m-121e17e680` |
+
+旧条正文：`用户有一把自行车锁，并问SELF密码是多少；SELF表示自己记着密码，但不在对话中念出来。`
+——**一个数字都没有**。
+
+**根因**：`judge.ts` 第 7 步（灰区）只比包含度。0.46 落在 `[0.40, 0.95)`，槽位替换不匹配
+→ `append`。而 `append` 的落库语义是 `core.reinforce(targetId)`，**不写新条**
+（`service.ts:219-225`）。数字差异那条信号（`digitsDiffer`）当时**只在 conflict 分支用，
+灰区分支完全没用**。
+
+**修**：`judge.ts` 新增第 7.5 分支，位置在 `append` 之前：
+
+```ts
+const newDigits = digitTokens(text)
+const oldDigits = digitTokens(top.text)
+if (newDigits.length > 0 && oldDigits.length === 0) → action: 'add'
+```
+
+**判据为什么收这么窄**：只认「旧条零数字」。旧条已有数字而新条不同，那是**换值**，
+属于第 6 步 `conflict` 的活——放这里会跟它抢判定，把冲突降级成新建。收窄后本分支
+只处理一种情形：旧条压根没提过任何值，新条第一次给了值。这种情形不可能是复述，
+也不可能是换值，改判 `add` 没有误伤面。
+
+**实机验证**：
+
+```
+写入「记住：我的电瓶车充电卡号是 8891」
+  → memory_dedupe_log  action=add  containment=0.0
+  → memory_fact        命中 1 条
+问「我的电瓶车充电卡号是多少？」
+  → 「8891。刚记下的」
+```
+
+### 修复二：`preferences.css` 三处 8pt 栅格违规
+
+`padding: 10px 28px 10px 12px` → `padding: 12px 24px 12px 12px`。
+
+28 → 24 不是随手缩：记号是 `right: 10px` + 宽 `8`，占到距右 18，24 之后还剩 6 的呼吸。
+**这个值虽然由记号尺寸推出来，但落在栅格上，所以没有进 `GEOMETRY` 白名单**——
+白名单只留真正无法上栅格的几何推算值（如 `layout.css` 的红绿灯让位 84）。
+
+纵向 10 → 12：沿用改版前竖排行的心跳，卡片换了布局但不换呼吸。
+
+### 修复三：`check-ui` 开关对比断言假红
+
+并行重构把「声音」页并进「通用」页后，该断言扫 `aria-checked='true'` 得 **0 个**就红。
+红的原因**不是配色坏了，是页面上根本没有打开态的开关可量**——该页三个开关出厂值全是 `false`。
+
+更隐蔽的一层：**第一个开关不能用来造打开态**。它是「系统通知」，`onChange` 先本地置 true、
+再 `await requestPermission()`，无头环境拿不到授权就立刻回滚（`SettingsGeneral.tsx:59-68`）。
+点它永远回 `false`，把它当成"修好了"会得到一条永远假红的断言。
+
+**改法**：点第三个「语音输入」（纯本地偏好，无异步回滚），量完立刻关回去（那条开关会落盘）。
+
+### 回归网
+
+| 新增/改动 | 内容 |
+| --- | --- |
+| `check:dedupe-digit`（新） | 6 条，纯函数直打 `judge()`；主判据 + 校准锚 + 两个边界 + 全等线不受影响 |
+| `check-ui` 开关段 | 加「点一下就进打开态」「量完关回去」两条守卫，防下次重构又把开关挪走 |
+
+**反向验证**（两次都成立）：
+
+1. 删掉 7.5 分支 → 恰好红 **2** 条（主判据 + 理由点名数字），其余 4 条仍绿
+   → 证明只钉住这一处，不是整段关掉。
+2. `--ui-action-ink` 改回 `--ui-knob` → 精确报 `dark:rgb(236,236,236)/rgb(236,236,236)`
+   → 证明同色缺陷真的能被抓到。
+
+### 结清两条旧挂账（判定为「设计如此」，不再当缺陷查）
+
+| 项 | 判定 | 依据 |
+| --- | --- | --- |
+| `tensionHighThreshold` 零消费方 | 设计关闭 | 「炸毛」判据写死在 `express/types.ts:161-166`，配置项是给界面呈现用的 |
+| `persona-evolve.adjust()` 零调用方 | 设计关闭 | 插件 README「不内置特质表」是产品口径，不是接线缺失 |
+
+### 仍红 / 待裁决
+
+1. **TTS 沉默**（挂第 16 次）：闸门 0.15 门槛 vs 单轮情绪位移上限 0.048，结构性差一个数量级。
+   通道本身已就绪（`macos-say` / Tingting），归因已改为「情绪写入太稀疏」——87 次结算只有 2 次 `feeling`。
+   **这是最该先裁的一条**：调阈值是治标，改情绪写入密度才是根因。
+2. `verify.ts` 的 `attribution-without-user` 是否过严：7 次提炼拒掉 4 条用户亲口说的偏好。
+   收紧是「防从她自己的话推断用户的事」的唯一闸，放宽则「她记不住」立刻好转。
+3. `maxLen` / `poolEnabled` 口径。
+
+### 下一轮入口
+
+① **情绪写入密度**（2/87）：`feel.ts` 四信号（`stumble` / `apology` / `gratitude` / `reunion`）
+在真实对话里的命中条件是否过严。它同时是 TTS 沉默的上游，一次解两个挂账。
+② `prompt-inject` 注入块 ③ 一直报「没有 person 命中，按 person 类兜底取回 5 条」——
+person 类自建库起从未命中，怀疑分类器口径与真实对话不匹配。
+③ 2.3.0 重构后 `docs/UI-SPEC.md` 与 `docs/PLUGIN-HEALTH.md` 里仍写着「十一页 / 九页」
+「插件参数」「外观页」「声音页」等旧页名，需要一次文档对齐（本轮只改代码与断言，未动文档口径）。

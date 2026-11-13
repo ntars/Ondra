@@ -6,7 +6,9 @@
  *
  * - **来源四分类 + 逐字引文校验**：把「记得」从生成任务变成检索任务，检索可验证；
  * - **五级解析兜底**：模型不总听「只输出 JSON」，兜住四种常见变形；
- * - **数字必须有 TOOL 来源**：口述数字（「他说他 28 岁」）不入库。
+ * - **数字必须有出处**：正文里的每个数字游程都要被逐字引文覆盖。默认 `TOOL` 与 `USER`
+ *   都算出处（口述数字口述引文即可），`require-tool-for-digits=true` 时只认 `TOOL`。
+ *   **两种情况下都会检查**——开关切换的是「谁算出处」，不是「查不查」。
  *
  * 这三件事生态里没有现成实现：通用记忆库（mem0 一类）靠 embedding 相似度做去重，
  * 不做引文回查；而「她凭什么这么说」正是本产品与它们的分野。
@@ -127,11 +129,19 @@ export function apply(ctx: Context, config: ExtractConfig): void {
 
   // 3. 报一次现状。可用性与原因码要能被自检读到，不许黑箱（§12.2）。
   if (extractor.available) {
+    /*
+     * 报「认哪些来源」而不是「要不要来源」。
+     *
+     * 旧文案是「数字%s必须有工具来源」（`不`/空 二选一），默认翻到 `false` 之后
+     * 它会读成「数字不必须有工具来源」——听起来像「数字不需要出处」，
+     * 而实际口径是「TOOL 与 USER 的逐字引文都算出处」。两句话的差别是
+     * 「完全不查」与「换一类来源」，排查时容易读反。
+     */
     log.info(
-      '记忆提炼就绪：单轮上限 %d 条，正文上限 %d 字，数字%s必须有工具来源',
+      '记忆提炼就绪：单轮上限 %d 条，正文上限 %d 字，数字出处=%s',
       settings.maxFacts,
       settings.maxTextChars,
-      settings.requireToolForDigits ? '' : '不',
+      settings.requireToolForDigits ? 'tool-only（严格照手册）' : 'tool-or-user（与证据门控同口径）',
     )
     if (settings.allowGroup) {
       log.warn('allowGroup=true：群聊也会提炼。手册把「不收群友闲聊」列为准入红线，确认是有意为之')

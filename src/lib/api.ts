@@ -269,6 +269,101 @@ export async function togglePlugin(id: string, enabled: boolean): Promise<{ ok: 
   )
 }
 
+/*
+ * 人设清单。
+ *
+ * 与 `/api/plugins` 不是一回事：插件清单回答「装了哪些能力」，人设清单
+ * 回答「她现在是谁」。两者都由宿主扫目录得到，但一个是扩展抽屉的数据源，
+ * 一个是标题栏与人物设定页的数据源，混在一起会出现「切人设时刷出一堆插件」。
+ */
+export interface PersonaSummary {
+  /** 人设 id（`meta.slug`），切换时用它。 */
+  id: string
+  /** 包名。 */
+  name: string
+  /** 展示名（`display_name`），标题栏用这个。 */
+  displayName: string
+  version: string
+  /** 出厂 / 示例 / 用户。切换浮层里按这个排序并标出角色。 */
+  role: 'factory' | 'sample' | 'user'
+  /** 人设卡标签。 */
+  tags: string[]
+  /** 包文件名，例如「哦鲸鲸.skill.zip」。 */
+  archiveName: string
+}
+
+/** 人设清单。 */
+export interface PersonaList {
+  /** 加载器是否可用。false 时 `items` 为空、`reason` 说明原因。 */
+  available: boolean
+  /** 不可用原因码；可用时为 null。 */
+  reason: string | null
+  /** 当前人设 id。没有可用的当前人设时为 null（配的 id 不在位）。 */
+  activeId: string | null
+  items: PersonaSummary[]
+}
+
+/** 读人设清单。 */
+export async function listPersonas(): Promise<PersonaList> {
+  return await request<PersonaList>('/api/personas')
+}
+
+/**
+ * 热切换当前人设。
+ *
+ * `persisted` 为 false 表示「这一轮已经换过去了，但没写进配置文件」，
+ * 重启会退回旧人设——界面据此提示，不能假装保存成功。
+ */
+export async function activatePersona(id: string): Promise<{ ok: boolean; activeId: string; persisted: boolean }> {
+  return await request<{ ok: boolean; activeId: string; persisted: boolean }>(
+    '/api/persona/activate',
+    { method: 'POST', body: { id } },
+  )
+}
+
+/*
+ * 她的此刻（右栏侧写的数值来源）。
+ *
+ * 六维一律 0–1：`mood` / `tension` / `pleasure` 的中性点是 0.5，`energy`
+ * 的 0 是「提不起劲」。界面自己做 −1..1 的双极映射，宿主不替它决定刻度。
+ */
+export interface CompanionState {
+  /** 情绪六维是否真的测到了。false 时 `axes` 是基线值，界面应显示「尚未测量」。 */
+  measured: boolean
+  /** 不可用原因（`no-emotion-core` 等）。 */
+  reason: string | null
+  /** 快照时刻。 */
+  at: number
+  axes: {
+    pleasure: number
+    arousal: number
+    dominance: number
+    mood: number
+    energy: number
+    tension: number
+  }
+  /** 当前最强标签；没有时为 null。 */
+  dominant: string | null
+  bond: {
+    /** 七阶的中文名。空串表示关系服务没给。 */
+    stage: string
+    stageId: string
+    days: number
+    /** 四维，0–1。 */
+    affection: number
+    trust: number
+    intimacy: number
+    familiarity: number
+  }
+  /** 两个服务各自是否在位。诊断用。 */
+  sources: { emotion: boolean; stage: boolean }
+}
+
+/** 读她的此刻。 */
+export async function getCompanionState(): Promise<CompanionState> {
+  return await request<CompanionState>('/api/companion/state')
+}
+
 /** 列出可用模型。 */
 export async function listModels(): Promise<ModelDescriptor[]> {
   return await request<ModelDescriptor[]>('/api/models')

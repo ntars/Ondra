@@ -7,28 +7,72 @@
  * 但确实是运行中的扩展。用设置段当清单会漏掉它们，用户看到的是「装了 60 个」
  * 而实际 78 个。宿主 `GET /api/plugins` 扫的就是目录（见 `src/plugins.ts`）。
  *
- * ## 开关为什么分「已生效」与「下次启动」
+ * ## 为什么不再平铺，也不再给开关
  *
- * 运行中撤走一个已经 `provide` 了服务键的插件，会让别的插件的 `ctx.get`
- * 留下悬空引用——不报错，只在某次调用时抛。所以开关只改下次启动的名单，
- * 界面必须如实标出「重启后生效」，不能让用户以为关掉就立刻消失。
+ * 平铺 78 行时，这一屏读起来是一份「包名清单」——用户既不知道哪些是一类，
+ * 也不知道哪个能关。现在按**职责**收成三段：
  *
- * ## 为什么核心链成员不能关
+ * | 段 | 成员 | 回答什么 |
+ * | --- | --- | --- |
+ * | 桌面桥接 | `desktop-bridge` | 壳与本机的连接 |
+ * | 内核客户端 | `dsh-client` | 与 dsh 内核的通信 |
+ * | 能力包 | 其余全部 `ondra-*` | 她是怎样一个人 |
  *
- * 同一类理由，后果更重：核心成员缺席不会有任何报错，只会让一批能力静默
- * 降级。开关置灰 + 一句说明，比允许点下去再让人排查「她为什么突然不记事」
- * 诚实。宿主也会回 409 兜底。
+ * 三段都是**核心组件**：缺任何一段，应用要么连不上壳，要么连不上内核，
+ * 要么「她」什么都不剩。所以这里没有开关，也没有「关闭」这个入口——
+ * 一行置灰的开关仍然在暗示「这件事可以选」，而它其实不是选项。
+ *
+ * 后续新增的包不需要改这段代码：判据是目录名前缀（`desktop-bridge` /
+ * `dsh-client` / 其余），新包自动落进「能力包」。
+ *
+ * ## 为什么开关能力仍留在宿主
+ *
+ * `POST /api/plugins/:id/toggle` 与 `plugins.json` 仍然有效（诊断、CI 与
+ * 高级用户都会用），只是界面不再提供入口。撤掉宿主那一侧会让
+ * `check:disable` 与「关掉一个包排查问题」这条路一起消失，
+ * 而这跟「界面上不该有开关」不是同一件事。
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { listPlugins, togglePlugin, type PluginList, type PluginRow } from '../lib/api.ts'
+import { listPlugins, type PluginList, type PluginRow } from '../lib/api.ts'
 
-/** 一行右侧的状态文字。四种组合各有各的说法，不合并成「开/关」。 */
-function stateOf(row: PluginRow): { text: string; tone: 'live' | 'idle' | 'pending' } {
-  if (row.enabled && row.loaded) return { text: '运行中', tone: 'live' }
-  if (!row.enabled && row.loaded) return { text: '重启后停用', tone: 'pending' }
-  if (row.enabled && !row.loaded) return { text: '重启后启用', tone: 'pending' }
-  return { text: '未装载', tone: 'idle' }
+/** 三段扩展。顺序即展示顺序：越靠近本机的越靠上。 */
+const BUNDLES = [
+  {
+    id: 'desktop-bridge',
+    title: '桌面桥接',
+    note: '壳与本机的连接：文件选择、系统主题、窗口标题、外部链接。',
+  },
+  {
+    id: 'dsh-client',
+    title: '内核客户端',
+    note: '与 dsh 内核的 JSON-RPC 通信：进程生命周期与请求配对。',
+  },
+  {
+    id: 'ondra-bundle',
+    title: '能力包',
+    note: '她是谁、记得什么、怎么说话、怎么出声——其余全部能力插件。',
+  },
+] as const
+
+type BundleId = (typeof BUNDLES)[number]['id']
+
+/**
+ * 一个包属于哪一段。
+ *
+ * 只有两个包需要按名字认，其余一律进「能力包」。用 `startsWith` 之外
+ * 的判据（例如读 `package.json` 的某个字段）会引入第二处真源：
+ * 新包忘了写那个字段，就会掉进「能力包」，而没有人会发现它其实属于别处。
+ */
+function bundleOf(id: string): BundleId {
+  if (id === 'desktop-bridge') return 'desktop-bridge'
+  if (id === 'dsh-client') return 'dsh-client'
+  return 'ondra-bundle'
+}
+
+/** 一行右侧的状态文字。现在只有「在跑」与「没装载」两种，界面不能再改它。 */
+function stateOf(row: PluginRow): { text: string; tone: 'live' | 'idle' } {
+  return row.loaded ? { text: '运行中', tone: 'live' } : { text: '未装载', tone: 'idle' }
 }
 
 export interface ExtensionDrawerProps {
@@ -38,8 +82,6 @@ export interface ExtensionDrawerProps {
    * @param sectionId 配置段 id。上层据此打开三层面板并定位到该段。
    */
   onConfigure(sectionId: string): void
-  /** 一句提示（重启生效这类）。 */
-  onNote(text: string): void
 }
 
 /**
@@ -48,15 +90,13 @@ export interface ExtensionDrawerProps {
  * ## 为什么搜索框在这里自己维护
  *
  * 抽屉容器的搜索框只服务「会话 / 记忆」那类短列表，且它的占位文案与
- * 语义是按内容切换的。扩展列表有 76 项，搜索是它最主要的使用方式，
+ * 语义是按内容切换的。能力包有七十多个，搜索是它最主要的使用方式，
  * 让容器去理解「这一屏按什么字段搜」会把两种数据形状搅在一起。
  */
-export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): React.JSX.Element {
+export function ExtensionDrawer({ onConfigure }: ExtensionDrawerProps): React.JSX.Element {
   const [data, setData] = useState<PluginList | undefined>(undefined)
   const [fault, setFault] = useState<string | undefined>(undefined)
   const [query, setQuery] = useState('')
-  /** 正在提交的包 id。提交期间禁用它自己的开关，避免连点写入两份名单。 */
-  const [pending, setPending] = useState<string | undefined>(undefined)
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -75,9 +115,8 @@ export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): 
   /*
    * 待生效数**从行里数**，不读 `data.totals.pending`。
    *
-   * 拨一个开关是乐观更新：行先变，请求后到。若这一格读服务端那份合计，
-   * 用户拨完之后它会停在 0——「改了但没告诉你还要重启」正是最该说明的一刻。
-   * 行是唯一真源，合计跟着行走。
+   * 界面已经不能拨开关了，但这个数仍有意义：开关文件是用户可改的
+   * （`plugins.json`），改完重启前它就停在这里。合计与行必须同源。
    */
   const pendingCount = items.filter((row) => row.pendingRestart).length
 
@@ -96,41 +135,13 @@ export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): 
       || (row.sectionTitle ?? '').toLowerCase().includes(needle))
   }, [items, needle])
 
-  /**
-   * 切换一个包的开关。
-   *
-   * ## 为什么失败要回滚
-   *
-   * 乐观更新让开关立刻动，但如果写文件失败而界面停在「已停用」，
-   * 下次启动它照样在跑——那种不一致最难解释。失败时把它拨回去并说明。
-   */
-  const onToggle = useCallback(async (row: PluginRow): Promise<void> => {
-    if (pending !== undefined) return
-    const target = !row.enabled
-    setPending(row.id)
-    setData((current) => current === undefined ? current : {
-      ...current,
-      items: current.items.map((item) => item.id === row.id
-        ? { ...item, enabled: target, pendingRestart: target !== item.loaded }
-        : item),
-    })
-    try {
-      const result = await togglePlugin(row.id, target)
-      if (result.restartRequired) {
-        onNote(target ? '下次启动时装载它' : '下次启动时不再装载它')
-      }
-    } catch (caught) {
-      setData((current) => current === undefined ? current : {
-        ...current,
-        items: current.items.map((item) => item.id === row.id
-          ? { ...item, enabled: row.enabled, pendingRestart: row.enabled !== item.loaded }
-          : item),
-      })
-      onNote(caught instanceof Error ? caught.message : '开关没写成')
-    } finally {
-      setPending(undefined)
-    }
-  }, [pending, onNote])
+  /** 按段分好，空段不渲染（搜索时常见）。 */
+  const grouped = useMemo(() => {
+    const map = new Map<BundleId, PluginRow[]>()
+    for (const bundle of BUNDLES) map.set(bundle.id, [])
+    for (const row of shown) map.get(bundleOf(row.id))?.push(row)
+    return map
+  }, [shown])
 
   return (
     <div className="ext">
@@ -171,8 +182,8 @@ export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): 
       ) : (
         <>
           {/*
-            合计三格：总数、装载数、待生效数。
-            待生效单独一格：它不为 0 时说明有改动还没落地，这一格是唯一提示。
+            合计两格：总数与装载数。待生效单独一格，它不为 0 时说明有改动
+            还没落地（改的是开关文件），这一格是唯一提示。
           */}
           <div className="ext__totals">
             <span>{String(data.totals.all)} 个包</span>
@@ -185,64 +196,70 @@ export function ExtensionDrawer({ onConfigure, onNote }: ExtensionDrawerProps): 
           {shown.length === 0 ? (
             <p className="drawer__empty">{`未找到「${query.trim()}」`}</p>
           ) : (
-            <ul className="ext__list">
-              {shown.map((row) => {
-                const state = stateOf(row)
-                const name = row.name === '' ? row.id : row.name
+            <div className="ext__groups">
+              {BUNDLES.map((bundle) => {
+                const rows = grouped.get(bundle.id) ?? []
+                if (rows.length === 0) return null
                 return (
-                  <li className="ext__row" key={row.id}>
-                    <div className="ext__main">
-                      <div className="ext__line">
-                        <span className="ext__name" title={row.id}>{name}</span>
-                        {row.core ? <span className="ext__tag">核心</span> : null}
-                        <span className="ext__state" data-tone={state.tone}>{state.text}</span>
-                      </div>
-                      <div className="ext__meta">
-                        <span className="ext__id">{row.id}</span>
-                        {row.version === '' ? null : <span>v{row.version}</span>}
-                        {row.fields > 0 ? <span>{String(row.fields)} 项设置</span> : null}
-                        {/*
-                          「配置」挂在技术那一行（包名 / 版本 / 几项设置）的右端，
-                          不单独占一行。单独占行时每个包会多出约 28px 高度，
-                          76 行就是两千多像素的无谓滚动；而它要改的正是这一行
-                          写着的东西，放在一起比漂在描述下面更好找。
-                        */}
-                        {row.sectionId === null ? null : (
-                          <button
-                            type="button"
-                            className="ext__config"
-                            onClick={() => { onConfigure(row.sectionId ?? '') }}
-                          >
-                            配置
-                          </button>
-                        )}
-                      </div>
-                      {row.description === '' ? null : (
-                        <p className="ext__desc">{row.description}</p>
-                      )}
-                    </div>
+                  /*
+                   * 用 `<details open>` 而不是自管展开态：它自带键盘语义
+                   * （Enter / Space 开合）、自带 `aria-expanded`，
+                   * 且「默认展开、需要时收起」正是这一屏的用法。
+                   */
+                  <details className="ext__group" open key={bundle.id}>
+                    <summary className="ext__group-head">
+                      <span className="ext__group-name">{bundle.title}</span>
+                      <span className="ext__group-count">{String(rows.length)}</span>
+                      <span className="ext__tag">核心</span>
+                    </summary>
+                    <p className="ext__group-note">{bundle.note}</p>
 
-                    {/*
-                      开关用 `role="switch"`：读屏会念「开/关」而不是「按钮」。
-                      核心成员的开关置灰，`title` 给出原因——置灰而不解释等于
-                      让用户猜自己做错了什么。
-                    */}
-                    <button
-                      type="button"
-                      role="switch"
-                      className="ext__switch"
-                      aria-checked={row.enabled}
-                      aria-label={`${row.core ? '核心扩展' : '扩展'} ${name}`}
-                      disabled={row.core || pending === row.id}
-                      title={row.core ? '核心链成员不能停用：停掉不会报错，只会让一批能力静默降级' : undefined}
-                      onClick={() => { void onToggle(row) }}
-                    >
-                      <span className="ext__knob" />
-                    </button>
-                  </li>
+                    <ul className="ext__list">
+                      {rows.map((row) => {
+                        const state = stateOf(row)
+                        const name = row.name === '' ? row.id : row.name
+                        return (
+                          <li className="ext__row" key={row.id}>
+                            <div className="ext__main">
+                              <div className="ext__line">
+                                <span className="ext__name" title={row.id}>{name}</span>
+                                <span className="ext__state" data-tone={state.tone}>{state.text}</span>
+                              </div>
+                              <div className="ext__meta">
+                                <span className="ext__id">{row.id}</span>
+                                {row.version === '' ? null : <span>v{row.version}</span>}
+                                {row.fields > 0 ? <span>{String(row.fields)} 项设置</span> : null}
+                                {/*
+                                  「配置」挂在技术那一行（包名 / 版本 / 几项设置）的右端，
+                                  不单独占一行。单独占行时每个包会多出约 28px 高度，
+                                  76 行就是两千多像素的无谓滚动；而它要改的正是这一行
+                                  写着的东西，放在一起比漂在描述下面更好找。
+
+                                  这是**上下文入口**，不是「开关」：它去改这个包的参数，
+                                  不是把它停掉。
+                                */}
+                                {row.sectionId === null ? null : (
+                                  <button
+                                    type="button"
+                                    className="ext__config"
+                                    onClick={() => { onConfigure(row.sectionId ?? '') }}
+                                  >
+                                    配置
+                                  </button>
+                                )}
+                              </div>
+                              {row.description === '' ? null : (
+                                <p className="ext__desc">{row.description}</p>
+                              )}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </details>
                 )
               })}
-            </ul>
+            </div>
           )}
         </>
       )}

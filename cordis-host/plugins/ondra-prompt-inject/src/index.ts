@@ -247,7 +247,7 @@ export function apply(ctx: Context, config: InjectConfig): void {
   if (ctx.get('ondra-memory-core') === undefined) {
     log.warn('记忆内核未装载：②④⑥⑧ 与钉住的正文都拿不到，注入只剩 ①⑤⑦')
   }
-  if (settings.respectPool && ctx.get('ondra-memory-pool') === undefined) {
+  if (settings.respectPool && ctx.get('ondra-memory-pool') === undefined && settings.verbose) {
     log.info('记忆池未装载：不判「海马体永不注入」（海马体是硬性质，建议装上 O-131）')
   }
 }

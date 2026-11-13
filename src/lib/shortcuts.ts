@@ -3,11 +3,16 @@
  *
  * ## 为什么要有这个文件
  *
- * §9.1 列了 14 条快捷键，§9.4 要求三处露出（菜单项右侧、悬停提示、
- * 快捷键总表）。如果每条键在两处各写一遍「⌘K」和 `event.key === 'k'`，
- * 迟早出现「表上写 ⌘K、实际要按 ⌘Shift+K」这类不一致。
+ * 如果每条键在两处各写一遍「⌘K」和 `event.key === 'k'`，迟早出现
+ * 「表上写 ⌘K、实际要按 ⌘Shift+K」这类不一致。
  *
  * 所以：**键位只在这里定义一次**，界面提示与事件匹配都从 `SHORTCUTS` 读。
+ *
+ * ## 历史注记
+ *
+ * 2.3.0 移除了快捷键总表（`Cmd/Ctrl + /` 的速查浮层）：组合键数量有限、
+ * 且都已在各自的入口旁露出，一张总表的维护成本高于查阅价值。
+ * 本文件因此只剩「事件匹配」这一个消费者。
  *
  * ## 两条平台规则
  *
@@ -49,7 +54,6 @@ export type ShortcutId =
   | 'stop'
   | 'editLast'
   | 'jumpLatest'
-  | 'shortcutSheet'
   | 'cycleTheme'
   | 'copyLast'
 
@@ -73,7 +77,6 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'stop', label: '停止生成', key: 'escape', mod: false, hint: 'Esc' },
   { id: 'editLast', label: '编辑上一条', key: 'arrowup', mod: false, hint: '↑' },
   { id: 'jumpLatest', label: '跳到最新', key: 'arrowdown', mod: true, hint: 'mod+↓' },
-  { id: 'shortcutSheet', label: '快捷键总表', key: '/', mod: true, hint: 'mod+/' },
   { id: 'cycleTheme', label: '切换主题', key: 'l', mod: true, shift: true, hint: 'mod+Shift+L' },
   { id: 'copyLast', label: '复制最后一条回复', key: 'c', mod: true, shift: true, hint: 'mod+Shift+C' },
 ]

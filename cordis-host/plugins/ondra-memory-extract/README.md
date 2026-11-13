@@ -14,7 +14,10 @@
 1. **提炼**：调模型从本轮对话里挑出值得长期记住的事实（走 O-035 网关，不自己发请求）。
 2. **来源四分类 + 逐字校验**（手册 §2.2 / §1.7）：每条事实至少一条引文，
    引文必须是原文的子串；来源只能是 `USER` / `TOOL` / `ACT` / `SELF`。
-3. **数字必须有 `[TOOL]` 来源**：口述数字（「他说他 28 岁」）不入库。
+3. **数字必须有出处**：正文里的每个数字游程都要被逐字引文覆盖。默认 `TOOL` 与
+   `USER` 都算出处（「我车牌尾号 3721」这类口述数字由 `USER` 引文覆盖）；
+   `require-tool-for-digits=true` 时只认 `TOOL`，严格照手册 §2.2 字面。
+   **开关切换的是「谁算出处」，不是「查不查」**——闸门常在。
 4. **归属纪律**：关于别人的断言不能只从她自己的话里来（必须有 `USER` 引文兜底）。
 5. **五级解析兜底**：`strict-json` → `fenced-json` → `line` → `key-value` → `none`。
 6. **两个入口**：`propose()` 只提炼不写（给 O-012 判重），`extract()` 提炼并直写。
@@ -53,7 +56,7 @@
 | `maxTextChars` / `max-text-chars` | 200 | 正文上限（字），超长截断 |
 | `maxSummaryChars` / `max-summary-chars` | 80 | 摘要上限（字） |
 | `minQuoteChars` / `min-quote-chars` | 2 | 引文最短字数 |
-| `requireToolForDigits` / `require-tool-for-digits` | true | 数字必须有 TOOL 引文覆盖 |
+| `requireToolForDigits` / `require-tool-for-digits` | false | 数字出处的来源口径。关＝`TOOL` 与 `USER` 逐字引文都算（`tool-or-user`，与 `evidence-gate` 的 `digit-source` 同口径）；开＝只认 `TOOL`（`tool-only`）。两种情况都会检查覆盖 |
 | `temperature` / `temperature` | 0.2 | 提炼要稳，不要发挥 |
 | `maxTokens` / `max-tokens` | 1200 | 输出上限 |
 | `maxInputChars` / `max-input-chars` | 12000 | 输入预算，超了从**最早**的消息开始丢 |

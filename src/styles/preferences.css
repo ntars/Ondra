@@ -119,29 +119,46 @@
   margin-bottom: 12px;
 }
 
-/* 选择组：上下一列，谷线分隔。 */
+/*
+ * 选择组：一行多张卡片，放不下时自动换行。
+ *
+ * ## 为什么从「外框 + 竖排行」改成「平铺卡片」
+ *
+ * 竖排行在宽内容列里只占左半截，右边整片留白；三档的主题、三档的字号
+ * 本来就是平级选项，横排才读得出「挑一个」。`auto-fill + minmax(148px, 1fr)`
+ * 让列数随面板宽度自适应：窄窗一行三张，宽窗四张以上，每张等宽。
+ */
 .pref__choices {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--r-sm);
-  border: var(--rule) solid var(--ui-line-soft);
-  background: var(--ui-bg-raise);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
 }
 
+/*
+ * 单张选项卡：名字在上、说明在下。
+ *
+ * 描边用 `inset box-shadow` 而不是 `border`：加了 border 选中态再叠一圈
+ * 主色时两者会互相挤动 1px，shadow 只换颜色不动布局。
+ *
+ * 右侧 24 的内距是给选中记号让位：记号 `right: 10px`、宽 8，占到距右
+ * 18 的位置，24 之后还剩 6 的呼吸，说明文字不与它抢行。这个数由记号
+ * 尺寸推出来，但落在八级栅格上（24），所以不需要进 `GEOMETRY` 白名单。
+ * 纵向 12 沿用改版前竖排行的心跳，卡片换了布局但不换呼吸。
+ */
 .pref__choice {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 24px 12px 12px;
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-raise);
+  box-shadow: inset 0 0 0 var(--rule) var(--ui-line-soft);
   text-align: left;
-  transition: background-color var(--motion-f) var(--ease-fluid);
-}
-
-.pref__choice + .pref__choice {
-  border-top: var(--rule) solid var(--ui-line-soft);
+  transition:
+    background-color var(--motion-f) var(--ease-fluid),
+    box-shadow var(--motion-f) var(--ease-fluid);
 }
 
 .pref__choice:hover {
@@ -150,25 +167,25 @@
 
 .pref__choice[aria-checked='true'] {
   background: var(--ui-bg-selected);
+  /* 选中态的主色描边比常态的墨色描边重一点：色弱时也能分出哪张被选中。 */
+  box-shadow: inset 0 0 0 1.5px var(--ui-action);
 }
 
 /*
- * 选中记号：右侧一颗雾蓝点。
+ * 选中记号：右上角一颗雾蓝点。
  *
- * `right` 必须与 `.pref__choice` 的左右内距同值（16）。原来写 14：
- * 行内文字离右边框 16，记号离右边框 14，两道内距差 2px。2px 小到
- * 说不出哪里不对，但整列上下扫一眼，那颗点在竖向上的"边缘线"是斜的。
+ * 卡片是横排的，记号从「行尾居中」挪到「右上角」：右下角是说明文字的
+ * 收尾位置，竖直居中会压在两行文字的缝隙里。
  */
 .pref__choice[aria-checked='true']::after {
   content: '';
   position: absolute;
-  right: 16px;
-  top: 50%;
+  right: 10px;
+  top: 12px;
   width: 8px;
   height: 8px;
   border-radius: var(--r-full);
   background: var(--ui-action);
-  transform: translateY(-50%);
 }
 
 .pref__choice-label {
@@ -811,3 +828,113 @@
   border-radius: var(--r-xs);
 }
 
+
+/* ===========================================================================
+   人设包与头像（人物设定页第一段）
+   =========================================================================== */
+
+/*
+ * 头像 + 操作 + 说明，一行三段。
+ *
+ * 头像 40 而不是标题栏的 24：这里是**编辑**场景，用户要看清楚自己选的图。
+ * 显示尺寸与存储尺寸（96）之间留 2.4 倍余量，Retina 下仍然是清晰的。
+ */
+.pref__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+.pref__identity-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pref__identity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 说明文字：比正文小一档，颜色退一级——它是「读一次就够」的那种话。 */
+.pref__hint {
+  margin: 0;
+  font-size: var(--text-micro);
+  line-height: 1.55;
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 文件选择器的视觉隐藏。
+ *
+ * 不用 `display: none`：部分 WebView 里隐藏的 input 点不开。0 尺寸 +
+ * 不可聚焦既能被 `click()` 触发，又不会占位、不会进 Tab 顺序。
+ */
+.pref__file {
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * 人设包列表。
+ *
+ * 每行：包名 / 角色标签 / 右侧「当前」或「切换」。不做卡片：这一列通常
+ * 只有两三条，卡片会让它看起来像一个需要逐张阅读的面板。
+ */
+.pref__packs {
+  list-style: none;
+  margin: 0 0 16px;
+  border: var(--rule) solid var(--ui-line-soft);
+  border-radius: var(--r-sm);
+  background: var(--ui-bg-raise);
+  overflow: hidden;
+}
+
+.pref__pack-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.pref__pack-row + .pref__pack-row {
+  border-top: var(--rule) solid var(--ui-line-soft);
+}
+
+.pref__pack-row[data-current] {
+  background: var(--ui-bg-selected);
+}
+
+.pref__pack-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pref__pack-role {
+  flex: none;
+  padding: 0 4px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+/* 「当前」不是按钮：它描述状态，点它没有任何事会发生。 */
+.pref__pack-state {
+  flex: none;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  font-variant-numeric: tabular-nums;
+}

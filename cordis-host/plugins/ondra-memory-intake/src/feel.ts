@@ -127,27 +127,48 @@ export const REUNION_MINUTES = 30
  * - `apology`：**不投任何轴**，直接走 `comfort()`。这是唯一有手册出处的一条
  *   （§3.2「道歉回升 0.08，保留一点嘴硬」），所以位移量交给上游算，
  *   本文件不写第二份。
- * - `gratitude`：愉悦与开心为主，唤醒略升（被夸会精神一点）。
+ * - `gratitude`：愉悦与开心为主，唤醒略升（被夸会精神一点）——「精神一点」
+ *   就是 `energy` 那一格，见下方 `energy` 字段说明。
  * - `reunion`：唤醒升、心情微升。**不投能量**——「久别重逢」是提得起劲，
  *   不是「体力回满」，后者归 O-048。
+ *
+ * ## `energy` 为什么是绝对值而不是意图值（唯一一个例外）
+ *
+ * 其余五轴都是 -1–1 的意图值，由 `emotion-core` 乘 0.12 上限再夹紧；
+ * 而 `FeelingInput.energy` 的契约是**0–100 的绝对增量**（见
+ * `emotion-core/src/types.ts` 的字段注释与 `service.ts` 的
+ * `Math.max(-MAX_HORMONE_STEP, ...)` 夹紧）。两边尺度不同，所以这里的
+ * 数字看着大（+6 而不是 0.5），落到轴上是 +6 而不是 +0.06。
+ *
+ * 量级取 6 的理由：`energy` 轴 0–100、基线 60。一次夸奖让「还提不提得起劲」
+ * 涨 6 点，约十条同等事件从基线走到「提得起劲」；给它 30（激素级步长）
+ * 会让一句客套话把状态推到上限，那是伪造情绪。
  */
 export const SIGNAL_SHIFT: Readonly<Record<EmotionSignal, {
   readonly pleasure?: number
   readonly arousal?: number
   readonly dominance?: number
   readonly mood?: number
+  /** 能量增量：**0–100 绝对尺度**（与其余五轴的 ±1 意图值不同尺度）。 */
+  readonly energy?: number
   readonly tension?: number
   readonly labels?: Readonly<Record<string, number>>
 }>> = Object.freeze({
   stumble: Object.freeze({
     tension: 0.6,
     mood: -0.4,
+    /*
+     * 答不上来会泄一点劲：`-4` 是「精神头被抽走一小截」，
+     * 不是「体力耗尽」（那归 O-048 的作息能量）。
+     */
+    energy: -4,
     labels: Object.freeze({ hurt: 0.4, anxiety: 0.3 }),
   }),
   apology: Object.freeze({}),
   gratitude: Object.freeze({
     pleasure: 0.5,
     arousal: 0.2,
+    energy: 6,
     labels: Object.freeze({ joy: 0.5, proud: 0.2 }),
   }),
   reunion: Object.freeze({
@@ -304,6 +325,7 @@ export function feelOnce(
       ...shift.arousal === undefined ? {} : { arousal: shift.arousal },
       ...shift.dominance === undefined ? {} : { dominance: shift.dominance },
       ...shift.mood === undefined ? {} : { mood: shift.mood },
+      ...shift.energy === undefined ? {} : { energy: shift.energy },
       ...shift.tension === undefined ? {} : { tension: shift.tension },
       ...shift.labels === undefined ? {} : { labels: shift.labels },
       // `source` 只用于记账与排查，不参与计算（见 `FeelingInput` 注释）。

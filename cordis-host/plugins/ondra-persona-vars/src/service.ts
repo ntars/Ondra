@@ -88,6 +88,23 @@ export class VarsRepository implements VarsService {
   /** 替换占位符。 */
   substitute(text: string, input?: VarsInput): Substituted {
     const source = typeof text === 'string' ? text : ''
+    /*
+     * 边界层可以被单独关掉（`substituteInBoundaries`）。
+     *
+     * 关掉之后**原样返回**，而不是返回空串：调用方拿到空边界会以为人设包坏了。
+     * 这条开关的意义只在于「用户想让红线里那个 `{{user}}` 保持字面量」，
+     * 所以它只挡 `scope: 'boundary'`，正文一律照旧替换。
+     */
+    if (this.settings.enable && input?.scope === 'boundary' && !this.settings.substituteInBoundaries) {
+      return Object.freeze({
+        text: source,
+        chars: charCount(source),
+        replaced: Object.freeze([]),
+        unresolved: Object.freeze([]),
+        unknown: Object.freeze([]),
+        changed: false,
+      })
+    }
     if (!this.settings.enable) {
       // 关掉后**原样返回**而不是返回空串：调用方拿到空内核会以为人设包坏了。
       return Object.freeze({

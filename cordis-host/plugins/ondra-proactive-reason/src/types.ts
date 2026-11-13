@@ -114,6 +114,22 @@ export const NOTE_MIN_FRAGMENT = 4
 /** `note()` 判重时试到的最长片段。 */
 export const NOTE_MAX_FRAGMENT = 8
 
+/**
+ * 每轮最多把几条执念递进候选表。
+ *
+ * ## 为什么要多于一条
+ *
+ * 只递最高那一条时，它一旦在 72 小时冷却里，`pickOf()` 就再无候选可选，
+ * 整轮判 `content-empty`——而池里同张力档的其它执念从未被看过一眼。
+ *
+ * ## 为什么不设成「全池」
+ *
+ * 候选表会进面板、进日志、进 `note()` 的话题扫描，条数无限增长会把
+ * 一次 tick 的成本与噪声一起放大。8 条足够覆盖「最高那几条都在冷却里」
+ * 这种现实情形：冷却表最多 2000 条，而同一晚新生的执念通常 1–3 条。
+ */
+export const GAP_CANDIDATE_LIMIT = 8
+
 /* ------------------------------------------------------------------ *
  * 输入
  * ------------------------------------------------------------------ */
@@ -441,6 +457,26 @@ export interface GapViewLike {
 export interface DriveGapLike {
   /** 张力最高的那条 open。 */
   highestTension(at?: number): GapViewLike | undefined
+  /**
+   * 池里全部 open（按张力降序）。**可选**：老实现没有这个方法，
+   * 缺席时采集层退回 `highestTension()` 单条行为。
+   *
+   * ## 为什么必须有它
+   *
+   * 只读最高那一条会导致一个静默死锁：最高那条一旦进了 72 小时冷却，
+   * `pickOf()` 跳过它之后候选表**空了**，于是整轮判 `content-empty`，
+   * 而池里另外几条同样过唤醒线的执念从未进过候选表——症状是
+   * 「她明明心里压着四件事，却一句话都不主动说」。
+   *
+   * `rank.ts` 的设计原话是「冷却不是砍掉，是标出来…答案是『有 3 条，
+   * 但全在冷却里』，而不是『一条都没有』」。要让那句话成立，采集层就得
+   * 把多条都递上去，由排序层自己去标冷却、跳过。
+   */
+  list?(options?: {
+    readonly status?: 'open'
+    readonly limit?: number
+    readonly at?: number
+  }): readonly GapViewLike[]
 }
 
 /**

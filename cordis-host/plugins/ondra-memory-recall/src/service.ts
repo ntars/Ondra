@@ -133,6 +133,33 @@ export class RecallRepository implements RecallService {
   }
 
   /**
+   * 本轮要不要把已沉底的记忆也算进来。
+   *
+   * ## 为什么必须走这个方法，而不是直接读 `request.includeArchived`
+   *
+   * 设置页里有一个同名开关（`includeArchived`，默认关）。在本次修复之前，
+   * 它**从来没有被任何一行代码读过**——请求参数一省略，判定就退化成字面量
+   * `request.includeArchived === true` → `false`，于是用户把设置页那个开关
+   * 打开、重启，行为一模一样：沉底的记忆照样不参与召回。这是个安静的假开关。
+   *
+   * ## 优先级：请求参数 > 配置
+   *
+   * 请求参数是**单轮覆盖**（`RecallRequest.includeArchived` 的原文：
+   * 「默认 `false`（沉底的不该主动冒头）」——它说的是缺省值该往哪边倒，
+   * 不是「永远不许打开」）。调用方显式传了就听调用方，没传才落到配置。
+   * 这也让配置项第一次真的有了意义：它决定的是**缺省行为**。
+   *
+   * 注意 `false` 也是显式值：调用方传 `false` 时不能因为配置是 `true` 就被翻回来，
+   * 所以判据是 `typeof === 'boolean'`，不是真值判断。
+   * @param request 召回请求。
+   */
+  private archivedIncluded(request: RecallRequest): boolean {
+    return typeof request.includeArchived === 'boolean'
+      ? request.includeArchived
+      : this.settings.includeArchived
+  }
+
+  /**
    * 召回。
    * @param request 请求。
    */
@@ -172,7 +199,7 @@ export class RecallRepository implements RecallService {
         reason: '不在语料里：id 不存在，或该条已封存（封存永不参与回忆），或被 maxScanRows 截断在窗口外',
       }
     }
-    if (record.archived && request.includeArchived !== true) {
+    if (record.archived && !this.archivedIncluded(request)) {
       return { id, found: false, text: record.text, rank: null, reason: '已沉底，且本轮 includeArchived=false（沉底的不占主动位，但没被删）' }
     }
     const subject = request.subject
@@ -374,7 +401,7 @@ export class RecallRepository implements RecallService {
             .map(entry => ({ id: entry.id, score: entry.fused }))
 
     // 过滤（语义条件，不是条数）。
-    const includeArchived = request.includeArchived === true
+    const includeArchived = this.archivedIncluded(request)
     const subject = typeof request.subject === 'string' && request.subject.length > 0 ? request.subject : undefined
     const hits: RecallHit[] = []
     let filteredArchived = 0

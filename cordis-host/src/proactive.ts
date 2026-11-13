@@ -443,6 +443,29 @@ export function reasonToText(pick: { readonly kind: string; readonly text: strin
  * 没由头时正确的行为是不开口，而不是为了开口而随便说点什么——
  * 后者正是「她总是说些无关紧要的话」的来源。
  *
+ * ## 为什么「没由头」的成因要另开一个函数去问（{@link reasonDiagnosis}）
+ *
+ * 「没由头」有三种成因，处置完全不同：
+ *
+ * | `code` | 含义 | 该做什么 |
+ * | --- | --- | --- |
+ * | `no-candidate` | 上游真的一条都没有 | 正常，安静待着 |
+ * | `all-cooling` | **有候选，但全在 72 小时里说过** | 正常，等冷却到期 |
+ * | `disabled` | 话由服务被关掉了 | 要么打开，要么接受 |
+ *
+ * 此前这三种全部塌成 `undefined`，宿主拿不到原因，于是交给门控时正文是空串，
+ * 门控只能回一句 `content-empty`「正文为空：发出去就是一条空气泡」。
+ * 那句话在日志里每 15 分钟出现一次，把「四条心事全在冷却」说成了
+ * 「没有内容可发」——排查的人会去查采集层，而采集层其实四条都采到了。
+ *
+ * 判据不该在传递过程里丢掉，但**也不该为此改这个函数的返回形状**：
+ * 它已有消费方（`check-acceptance` 的六条断言与 `check:no-reason` 都按
+ * 「取到就返回对象、没取到返回 undefined」来断言）。把返回值从
+ * `T | undefined` 改成 `{taken, code}` 是一次公共接口变更，代价远大于
+ * 收益。所以诊断走 {@link reasonDiagnosis}，只在那条「本轮不说话」的
+ * 日志分支里调一次——多跑一次 `plan()` 是纯计算（文件头纪律 1：
+ * `plan()` 不改冷却表），没有副作用。
+ *
  * @param reason 话由服务，缺席时传 undefined。
  * @param gapEligible 执念够不够格当由头（`undefined` = 没问）。
  *   透传给 `plan()`，由采集层决定是否产执念候选——**排序归插件，资格也归插件**，
@@ -480,6 +503,48 @@ export function takeReason(
   } catch {
     // 话由服务抛错不该让「她能不能开口」也跟着失败：当作没有由头。
     return undefined
+  }
+}
+
+/**
+ * 问一句「这一轮为什么没有可说的话由」。
+ *
+ * 只在 {@link takeReason} 返回 `undefined` 之后调用，用于写一条能看懂原因的日志。
+ * 判据**完全来自插件**（`plan().code`），宿主不重新推断一遍——重推一份就会
+ * 与插件慢慢漂开，而症状是「日志说 A，插件认为 B」。
+ *
+ * @param reason 话由服务，缺席时传 undefined。
+ * @param gapEligible 执念够不够格当由头（`undefined` = 没问）。
+ * @param at 时刻。
+ */
+export function reasonDiagnosis(
+  reason: ReasonLike | undefined,
+  gapEligible?: boolean,
+  at?: number,
+): {
+  /** 插件结论码（`ok` / `all-cooling` / `no-candidate` / `disabled` / `error`）。 */
+  readonly code: string
+  /** 候选总条数（含冷却中的）。 */
+  readonly candidates: number
+  /** 其中在冷却里的条数。 */
+  readonly cooling: number
+} {
+  const none = (code: string) => Object.freeze({ code, candidates: 0, cooling: 0 })
+  if (reason === undefined || !reason.available) return none('disabled')
+  try {
+    const plan = reason.plan({
+      ...(at === undefined ? {} : { at }),
+      ...(gapEligible === undefined ? {} : { gapEligible }),
+    })
+    const list: readonly unknown[] = Array.isArray(plan.candidates) ? plan.candidates : []
+    const cooling = list.filter(item => (item as { readonly cooling?: unknown } | undefined)?.cooling === true).length
+    return Object.freeze({
+      code: typeof plan.code === 'string' ? plan.code : 'unknown',
+      candidates: list.length,
+      cooling,
+    })
+  } catch {
+    return none('error')
   }
 }
 

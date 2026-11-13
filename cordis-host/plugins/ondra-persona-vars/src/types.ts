@@ -169,6 +169,15 @@ export interface VarsInput {
   readonly charName?: string
   /** 临时指定关系中文名（一般不需要：关系名从 O-021 的关系变体取）。 */
   readonly relationLabel?: string
+  /**
+   * 这段文本属于哪一层。省略按 `body`（正文）处理。
+   *
+   * 只有 `boundary` 会被 `substituteInBoundaries` 这个设置管到：
+   * 关掉它时，边界条目里的 `{{user}}` 原样保留，正文照常替换。
+   * 分层参数放在入参里而不是加一个 `substituteBoundaries()` 方法——
+   * 两个方法会让「替换」这件事有两份实现，而这份实现的全部价值就是只有一份。
+   */
+  readonly scope?: 'body' | 'boundary'
 }
 
 /** 取浓度段的入参。 */

@@ -1,5 +1,5 @@
 /**
- * 对话框 / 快捷键总表 / Toast。
+ * 对话框 / Toast。
  */
 
 /* ===========================================================================
@@ -142,174 +142,6 @@
   margin-top: 16px;
 }
 
-/* ===========================================================================
-   快捷键总表
-   =========================================================================== */
-
-.sheet {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-sheet);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 48px 24px 48px;
-  /* 扁平遮罩：纯色压暗，不虚化背景。模糊会把「下面还有内容」说成「下面已失效」。 */
-  background: rgb(0 0 0 / 42%);
-  animation: fade-in var(--motion-f) var(--ease-fluid);
-}
-
-.sheet__panel {
-  position: relative;
-  pointer-events: auto;
-  width: min(560px, 100%);
-  height: min(70vh, 460px);
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--r-lg);
-  background: var(--ui-bg-glass-strong);
-  border: var(--rule) solid var(--ui-line);
-  box-shadow: var(--ui-shadow-float);
-  animation: dialog-in var(--motion-b) var(--ease-fluid);
-}
-
-/* 底部渐隐：告诉用户「下面还有」。 */
-.sheet__panel::after {
-  content: '';
-  position: absolute;
-  left: 1px;
-  right: 1px;
-  bottom: 1px;
-  height: 27px;
-  border-radius: 0 0 var(--r-lg) var(--r-lg);
-  background: linear-gradient(to top, var(--ui-bg-sheet) 30%, transparent);
-  pointer-events: none;
-}
-
-.sheet__head {
-  flex: none;
-  padding: 16px 24px 12px;
-  border-bottom: var(--rule) solid var(--ui-line-soft);
-}
-
-.sheet__title {
-  font-size: 1.0625rem;
-  font-weight: var(--w-medium);
-  letter-spacing: var(--track-title);
-  color: var(--ui-ink);
-}
-
-.sheet__note {
-  margin-top: 3px;
-  font-size: var(--text-label);
-  color: var(--ui-ink-4);
-}
-
-.sheet__scroll {
-  flex: 1;
-  min-height: 0;
-}
-
-.sheet__body {
-  padding: 8px 32px 24px 24px;
-}
-
-.sheet__group {
-  padding-top: 16px;
-}
-
-/*
- * 快捷键清单（`<dl>`）。
- *
- * 组件用的是 `<dl>` + 每行一个 `<div class="sheet__row">` 包 `<dt>/<dd>`。
- * `<dl>` 与 `<dd>` 都带浏览器默认外边距：前者上下各 1em，后者左侧 40px。
- * 没有这条规则时，整张清单会先往下掉 16px，然后每一行的键帽组相对
- * 名称右移 40px——而 `.sheet__row` 的 `gap: 12px` 已经管了横向间距，
- * 两种间距叠在一起，键帽会飘到面板右侧，看起来像没对齐的两列。
- *
- * 只在这里重置，不改全局 `dl/dd`：项目里还有别处用定义列表
- * （偏好页的 `.pref__facts` 是 grid 布局），一刀切会把它也推平。
- */
-.sheet__list {
-  margin: 0;
-}
-
-.sheet__list .sheet__keys {
-  margin: 0;
-}
-
-.sheet__group-title {
-  margin-bottom: 8px;
-  font-size: var(--text-micro);
-  font-weight: var(--w-regular);
-  letter-spacing: 0.16em;
-  color: var(--ui-ink-4);
-}
-
-.sheet__row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: 30px;
-  border-top: var(--rule) solid var(--ui-line-soft);
-}
-
-.sheet__row-name,
-.sheet__name {
-  flex: 1;
-  font-size: var(--text-caption);
-  color: var(--ui-ink-2);
-}
-
-.sheet__keys {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex: none;
-}
-
-.sheet__plus {
-  font-size: 0.625rem;
-  color: var(--ui-ink-4);
-}
-
-/**
- * 键帽：内凹面 + 底部一条实边——「键」的视觉语法。
- * 不用投影：投影让它像浮起来的按钮，键帽是「嵌下去」的。
- */
-.sheet__key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 4px;
-  border-radius: var(--r-xs);
-  background: var(--ui-bg-field);
-  box-shadow: 0 1px 0 var(--ui-line-strong);
-  font-family: var(--font-display);
-  font-size: var(--text-micro);
-  color: var(--ui-ink-2);
-  line-height: 1;
-}
-
-.sheet__close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-xs);
-  color: var(--ui-ink-4);
-  transition:
-    background-color var(--motion-f) var(--ease-fluid),
-    color var(--motion-f) var(--ease-fluid);
-}
-
-.sheet__close:hover {
-  background: var(--ui-bg-hover);
-  color: var(--ui-ink);
-}
 
 /* ===========================================================================
    Toast
@@ -342,13 +174,9 @@
 /*
  * ## 设置打开时不避让，直接回窗口正中
  *
- * 避让的前提是「面板只占一侧，另一侧还有空地」。设置纸片现在是 780 宽、
- * 浮在窗口正中（820 的最小窗里左右各剩 20），**没有一侧空地可以落脚**：
- * `left: calc((100vw - 780px) / 2)` 算出来是 20，提示条从 20 起铺 420 宽，
- * 正好横在设置左导航上——也就是「避让」反而把它送到面板最需要读的地方。
- *
- * `max-width` 那一项更糟：`100vw - 780 - 48` 在 820 窗口下是负数，
- * 负的 max-width 是无效声明，浏览器退回默认值，提示条按最宽长出来。
+ * 避让的前提是「面板只占一侧，另一侧还有空地」。设置纸片现在铺满窗口
+ * 内边距盒（四边各留 16，见 `settings.css`），**没有一侧空地可以落脚**：
+ * 提示条按旧公式算「避让」反而会把它送到面板最需要读的地方。
  *
  * 所以这一档改成与默认一致（居中于窗口）。提示条本来就该浮在模态面板
  * 之上，而不是挤进面板的空白里——两者的层级不同，前者不需要躲。

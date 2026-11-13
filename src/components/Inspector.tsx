@@ -177,7 +177,7 @@ export function Inspector({
                     style={{ transform: `scaleX(${String(Math.min(1, Math.max(0, mood.energy / 100)))})` }}
                   />
                 </span>
-                <span className="inspector__value">{mood.energy.toFixed(2)}</span>
+                <span className="inspector__value">{(mood.energy / 100).toFixed(2)}</span>
               </div>
             </>
           ) : (

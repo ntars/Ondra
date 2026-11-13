@@ -197,6 +197,23 @@ export class AssembleRepository implements AssembleService {
       }
     }
 
+    /*
+     * 边界条目走同一个替换函数，但**声明自己是边界层**。
+     *
+     * 这条通道是 `substituteInBoundaries` 唯一的落点：上游关掉它时只挡这一路，
+     * 内核与关系段照常替换。少了这个 `scope`，那个设置就是一句空话——
+     * 用户关掉它，红线里的 `{{user}}` 照样被换掉，而日志与界面都说「已关闭」。
+     */
+    const substBoundary = (text: string): string => {
+      if (vars === undefined || text === '') return text
+      try {
+        return vars.substitute(text, { userAddress: input?.userAddress, scope: 'boundary' }).text
+      } catch (error) {
+        this.log.warn('边界条目变量替换失败，该条按原文使用：%s', messageOf(error))
+        return text
+      }
+    }
+
     // 3. 单元：内核按槽位（先对拍），关系一段，浓度一段，边界逐条豁免。
     const units: AssemblyUnit[] = []
     const kernelUnits = this.kernelUnits(core, composed.kernelText, subst, degradations)
@@ -211,7 +228,7 @@ export class AssembleRepository implements AssembleService {
       if (toneText !== '') units.push(toneUnit(toneText))
     }
 
-    for (const unit of this.boundaryUnits(core, subst)) units.push(unit)
+    for (const unit of this.boundaryUnits(core, substBoundary)) units.push(unit)
 
     // 4. 装箱。
     const result = composeAssembly({

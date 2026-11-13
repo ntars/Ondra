@@ -29,7 +29,7 @@ import {
   toView,
   truncate,
 } from './drive.js'
-import { BUMP_STEP, MAX_TENSION, SIMILARITY_THRESHOLD, TRUNCATE_CHARS } from './types.js'
+import { BUMP_STEP, MAX_TENSION, SIMILARITY_THRESHOLD, TRUNCATE_CHARS, WAKE_TENSION } from './types.js'
 import type { Config } from './settings.js'
 import { EMPTY_WAKE_STATE } from './store.js'
 import type { GapStore, WakeState } from './store.js'
@@ -470,6 +470,48 @@ export class GapRepository implements DriveGapService {
   dueForWake(input?: WakeInput): WakeDecision {
     const decision = this.evaluateWake(input)
     if (decision.wake) this.counters.wakePassed += 1
+    /*
+     * 说一次「为什么没叫醒」。
+     *
+     * ## 为什么这一行必须存在（本轮修的真缺陷）
+     *
+     * 现场症状是：库里四条执念张力 105–286 全过唤醒线 80，而主动链每 15 分钟
+     * 一行 `content-empty`「正文为空」。这个组合说不通——张力过线就该有由头，
+     * 有由头就不该「正文为空」。
+     *
+     * 断点在 `dueForWake()` 与 `dueForDream()` 都**不打日志**：它返回
+     * `wake:false` 时不写任何东西，于是「张力过了但能量不够」「闲置太短」
+     * 「在冷却期」这三种截然不同的原因，在日志里全是「没有候选」。
+     * 排查的人只能一层层读源码去猜，而这已经是第八次绕回同一处。
+     *
+     * 判据用插件自己的 `blockedBy`，一个字都不另写。
+     *
+     * ## 为什么只在 `verbose` 时打
+     *
+     * `dueForWake` 是每个 tick 都调的（面板刷新、主动链、做梦链）。
+     * 无条件打会把 `debug.log` 冲成一片噪声，真正要看的那一行反而被顶掉。
+     * `verbose` 默认 true（见 `settings.ts`），但用户可以关。
+     */
+    if (!decision.wake && this.settings.verbose) {
+      this.log.debug?.(
+        '唤醒判定：不叫醒（%s）· 张力 %s · 能量 %s · 闲置 %s 分钟 · 距上次唤醒 %s 分钟',
+        String(decision.blockedBy ?? 'unknown'),
+        String(decision.checks.tension),
+        decision.checks.energy === undefined ? '读不到' : String(decision.checks.energy),
+        String(decision.checks.idleMinutes),
+        Number.isFinite(decision.checks.sinceWakeMinutes)
+          ? String(Math.round(decision.checks.sinceWakeMinutes))
+          : '从未',
+      )
+    } else if (decision.wake && this.settings.verbose) {
+      this.log.info?.(
+        '唤醒判定：叫醒（张力 %s 过线 %s）· 能量 %s · 闲置 %s 分钟',
+        String(decision.checks.tension),
+        String(WAKE_TENSION),
+        decision.checks.energy === undefined ? '读不到' : String(decision.checks.energy),
+        String(decision.checks.idleMinutes),
+      )
+    }
     return decision
   }
 

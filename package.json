@@ -2,7 +2,7 @@
   "name": "ondra",
   "productName": "空谷 Ondra",
   "description": "空谷 Ondra：全插件式桌面 AI 陪伴体应用",
-  "version": "2.2.1",
+  "version": "1.0.1-alpha",
   "private": true,
   "license": "AGPL-3.0",
   "author": {
@@ -45,6 +45,7 @@
     "check:observability": "node cordis-host/check-observability.mjs",
     "check:logfmt": "node tools/check-log-format.mjs",
     "check:defaults": "node tools/check-defaults.mjs",
+    "check:config-used": "node tools/check-config-used.mjs",
     "check:gap": "node cordis-host/check-gap.mjs",
     "check:gap-wake": "node cordis-host/check-gap-wake.mjs",
     "check:system-prompt": "node cordis-host/check-system-prompt.mjs",
@@ -53,6 +54,7 @@
     "check:emotion": "node cordis-host/check-emotion.mjs",
     "check:project": "node cordis-host/check-emotion-project.mjs",
     "check:feel": "node cordis-host/check-feel.mjs",
+    "check:memory-digits": "node cordis-host/check-memory-digits.mjs",
     "check:diffuse": "node cordis-host/check-diffuse.mjs",
     "check:relation": "node cordis-host/check-relation.mjs",
     "check:evolve": "node cordis-host/check-evolve.mjs",
@@ -67,13 +69,20 @@
     "check:no-reason": "node tools/check-proactive-noreason.mjs",
     "check:order": "node tools/check-store-order.mjs",
     "check:filter": "node tools/check-filter.mjs",
+    "check:shape": "node cordis-host/check-shape.mjs",
+    "check:disable": "node cordis-host/check-disable.mjs",
     "check:stale": "node tools/check-stale.mjs",
     "prepare:plugins": "node tools/prepare-plugins.mjs",
+    "version:alpha": "node tools/version.mjs",
+    "version:alpha:minor": "node tools/version.mjs --minor",
     "ondra": "node tools/ondra.mjs",
     "site": "node tools/build-site.mjs",
     "build:runtime": "node tools/collect-runtime.mjs",
     "build:dmg": "node tools/make-dmg.mjs",
-    "check:cors": "node tools/check-cors.mjs"
+    "check:cors": "node tools/check-cors.mjs",
+    "check:dedupe-tally": "node tools/check-dedupe-tally.mjs",
+    "check:dedupe-digit": "node cordis-host/check-dedupe-digit.mjs",
+    "check:recall-archived": "node tools/check-recall-archived.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.4"

@@ -55,6 +55,28 @@ const TEMPO_DELTA: Readonly<Record<string, number>> = Object.freeze({
  *
  * `messages: null` 表示「不动上限」；数字表示「压到这么多条」。
  * **任何一档都不许把条数顶到 4 以上**——上限在 `shapeOf` 里再夹一次。
+ *
+ * ## 六个档一个都不能少（第 16 轮补 `ellipsis`）
+ *
+ * `sentenceShape` 的合法取值由 O-031 的 `SentenceShape` 联合类型决定，共六个：
+ * `burst / medium / plain / long-single / clipped / ellipsis`。本表的键**必须**
+ * 与那片联合类型逐字对齐。
+ *
+ * 第 16 轮之前缺 `ellipsis`，而它正是「困」态的句形
+ * （`emotion-express/src/specs.ts` 的 `sleepy`）。缺键的后果不是崩溃，是
+ * **静默降级成 `plain`**：`shapeOf()` 的 `?? PLAIN_SHAPE` 兜住空值，
+ * 同时 `adjusted` 因数值与默认相同而算成 `false`，连 `notes` 里的
+ * `{ code: 'shape' }` 都不产生。她困的时候语速确实慢下来了（`tempo: 'slow'`
+ * 命中），但分条与单条字数完全按平常档走，面板上「句形」一格还显示
+ * `ellipsis / 短句带省略`——看着全对。
+ *
+ * ## `ellipsis` 的系数为什么抄 `burst` 的 0.75、条数不动
+ *
+ * 手册 §3.2 对「困」只写了「短句含省略」：**短句**给了（要压字数），
+ * **含省略**归 `ondra-oral` 的 `hesitate()`（已实现），**没有一句要求分多条**。
+ * 所以 `chars` 取「短句」这一档已有的 0.75，不另编数字；`messages: null`
+ * 表示不动条数——只有手册明写「一条说完」（`long-single`）与
+ * 「极短常单字、？！」（`clipped`）的两档才有条数要求。
  */
 const SHAPE_ADJUST: Readonly<Record<string, { readonly chars: number; readonly messages: number | null }>> =
   Object.freeze({
@@ -63,6 +85,8 @@ const SHAPE_ADJUST: Readonly<Record<string, { readonly chars: number; readonly m
     plain: Object.freeze({ chars: 1, messages: null }),
     'long-single': Object.freeze({ chars: 1.5, messages: 1 }),
     clipped: Object.freeze({ chars: 0.5, messages: 2 }),
+    // 困：短句（压字数），省略号由 oral 加，条数不动。
+    ellipsis: Object.freeze({ chars: 0.75, messages: null }),
   })
 
 const PLAIN_SHAPE = SHAPE_ADJUST['plain'] as { readonly chars: number; readonly messages: number | null }
@@ -440,7 +464,7 @@ export class Rhythm implements RhythmService {
         : TEMPO_DELTA[style.tempo ?? ''] ?? 0
     const cps = Math.min(20, Math.max(2, settings.charsPerSecond * (1 + delta)))
 
-    const shape = SHAPE_ADJUST[style.sentenceShape ?? ''] ?? PLAIN_SHAPE
+    const shape = this.shapeOfStyle(style.sentenceShape)
     const cap = Math.min(120, Math.max(8, Math.round(settings.maxCharsPerMessage * shape.chars)))
     // 只能减不能增：shape.messages 再小也不会把上限顶过 4。
     const max = Math.max(1, Math.min(settings.maxMessages, shape.messages ?? settings.maxMessages))
@@ -453,6 +477,29 @@ export class Rhythm implements RhythmService {
       adjusted: cap !== settings.maxCharsPerMessage || max !== settings.maxMessages,
       rateAdjusted: Math.abs(cps - settings.charsPerSecond) > 1e-9,
     }
+  }
+
+  /**
+   * 查句形档，遇到不认识的档**留一行诊断**。
+   *
+   * 查不到就回落 `plain` 本身是对的（总比抛错强），错的是**回落无声**：
+   * 第 16 轮之前 `ellipsis` 缺键整整静默了若干轮，面板照常显示
+   * 「短句带省略」，只有翻代码才能发现它压根没生效。
+   *
+   * 所以这里保留回落，同时把这个「表与联合类型脱节」的事件打到日志上。
+   * `undefined` 走静默（调用方没给句形是正常情形，不是缺陷），
+   * 只有**给了名字却认不出**才报。
+   * @param name 句形档名（可能为 `undefined`）。
+   */
+  private shapeOfStyle(name: string | undefined): { readonly chars: number; readonly messages: number | null } {
+    if (name === undefined) return PLAIN_SHAPE
+    const found = SHAPE_ADJUST[name]
+    if (found !== undefined) return found
+    this.deps.log.warn?.(
+      '句形档「%s」在 SHAPE_ADJUST 里没有条目，按常句处理（说明本表与 O-031 的 SentenceShape 联合类型脱节了）',
+      name,
+    )
+    return PLAIN_SHAPE
   }
 
   /** 判深夜。优先问 O-003（它处理跨零点与自然日），缺席时本地算。 */

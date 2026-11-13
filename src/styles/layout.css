@@ -10,7 +10,19 @@
   display: grid;
   grid-template-rows: var(--h-titlebar) minmax(0, 1fr);
   height: 100%;
-  background: var(--ui-bg-sheet);
+  /*
+   * 窗身与标题栏**同色**，不是同色系的两档。
+   *
+   * 上一版这里是 `--ui-bg-sheet`（纸 #fcfcfc），而标题栏是 `--ui-bg-canvas`
+   * （窗身 #ededed）。8px 的外框于是比标题栏亮一截，四条边上出现一圈
+   * 只在拐角处明显的"夹心"：纸片浮在更亮的框里，框又接不上标题栏。
+   *
+   * 参照 QQ 的窗内结构：**标题栏与四周外框是同一张面**，内容纸片才是
+   * 那张被放进去的纸。所以外框取 canvas，纸片仍由 `.workspace` 与
+   * `.column` 各自给 sheet。粗细不动——变的是颜色，不是 8px 的边距
+   * 与 0.5px 的描边。
+   */
+  background: var(--ui-bg-canvas);
   overflow: hidden;
   /*
    * 容器查询的锚点。

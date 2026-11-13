@@ -129,6 +129,86 @@ const MODELS = [
 ]
 
 /**
+ * 人设包清单（标题栏身份块的数据来源）。
+ *
+ * ## 为什么三个角色都要出现
+ *
+ * 浮层按 `role` 把包分成出厂 / 示例 / 用户三类，并在每一项右边标出来。
+ * 只桩 `factory` 一种，那三行标签的渲染就永远只有一条路径被测到——
+ * 而「示例包被标成出厂」这种错在界面上是看不出来的。
+ *
+ * `displayName` 故意给得比 `name` 长（真实 `meta.json` 就是这样：展示名带
+ * 一长串别名），用来验名字被省略号截断时不会把整行撑开。
+ */
+const PERSONAS = [
+  {
+    id: 'oh-jingjing',
+    name: '哦鲸鲸',
+    displayName: '哦鲸鲸（鲸鲸 / 蓝色大肥鱼 / 鲸鱼娘）',
+    version: '1.0.0',
+    role: 'factory',
+    tags: ['出厂', '陪伴'],
+    archiveName: '哦鲸鲸.skill.zip',
+  },
+  {
+    id: 'xia-ningqi',
+    name: '夏柠柒',
+    displayName: '夏柠柒',
+    version: '1.0.0',
+    role: 'sample',
+    tags: ['示例'],
+    archiveName: '夏柠柒.skill.zip',
+  },
+  {
+    id: 'custom-a',
+    name: '自定义人设',
+    displayName: '自定义人设',
+    version: '0.9.0',
+    role: 'user',
+    tags: [],
+    archiveName: 'custom-a.skill.zip',
+  },
+]
+
+/**
+ * 她的此刻（右栏侧写的数值来源）。
+ *
+ * ## 为什么给具体数值，不给 0.5 一片
+ *
+ * 侧写的四段都是「读一个数、画一根杆」。全是 0.5 时每根杆都停在中点，
+ * 「杆有没有接上数据」这件事在截图里看不出来——而它恰恰是这一栏上一轮
+ * 的全部问题（`deriveMood()` 恒 0，界面上照样画）。
+ *
+ * 取互不相同的值还有第二个用处：双极映射把 `mood: 0.5` 映成 `0.00`、
+ * `tension: 0.1` 映成 `-0.80`，正负两侧都会被测到。
+ */
+const COMPANION = {
+  measured: true,
+  reason: null,
+  at: now - 1000,
+  axes: {
+    pleasure: 0.62,
+    arousal: 0.35,
+    dominance: 0.44,
+    mood: 0.5,
+    energy: 0.73,
+    tension: 0.1,
+  },
+  dominant: 'soft',
+  bond: {
+    stage: '熟悉',
+    stageId: 'familiar',
+    days: 12,
+    affection: 0.58,
+    trust: 0.47,
+    intimacy: 0.31,
+    familiarity: 0.66,
+  },
+  sources: { emotion: true, stage: true },
+}
+
+
+/**
  * 记忆清单。
  *
  * ## 为什么必须有这一份
@@ -369,6 +449,15 @@ function serve(settings, plugins) {
    */
   let messages = [...MESSAGES]
 
+  /*
+   * 当前人设包。
+   *
+   * 与 `messages` 同理：切换是**写操作**，桩必须记住它，下一次
+   * `GET /api/personas` 才会返回新的 `activeId`。否则「切完刷新又回去了」
+   * 这条真缺陷会被桩自己掩盖掉。
+   */
+  let activeId = PERSONAS[0].id
+
   const server = createServer(async (request, response) => {
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
     if (path === '/api/health') return json(response, { ok: true, at: Date.now() })
@@ -566,6 +655,32 @@ function serve(settings, plugins) {
     if (/^\/api\/plugins\/[^/]+\/toggle$/.test(path)) {
       return json(response, { ok: true, restartRequired: true })
     }
+
+    /*
+     * --- 人设（标题栏身份块） ----------------------------------------
+     *
+     * 状态放在闭包里，因为切换是**有状态**的：前端点完「夏柠柒」之后会
+     * 用回执里的 `activeId` 更新自己那份快照，但一次刷新之后真相只可能
+     * 来自宿主。桩若每次都返回出厂包，就永远验不出「切换后标题栏是否
+     * 真的换了名字」——那正是这条链路唯一值得验的事。
+     */
+    if (path === '/api/personas') {
+      return json(response, { items: PERSONAS, activeId, available: true, reason: null })
+    }
+    if (path === '/api/persona/activate') {
+      const body = JSON.parse(await readBody(request) || '{}')
+      const found = PERSONAS.find((item) => item.id === body.id)
+      if (found === undefined) {
+        response.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
+        response.end(JSON.stringify({ error: '没有这个人设包' }))
+        return
+      }
+      activeId = found.id
+      return json(response, { ok: true, activeId: found.id, persisted: true })
+    }
+
+    /* --- 她的此刻（右栏侧写） ---------------------------------------- */
+    if (path === '/api/companion/state') return json(response, COMPANION)
 
     /*
      * --- 四条诊断（设置里的声音四张卡） ------------------------------
@@ -2486,82 +2601,6 @@ async function run() {
   truthy('Esc 到底不退出应用', afterManyEsc.quitCalled === false)
   truthy('Esc 到底不离开会话', afterManyEsc.stillInSession === true)
 
-  // 3. `Cmd/Ctrl + /` 打开快捷键总表。
-  await page.keyboard.press(`${MOD}+/`)
-  await page.waitForTimeout(400)
-  const sheet = await page.evaluate(() => {
-    const panel = document.querySelector('.sheet__panel')
-    if (panel === null) return { found: false }
-    const rect = panel.getBoundingClientRect()
-    const rows = panel.querySelectorAll('.sheet__row')
-    const keys = panel.querySelectorAll('.sheet__key')
-    return {
-      found: true,
-      rows: rows.length,
-      keys: keys.length,
-      top: Math.round(rect.top),
-      within: rect.bottom <= window.innerHeight + 1,
-      // Sheet 不是 Dialog：不许有 aria-modal="true"，否则读屏会锁住背后。
-      modal: panel.getAttribute('aria-modal'),
-      firstRow: (rows[0]?.textContent ?? '').trim(),
-    }
-  })
-  truthy('Cmd+/ 打开快捷键总表', sheet.found === true)
-  eq('总表列出全部 15 条', 15, sheet.rows)
-  truthy('总表键位切成键帽', sheet.keys >= 15)
-  /* 贴顶 44 → 48：`.sheet` 的 padding 本轮随 §11.1 吸附到八级（44 → 48）。
-     48 同时是标题栏高度 (--h-titlebar) 加一个 --s-1，浮层顶端与标题栏
-     下沿对齐，视觉上"从标题栏下面压出来"。 */
-  eq('总表贴顶 48', 48, sheet.top)
-  truthy('总表不超出视口', sheet.within === true)
-  same('总表不是模态框', 'false', sheet.modal)
-  await page.screenshot({ path: join(OUT, 'shortcut-sheet-v6.png') })
-
-  /*
-   * 总表**必须能滚**，而且滚动这件事必须看得见。
-   *
-   * ## 为什么这三条要一起断言
-   *
-   * 15 条快捷键在 580 高的窗口里装不下（实测内容 611px、可视 300px）。
-   * 而全项目把原生滚动条宽度设成了 0（§12.1 要 overlay 自绘），
-   * 于是「溢出但看不见滑块」是默认结果——用户只看到列表在中间被切断，
-   * 会以为布局坏了。
-   *
-   * 第一版就是这么坏的：面板自己 `overflow: auto`，没有滑块。
-   * 改成 ScrollArea 后又踩了第二个坑——滑块是绝对定位的 overlay，
-   * 压在键帽上把「Enter」吃成「Ent」。所以还要断言滑块不碰键帽。
-   */
-  const sheetScroll = await page.evaluate(() => {
-    const view = document.querySelector('.scrollarea__viewport.sheet__scroll')
-    const thumb = document.querySelector('.sheet__panel .scrollarea__thumb')
-    if (view === null) return { found: false }
-    // 滚一下让滑块显形，再量它与键帽的横向关系。
-    view.scrollTop = 0
-    view.dispatchEvent(new Event('scroll', { bubbles: true }))
-    const rows = [...document.querySelectorAll('.sheet__row')]
-    const firstKey = rows[0]?.querySelector('.sheet__key')
-    return {
-      found: true,
-      overflow: view.scrollHeight > view.clientHeight + 1,
-      hasThumb: thumb !== null,
-      thumbLeft: thumb === null ? 0 : Math.round(thumb.getBoundingClientRect().left),
-      keyRight: firstKey === null || firstKey === undefined ? 0 : Math.round(firstKey.getBoundingClientRect().right),
-    }
-  })
-  truthy('总表内容超出一屏', sheetScroll.found === true && sheetScroll.overflow === true)
-  truthy('总表有可见滑块', sheetScroll.hasThumb === true)
-  // 滑块左缘必须落在最右侧键帽的右边，否则它压在字上。
-  truthy('滑块不压键帽', sheetScroll.thumbLeft >= sheetScroll.keyRight)
-
-  // 4. Esc 关掉总表，且**不**连带关掉别的层。
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(300)
-  const sheetClosed = await page.evaluate(() => ({
-    sheet: document.querySelector('.sheet__panel') === null,
-    stillInSession: document.querySelector('.workspace') !== null,
-  }))
-  truthy('Esc 关掉总表', sheetClosed.sheet === true)
-  truthy('Esc 关总表不切换会话', sheetClosed.stillInSession === true)
 
   /*
    * 5. `Cmd/Ctrl + Shift + L` 切主题：三态循环。
@@ -2617,7 +2656,7 @@ async function run() {
    * 所以分两步断言：
    *
    * 1. 检查器**展开时**，面板内不能有任何「设置」类按钮（数节点，不看截图）；
-   * 2. 齿轮那条必须真能开面板，并落在「外观」页（总入口的约定落页）。
+   * 2. 齿轮那条必须真能开面板，并落在「通用」页（总入口的约定落页）。
    *
    * 第 1 步特意在检查器打开时做：入口没了才叫删掉，而不是被样式藏起来。
    */
@@ -2645,21 +2684,21 @@ async function run() {
   const landingPage = await page.evaluate(
     () => (document.querySelector('.pref__nav-item[aria-current="page"]')?.textContent ?? '').trim(),
   )
-  truthy(`齿轮落在「外观」页（实际：${landingPage}）`, landingPage === '外观')
+  truthy(`齿轮落在「通用」页（实际：${landingPage}）`, landingPage === '通用')
 
   /*
-   * 6b. 插件参数还进得去（删掉检查器入口后的替代路径）。
+   * 6b. 扩展功能（插件参数）还进得去（删掉检查器入口后的替代路径）。
    *
-   * 齿轮落「外观」，所以插件参数现在只能从左侧导航切——这条路径必须验：
+   * 齿轮落「通用」，所以插件参数现在只能从左侧导航切——这条路径必须验：
    * 它是 1116 项参数的总入口，断了界面不会报错，只是再也进不去。
    * 后面几步都在量那一页的控件，也得先把面板切过去。
    */
-  await page.locator('.pref__nav-item').filter({ hasText: '插件参数' }).click()
+  await page.locator('.pref__nav-item').filter({ hasText: '扩展功能' }).click()
   await page.waitForTimeout(500)
   const pluginPageTitle = await page.evaluate(
     () => (document.querySelector('.settings__title')?.textContent ?? '').trim(),
   )
-  truthy(`左侧导航可切到「插件参数」（实际：${pluginPageTitle}）`, pluginPageTitle === '插件参数')
+  truthy(`左侧导航可切到「扩展功能」（实际：${pluginPageTitle}）`, pluginPageTitle === '扩展功能')
 
   /*
    * 切页会把上一条提示条拖到超时边缘，这里重新触发一次，供后面的层叠断言用。
@@ -2814,7 +2853,7 @@ async function run() {
    * 而那时面板标题恒为「设置」，两个值相同，反着也过。现在标题是页名，
    * 反着就报红。断言要比较的两个东西必须分清哪个是"应该"、哪个是"实测"。
    */
-  same('设置·标题是当前页的名字', '插件参数', scene.head)
+  same('设置·标题是当前页的名字', '扩展功能', scene.head)
 
   // 五种控件各至少一次：滑杆带锚点、滑杆、分段、开关、时间区间。
   truthy('设置·锚点按钮存在（number-anchored）', scene.anchors > 0)
@@ -2889,6 +2928,42 @@ async function run() {
    */
   truthy('检查器里有「记忆维护」折叠条', bySearchKey.folds.includes('记忆维护') === true)
 
+  /*
+   * 7a-2. 侧写的数字必须是**测出来的**，不是形状对的占位。
+   *
+   * ## 这一条守的是「接线」而不是「布局」
+   *
+   * 上一版这一栏的每根杆都停在中点：`deriveMood()` 恒返回 `{0,0}`，
+   * `deriveBond()` 恒返回空，`tension` 由 `App` 传 `undefined` 再被
+   * `?? 0` 兜成 `+0.00`。四段布局、空态文案、两位小数全都对，
+   * 唯独数字是编的——而"编的数字"与"测出来的数字"在截图里无法区分。
+   *
+   * 所以桩给了六个互不相同、有正有负的读数（`COMPANION`），断言读回来的
+   * 文字必须与它逐个对上：`mood 0.5` → `0.00`、`tension 0.1` → `-0.80`、
+   * `energy 0.73` → `0.73`。任何一条断掉，都说明某段映射又回到了常量。
+   */
+  const readouts = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.inspector__row')]
+    return rows.map((row) => ({
+      label: (row.querySelector('.inspector__label')?.textContent ?? '').trim(),
+      value: (row.querySelector('.inspector__value')?.textContent ?? '').trim(),
+    }))
+  })
+  const readout = (label) => readouts.find((row) => row.label === label)?.value ?? '(缺)'
+  same('侧写·心情取实测值（0.5 映成 0.00）', '0.00', readout('心情'))
+  same('侧写·张力取实测值（0.1 映成 -0.80）', '-0.80', readout('张力'))
+  /*
+   * 精力是单极量，界面上与双极量并排，刻度必须也是 0..1。
+   * 它曾经写成 `mood.energy.toFixed(2)` 而 `energy` 已经是 0..100，
+   * 于是这一行显示 `73.00`——一列读数里独一份的百位刻度。
+   */
+  same('侧写·精力取实测值且折回 0..1（0.73）', '0.73', readout('精力'))
+  same('侧写·关系阶段取实测值', '熟悉', (await page.evaluate(() => (document.querySelector('.inspector__stage')?.textContent ?? '').trim())))
+  same('侧写·好感取实测值', '58', readout('好感'))
+  same('侧写·信任取实测值', '47', readout('信任'))
+  same('侧写·亲密取实测值', '31', readout('亲密'))
+  same('侧写·熟悉取实测值', '66', readout('熟悉'))
+
   /* 收起检查器，下面验扩展抽屉。 */
   await page.keyboard.press('Escape')
   await page.waitForTimeout(400)
@@ -2906,7 +2981,15 @@ async function run() {
   await page.waitForTimeout(700)
   const extSearch = await page.evaluate(() => {
     const input = document.querySelector('.drawer__search-input')
-    const list = document.querySelector('.ext__list')
+    /*
+     * 滚动容器是 `.ext__groups` 而不是 `.ext__list`。
+     *
+     * 三段分组之后，每一段各自是一个 `<details>`，段内 `<ul>` 只剩
+     * 「这一段的行」；真正在滚的是外面那层。若还按 `.ext__list` 求
+     * `scrollHeight`，量到的是某一段自己的高度（通常小于容器），
+     * `scrollTop` 永远是 0——断言会因为「没滚动」而误判成「搜索框跟着动了」。
+     */
+    const list = document.querySelector('.ext__groups')
     if (input === null) return { exists: false }
     const before = input.getBoundingClientRect().top
     if (list !== null) list.scrollTop = list.scrollHeight
@@ -2915,7 +2998,7 @@ async function run() {
     if (list !== null) list.scrollTop = 0
     return {
       exists: true,
-      outsideList: input.closest('.ext__list') === null,
+      outsideList: input.closest('.ext__groups') === null,
       drift: Math.round(after - before),
       scrolled: Math.round(scrolled),
     }
@@ -3006,27 +3089,29 @@ async function run() {
   truthy('全部在跑时没有「待重启」那一格', listed.pending === 0 && listed.states.includes('运行中'))
 
   /*
-   * 核心成员的开关必须置灰，并且**说明了原因**。
+   * 三段结构：桌面桥接 / 内核客户端 / 能力包。
    *
-   * 置灰而不解释等于让用户猜自己做错了什么；而允许他拨下去，后果是一批
-   * 能力静默降级——不报错、不白屏，只是她突然不记事。两条一起验。
+   * ## 为什么这一版改为量「段」而不是量「开关」
+   *
+   * 1.0.x 起扩展抽屉不再提供逐包开关：78 个包收成三段，每段都是核心
+   * 组件——缺任何一段，应用要么连不上壳、要么连不上内核、要么「她」什么
+   * 都不剩。所以这一屏现在要回答的是两件事：**收成了几段**，以及
+   * **有没有偷偷留一个能关的入口**。后者用「一个开关都不许有」来验，
+   * 包括 `role="switch"` 这种换了个标签的写法。
    */
-  const coreSwitch = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('.ext__row')]
-    for (const row of rows) {
-      if (!(row.querySelector('.ext__tag')?.textContent ?? '').includes('核心')) continue
-      const toggle = row.querySelector('.ext__switch')
-      return {
-        found: true,
-        disabled: toggle !== null && toggle.disabled,
-        title: toggle?.getAttribute('title') ?? '',
-      }
-    }
-    return { found: false, disabled: false, title: '' }
-  })
-  truthy('列表里能认出核心成员', coreSwitch.found === true)
-  truthy('核心成员的开关置灰', coreSwitch.disabled === true)
-  truthy(`置灰时给了原因（${coreSwitch.title.slice(0, 18)}…）`, coreSwitch.title.includes('核心链成员不能停用'))
+  const groups = await page.evaluate(() => ({
+    titles: [...document.querySelectorAll('.ext__group-name')].map(node => (node.textContent ?? '').trim()),
+    coreTags: [...document.querySelectorAll('.ext__group-head .ext__tag')].map(node => (node.textContent ?? '').trim()),
+    switches: document.querySelectorAll('.ext__switch').length,
+    roleSwitches: document.querySelectorAll('[role="switch"]').length,
+    configs: document.querySelectorAll('.ext__config').length,
+  }))
+  same('扩展抽屉按三段收纳', '桌面桥接/内核客户端/能力包', groups.titles.join('/'))
+  truthy(`三段都标为核心组件（${groups.coreTags.join(' / ')}）`,
+    groups.coreTags.length === 3 && groups.coreTags.every(text => text.includes('核心')))
+  same('不再提供逐包开关', 0, groups.switches)
+  same('也没有 role=switch 的替代入口', 0, groups.roleSwitches)
+  truthy(`「配置」入口仍在（${String(groups.configs)} 个）`, groups.configs > 0)
 
   /* 搜索：按包名筛，再搜一个一定不存在的词。 */
   await page.locator('.drawer__search-input').fill('memory')
@@ -3048,44 +3133,12 @@ async function run() {
   await page.locator('.drawer__search-input').fill('')
   await page.waitForTimeout(300)
 
-  /*
-   * 拨一个非核心开关：状态立刻变成「重启后停用」，并弹一句说明。
-   *
-   * ## 为什么断言「重启后停用」而不是「已停用」
-   *
-   * 运行中撤走一个已经 `provide` 了服务键的插件，会让别的插件的 `ctx.get`
-   * 留下悬空引用。所以开关只改下次启动的名单。界面若写成「已停用」，
-   * 用户会以为它此刻已经不在——而后台它还在跑，两个说法之间是真实差异。
-   */
-  const picked = await page.evaluate(() => {
-    for (const row of document.querySelectorAll('.ext__row')) {
-      const toggle = row.querySelector('.ext__switch')
-      if (toggle === null || toggle.disabled) continue
-      const id = (row.querySelector('.ext__id')?.textContent ?? '').trim()
-      toggle.click()
-      return { id, found: true }
-    }
-    return { id: '', found: false }
+  /* 各段的行数加起来等于总行数：分组不能漏包，也不能重复计。 */
+  const sumByGroup = await page.evaluate(() => {
+    const per = [...document.querySelectorAll('.ext__group')].map(group => group.querySelectorAll('.ext__row').length)
+    return { per, total: document.querySelectorAll('.ext__row').length }
   })
-  truthy('有可拨动的非核心开关', picked.found === true)
-  await page.waitForTimeout(700)
-  const afterToggle = await page.evaluate((id) => {
-    for (const row of document.querySelectorAll('.ext__row')) {
-      if ((row.querySelector('.ext__id')?.textContent ?? '').trim() !== id) continue
-      const toggle = row.querySelector('.ext__switch')
-      return {
-        state: (row.querySelector('.ext__state')?.textContent ?? '').trim(),
-        checked: toggle?.getAttribute('aria-checked') ?? '',
-      }
-    }
-    return { state: 'missing', checked: '' }
-  }, picked.id)
-  same(`拨动后状态写「重启后停用」（${picked.id}）`, '重启后停用', afterToggle.state)
-  same('开关本身已翻到关', 'false', afterToggle.checked)
-  const noteText = await page.evaluate(() => (document.querySelector('.toast__body')?.textContent ?? '').trim())
-  truthy(`拨动后说明「下次启动」才生效（${noteText}）`, noteText.includes('下次启动'))
-  const pendingCell = await page.evaluate(() => (document.querySelector('.ext__totals--pending')?.textContent ?? '').trim())
-  truthy(`合计里出现「1 个待重启」（${pendingCell}）`, pendingCell.includes('1 个待重启'))
+  same('三段行数之和等于全部包', sumByGroup.total, sumByGroup.per.reduce((sum, n) => sum + n, 0))
 
   /*
    * 8a-2. 提示条不得压住左抽屉。
@@ -3101,6 +3154,16 @@ async function run() {
    * （x 310–510），必然探进抽屉。这条断言在这个宽度下是有意义的，
    * 换成 1440 宽就会白白通过。
    */
+  /*
+   * 提示条**当场再举一次**，不靠上游那一条还没散。
+   *
+   * 这条断言原来依赖前面切主题留下的提示条，而它有自己的寿命：从那一处
+   * 到这里的等待一旦超过几秒（本轮为了量三段分组又多了几次滚动与截图），
+   * 提示条就已经自己消失了，断言会以「缺提示条」失败——**红的是测试的时
+   * 间假设，不是界面**。缺什么就当场造什么：先举一条、量完再举一条把主题
+   * 翻回去，等它自然消失之后才截图，截图里只留列表。
+   */
+  await raiseToast()
   const toastOnDrawer = await page.evaluate(() => {
     const body = document.querySelector('.toast__body')
     const panel = document.querySelector('.drawer__panel')
@@ -3117,6 +3180,10 @@ async function run() {
   })
   truthy(`提示条不压左抽屉（${toastOnDrawer.at}）`, toastOnDrawer.disjoint === true)
   truthy(`提示条整条留在视口内（${toastOnDrawer.at}）`, toastOnDrawer.inView === true)
+
+  /* 再举一次把主题翻回原样，然后等它自己走掉，截图里不留提示条。 */
+  await raiseToast()
+  await page.waitForTimeout(2800)
 
   /*
    * 8b. 列表滚到底，最后一行之后**不该有大片死空白**。
@@ -3135,7 +3202,7 @@ async function run() {
    * （留 12 的呼吸量 + 允许 4 的舍入）。
    */
   const extTail = await page.evaluate(() => {
-    const list = document.querySelector('.ext__list')
+    const list = document.querySelector('.ext__groups')
     if (list === null) return null
     list.scrollTop = list.scrollHeight
     const rows = document.querySelectorAll('.ext__row')
@@ -3152,6 +3219,93 @@ async function run() {
   /* 留一张视觉凭证：浅色下的 78 行列表与合计三格。 */
   await page.screenshot({ path: join(OUT, 'extension-drawer.png') })
   same('扩展抽屉里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(page)))
+
+  /*
+   * 8a-3. 标题栏第一块：当前人设 + 三档在线状态。
+   *
+   * ## 为什么这三件事必须一起验
+   *
+   * 它们占的是同一个位置，回答的是同一个问题「现在是谁、她听不听得见你」。
+   * 上一版这里是**两样写死的东西**：常量名字「空谷」，和一个从不检查任何
+   * 链路的绿点。字符串断言会全绿——因为界面上确实写着「空谷」、确实有个
+   * 绿点。所以这里量的是：名字是否来自人设包、头像是否是应用图标那一份
+   * 几何、状态是否真的标成 online、点开浮层能不能换人、换完宿主是否记住。
+   */
+  const identity = await page.evaluate(() => {
+    const button = document.querySelector('.titlebar__persona')
+    if (button === null) return { exists: false }
+    const avatar = button.querySelector('.avatar')
+    const style = avatar === null ? null : getComputedStyle(avatar)
+    const box = avatar?.getBoundingClientRect()
+    const dot = button.querySelector('.titlebar__presence')
+    return {
+      exists: true,
+      name: (button.querySelector('.titlebar__name')?.textContent ?? '').trim(),
+      size: box === undefined ? 0 : Math.round(box.width),
+      round: style?.borderRadius ?? '',
+      ground: style?.backgroundColor ?? '',
+      glyph: button.querySelector('.avatar__glyph') !== null,
+      presence: dot?.getAttribute('data-presence') ?? '',
+      label: (dot?.textContent ?? '').trim(),
+      expanded: button.getAttribute('aria-expanded'),
+    }
+  })
+  truthy('标题栏有身份块', identity.exists === true)
+  same('身份块显示当前人设包名', '哦鲸鲸', identity.name)
+  eq('头像是 24 见方', 24, identity.size, 0)
+  /* 白底黑鱼是**应用图标**的配色，不跟主题反色；这里验底色与「画的是矢量图形」。 */
+  same('头像底色是图标的白底', 'rgb(255, 255, 255)', identity.ground)
+  truthy('头像画的是矢量图形而不是占位块', identity.glyph === true)
+  same('在线状态点标 online', 'online', identity.presence)
+  same('在线状态读作「在线」', '在线', identity.label)
+  same('人设浮层默认收起', 'false', identity.expanded)
+
+  await page.locator('.titlebar__persona').click()
+  await page.waitForTimeout(300)
+  const pop = await page.evaluate(() => {
+    const node = document.querySelector('.persona-pop')
+    if (node === null) return { open: false }
+    return {
+      open: true,
+      roles: [...node.querySelectorAll('.persona-pop__role')].map(r => (r.textContent ?? '').trim()),
+      checked: [...node.querySelectorAll('.persona-pop__item')]
+        .filter(item => item.getAttribute('aria-checked') === 'true').length,
+      menu: node.getAttribute('role'),
+    }
+  })
+  truthy('点头像弹出人设浮层', pop.open === true)
+  same('浮层是菜单语义', 'menu', pop.menu)
+  same('浮层列出出厂 / 示例 / 用户三类', '出厂,示例,用户', String(pop.roles))
+  same('当前人设被标记为选中', 1, pop.checked)
+
+  /*
+   * 切到示例包：读三样东西。
+   *
+   * 标题栏名字（界面）、浮层是否自己收起（交互）、宿主里的 `activeId`
+   * （契约）。只验第一条时，「点完界面变了但没写盘」与「写盘了但界面
+   * 没刷新」都会绿——而这两件事用户第二天才能发现。
+   */
+  await page.locator('.persona-pop__item', { hasText: '夏柠柒' }).click()
+  await page.waitForTimeout(700)
+  const afterSwitch = await page.evaluate(async () => ({
+    name: (document.querySelector('.titlebar__name')?.textContent ?? '').trim(),
+    menuOpen: document.querySelector('.persona-pop') !== null,
+    activeId: (await (await fetch('/api/personas')).json()).activeId,
+  }))
+  same('切换后标题栏立刻换成新名字', '夏柠柒', afterSwitch.name)
+  truthy('切换后浮层自己收起', afterSwitch.menuOpen === false)
+  same('切换写进了宿主（activeId 已变）', 'xia-ningqi', afterSwitch.activeId)
+
+  /* 切回出厂包：后面的断言按出厂名字做的，别把这个状态留给下一节。 */
+  await page.locator('.titlebar__persona').click()
+  await page.waitForTimeout(300)
+  await page.locator('.persona-pop__item', { hasText: '哦鲸鲸' }).click()
+  await page.waitForTimeout(700)
+  same(
+    '切回出厂包',
+    '哦鲸鲸',
+    await page.evaluate(() => (document.querySelector('.titlebar__name')?.textContent ?? '').trim()),
+  )
 
   /*
    * 8c. 「配置」要真的把人送到那一段设置。
@@ -4076,7 +4230,7 @@ async function run() {
     /*
      * 只看**第一组**（主题）。
      *
-     * 外观页有三组单选（主题 3 项、字号 3 项、语言 1 项），全页数会得到 3 个
+     * 通用页有五组单选（主题 3 项、字号 3 项、语言 2 项、发送 2 项、权限 3 项），全页数会得到 5 个
      * 选中项——那不是缺陷，是三个问题各有各的答案。断言要问的是
      * 「一组里能不能同时选中两项」，所以必须先把范围收到一组。
      */
@@ -4121,36 +4275,30 @@ async function run() {
     }
   })
   /*
-   * 七页，顺序即导航顺序。
+   * 六页，顺序即导航顺序：通用 / 模型与 API / 人物设定 / 备份与还原 /
+   * 扩展功能 / 关于。
    *
-   * 合并前是九页（主题/语言/字号/声音/通知/发送方式/默认权限/更新/关于）。
-   * 三件「感官」的事收进「外观」，「更新」并进「关于」，多出「数据」——
-   * 导出与导入是唯一两件动磁盘的事，不能混进「对话」。
+   * 2.3.0 按用户的六类意图重新归位：应用行为收进「通用」，模型来源
+   * 收进「模型与 API」，她的性格与记忆收进「人物设定」，数据搬运收进
+   * 「备份与还原」，插件参数更名「扩展功能」，隐私与应用权限收进「关于」。
+   * 旧深链接由 `App.tsx` 的 alias 表兜住，落到归位后的页。
    */
-  /*
-   * 六页：外观 / 声音 / 对话 / 记忆 / 插件参数 / 关于。
-   *
-   * 十一页那一版左导航在 380 高的面板里要滚动才看得全，而「通知」「备份」
-   * 「隐私」各只有一两个开关。合并的判据是「同一件事的不同侧面」：
-   * 通知与权限进「对话」，知识库/数据/备份进「记忆」，隐私进「关于」。
-   * 旧深链接由 `App.tsx` 的 alias 表兜住，落到合并后的页。
-   */
-  same('设置六页齐全且有序', '外观/声音/对话/记忆/插件参数/关于', set_panel.navLabels)
+  same('设置六页齐全且有序', '通用/模型与 API/人物设定/备份与还原/扩展功能/关于', set_panel.navLabels)
   eq('设置左导航宽 168', 168, set_panel.navWidth)
-  same('设置默认停在外观页', '外观', set_panel.current)
-  same('标题跟着当前页走', '外观', set_panel.title)
+  same('设置默认停在通用页', '通用', set_panel.current)
+  same('标题跟着当前页走', '通用', set_panel.title)
   same('设置的选择组是 radiogroup', 'radiogroup', set_panel.role)
   same('面板本体是 dialog', 'dialog', set_panel.dialogRole)
   same('面板声明 aria-modal', 'true', set_panel.modal)
   truthy('设置是浮层，主界面仍在（不是另一个界面）', set_panel.appAlive === true)
   eq('遮罩从标题栏下沿开始', 44, set_panel.overlayTop)
   truthy('标题栏没有被遮罩盖住（还能拖、还能点红绿灯）', set_panel.titlebarFree === true)
-  eq('纸片宽 780', 780, set_panel.width, 2)
   /*
-   * 高度是「窗口高 580 − 标题栏 44 − 上下留白 32」= 504，被 `min(540px, 100%)`
-   * 夹住。断言 504 而不是 540：它证明纸片真的让出了标题栏与边距，
-   * 而不是顶到窗口外。
+   * 2.3.0 起纸片铺满内边距盒：宽 = 820 − 左右留白 32 = 788，
+   * 高 = 580 − 标题栏 44 − 上下留白 32 = 504。四边留白同宽（16），
+   * 不随窗口尺寸漂移。
    */
+  eq('纸片宽 788（铺满内边距盒，四边留白同宽）', 788, set_panel.width, 2)
   eq('纸片高 504（让出标题栏与边距）', 504, set_panel.height, 2)
   eq('设置·一组里恰有一项选中', 1, set_panel.checkedCount)
   truthy('设置·默认选中「跟随系统」', set_panel.checkedLabel.includes('跟随系统'))
@@ -4331,8 +4479,8 @@ async function run() {
   await setPage.screenshot({ path: join(OUT, 'settings-appearance.png') })
   same('设置面板里没有文字贴着容器的边', '[]', JSON.stringify(await insetViolations(setPage)))
 
-  /* --- 声音页：三个试听按钮必须真的会响 --- */
-  await setPage.locator('.pref__nav-item', { hasText: '声音' }).click()
+  /* --- 通用页·音效：三个试听按钮必须真的会响 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '通用' }).click()
   await setPage.waitForTimeout(300)
   const set_soundPage = await setPage.evaluate(() => {
     const cues = [...document.querySelectorAll('.pref__cue')]
@@ -4354,10 +4502,10 @@ async function run() {
       rows: document.querySelectorAll('.pref__row').length,
     }
   })
-  same('声音页三个试听都在', '发送消息发送时|回复开始开始生成回复时|出错本轮失败时', set_soundPage.cues)
+  same('通用页三个试听都在', '发送消息发送时|回复开始开始生成回复时|出错本轮失败时', set_soundPage.cues)
   truthy(`试听按钮均分宽度（${String(set_soundPage.cueWidth)}px）`, set_soundPage.cueWidth > 100)
-  eq('声音页五个小节（音效/朗读声音/口吻/节奏/规矩）', 5, set_soundPage.headings)
-  truthy(`声音页四张卡各占一行（${String(set_soundPage.rows)} 行）`, set_soundPage.rows >= 5)
+  eq('通用页八个小节（主题/字号/语言/发送方式/系统通知/默认权限/音效/语音输入）', 8, set_soundPage.headings)
+  truthy(`通用页三行设置（系统通知/提示音/语音输入）`, set_soundPage.rows >= 3)
   /*
    * --- 声音页的三处硬伤（这一页曾经有三样东西是坏的）---
    *
@@ -4407,7 +4555,18 @@ async function run() {
   /*
    * --- 开关打开时，钮必须与轨道分开（两套主题各量一次）---
    *
-   * ## 这条是修完才补的
+   * ## 量之前必须先把一个开关真的打开
+   *
+   * 2.3.0 把「声音」页并进「通用」页之后，这一页的三个开关（提示音 /
+   * 系统通知 / 语音输入）出厂值**全是 false**。原先这条断言直接扫
+   * `aria-checked='true'` 的节点，扫到 0 个就红——**红的原因不是配色坏了，
+   * 是页面上根本没有打开态的开关可量**。断言要看的是「打开时长什么样」，
+   * 那就得先造出一个打开态，不能指望数据碰巧满足。
+   *
+   * 点「提示音」这一行：它是本页第一个开关，切它会真的改偏好并写盘。
+   * 量完立刻切回去（下面 `restore`），后面的截图与断言不受影响。
+   *
+   * ## 这条断言本身在防什么
    *
    * 强调退成黑白之后，深色下的打开态轨道是 `#ECECEC`，而默认钮
    * `--ui-knob` 在深色下**也是亮的**（它服务的是未选中的凹槽）——两块
@@ -4421,6 +4580,33 @@ async function run() {
    * 颜色关系，不是"设置能不能切主题"（那条另有断言）。改完恢复原值，
    * 后面几页的截图才不会跟着变色。
    */
+  /*
+   * 挑哪一个开关来造打开态，有讲究。
+   *
+   * **不能取第一个**：本页第一个开关是「系统通知」，它的 `onChange` 会先本地
+   * 置 true、再 `await requestPermission()`，拿不到授权就立刻改回 false
+   * （`SettingsGeneral.tsx:59-68`）。无头环境没有通知权限，点它永远回到关闭态——
+   * 那是**权限被拒的正常行为**，不是配色缺陷，用它来量会导致假红。
+   *
+   * 取「语音输入」：它是纯本地偏好，`onChange` 直接写 `setPreferences`，
+   * 没有异步回滚，点一下就真的进打开态。
+   */
+  const voiceToggle = setPage.locator('.pref__switch', { hasText: '' }).nth(2)
+  const switchBefore = await setPage.evaluate(() => {
+    const all = [...document.querySelectorAll('.pref__switch')]
+    return {
+      total: all.length,
+      labels: all.map((node) => node.getAttribute('aria-label') ?? '').join('/'),
+      page: (document.querySelector('.pref__nav-item[aria-current="page"]')?.textContent ?? '').trim(),
+    }
+  })
+  console.log(`  · 点前诊断：页=${switchBefore.page} 开关=${switchBefore.labels}`)
+  await voiceToggle.click()
+  await setPage.waitForTimeout(400)
+  const switchWasOn = await setPage.evaluate(
+    () => document.querySelectorAll(".control-switch[aria-checked='true']").length,
+  )
+  truthy(`点一下开关就能进入打开态（${String(switchWasOn)} 个）`, switchWasOn >= 1)
   const set_switchBoth = await setPage.evaluate(async () => {
     const root = document.documentElement
     const parse = (value) => {
@@ -4467,21 +4653,33 @@ async function run() {
     ),
   )
 
+  /*
+   * 关回去。上面为了造出一个打开态点了「提示音」，它是会落盘的真开关：
+   * 不关回去，这台机器上跑完一次检查就会莫名多出一个「提示音已开」。
+   * 截图也已经拍完，之后几页不该带着这个改动态。
+   */
+  await voiceToggle.click()
+  await setPage.waitForTimeout(240)
+  const switchRestored = await setPage.evaluate(
+    () => document.querySelectorAll(".control-switch[aria-checked='true']").length,
+  )
+  truthy(`量完把开关关回去（剩 ${String(switchRestored)} 个打开态）`, switchRestored === 0)
+
   await setPage.screenshot({ path: join(OUT, 'settings-sound.png') })
 
-  /* --- 系统通知（已并入「对话」页，与发送方式、默认权限同页） --- */
-  await setPage.locator('.pref__nav-item', { hasText: '对话' }).click()
+  /* --- 系统通知（已并入「通用」页，与发送方式、默认权限同页） --- */
+  await setPage.locator('.pref__nav-item', { hasText: '通用' }).click()
   await setPage.waitForTimeout(300)
   const set_notifyPage = await setPage.evaluate(() => ({
     switches: document.querySelectorAll('.pref__switch').length,
     notes: document.querySelectorAll('.pref__note').length,
   }))
-  truthy('对话页含系统通知开关', set_notifyPage.switches >= 1)
-  truthy(`对话页给出解释（${String(set_notifyPage.notes)} 段）`, set_notifyPage.notes >= 2)
+  truthy('通用页含系统通知开关', set_notifyPage.switches >= 1)
+  truthy(`通用页给出解释（${String(set_notifyPage.notes)} 段）`, set_notifyPage.notes >= 2)
   await setPage.screenshot({ path: join(OUT, 'settings-notify.png') })
 
-  /* --- 对话页：默认权限三档 --- */
-  await setPage.locator('.pref__nav-item', { hasText: '对话' }).click()
+  /* --- 通用页：默认权限三档 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '通用' }).click()
   await setPage.waitForTimeout(600)
   const set_permission = await setPage.evaluate(() => {
     const labels = [...document.querySelectorAll('.pref__choice-label')].map((node) => node.textContent ?? '')
@@ -4490,18 +4688,18 @@ async function run() {
     return { labels: labels.join('/'), checked: checked.join('/') }
   })
   same(
-    '对话页同时给出发送方式与默认权限两档',
-    '打断/排队/只在对话内/限于工作区/不限制',
+    '通用页给出主题/字号/语言/发送方式/默认权限五组选项',
+    '跟随系统/浅色/深色/小/标准/大/简体中文/English/打断/排队/只在对话内/限于工作区/不限制',
     set_permission.labels,
   )
   truthy('默认权限有且只有一档被选中', set_permission.checked !== '')
 
 
-  /* --- 记忆页：知识库 + 导出三条 + 导入一条 + 备份 --- */
-  await setPage.locator('.pref__nav-item', { hasText: '记忆' }).click()
+  /* --- 备份与还原页：导出三条 + 导入一条 + 整库备份 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '备份与还原' }).click()
   await setPage.waitForTimeout(300)
   const set_dataPage = await setPage.evaluate(() => {
-    /* 只量「导出与恢复」这一段：同页还有知识库与备份，各有自己的按钮。 */
+    /* 只量「导出与导入」这一段：同页还有整库备份，有自己的按钮。 */
     const scope = document.querySelector('[data-section="data"]')
     const buttons = [...(scope?.querySelectorAll('.pref__actions .button') ?? [])]
     return {
@@ -4527,8 +4725,8 @@ async function run() {
   same('数据页没有未渲染的 Markdown', '[]', JSON.stringify(await textLeaks(setPage)))
   await setPage.screenshot({ path: join(OUT, 'settings-data.png') })
 
-  /* --- 插件参数页：三段仍然在同一个面板里 --- */
-  await setPage.locator('.pref__nav-item', { hasText: '插件参数' }).click()
+  /* --- 扩展功能页：三段仍然在同一个面板里 --- */
+  await setPage.locator('.pref__nav-item', { hasText: '扩展功能' }).click()
   await setPage.waitForTimeout(600)
   const set_plugins = await setPage.evaluate(() => ({
     tabs: [...document.querySelectorAll('.settings__tab')].map((node) => node.textContent ?? '').join('/'),
@@ -4536,7 +4734,7 @@ async function run() {
     cards: document.querySelectorAll('.scene__item').length,
     foot: document.querySelector('.settings__foot')?.textContent ?? '',
   }))
-  same('插件参数页三层齐全', '场景/模块/原始', set_plugins.tabs)
+  same('扩展功能页三层齐全', '场景/模块/原始', set_plugins.tabs)
   same('三层是 tablist', 'tablist', set_plugins.tabRole)
   truthy(`场景层渲染出旋钮（${String(set_plugins.cards)} 个）`, set_plugins.cards > 0)
   truthy('统计条给出段数与字段数', /个配置段/.test(set_plugins.foot))

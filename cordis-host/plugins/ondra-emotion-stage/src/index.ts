@@ -151,10 +151,25 @@ export function apply(ctx: Context, config: StageConfig): void {
   const settings = completeConfig(effective)
 
   // 2. 状态表：阶段是棘轮，不落盘就等于每次重启都回到敌意。
+  /*
+   * `enable=false` 时**不建表**（第 16 轮修）。
+   *
+   * 修之前这里没有守卫：用户在设置里关掉「关系阶段」，重启后
+   * `RelationStore.ensure()` 照样调 `store.ensureTable()`，库里多出一张
+   * `ondra_relation_state`。开关看着生效（`available` 返回 false、读操作
+   * 一律返回起始阶），破绽只在「数据库里多了一张不该存在的表」。
+   *
+   * 与 `ondra-emotion-core/src/index.ts:172-186` 的标准写法对齐：
+   * **先判关，再判存储**。顺序不能反——反了的话「关掉 + 无存储」会报
+   * `no-store`，把用户引去查存储。
+   */
   const store = (ctx.get('ondra-store-sqlite') ?? ctx.get('ondra-store-memory')) as StoreLike | undefined
   let relationStore: RelationStore | undefined
   let reason: StageUnavailableReason | undefined
-  if (store === undefined) {
+  if (!settings.enable) {
+    reason = 'disabled'
+    log.info('关系阶段被配置关闭：服务仍注册，读操作一律返回起始阶，且不建表')
+  } else if (store === undefined) {
     reason = 'no-store'
     log.warn('没有可用存储端口：关系阶段只活在内存里，重启回到敌意阶')
   } else {

@@ -141,19 +141,35 @@ export function apply(ctx: Context, config: DiffuseConfig): void {
   const settings = completeConfig(effective)
 
   // 2. 标记表：幂等与间隔闸都要一个落点，否则重启后会把同一场再算一遍。
+  /*
+   * 三档顺序：**先判关，再判存储，最后判建表**（第 16 轮修）。
+   *
+   * 修之前两个问题叠在一起：
+   * 1. 没有 `enable` 守卫 → 关掉之后照样 `new MarkStore(...).ensure()` 建表；
+   * 2. 建表失败复用 `'no-store'` → 与「真的没有存储端口」同码，
+   *    而 `service.ts` 的 `reason` getter 让 `fallbackReason` 优先，
+   *    连 `'disabled'` 都会被这个 `'no-store'` 盖掉。
+   *
+   * 结果是三种完全不同的处置（开开关 / 装存储 / 清磁盘）压成一句
+   * 「没有存储端口」，用户唯一会做的事就是去查一个没坏的东西。
+   */
   const store = (ctx.get('ondra-store-sqlite') ?? ctx.get('ondra-store-memory')) as StoreLike | undefined
   let marks: MarkStore | undefined
   let reason: DiffuseUnavailableReason | undefined
-  if (store !== undefined) {
+  if (!settings.enable) {
+    reason = 'disabled'
+    log.info('情绪弥散被配置关闭：服务仍注册，提领一律返回空，且不建表')
+  } else if (store === undefined) {
+    reason = 'no-store'
+    log.warn('没有可用存储端口：弥散标记只在内存里，重启后可能重算一次')
+  } else {
     const created = new MarkStore(store, log)
     if (created.ensure()) {
       marks = created
     } else {
-      reason = 'no-store'
+      reason = 'schema-failed'
+      log.warn('弥散标记表建不出来：只在内存里记，重启后可能重算一次')
     }
-  } else {
-    reason = 'no-store'
-    log.warn('没有可用存储端口：弥散标记只在内存里，重启后可能重算一次')
   }
 
   // 3. 情绪内核**每次现取**：装载顺序不确定，缓存一次就等于让顺序决定功能。

@@ -1525,10 +1525,71 @@
   color: var(--ui-warn);
 }
 
-.ext__list {
+/*
+ * 三段扩展的滚动容器。
+ *
+ * 滚动在**这一层**，不在每个 `<ul>` 上：三段各滚一次会出现三条滚动条，
+ * 而用户想的是「往下翻这一屏」。搜索框与合计留在 `.ext` 里不参与滚动，
+ * 翻到「能力包」第 60 行时仍然能改搜索词。
+ */
+.ext__groups {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/*
+ * 一段扩展。
+ *
+ * 段与段之间用 8px 留白分开，不留描边：段头本身已经是一行带底色的
+ * 标题，再给一个外框就是「盒子套盒子」——76 行会变成三堵有边框的墙。
+ */
+.ext__group {
+  padding: 0 0 8px;
+}
+
+.ext__group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 2px 4px;
+  /* 段头是表头，不该被当成正文选中。 */
+  user-select: none;
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Safari 的默认三角：去掉它，用右侧那枚计数与「核心」标签承担视觉重量。 */
+.ext__group-head::-webkit-details-marker {
+  display: none;
+}
+
+.ext__group-name {
+  font-size: var(--text-micro);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--track-title);
+  color: var(--ui-ink-2);
+}
+
+.ext__group-count {
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 段说明只出现一次，比描述字号更小：它解释的是「这一段是什么」，
+   不是「这个包能做什么」。 */
+.ext__group-note {
+  margin: 0 2px 4px;
+  font-size: var(--text-micro);
+  line-height: 1.55;
+  color: var(--ui-ink-4);
+}
+
+.ext__list {
   display: flex;
   flex-direction: column;
 }
@@ -1590,10 +1651,6 @@
   color: var(--ui-her-text);
 }
 
-.ext__state[data-tone='pending'] {
-  color: var(--ui-warn);
-}
-
 .ext__meta {
   display: flex;
   flex-wrap: wrap;
@@ -1642,55 +1699,6 @@
 .ext__config:hover {
   background: var(--ui-bg-hover);
   color: var(--ui-ink);
-}
-
-/*
-  开关：28 × 16 的轨道 + 12px 圆钮。
-
-  宽度写死而不是按内容撑开：一列开关必须同宽，否则「开/关」两个字会让
-  轨道左右各差几像素，纵向扫视时边界是锯齿。
-*/
-.ext__switch {
-  flex: none;
-  position: relative;
-  width: 28px;
-  height: 16px;
-  margin-top: 3px;
-  border-radius: var(--r-full);
-  background: var(--ui-bg-sunken);
-  box-shadow: inset 0 0 0 var(--rule) var(--ui-line);
-  transition: background var(--motion-f) var(--ease-fluid);
-}
-
-.ext__switch[aria-checked='true'] {
-  background: var(--ui-action);
-  box-shadow: none;
-}
-
-.ext__switch:disabled {
-  opacity: 0.45;
-}
-
-.ext__knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: var(--r-full);
-  background: var(--ui-bg-raise);
-  box-shadow: var(--ui-shadow-well);
-  transition: transform var(--motion-f) var(--ease-fluid);
-}
-
-.ext__switch[aria-checked='true'] .ext__knob {
-  transform: translateX(12px);
-}
-
-/* 焦点环：键盘用户按 Tab 到开关时必须看得见位置。 */
-.ext__switch:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* ===========================================================================

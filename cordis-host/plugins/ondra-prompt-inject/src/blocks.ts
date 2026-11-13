@@ -356,7 +356,7 @@ export function gather(input: GatherInput): GatherOutput {
         fallback.forEach((record, index) => {
           push(spec, memoryItem(spec, record, at, weigh(spec, index), clarityOf(record)))
         })
-        if (fallback.length > 0) {
+        if (fallback.length > 0 && settings.verbose) {
           log.info('注入块 ③ 没有 person 命中，按 person 类兜底取回 %d 条', fallback.length)
         }
       } catch (error) {
@@ -450,7 +450,7 @@ export function gather(input: GatherInput): GatherOutput {
         fallback.forEach((record, index) => {
           push(spec, memoryItem(spec, record, at, weigh(spec, index), clarityOf(record)))
         })
-        if (fallback.length > 0) {
+        if (fallback.length > 0 && settings.verbose) {
           log.info('注入块 ⑤ 一条都没落下，按 salience 兜底取回 %d 条', fallback.length)
         }
       } catch (error) {

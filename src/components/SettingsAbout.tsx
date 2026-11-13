@@ -4,17 +4,18 @@
  * 版本、许可证、仓库、更新方式。四件都在回答同一个问题：
  * 「这是什么东西、我能拿它做什么」。
  *
- * ## 为什么没有「检查更新」按钮
+ * ## 为什么有「检查更新」但没有自动安装
  *
- * 做成那个按钮要先有一个能签名的更新源，现在没有。放一个点了没反应的
- * 按钮比不放更糟——用户会以为是自己网断了。这里给的是它实际的样子：
- * 手动替换，说清配置与对话不会被覆盖。
+ * 自动下载安装需要代码签名与更新服务器，现在没有。检查更新只做**比对**：
+ * 有新版本时指到下载页，覆盖安装不影响配置与对话。放一个点了没反应的
+ * 「自动更新」按钮比不放更糟。
  */
 
 import { useState } from 'react'
 import { Mark } from './Mark.tsx'
 import { openLink } from '../lib/openLink.ts'
 import { invokeShell } from '../lib/shell.ts'
+import { useT } from '../lib/i18n.ts'
 
 /** 仓库与下载页。关于页两处都用，不各写一份。 */
 const REPO = 'https://github.com/ntars/Ondra'
@@ -39,6 +40,7 @@ interface UpdateState {
 }
 
 export function SettingsAbout(): React.JSX.Element {
+  const t = useT()
   /** 打开链接失败时的原因。内置浏览器只认白名单，站外地址会被拒。 */
   const [error, setError] = useState('')
   const [update, setUpdate] = useState<UpdateState>({
@@ -54,11 +56,11 @@ export function SettingsAbout(): React.JSX.Element {
   const open = (url: string): void => {
     setError('')
     void openLink(url).catch((caught: unknown) => {
-      setError(caught instanceof Error ? caught.message : '打不开这个地址')
+      setError(caught instanceof Error ? caught.message : t('about.err.link'))
     })
   }
 
-  /** 检查更新（G7）。查 GitHub Releases 的最新发布，不自动安装。 */
+  /** 检查更新：查 GitHub Releases 的最新发布，不自动安装。 */
   const checkUpdate = (): void => {
     setUpdate((prev) => ({ ...prev, checking: true, error: '' }))
     void (async () => {
@@ -71,7 +73,7 @@ export function SettingsAbout(): React.JSX.Element {
         setUpdate((prev) => ({
           ...prev,
           checking: false,
-          error: caught instanceof Error ? caught.message : '检查更新失败',
+          error: caught instanceof Error ? caught.message : t('about.err.check'),
         }))
       }
     })()
@@ -88,11 +90,11 @@ export function SettingsAbout(): React.JSX.Element {
       </div>
 
       <dl className="pref__facts">
-        <dt>版本</dt>
+        <dt>{t('about.version')}</dt>
         <dd>{__APP_VERSION__}</dd>
-        <dt>许可证</dt>
+        <dt>{t('about.license')}</dt>
         <dd>AGPL-3.0</dd>
-        <dt>仓库</dt>
+        <dt>{t('about.repo')}</dt>
         <dd>
           <button type="button" className="pref__link" onClick={() => { open(REPO) }}>
             github.com/ntars/Ondra
@@ -100,16 +102,14 @@ export function SettingsAbout(): React.JSX.Element {
         </dd>
       </dl>
 
-      <p className="pref__heading">更新</p>
-      <p className="pref__note">
-        本应用不内置自动下载安装（需代码签名与更新服务器）。点击「检查更新」将比对 GitHub 上的最新发布；若有新版本，可前往下载页获取安装包覆盖安装，配置与对话均不受影响。
-      </p>
+      <p className="pref__heading">{t('about.update')}</p>
+      <p className="pref__note">{t('about.updateNote')}</p>
       <div className="pref__actions">
         <button type="button" className="button" aria-disabled={update.checking ? 'true' : undefined} onClick={checkUpdate}>
-          {update.checking ? '正在检查…' : '检查更新'}
+          {update.checking ? t('about.checking') : t('about.check')}
         </button>
         <button type="button" className="button button--ghost" onClick={() => { open(RELEASES) }}>
-          打开下载页
+          {t('about.openReleases')}
         </button>
       </div>
 
@@ -118,11 +118,11 @@ export function SettingsAbout(): React.JSX.Element {
       )}
       {update.latest === '' ? null : update.available ? (
         <p className="pref__receipt" role="status">
-          发现新版本 v{update.latest}（当前 v{update.current}）。前往下载页获取更新。
+          {t('about.ok.available', update.latest, update.current)}
         </p>
       ) : (
         <p className="pref__receipt" role="status">
-          已是最新（v{update.current}）。
+          {t('about.ok.latest', update.current)}
         </p>
       )}
 

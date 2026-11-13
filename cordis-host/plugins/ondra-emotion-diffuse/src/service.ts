@@ -115,10 +115,19 @@ export class DiffuseRepository implements DiffuseService {
     return emotion !== undefined && emotion.available
   }
 
-  /** 不可用原因。 */
+  /**
+   * 不可用原因。
+   *
+   * **`disabled` 排在 `fallbackReason` 之前**（第 16 轮调整）。
+   *
+   * 反过来写的时候，`fallbackReason` 一律优先，于是「用户关掉了开关 + 建表失败」
+   * 这一组合会报 `no-store`——用户看到的处置建议是「去装存储」，而他真正该做的是
+   * 「把开关打开」或「清磁盘」。开关状态是本进程内已知的事实，比任何
+   * 装载期快照都可靠，所以它必须先回答。
+   */
   get reason(): DiffuseUnavailableReason | undefined {
-    if (this.fallbackReason !== undefined) return this.fallbackReason
     if (!this.settings.enable) return 'disabled'
+    if (this.fallbackReason !== undefined) return this.fallbackReason
     const emotion = this.emotionOf()
     if (emotion === undefined) return 'no-emotion'
     if (!emotion.available) return 'emotion-unavailable'

@@ -74,6 +74,7 @@ import {
   declineProactive,
   gapEligibleFor,
   nudgeFor,
+  reasonDiagnosis,
   takeReason,
   type DriveGapLike,
   type GateLike,
@@ -1364,6 +1365,23 @@ function logInfo(ctx: Context, message: string): void {
 }
 
 /**
+ * 写一条调试级日志。
+ *
+ * 与 {@link logInfo} 同一形状，只是落到 `debug` 通道。分出来是因为
+ * 「正常但频繁」的事件（上游一条候选都没有、每 15 分钟判一次空）不该
+ * 占 info 的位置——那些行会把真正需要看的东西顶出 `logs --lines 300`。
+ *
+ * **不进系统日志环形缓冲**：它的级别只有 info/warn/error 三档，把 debug
+ * 塞进 info 就等于没分级。也**不回落 stderr**：宿主 stderr 不进 `debug.log`
+ * （第 2 轮实测），回落到那里等于这条日志凭空消失，而「凭空消失」比
+ * 「没写」更难查。logger 缺席时静默丢弃——debug 级本来就允许丢。
+ */
+function logDebug(ctx: Context, message: string): void {
+  const logger = (ctx as unknown as { logger?: { debug?: (msg: string) => void } }).logger
+  logger?.debug?.(message)
+}
+
+/**
  * 把用户层设置翻成「成员目录名 → 配置」，供 `loadCore` 注入。
  *
  * ## 为什么需要这个映射
@@ -2533,6 +2551,32 @@ function buildRoutes(
     const taken = takeReason(reason, gapEligible)
 
     /*
+     * 把「没由头」的真实成因写进日志。
+     *
+     * 此前这一支什么都不记，正文就成了空串，门控回一句 `content-empty`
+     * 「正文为空：发出去就是一条空气泡」。于是日志里每 15 分钟一行「正文为空」，
+     * 而现场真相是「四条心事张力 105–286 全过唤醒线，但全在 72 小时冷却里」。
+     * 排查的人拿着那句日志只会去查采集层有没有抓到东西——采集层四条都抓到了。
+     *
+     * 判据只问插件（`reasonDiagnosis` → `plan().code`），宿主不重推一遍。
+     * 「有候选但全在冷却」记 info（用户可能想知道她在等什么）；「一条候选都没有」
+     * 记 debug，避免把「今天很平淡」刷成噪音。
+     */
+    if (taken === undefined) {
+      const diagnosis = reasonDiagnosis(reason, gapEligible)
+      if (diagnosis.code === 'all-cooling') {
+        logInfo(
+          ctx,
+          `主动开口：${String(diagnosis.candidates)} 条候选全在冷却里（${String(diagnosis.cooling)} 条），这一轮不说话——正常状态，不是故障`,
+        )
+      } else if (diagnosis.code === 'no-candidate') {
+        logDebug(ctx, '主动开口：上游一条候选都没有，这一轮不说话')
+      } else if (diagnosis.code !== 'disabled') {
+        logInfo(ctx, `主动开口：话由服务没给出结论（${diagnosis.code}），这一轮不说话`)
+      }
+    }
+
+    /*
      * 没有由头、调用方也没给正文时，正文就是**空串**——不编兜底句。
      *
      * 以前这里兜一句「想找你聊聊」。代价不是「多说了一句废话」，而是
@@ -2723,6 +2767,134 @@ function buildRoutes(
    *
    * 只读，不含密钥，不触发任何模型调用。
    */
+  /**
+   * 她的此刻：情绪六维 + 关系七阶三维，右栏「侧写」的唯一数据源。
+   *
+   * ## 为什么这个接口以前不存在，右栏却一直「有」四段
+   *
+   * 界面把「此刻」「关系阶段」两段画好了，数据源却各写了一个返回空值的
+   * 推导函数（`deriveMood()` 恒 `{mood:0, energy:0}`，`deriveBond()` 恒空）。
+   * 理由是「情绪引擎还没接」——这句话在写完两个插件之后就过期了，
+   * 但没有人回来删掉它，于是界面上长期写着「尚未测量」。
+   *
+   * 实测：`ondra-emotion-core` 与 `ondra-emotion-stage` 都在默认启用名单里，
+   * `state()` 与 `view()` 都能读到真实值。缺的不是引擎，是**一条路**。
+   *
+   * ## 为什么两件事合成一条路由
+   *
+   * 「心情」与「关系」在界面上是同一屏的两段，且都随同一轮对话变化。
+   * 分两条路由会让面板刷新时一先一后，出现「心情变了、关系还是旧的」的
+   * 半帧。合成一条，界面拿到的一定是同一时刻的一组数。
+   *
+   * ## `measured` 这个布尔值不是冗余
+   *
+   * 情绪服务缺席时，六维会回落到基线（0.5 / 60）——那是**合法的读数**，
+   * 与「她真的平静」完全同形。`measured` 把「没测到」与「测到 0.5」
+   * 分开，界面据此显示「尚未测量」，而不是画一根走在中点的杆。
+   */
+  routes.set('GET /api/companion/state', () => {
+    interface SnapshotLike {
+      readonly at?: number
+      readonly normalized?: Readonly<Record<string, number>>
+      readonly axes?: Readonly<Record<string, number>>
+      readonly dominant?: string
+    }
+    interface EmotionLike {
+      readonly available: boolean
+      readonly reason?: string
+      state(at?: number): SnapshotLike
+    }
+    interface StageLike {
+      readonly available: boolean
+      readonly reason?: string
+      view(at?: number): {
+        readonly at?: number
+        readonly effective?: string
+        readonly days?: number
+        readonly spec?: { readonly zh?: string; readonly id?: string }
+        readonly relation?: {
+          readonly affection?: number
+          readonly trust?: number
+          readonly intimacy?: number
+          readonly familiarity?: number
+        }
+      }
+    }
+
+    const emotion = ctx.get('ondra-emotion-core') as EmotionLike | undefined
+    const stage = ctx.get('ondra-emotion-stage') as StageLike | undefined
+
+    let measured = false
+    let moodAt = 0
+    let axes: Record<string, number> = {}
+    let dominant: string | null = null
+    let reason: string | null = null
+    if (emotion === undefined) {
+      reason = 'no-emotion-core'
+    } else {
+      try {
+        const snapshot = emotion.state()
+        const normalized = snapshot.normalized ?? {}
+        const raw = snapshot.axes ?? {}
+        const pick = (axis: string): number =>
+          typeof normalized[axis] === 'number' ? normalized[axis] : (raw[axis] ?? 0)
+        axes = {
+          /*
+           * 六维统一成 0–1。`energy` 在核心里是 0–100（手册 §3.10 的
+           * `energy > 80` 就是这么写的），取用 `normalized` 已做过除法；
+           * 这里再除一次是给「快照里只有 axes」的退化情况兜底。
+           */
+          pleasure: pick('pleasure'),
+          arousal: pick('arousal'),
+          dominance: pick('dominance'),
+          mood: pick('mood'),
+          energy: pick('energy') > 1 ? pick('energy') / 100 : pick('energy'),
+          tension: pick('tension'),
+        }
+        measured = true
+        moodAt = snapshot.at ?? Date.now()
+        dominant = snapshot.dominant ?? null
+        reason = emotion.reason ?? null
+      } catch (error) {
+        reason = String(error)
+      }
+    }
+
+    let bond: Record<string, unknown> = { stage: '', stageId: '', days: 0, affection: 0, trust: 0, intimacy: 0, familiarity: 0 }
+    if (stage !== undefined) {
+      try {
+        const view = stage.view()
+        const relation = view.relation ?? {}
+        bond = {
+          stage: view.spec?.zh ?? '',
+          stageId: view.effective ?? view.spec?.id ?? '',
+          days: view.days ?? 0,
+          affection: relation.affection ?? 0,
+          trust: relation.trust ?? 0,
+          intimacy: relation.intimacy ?? 0,
+          familiarity: relation.familiarity ?? 0,
+        }
+      } catch {
+        /* 关系服务在但读不出来：保持空态，界面按「暂无记录」显示。 */
+      }
+    }
+
+    return {
+      body: {
+        measured,
+        reason,
+        at: moodAt,
+        axes,
+        dominant,
+        bond,
+        sources: {
+          emotion: emotion !== undefined && emotion.available,
+          stage: stage !== undefined && stage.available,
+        },
+      },
+    }
+  })
+
   routes.set('GET /api/diagnostics/memory', () => {
     /** 插件服务的 `stats()` 形状：只取我们要的那几个字段。 */
     interface ProbeLike {
@@ -2923,6 +3095,124 @@ function buildRoutes(
    */
   routes.set('GET /api/diagnostics/filter', () => {
     return { body: filterProbe(ctx) }
+  })
+
+  /**
+   * 人设清单：标题栏与「人物设定」页共用的唯一数据源。
+   *
+   * ## 为什么清单要在宿主出，不在界面拼
+   *
+   * 界面手里只有一份写死的名字（`lib/persona.ts` 的「空谷」）。人设包是
+   * 宿主扫出来的：`ondra-persona-loader` 解 `.skill.zip` 的 `meta.json`，
+   * 拿到的 `display_name`、触发词、角色标记（出厂 / 示例 / 用户）都不在
+   * 前端能推断的范围内。让界面自己读配置段只能拿到一个 id，
+   * 显示出来就是「oh-jingjing」这种用户读不懂的串。
+   *
+   * ## 只回展示需要的字段
+   *
+   * `archivePath` 是绝对路径，属于本机信息，不给界面；`profile` / `source`
+   * 是大段正文，标题栏与切换浮层用不上。需要看正文时走 `get(id)` 那类
+   * 详情接口，不在列表里一次全塞过来。
+   */
+  routes.set('GET /api/personas', () => {
+    interface PersonaSummaryLike {
+      readonly id: string
+      readonly name: string
+      readonly displayName: string
+      readonly version: string
+      readonly role: 'factory' | 'sample' | 'user'
+      readonly tags: readonly string[]
+      readonly archiveName: string
+    }
+    interface PersonaLoaderLike {
+      readonly available: boolean
+      readonly reason?: string
+      list(): readonly PersonaSummaryLike[]
+      activeId(): string | undefined
+    }
+    const loader = ctx.get('ondra-persona-loader') as PersonaLoaderLike | undefined
+    if (loader === undefined) {
+      return { body: { available: false, reason: 'not-loaded', activeId: null, items: [] } }
+    }
+    try {
+      return {
+        body: {
+          available: loader.available,
+          reason: loader.reason ?? null,
+          activeId: loader.activeId() ?? null,
+          items: loader.list().map(item => ({
+            id: item.id,
+            name: item.name,
+            displayName: item.displayName,
+            version: item.version,
+            role: item.role,
+            tags: item.tags.slice(0, 6),
+            archiveName: item.archiveName,
+          })),
+        },
+      }
+    } catch (error) {
+      return { body: { available: false, reason: String(error), activeId: null, items: [] } }
+    }
+  })
+
+  /**
+   * 热切换当前人设。
+   *
+   * ## 为什么是「内存态 + 落盘」两件事，而不是重启生效
+   *
+   * `ondra-persona-loader` 的 `setActive(id)` 只改内存里的当前 id，下一次
+   * 组装提示词就能读到新人设——这是它本来就支持的「热插拔」。缺的只是
+   * 一个调用它的入口。但只改内存的话，重启会退回配置文件里的旧 id，
+   * 用户看到「我明明换过」。所以两件都要做：先 `setActive` 让本轮立即生效，
+   * 再写 `persona-loader.active-persona` 让下次启动仍是它。
+   *
+   * ## 顺序为什么不能反
+   *
+   * 先落盘再切换时，如果 `setActive` 失败（id 拼错），磁盘上已经写了一个
+   * 不存在的人设，重启后加载器会报 `activeId: null` 并且**不退回第一个**
+   * ——界面变成「谁都不是」。先切换再落盘，失败时内存与磁盘都保持原样。
+   *
+   * ## 为什么不校验「这段是不是真有这个人设」
+   *
+   * `setActive` 自己就校验并返回 false。宿主再查一遍就是第二处真源，
+   * 而两处判据一旦不同（比如大小写、前缀），就会出现「宿主说没有、插件说
+   * 有」的僵局。这里只负责回一个可读的错误。
+   */
+  routes.set('POST /api/persona/activate', async (request: RouteRequest) => {
+    interface PersonaLoaderLike {
+      readonly available: boolean
+      has(id: string): boolean
+      setActive(id: string): boolean
+      activeId(): string | undefined
+      list(): readonly { readonly id: string }[]
+    }
+    const body = (request.body ?? {}) as Record<string, unknown>
+    const id = typeof body['id'] === 'string' ? body['id'].trim() : ''
+    if (id === '') return { status: 400, body: { error: '缺少人设 id' } }
+
+    const loader = ctx.get('ondra-persona-loader') as PersonaLoaderLike | undefined
+    if (loader === undefined) return { status: 503, body: { error: '人设加载器未装载' } }
+
+    if (!loader.setActive(id)) {
+      return {
+        status: 404,
+        body: { error: `没有叫「${id}」的人设`, available: loader.list().map(item => item.id) },
+      }
+    }
+
+    /*
+     * 落盘失败不回滚内存态：本轮已经切过去了，回滚只会让「刚换好的人设
+     * 又变回去」且用户不知道发生了什么。如实告诉界面「这次重启后会退回」，
+     * 由它决定要不要提示。
+     */
+    let persisted = true
+    try {
+      await settings.set('persona-loader', 'active-persona', id)
+    } catch {
+      persisted = false
+    }
+    return { body: { ok: true, activeId: loader.activeId() ?? id, persisted } }
   })
 
   /**

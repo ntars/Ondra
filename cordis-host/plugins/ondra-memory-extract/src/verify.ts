@@ -7,7 +7,7 @@
  * | 检查 | 对应规则 | 拒绝码 |
  * |---|---|---|
  * | 引文必须是原文的子串 | 必须逐字相同 | `quote-not-verbatim` |
- * | 数字必须被 TOOL 引文覆盖 | 数字必须有工具来源 | `digit-without-tool` |
+ * | 数字必须被逐字引文覆盖 | 数字必须有出处 | `digit-without-tool` |
  * | 关于别人的断言必须有 USER 引文 | 归属纪律 | `attribution-without-user` |
  *
  * ## 归一化到什么程度（这是本文件最容易搞错的地方）
@@ -195,20 +195,67 @@ export function verifyCandidate(
     evidence.push({ source, quote, messageIndex: located })
   }
 
-  // 数字必须有工具来源。
-  if (settings.requireToolForDigits) {
+  /*
+   * 数字必须有出处。
+   *
+   * ## 为什么这里也认 USER（与 `ondra-evidence-gate` 同口径）
+   *
+   * 手册 §2.2 字面写「数字必须有 `[TOOL]` 来源」，但那条规则的原始场景是一个
+   * **工程 agent**（distill-kura），它的数字几乎全部来自命令输出。本产品是伴侣，
+   * 用户最该被记住的数字恰恰来自**他自己的嘴**：
+   *
+   * - 「我车牌尾号 3721」 → 只有 `[USER]` 引文；
+   * - 「我今年 28 岁」     → 只有 `[USER]` 引文；
+   * - 「周五考试」         → 只有 `[USER]` 引文。
+   *
+   * 只认 TOOL 时这三条会在**提炼阶段**就被整条拒掉（`digit-without-tool`），
+   * 下游 `ondra-evidence-gate` 那条「USER 引文也能覆盖数字」的正确口径
+   * **根本执行不到**——两处口径不一致，上游把下游要保的东西提前删了。
+   * 实测症状：用户说「车牌尾号 3721，也写上了」，追问却答「没记下」，
+   * `written=0`，日志只有一行 `提炼返回：ok=true written=0`。
+   *
+   * 关键区别：**逐字出现在 `[USER]` 引文里的数字，本身就不是编造的。**
+   * 手册要防的是「她凭印象写下一个数」，而「有出处」这件事 USER 与 TOOL 同样能给。
+   *
+   * 需要严格照手册字面时，把 `require-tool-for-digits` 打开即可：那时只剩
+   * TOOL 引文能覆盖，行为与旧版完全一致。
+   *
+   * ## 开关切换的是「允许哪些来源」，**不是**「查不查」
+   *
+   * 这一条是修第一版时踩出来的：最初把开关当成「查不查」的总闸，默认关掉
+   * 之后，编造的「正文写 3721、引文只有『我车的事』」也一路放行——
+   * 那不是放宽，是把整道闸拆了。语义上的正确形态与 `ondra-evidence-gate`
+   * 的 `digit-source` 三档一致：**闸门常在，只有「谁算出处」可变。**
+   *
+   * 所以下面这个 `if` 现在**无条件进入**，只在选来源时看开关。
+   */
+  {
     const runs = digitRuns(text)
     if (runs.length > 0) {
-      const toolText = evidence
-        .filter(item => item.source === 'TOOL')
+      /*
+       * 口径与 `evidence-gate` 的 `digit-source` 对齐：
+       * - 默认（`requireToolForDigits=false`）= `tool-or-user`：TOOL 与 USER
+       *   的逐字引文都能覆盖数字；
+       * - 严格（`=true`）= `tool-only`：只有 TOOL 能覆盖。
+       *
+       * 两类**都不包括** ACT / SELF：那两类不是「有人说过这个数」。
+       * SELF 能覆盖的话，她可以自己编一个数、再引用自己那句话当证据，
+       * 那是本仓明令禁止的「用自己的 stats 自证」。
+       */
+      const allowed: readonly EvidenceSource[] = settings.requireToolForDigits
+        ? ['TOOL']
+        : ['TOOL', 'USER']
+      const backingText = evidence
+        .filter(item => allowed.includes(item.source))
         .map(item => normalizeForMatch(item.quote))
         .join(' ')
-      const uncovered = runs.filter(run => !toolText.includes(run.normalize('NFKC')))
+      const uncovered = runs.filter(run => !backingText.includes(run.normalize('NFKC')))
       if (uncovered.length > 0) {
+        const label = settings.requireToolForDigits ? 'TOOL' : 'TOOL/USER'
         return {
           rejection: {
             code: 'digit-without-tool',
-            detail: `正文里的数字「${uncovered.join('、')}」没有 TOOL 引文覆盖（口述数字不入库）`,
+            detail: `正文里的数字「${uncovered.join('、')}」没有 ${label} 引文覆盖（口述数字必须有逐字出处）`,
           },
         }
       }

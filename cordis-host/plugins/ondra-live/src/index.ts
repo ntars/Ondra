@@ -172,14 +172,14 @@ export function apply(ctx: Context, config: LiveConfig): void {
   if (!settings.enable) {
     log.warn('日期事实已关闭（enable=false）：服务照常注册，界面应显示已关闭')
   }
-  if (!live.lunarReady) {
+  if (!live.lunarReady && settings.verbose) {
     const hints = statuses
       .filter(status => status.name !== 'solar-only')
       .map(status => `${status.name}：${status.detail}`)
       .join('；')
     log.info('当前只有公历（星期、公历节日可用；农历与节气不可用）。原因：%s', hints)
   }
-  if (ctx.get('ondra-clock') === undefined) {
+  if (ctx.get('ondra-clock') === undefined && settings.verbose) {
     log.info('时间服务未装载：自然日退回本机时区（跨时区部署时「今天」可能差一天）')
   }
   if (!NAME_RE.test(name)) {

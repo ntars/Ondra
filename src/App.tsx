@@ -38,10 +38,12 @@ import { Timeline } from './components/Timeline.tsx'
 import type { TimelineHandle } from './components/Timeline.tsx'
 import { toPlainText } from './components/RichText.tsx'
 import { Composer } from './components/Composer.tsx'
-import { ShortcutSheet } from './components/ShortcutSheet.tsx'
 import { Settings } from './components/Settings.tsx'
 import type { SettingsPage } from './components/Settings.tsx'
 import { usePreferences } from './lib/preferences.ts'
+import { usePersona, usePresence } from './lib/usePersona.ts'
+import type { Presence } from './lib/persona.ts'
+import type { PersonaSummary } from './lib/api.ts'
 import { formatClock, isMuted, muteFor, unmute, useMuted } from './lib/mute.ts'
 import { absenceHint } from './lib/absence.ts'
 import { Dialog } from './components/Dialog.tsx'
@@ -84,17 +86,32 @@ export function App(): React.JSX.Element {
 function Chrome(props: {
   title: string
   personaName: string
-  presence: 'online' | 'thinking'
+  presence: Presence
+  avatar: string
+  personas: readonly PersonaSummary[]
+  activePersonaId: string | null
+  switchingPersonaId: string | undefined
   mood: number
   energy: number
   hasData: boolean
   resting: boolean
   onOpenDrawer(): void
   onOpenInspector(): void
+  onSwitchPersona(id: string): void
+  onOpenPersonaSettings(): void
 }): React.JSX.Element {
   return (
     <>
-      <TitleBar personaName={props.personaName} presence={props.presence} />
+      <TitleBar
+        personaName={props.personaName}
+        presence={props.presence}
+        avatar={props.avatar}
+        personas={props.personas}
+        activePersonaId={props.activePersonaId}
+        switchingPersonaId={props.switchingPersonaId}
+        onSwitchPersona={props.onSwitchPersona}
+        onOpenPersonaSettings={props.onOpenPersonaSettings}
+      />
       <TopBar
         title={props.title}
         mood={props.mood}
@@ -135,7 +152,7 @@ function Shell(): React.JSX.Element {
    * 与 `settingsAt` 分开：一个是"哪一页"，一个是"那页里的哪一段"。
    * 合成一个对象会让「只换页不定位」也必须显式清段，容易忘。
    */
-  const [settingsPage, setSettingsPage] = useState<SettingsPage>('appearance')
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>('general')
   /**
    * 打开三层面板时要定位到的配置段。
    *
@@ -176,8 +193,6 @@ function Shell(): React.JSX.Element {
   const [closing, setClosing] = useState(false)
   /** 确认框里「以后直接退出」的勾选状态。 */
   const [rememberClose, setRememberClose] = useState(false)
-  /** 快捷键总表是否展开（§9.4）。 */
-  const [sheetOpen, setSheetOpen] = useState(false)
   /** 时间轴的「跳到最新」能力。由 Timeline 挂载后交回。 */
   const timelineRef = useRef<TimelineHandle | undefined>(undefined)
   /** 输入框。`Cmd/Ctrl + N` 回到首页后要把焦点送进去。 */
@@ -230,19 +245,60 @@ function Shell(): React.JSX.Element {
    *
    * `Cmd+,` 与齿轮在用户心里是「改这个应用」：换深浅色、调字号、关提示音。
    * 上一版这里开的是独立窗口，另一处入口开的是三层面板——同一件事两个界面。
-   * 现在只有一个面板，落页按「用户点它时想干什么」定：总入口看外观，
-   * 扩展抽屉里的「配置」直接进插件参数那一段。
+   * 现在只有一个面板，落页按「用户点它时想干什么」定：总入口落在「通用」，
+   * 扩展抽屉里的「配置」直接进扩展功能那一段。
    */
   const openPreferences = useCallback((): void => {
     setDrawer(undefined)
     setInspector(false)
-    setSettingsPage('appearance')
+    setSettingsPage('general')
     setSettingsAt(undefined)
     setSettings(true)
   }, [])
 
   /** 偏好层。发送方式与主题都要读它。 */
   const preferences = usePreferences()
+
+  /**
+   * 人设：清单、当前是谁、怎么换。
+   *
+   * 放在 `Shell` 而不是 `TitleBar` 里：切换成功后设置页的人设列表也要
+   * 跟着变，两处各读一次会出现「标题栏已经换了、设置页还标着旧的」。
+   * 这里读一次，两边都从这棵树上取。
+   */
+  const persona = usePersona()
+
+  /**
+   * 在场状态：有网 + 宿主活着 + 接了模型才叫在线。
+   *
+   * 传 `busy` 进去是为了让「在想」只覆盖真正在做事的那些时刻；
+   * 链路断了时仍然显示离线，而不是显示一个「正在想的离线状态」。
+   */
+  const presence = usePresence(state.busy)
+
+  /** 打开设置并落在「人物设定」页。 */
+  const openPersonaPage = useCallback((): void => {
+    setDrawer(undefined)
+    setInspector(false)
+    setSettingsPage('persona')
+    setSettingsAt(undefined)
+    setSettings(true)
+  }, [])
+
+  /**
+   * 切换人设。
+   *
+   * 失败要说话：宿主的错误码（人设不存在 / 加载器没装）对用户没有意义，
+   * 但「没换成」必须让他知道——否则他会以为界面卡住了，再点一次。
+   */
+  const switchPersona = useCallback((id: string): void => {
+    const name = persona.personas.find((item) => item.id === id)?.name ?? id
+    void persona.switchTo(id).then((result) => {
+      toast(result.ok
+        ? (result.message ?? `已切换到「${name}」`)
+        : (result.message ?? '没能切换人设'))
+    })
+  }, [persona, toast])
 
   /**
    * 一键静音状态（§12.12、§5.7 静音态）。
@@ -305,8 +361,8 @@ function Shell(): React.JSX.Element {
    * 调试的价值在于「验证用户会走的那条路」。直接调 send 会绕过输入卡里的
    * 空白校验、附件处理与禁用态判断，测出来的成功不代表用户点得动。
    */
-  const liveRef = useRef({ state, drawer, inspector, settings, sheetOpen })
-  liveRef.current = { state, drawer, inspector, settings, sheetOpen }
+  const liveRef = useRef({ state, drawer, inspector, settings })
+  liveRef.current = { state, drawer, inspector, settings }
 
   useEffect(() => {
     /** 抽屉的合法键。运行时无法靠类型挡住，这里显式列一份。 */
@@ -336,7 +392,6 @@ function Shell(): React.JSX.Element {
             drawer: live.drawer ?? null,
             inspector: live.inspector,
             settings: live.settings,
-            shortcuts: live.sheetOpen,
           },
         }
       },
@@ -353,17 +408,15 @@ function Shell(): React.JSX.Element {
           setSettingsPage('plugins')
           setSettingsAt(undefined)
           setSettings(true)
-        } else if (panel === 'shortcuts') {
-          setSheetOpen(true)
         } else if (panel === 'preferences') {
           /*
            * 名字保留是为了让调试脚本不必改：它现在开的是同一个面板的
-           * 「外观」页——两个面板合并之后，`preferences` 与 `settings`
+           * 「通用」页——两个面板合并之后，`preferences` 与 `settings`
            * 的差别只剩"落在哪一页"。
            */
           setDrawer(undefined)
           setInspector(false)
-          setSettingsPage('appearance')
+          setSettingsPage('general')
           setSettingsAt(undefined)
           setSettings(true)
         } else if ((drawerKeys as readonly string[]).includes(panel)) {
@@ -371,7 +424,7 @@ function Shell(): React.JSX.Element {
           setSettings(false)
           setDrawer(panel as DrawerKey)
         } else {
-          throw new Error(`未知面板：${panel}（可用：inspector / settings / shortcuts / preferences / ${drawerKeys.join(' / ')}）`)
+          throw new Error(`未知面板：${panel}（可用：inspector / settings / preferences / ${drawerKeys.join(' / ')}）`)
         }
         return { opened: panel }
       },
@@ -380,13 +433,11 @@ function Shell(): React.JSX.Element {
         const panel = typeof args['panel'] === 'string' ? args['panel'] : ''
         if (panel === 'inspector') setInspector(false)
         else if (panel === 'settings') setSettings(false)
-        else if (panel === 'shortcuts') setSheetOpen(false)
         else if ((drawerKeys as readonly string[]).includes(panel)) setDrawer(undefined)
         else if (panel === 'all') {
           setDrawer(undefined)
           setInspector(false)
           setSettings(false)
-          setSheetOpen(false)
         } else throw new Error(`未知面板：${panel}`)
         return { closed: panel }
       },
@@ -491,8 +542,6 @@ function Shell(): React.JSX.Element {
         // 关闭确认框自己接管 Esc（capture 阶段 + stopPropagation），
         // 这里是第二道防线，防止事件从别的路径漏进来。
         if (closing) return
-        // 快捷键总表自己接管（同样是 capture 阶段）。
-        if (sheetOpen) return
         // §9.3 第 1 条：生成中优先停生成，此时不关任何层。
         if (state.busy) {
           void state.stop()
@@ -537,11 +586,6 @@ function Shell(): React.JSX.Element {
       // 下面每一条都要求平台修饰键，先挡掉不带的。
       if (!context.mod) return
 
-      if (matches(context, 'shortcutSheet')) {
-        event.preventDefault()
-        setSheetOpen(true)
-        return
-      }
       if (matches(context, 'inspector')) {
         event.preventDefault()
         toggleInspector()
@@ -611,7 +655,7 @@ function Shell(): React.JSX.Element {
     globalThis.addEventListener('keydown', onKeyDown)
     return () => { globalThis.removeEventListener('keydown', onKeyDown) }
   }, [
-    closing, sheetOpen, state, drawer, inspector, settings,
+    closing, state, drawer, inspector, settings,
     toggleInspector, openPreferences, toast,
   ])
 
@@ -676,23 +720,30 @@ function Shell(): React.JSX.Element {
       const segments = stripped.split('/').filter(Boolean)
       const target = segments[1] ?? segments[0] ?? ''
       const known: SettingsPage[] = [
-        'appearance', 'sound', 'talk', 'memory', 'plugins', 'about',
+        'general', 'models', 'persona', 'backup', 'plugins', 'about',
       ]
       /*
        * 旧版深链接的页名。
        *
-       * 十一页压成六页之后，`ondra://settings/notify` 这类外部链接会认不出
-       * 而被静默忽略——用户点了没反应，且没有任何提示。这里把旧名映射到
-       * 它现在所属的那一页：通知与权限进了「对话」，知识库/数据/备份进了
-       * 「记忆」，隐私进了「关于」。链接照旧能用，只是落在合并后的页上。
+       * 2.3.0 把六类重新归位之后，`ondra://settings/appearance` 这类外部
+       * 链接会认不出而被静默忽略——用户点了没反应，且没有任何提示。
+       * 这里把新旧页名一并映射到它现在所属的那一页：外观/声音/对话
+       * （含通知与默认权限）进了「通用」，知识库进了「人物设定」，
+       * 数据与备份进了「备份与还原」，隐私进了「关于」。链接照旧能用，
+       * 只是落在归位后的页上。
        */
       const alias: Record<string, SettingsPage> = {
-        notify: 'talk',
-        permissions: 'talk',
-        knowledge: 'memory',
-        data: 'memory',
-        backup: 'memory',
+        appearance: 'general',
+        sound: 'general',
+        talk: 'general',
+        notify: 'general',
+        permissions: 'general',
+        memory: 'persona',
+        knowledge: 'persona',
+        data: 'backup',
+        backup: 'backup',
         privacy: 'about',
+        providers: 'models',
       }
       const page = known.find((candidate) => candidate === target) ?? alias[target]
       if (page !== undefined) {
@@ -1056,14 +1107,20 @@ function Shell(): React.JSX.Element {
     <div className="shell" data-window-blurred={blurred ? '' : undefined}>
       <Chrome
         title={title}
-        personaName={PERSONA.name}
-        presence={state.busy ? 'thinking' : 'online'}
+        personaName={persona.active?.name ?? PERSONA.name}
+        presence={presence}
+        avatar={preferences.avatar}
+        personas={persona.personas}
+        activePersonaId={persona.activeId}
+        switchingPersonaId={persona.switching}
         mood={state.mood.mood}
         energy={state.mood.energy}
         hasData={state.mood.label !== undefined && state.mood.label !== ''}
         resting={false}
         onOpenDrawer={() => { toggleDrawer('session') }}
         onOpenInspector={toggleInspector}
+        onSwitchPersona={switchPersona}
+        onOpenPersonaSettings={openPersonaPage}
       />
 
         <div className="workspace" {...(inspector ? { 'data-inspector': '' } : {})}>
@@ -1186,7 +1243,6 @@ function Shell(): React.JSX.Element {
               setSettingsAt(sectionId)
               setSettings(true)
             }}
-            onNote={(text) => { toast(text) }}
             onClose={() => { setDrawer(undefined) }}
           />
 
@@ -1197,7 +1253,7 @@ function Shell(): React.JSX.Element {
               memories={state.memories}
               memoryFault={state.memoryFault}
               activity={state.busy ? '正在想' : ''}
-              tension={undefined}
+              tension={state.tension}
               hasData={state.mood.label !== undefined && state.mood.label !== ''}
               onClose={() => { setInspector(false) }}
             />
@@ -1249,13 +1305,6 @@ function Shell(): React.JSX.Element {
           <span className="dropzone__hint">松手添加附件</span>
         </div>
       ) : null}
-
-      {/*
-        快捷键总表（§9.4）。Sheet 不是 Dialog——查阅不该阻断用户。
-        渲染在 Dialog 之前、拖拽提示之后：它与关闭确认框永远不会同时出现
-        （要看总表时不会正在关窗口），两者层级相同不影响。
-      */}
-      {sheetOpen ? <ShortcutSheet onClose={() => { setSheetOpen(false) }} /> : null}
 
       {/*
         首次关闭的解释框（§2.7）。

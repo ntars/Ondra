@@ -257,6 +257,49 @@ export function judge(input: JudgeInput): DedupeVerdict {
   if (top.containment < settings.mergeThreshold) {
     return verdictAdd(`最高包含度只有 ${top.containment.toFixed(2)}，低于合并线 ${settings.mergeThreshold}，直接新建`)
   }
+
+  /*
+   * 7.5 灰区里先看数字：旧条一个数字都没有、新条有，这是**纯新增**。
+   *
+   * ## 为什么必须挡在 `append` 之前
+   *
+   * `append` 的落库语义是只 `reinforce()` 旧条、**不写库**（`service.ts:219-225`）。
+   * 它的前提是「新条没有带来旧条以外的东西」——而数字恰恰是事实的**值**，
+   * 不是修饰。一旦新条的数字在旧条里根本不存在，那句话就不是「又被提起」，
+   * 而是「第一次说出来」。
+   *
+   * ## 实测怎么丢的
+   *
+   * ```
+   * 旧条 m-121e17e680  用户有一把自行车锁，并问密码是多少      ← 无数字
+   * 新条              用户的自行车锁密码是 4712。             ← 数字 4712
+   * 包含度 0.46 → 灰区 → 槽位不匹配 → append → 只加固旧条
+   * 结果：她回「记下了」，库里 count(*)=0 条
+   * ```
+   *
+   * 用户此后再问密码，召回的是那条「问密码是多少」，还是拿不出答案。
+   *
+   * ## 判据为什么收得这么窄
+   *
+   * 只认「旧条零数字」。旧条已有数字而新条不同，那是**换值**，属于
+   * 槽位那条路（第 6 步 `conflict`）——放这里会跟它抢判定，把冲突降级成新建。
+   * 收窄之后本分支只处理一种情形：旧条压根没提到过任何值，新条第一次给了值。
+   * 这种情形不可能是复述，也不可能是换值，改判 `add` 没有误伤面。
+   */
+  const newDigits = digitTokens(text)
+  const oldDigits = digitTokens(top.text)
+  if (newDigits.length > 0 && oldDigits.length === 0) {
+    reasons.push(
+      `新条带来旧条没有的数字（${newDigits.join('、')}），是首次给出的取值而非补充，改为新建`,
+    )
+    return Object.freeze({
+      action: 'add',
+      containment: top.containment,
+      needsModel: false,
+      reasons: Object.freeze(reasons),
+    })
+  }
+
   reasons.push(`包含度在 ${settings.mergeThreshold}–${settings.duplicateThreshold} 之间，判为补充而非重复`)
   reasons.push('默认只记一次「又被提起」，不改旧正文；若上层有模型，可把这条候选交它再判一次')
   return Object.freeze({

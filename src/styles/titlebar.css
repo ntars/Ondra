@@ -77,37 +77,98 @@
  * 常规子项，后面跟一根撑杆把版本号与窗口键推右。
  */
 .titlebar__identity {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
   min-width: 0;
-  /* 它是标识不是按钮：没有 hover 底，也不进入 Tab 顺序。 */
-  user-select: none;
 }
 
 /*
- * 头像 24：比标题栏高度（44）小近一半，与 14px 的名字同高。
+ * 身份按钮：头像 + 名字 + 状态 + 下箭头。
  *
- * 用一档沉色底 + 发丝边而不是实心品牌板：深色下品牌板取强调色（近白），
- * 会变成标题栏上最亮的一块，压过名字与窗口按钮。
+ * ## 为什么它变成了按钮
+ *
+ * 它原来只是一行文字，不可点。人设包接进来之后，这一块成了「换人」的
+ * 唯一入口——而入口必须看起来能按。给它一个 32px 高、圆角 8 的命中区
+ * （而不是让整块 24px 的头像去接点击），是因为标题栏同时是拖拽区：
+ * 命中区太小会让用户以为「点了没反应」，而实际上是按到了拖动。
+ *
+ * 悬停底用 `--ui-bg-hover` 而不是描边：标题栏只有 44px 高，加描边会让
+ * 这条横条出现第二个框。
  */
-.titlebar__avatar {
+.titlebar__persona {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 8px 0 4px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.titlebar__persona:hover {
+  background: var(--ui-bg-hover);
+}
+
+.titlebar__persona:active,
+.titlebar__persona[aria-expanded='true'] {
+  background: var(--ui-bg-active);
+}
+
+/* 下箭头：展开的提示，比名字小一档，不参与截断。 */
+.titlebar__caret {
+  flex: none;
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 头像。
+ *
+ * ## 为什么是白底黑主体，且不跟主题反色
+ *
+ * 默认头像就是应用图标：`icon.svg` 的白底黑鱼。它在 Dock、关于页、
+ * 安装包里都是这个样子，跟着主题翻成黑底白鱼就成了第二个标志。
+ *
+ * 24px 的白圆放在深色标题栏上确实是最亮的一点，但它是**身份**——
+ * 亮度本来就是身份该有的重量，不该为了"不刺眼"把它调灰。
+ *
+ * ## 为什么是一枚发丝环而不是阴影
+ *
+ * 白圆落在 `--ui-bg-canvas`（浅灰）上时边界几乎看不见；深色下白圆
+ * 又会糊进亮色标题栏上的其他浅色控件。一条 0.5px 的 `--ui-line`
+ * 内描边在两种主题下都能把圆"立"起来，且不加任何投影（§视觉纪律 1）。
+ */
+.avatar {
+  position: relative;
   display: grid;
   place-items: center;
   flex: none;
-  width: 24px;
-  height: 24px;
-  /*
-   * 正圆，不是 4px 圆角方块。
-   *
-   * 头像在标题栏里是「她」的唯一视觉身份，圆是肖像的通用形状；方块会被
-   * 读成一枚应用图标或状态灯，与旁边那行「空谷 · 在线」抢身份。左侧三个
-   * 红绿灯也都是圆，方块夹在它们右边时，整条标题栏的曲率是断的。
-   */
+  overflow: hidden;
   border-radius: var(--r-full);
-  background: var(--ui-bg-sunken);
+  background: #ffffff;
   box-shadow: inset 0 0 0 var(--rule) var(--ui-line);
-  color: var(--ui-ink-2);
+}
+
+.avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 头像不是可拖拽素材：拖出去会把整个 WebView 变成下载。 */
+  -webkit-user-drag: none;
+}
+
+/*
+ * 图形铺满整个视窗。
+ *
+ * `icon.svg` 的图形本来就画在 24 视窗的安全区内，铺满即等于**应用图标的
+ * 比例**——缩小到 24px 时鱼形与 Dock 里那枚图标是同一个形状。留内边距
+ * 会让它看起来比图标小一圈，「同一个标志」就不成立了。
+ */
+.avatar__glyph {
+  width: 100%;
+  height: 100%;
 }
 
 .titlebar__idtext {
@@ -164,6 +225,19 @@
   to { opacity: 1; }
 }
 
+/*
+ * 离线：空心点。
+ *
+ * 与「在线」的实心点是同一个 5px 圆，只把填充换成 1px 环——形状一样、
+ * 重量不同，扫一眼就能分出「她在」与「她不在」，而不是靠读那两个字。
+ * 不用红色：离线不是错误，是状态；红色会让用户以为出故障了，
+ * 而实际上可能只是没配模型。
+ */
+.titlebar__presence[data-presence='offline']::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ui-ink-4);
+}
+
 /* 撑杆：把版本号与窗口键推到右边。 */
 .titlebar__spacer {
   flex: 1;
@@ -182,4 +256,135 @@
   color: var(--ui-ink-4);
   font-variant-numeric: tabular-nums;
   user-select: none;
+}
+
+/* ===========================================================================
+   人设切换浮层
+   =========================================================================== */
+
+/*
+ * 浮层挂在身份块里，定位相对它。
+ *
+ * ## 为什么宽 236 而不是跟按钮同宽
+ *
+ * 按钮的宽度随名字长短变化（「哦鲸鲸」三字与「夏柠柒」三字恰好一样，
+ * 但用户装的人设包可能是八个字）。做成自适应宽度后，浮层每次打开都
+ * 不一样宽，而它里面的行是固定内容的——一个会变宽的菜单看起来像
+ * 布局没算准。236 刚好放得下「四字名字 + 角色标签 + 选中点」。
+ */
+.persona-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -4px;
+  z-index: var(--z-menu);
+  width: 236px;
+  padding: 8px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-md);
+  background: var(--ui-bg-raise);
+  box-shadow: var(--ui-shadow-float);
+  animation: persona-pop-in var(--motion-f) var(--ease-fluid);
+}
+
+@keyframes persona-pop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.persona-pop__caption {
+  padding: 4px 8px 4px;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+  letter-spacing: var(--track-title);
+}
+
+.persona-pop__list {
+  list-style: none;
+  max-height: 216px;
+  overflow-y: auto;
+}
+
+.persona-pop__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background-color var(--motion-f) var(--ease-fluid);
+}
+
+.persona-pop__item:hover {
+  background: var(--ui-bg-hover);
+}
+
+.persona-pop__item[aria-checked='true'] {
+  background: var(--ui-bg-selected);
+}
+
+.persona-pop__item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* 名字占满剩余宽度并省略：人设包的包名可能很长，而角色标签与点必须固定位置。 */
+.persona-pop__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-caption);
+  color: var(--ui-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.persona-pop__role {
+  flex: none;
+  padding: 0 4px;
+  border: var(--rule) solid var(--ui-line);
+  border-radius: var(--r-xs);
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.persona-pop__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--ui-action);
+}
+
+.persona-pop__busy {
+  flex: none;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-4);
+}
+
+.persona-pop__empty {
+  padding: 4px 8px 8px;
+  font-size: var(--text-micro);
+  line-height: var(--lh-caption);
+  color: var(--ui-ink-4);
+}
+
+/*
+ * 底部入口：与上面的列表用一条发丝线分开。
+ *
+ * 不写成「按钮块」而是一行文字：它是一条去别处的路，不是一次操作。
+ * 给它实心底会把「切人设」与「去设置」画成同一等级，而后者是低频的。
+ */
+.persona-pop__manage {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 8px 4px;
+  border-top: var(--rule) solid var(--ui-line-soft);
+  text-align: left;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+}
+
+.persona-pop__manage:hover {
+  color: var(--ui-ink);
 }

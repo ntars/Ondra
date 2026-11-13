@@ -628,7 +628,7 @@ const HELP = `空谷命令行调试工具
   say <文本> [--session id]  发一句话并打印回复
 
   ui state                   当前界面状态（会话、面板、主题）
-  ui open <面板>             打开：inspector / settings / shortcuts / preferences /
+  ui open <面板>             打开：inspector / settings / preferences /
                              today / week / memory / theater
   ui close <面板>            关闭（不写参数 = 全部关闭）
   ui theme <模式>            light / dark / system

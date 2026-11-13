@@ -169,17 +169,22 @@ export function apply(ctx: Context, config: ReasonConfig): void {
   if (!NAME_RE.test(name)) {
     log.error('插件名不合规（%s）：服务键会被模型侧拒绝', name)
   }
-  if (!plan.sources.gap) {
-    log.info('缺口池未装载（ondra-drive-gap）：少一类话由——「她自己在惦记」这类由头不会出现')
-  }
-  if (!plan.sources.promise) {
-    log.info('承诺/待办未装载（ondra-memory-prospective）：少两类话由')
-  }
-  if (!plan.sources.emotion) {
-    log.info('情绪表达未装载（ondra-emotion-express）：少一类话由')
-  }
-  if (plan.code === 'all-cooling') {
-    log.info('当前 %d 条候选全在冷却里：这一轮没有可说的由头（这是正常状态，不是故障）', plan.candidates.length)
+  if (settings.verbose) {
+    if (!plan.sources.gap) {
+      log.info('缺口池未装载（ondra-drive-gap）：少一类话由——「她自己在惦记」这类由头不会出现')
+    }
+    if (!plan.sources.promise) {
+      log.info('承诺/待办未装载（ondra-memory-prospective）：少两类话由')
+    }
+    if (!plan.sources.emotion) {
+      log.info('情绪表达未装载（ondra-emotion-express）：少一类话由')
+    }
+    if (plan.code === 'all-cooling') {
+      log.info(
+        '当前 %d 条候选全在冷却里：这一轮没有可说的由头（这是正常状态，不是故障）',
+        plan.candidates.length,
+      )
+    }
   }
   if (ctx.get('ondra-path-layout') === undefined) {
     log.warn('路径服务未装载：冷却表只在内存里，重启后同一件事会被重提')
