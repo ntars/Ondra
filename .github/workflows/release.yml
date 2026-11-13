@@ -1,7 +1,7 @@
 name: Release Alpha
 
 # 内测版发布：打一个 `v*` tag，两个平台各自构建，最后由 publish 汇总成一个
-# pre-release。
+# 发行版（release）。
 #
 # ## 为什么 macOS 与 Windows 分成两个 job
 #
@@ -27,10 +27,17 @@ name: Release Alpha
 # 的 release）。汇总成一个 job 之后，「release 存在」这件事只有一个写入点，
 # 资产在它之前先落成 artifact。
 #
-# ## 为什么是 pre-release
+# ## 为什么不再标 Pre-release
 #
-# 内测版一律标 `Pre-release`。GitHub 会把它排除在「Latest」之外，
-# 不会有人把它当成稳定版下载。转为正式版是**人工动作**，不在这条流水线里。
+# GitHub 的硬规则：Latest 不能是 draft 或 prerelease——API 直接回 422
+# `Latest release cannot be draft or prerelease`。而仓库首页右栏的「发行版」
+# 区块**只列 Latest**，标了 Pre-release 的 release 在那里只是一行「N tags」，
+# 点不进任何一个版本。也就是说：想让人在首页直接看到并且能下载，就不能带
+# 这个标记。
+#
+# 代价是 GitHub 不再从徽章上区分内测与稳定。内测的语义改由**版本号**承载：
+# `-alpha` 后缀、标题里的「内测版」、正文第一段。版本号从 `1.0.x-alpha` 跳到
+# `1.0.x` 或 `2.x` 仍然是**人工动作**，不在这条流水线里。
 #
 # ## 版本号从哪来
 #
@@ -204,7 +211,7 @@ jobs:
           retention-days: 14
 
   publish:
-    name: 发布 pre-release
+    name: 发布发行版
     # 等两个平台都结束再发布。
     #
     # 原来只写 `needs: [windows]`：macOS 那个 job 带 `continue-on-error`，
@@ -327,7 +334,7 @@ jobs:
           lines += rows
           lines += [
               '',
-              '内测版，GitHub 标为 **Pre-release**——不是公测版，也不是正式版。',
+              '内测版：版本号末尾的 `-alpha` 就是标记。不是公测版，也不是正式版。',
               '',
               '### 首次打开会被系统拦下',
               '',
@@ -349,16 +356,19 @@ jobs:
           print(body)
           PYEOF
 
-      - name: 创建 pre-release
+      - name: 创建发行版
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           name: '空谷 Ondra ${{ github.event.inputs.tag || github.ref_name }}（内测版）'
-          prerelease: true
+          # false 不是笔误。标了 pre-release 就进不了「Latest」，仓库首页的
+          # 「发行版」区块就只剩一行「N tags」——那样没人能在首页看到并下载。
+          # 内测语义由版本号的 `-alpha` 与标题里的「内测版」承载。
+          prerelease: false
           draft: false
-          # 不要求两个平台都齐：云端 macOS 是可选的备份，dmg 通常由本机
-          # 构建后手动补进同一条 release。要求「文件必须都匹配上」会在
-          # 只有 exe 时直接失败，而那时 release 本身是好的。
+          # 不要求两个平台都齐：macOS 那份是可替代的（本机 `build:app` 也能
+          # 出等价的 dmg），云端跑失败时只发 Windows 那一份也是好的。要求
+          # 「文件必须都匹配上」会在只有 exe 时直接失败。
           fail_on_unmatched_files: false
           # 正文由上一步生成，含各平台的直链下载表。
           body_path: release-body.md

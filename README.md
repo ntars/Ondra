@@ -10,7 +10,7 @@
 
 **[macOS 安装包 · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows 安装包 · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
 
-内测版 `1.0.1-alpha`，GitHub 标为 Pre-release。两个包都没有签名，首次打开会被系统拦下，绕行办法见[发布说明](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)。
+内测版 `1.0.1-alpha`——版本号末尾的 `-alpha` 就是内测标记，不是稳定版。两个包都没有签名，首次打开会被系统拦下，绕行办法见[发布说明](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)。
 
 | 项目 | 内容 |
 | --- | --- |
@@ -24,7 +24,7 @@
 | 推理来源 | 在线接口 / 本地大模型 / 免费模型，三选一随时切换 |
 | 许可 | [AGPL-3.0](./LICENSE) |
 | 仓库 | [ntars/Ondra](https://github.com/ntars/Ondra) |
-| 下载 | [内测版 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)：macOS `arm64.dmg` + Windows `x64-setup.exe`，点开就下。标记为 Pre-release，不是稳定版 |
+| 下载 | [内测版 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)：macOS `arm64.dmg` + Windows `x64-setup.exe`，点开就下。版本号带 `-alpha`，不是稳定版 |
 | 官网 | <https://ai.ntars.cn/> |
 | 出品 | Ntarstudio（星玖工作室） |
 
@@ -36,7 +36,7 @@
 
 **一句话定位**：空谷 Ondra 是一款可一键部署、高度自定义的开源 AI 陪伴体应用，给一个语言模型配上长期记忆、情绪节律与说话方式，并把全部数据留在用户本机。
 
-**项目现状**：空谷 Ondra 于 2026 年 10 月 29 日被 XERJ 收录于库中，并于当日把团队两个原创项目「NT-Sine」与「NT-Dpet」合并立项为「空谷 Ondra」。首个**内测版** `1.0.1-alpha` 于 2026 年 11 月 13 日发布（GitHub 标记为 Pre-release）；**公测版与正式版尚未安排**，是否转版由项目负责人决定，不在流水线里自动发生。当前核心功能开发已完成，正在全力对接与调试。
+**项目现状**：空谷 Ondra 于 2026 年 10 月 29 日被 XERJ 收录于库中，并于当日把团队两个原创项目「NT-Sine」与「NT-Dpet」合并立项为「空谷 Ondra」。首个**内测版** `1.0.1-alpha` 于 2026 年 11 月 13 日发布（GitHub 标为最新发行版 Latest，内测语义由版本号的 `-alpha` 承载）；**公测版与正式版尚未安排**，是否转版由项目负责人决定，不在流水线里自动发生。当前核心功能开发已完成，正在全力对接与调试。
 
 **定位的三条边界**：
 
@@ -1791,7 +1791,7 @@ Ondra/
 ├── icon.svg                      应用图标唯一真源
 ├── favicon.ico                   站点图标
 ├── assets/                       品牌图像资产
-├── .github/workflows/            CI：release.yml 双平台构建并发布 pre-release
+├── .github/workflows/            CI：release.yml 双平台构建并发布发行版
 ├── tools/
 │   ├── build-site.mjs            官网静态文件收集
 │   ├── prepare-plugins.mjs       为迁入插件生成统一的构建配置
@@ -2061,6 +2061,10 @@ Ondra/
 > **版本号从这里重新起算。** 内测线从 `1.0.1-alpha` 开始，与之前 2.x 的
 > 记录不再连续；此前 2.0–2.3 的条目已按要求删除。内测版一律带 `-alpha`
 > 后缀，**不代表公测，也不代表正式版**。
+>
+> 内测版在 GitHub 上按普通发行版发布，不带 Pre-release 标记——这不是转正式版，
+> 而是为了让下载入口出现在仓库首页右栏：GitHub 的「发行版」区块只列 Latest，
+> 标了 Pre-release 的版本在那里只显示成一行「N tags」，点不进去。
 
 ### 1.0.1-alpha · 首个内测版（2026-11-13）
 
@@ -2120,7 +2124,7 @@ Ondra/
 - 新增 `pnpm version:alpha`：修订 +1（`1.0.1 → 1.0.2`），本地递增，不发布。
 - 新增 `pnpm version:alpha:minor`：次版本 +1（`1.0.2 → 1.1.0`），
   提交版本文件、打 `v*` tag 并推送，由 `.github/workflows/release.yml`
-  构建 macOS（arm64 dmg）与 Windows（x64 安装程序）并发布 **pre-release**。
+  构建 macOS（arm64 dmg）与 Windows（x64 安装程序）并发布**发行版**。
   转公测或正式版始终是人工动作，不在流水线里。
 - 首次内测包的取得方式：两个平台都由 GitHub Actions 云端构建
   （macOS 用 `macos-latest`、Windows 用 `windows-latest`），产物挂到同一条

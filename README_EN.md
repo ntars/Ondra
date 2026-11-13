@@ -10,7 +10,7 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 
 **[macOS installer · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows installer · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
 
-Internal beta `1.0.1-alpha`, marked Pre-release on GitHub. Neither package is signed, so both are blocked on first launch — see the [release notes](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha) for the workaround.
+Internal beta `1.0.1-alpha` — the `-alpha` suffix is the internal marker; this is not a stable build. Neither package is signed, so both are blocked on first launch — see the [release notes](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha) for the workaround.
 
 | Item | Value |
 | --- | --- |
@@ -24,7 +24,7 @@ Internal beta `1.0.1-alpha`, marked Pre-release on GitHub. Neither package is si
 | Inference source | Cloud API / local model / free model, switchable at any time |
 | License | [AGPL-3.0](./LICENSE) |
 | Repository | [ntars/Ondra](https://github.com/ntars/Ondra) |
-| Download | [Internal beta 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha): macOS `arm64.dmg` + Windows `x64-setup.exe`, one click each. Marked Pre-release, not a stable build |
+| Download | [Internal beta 1.0.1-alpha](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha): macOS `arm64.dmg` + Windows `x64-setup.exe`, one click each. Carries the `-alpha` suffix, not a stable build |
 | Website | <https://ai.ntars.cn/> |
 | Publisher | Ntarstudio（星玖工作室） |
 
@@ -1757,7 +1757,7 @@ Ondra/
 ├── icon.svg                      Single source for the application icon
 ├── favicon.ico                   Site icon
 ├── assets/                       Brand image assets
-├── .github/workflows/            CI: release.yml builds both platforms and publishes a pre-release
+├── .github/workflows/            CI: release.yml builds both platforms and publishes a release
 ├── tools/
 │   ├── build-site.mjs            Website static file collection
 │   ├── prepare-plugins.mjs       Generates shared build configuration for migrated plugins
@@ -2019,8 +2019,13 @@ The bar is simple: **once any row above has been walked through manually on its 
 
 > **Version numbering restarts here.** The internal beta line begins at `1.0.1-alpha`
 > and no longer continues the earlier 2.x records; the previous 2.0–2.3 entries have
-> been removed as requested. Every pre-release carries the `-alpha` suffix. It means
+> been removed as requested. Every internal build carries the `-alpha` suffix. It means
 > **neither a public beta nor a stable release**.
+>
+> Internal builds are published as ordinary GitHub releases, without the Pre-release flag.
+> That is not a promotion to stable — it is what puts the download entry in the repository
+> sidebar: GitHub's Releases block only lists the Latest release, and a Pre-release shows up
+> there merely as a line reading "N tags" that leads nowhere.
 
 ### 1.0.1-alpha · first internal beta (2026-11-13)
 
@@ -2057,7 +2062,7 @@ The bar is simple: **once any row above has been walked through manually on its 
 
 - The version is `1.0.1-alpha`, synchronised in seven places (four `package.json` files, `tauri.conf.json`, `Cargo.toml`, `Cargo.lock`).
 - New `pnpm version:alpha`: patch +1 (`1.0.1 → 1.0.2`), local only, no release.
-- New `pnpm version:alpha:minor`: minor +1 (`1.0.2 → 1.1.0`), commits the version files, tags `v*` and pushes; `.github/workflows/release.yml` then builds macOS (arm64 dmg) and Windows (x64 installer) and publishes a **pre-release**. Promoting to public beta or stable is always a manual act, never part of the pipeline.
+- New `pnpm version:alpha:minor`: minor +1 (`1.0.2 → 1.1.0`), commits the version files, tags `v*` and pushes; `.github/workflows/release.yml` then builds macOS (arm64 dmg) and Windows (x64 installer) and publishes a **release**. Promoting to public beta or stable is always a manual act, never part of the pipeline.
 - How the first internal build is obtained: both platforms are built in the cloud by GitHub Actions (`macos-latest` for the arm64 dmg, `windows-latest` for the x64 installer) and attached to the same release; the Windows artefact is additionally downloaded locally for archive. `pnpm run build:app` still produces an equivalent local `.dmg` into `releases/` as a fallback. Published asset names are chosen by the pipeline itself, e.g. `Ondra-1.0.1-alpha-macos-arm64.dmg` / `Ondra-1.0.1-alpha-windows-x64-setup.exe` — pure ASCII (GitHub strips non-ASCII, see trap ④) and readable enough to tell the platform and architecture at a glance.
 - **Neither package is signed or notarised** (macOS is ad-hoc signed — `codesign -dv` reports `flags=0x20002(adhoc,linker-signed)`; Windows has no code-signing certificate). Both will therefore be blocked on first launch: on macOS right-click the app → Open, or run `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`; on Windows click More info → Run anyway at the SmartScreen prompt. Signing is stable-release work, not an omission in this build.
 - Six traps found while getting the cloud release green; each is explained in a comment at the place it bit, so it is not repeated: ① `sidecar` must be built first inside `pnpm run build` (type-reference order); ② launching `pnpm.cmd` without a shell fails with `EINVAL` on Node 20+ (now `node` calls the Tauri CLI directly); ③ the NSIS template must not define `.onGUIInit` (it collides with the one MUI2 generates — use `MUI_CUSTOMFUNCTION_GUIINIT`); ④ non-ASCII asset names are rewritten by GitHub, so an upload that looks for the file by its original name never finds the old asset and hits `already_exists` — the pipeline renames before uploading; ⑤ the `macos-14` label no longer gets a runner (the job is cancelled with zero steps — use `macos-latest`); ⑥ under `workflow_dispatch` the version check must not read `GITHUB_REF_NAME` (reserved variable, overriding it silently fails) — it reads `ONDRA_RELEASE_TAG` instead.
