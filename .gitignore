@@ -5,6 +5,10 @@ node_modules/
 
 # 构建产物
 dist/
+# 打包中间目录：tools/bundle-release.mjs 与 tauri-build 会在仓库根生成
+# `dist-arm2exe/` 之类的临时树（含完整 app 副本 + .verify-* 快照，279MB）。
+# 它们是构建过程的副产物，重新构建即可恢复，不入库。
+dist-*/
 target/
 *.tsbuildinfo
 

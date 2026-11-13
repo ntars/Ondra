@@ -71,11 +71,31 @@ function faviconFromBrand(): Plugin {
  * 绝对路径 `/assets/...` 会被解析到协议根而找不到资源。相对路径在两种
  * 加载方式（开发态 HTTP、生产态自定义协议）下都成立。
  */
+/**
+ * 是否构建手机端（本地模式）。
+ *
+ * ## 为什么是一个环境变量而不是自动探测
+ *
+ * 第一版靠「检测不到 Tauri 内部对象」推断，结果把桌面端测试打挂了：
+ * 测试注入的是一个假壳，它不设那个对象，于是被判成本地模式，测试数据
+ * 一条都没被读到。
+ *
+ * 「检测不到 A」不等于「应该走 B」——测试、预览、桌面都可能检测不到 A，
+ * 但只有手机该走 B。所以改成显式：`ONDRA_LOCAL=1 pnpm build:web` 才开。
+ */
+const localMode = process.env.ONDRA_LOCAL === '1'
+
 export default defineConfig({
   plugins: [react(), faviconFromBrand()],
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(`v${version}`),
+    /*
+     * 注入成**字面量**而不是运行时查环境：`define` 在构建期做文本替换，
+     * 产物里是 `true` / `false`，运行时没有分支判断开销，也不会因为
+     * 用户改了什么全局变量而失效。
+     */
+    __ONDRA_LOCAL_MODE__: JSON.stringify(localMode),
   },
   // Vite 默认在 root 下找 index.html。前端工程的 root 就是 src/，
   // 因此把 index.html 也算作 src 内的入口文件。

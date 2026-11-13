@@ -16,6 +16,50 @@
  * 宿主就好了"，而是显式等待壳发来的 `host-ready` 事件，并保留等待队列。
  */
 
+import { dispatch, dispatchStream, LOCAL_MODE } from './local/host.ts'
+
+/**
+ * 是否跑在手机端的「本地宿主」模式。
+ *
+ * ## 判定为什么必须是**显式开关**，不能靠推断
+ *
+ * 第一版写的是「没有 `__TAURI_INTERNALS__` 就是本地模式」，想让浏览器预览
+ * 也能跑起来。结果把 `check:ui` 整条测试打挂了：测试通过 `addInitScript`
+ * 注入的是一个**假的壳**（`window.__TAURI__` + `invoke`），它不设
+ * `__TAURI_INTERNALS__`，于是被判成本地模式——测试准备的假宿主数据一条
+ * 都没被读到，界面停在空态，第一条 `waitFor('.message')` 就超时。
+ *
+ * 教训：**「检测不到 A」不等于「应该走 B」**。测试环境、预览环境、
+ * 真实桌面环境都可能「检测不到 A」，但只有手机该走 B。
+ *
+ * 所以改成显式：构建时由 Vite 注入 `__ONDRA_LOCAL_MODE__`，移动端配置
+ * 里置 true，桌面与测试都不设（默认 false）。宁可多一个构建常量，
+ * 也不要一个会在别处误触发的推断。
+ */
+export function isMobileLocal(): boolean {
+  /*
+   * 直接引用常量，不查 `globalThis`。
+   *
+   * `define` 在构建期把这个标识符替换成字面量 `true` / `false`。写成
+   * `globalThis.__ONDRA_LOCAL_MODE__` 时替换的是属性名那一截，运行时
+   * 变成 `globalThis.true`——永远 undefined，本地模式永远不生效。
+   */
+  return __ONDRA_LOCAL_MODE__
+}
+
+/** 构建期常量。由 `vite.config.ts` 的 `define` 注入。 */
+declare const __ONDRA_LOCAL_MODE__: boolean
+
+/**
+ * 界面侧判断「当前是不是本地模式」。
+ *
+ * 与 `request()` 里的判定同一个函数——两处若各写一遍，会出现
+ * 「界面以为有宿主、请求却走本地」这种半截状态。
+ */
+export function isLocalMode(): boolean {
+  return LOCAL_MODE && isMobileLocal()
+}
+
 /** 宿主连接信息。 */
 export interface HostConnection {
   url: string
@@ -244,6 +288,19 @@ async function ensureConnection(): Promise<void> {
  * @throws {@link ApiError} 非 2xx 响应、超时或网络失败时抛出。
  */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  /*
+   * 本地模式：不连宿主，直接把请求交给本地实现。
+   *
+   * 放在最前面，早于 `ensureConnection()`——那一步会等 `host-ready` 事件，
+   * 而手机端永远等不到它。
+   */
+  if (LOCAL_MODE && isMobileLocal()) {
+    const method = options.method ?? 'GET'
+    const result = await dispatch(path, method, options.body)
+    if (result.status >= 400) throw new ApiError(result.status, '本地处理失败')
+    return result.body as T
+  }
+
   await ensureConnection()
   const ready = await waitForHost()
   const method = options.method ?? 'GET'
@@ -364,6 +421,15 @@ export async function requestStream(
   body: unknown,
   options: StreamOptions,
 ): Promise<void> {
+  if (LOCAL_MODE && isMobileLocal()) {
+    await dispatchStream(
+      body,
+      (event, data) => { options.onFrame({ event, data }) },
+      options.signal,
+    )
+    return
+  }
+
   const ready = await waitForHost()
   const response = await fetch(`${ready.url}${path}`, {
     method: 'POST',

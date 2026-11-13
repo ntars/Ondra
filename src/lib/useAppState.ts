@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getConnection,
   getConnectionError,
+  isLocalMode,
   onConnectionChange,
   setConnection,
   setConnectionFailure,
@@ -717,6 +718,23 @@ export function useAppState(): AppState {
      * 两处的目的不同，所以都留着；但**只有这里能动 `phase`**，
      * 也只有那边能动 `connection`。谁也别顺手把另一件的活干了。
      */
+    /*
+     * 本地模式（手机端 / 浏览器预览）：没有壳也没有宿主进程。
+     *
+     * 直接置 ready，不等任何事件。`host.ts` 里的 `request()` 会在本地
+     * 模式下把请求交给本地实现，所以「ready」在这里的含义是
+     * 「界面可以开始拉数据了」，而不是「连上了宿主」。
+     *
+     * 不这样做的话会卡在骨架屏：`pullState()` 拿不到 `get_host_state`
+     * 就 return，然后等 `waitForHost` 超时（10 秒），而手机端永远等不到
+     * 那个事件——用户看到的是十秒空白后一句「无法连接后台服务」。
+     */
+    if (isLocalMode()) {
+      setPhase('ready')
+      setError(undefined)
+      return
+    }
+
     const pullState = async (): Promise<void> => {
       let snapshot: ShellHostState
       try {

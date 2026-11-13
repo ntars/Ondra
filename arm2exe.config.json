@@ -1,0 +1,14 @@
+{
+  "productName": "空谷 Ondra",
+  "version": "1.0.3-alpha",
+  "publisher": "Ntarstudio（星玖工作室）",
+  "identifier": "com.ntars.ondra",
+  "frontendDist": "dist",
+  "entry": "cordis-host/lib/index.js",
+  "buildCommand": null,
+  "outDir": "dist-arm2exe",
+  "compression": "lzma",
+  "desktopShortcut": true,
+  "requireAdmin": false,
+  "dataEnv": "ONDRA_DATA_DIR"
+}

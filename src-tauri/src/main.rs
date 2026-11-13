@@ -82,6 +82,24 @@ fn main() {
             let layout = commands::ProjectLayout::resolve()?;
             let manager = HostManager::new(layout.host_entry.clone(), layout.node_path.clone());
 
+            /*
+             * ## 手机端走完全不同的路径
+             *
+             * Android 上没有 Node 进程（沙箱不允许 fork 任意可执行文件），
+             * 所以宿主起不来、托盘也不存在。这里直接返回：前端检测到
+             * 移动端会走 `src/lib/local/host.ts` 的本地实现，界面照常可用。
+             *
+             * 不注册任何桌面命令：前端 `invokeShell` 拿不到命令时会抛
+             * 「桌面能力不可用」，而各处调用都已有降级分支（之前为浏览器
+             * 预览写的）。多写一套移动端命令等于维护第二份真源。
+             */
+            #[cfg(mobile)]
+            {
+                let _ = &app;
+                let _ = &handle;
+                return Ok(());
+            }
+
             // 每次启动都强制回到 820×580：它同时是默认尺寸与最小尺寸。
             // 即使用户上次把窗口拖大，这一版也只认这一个尺寸——
             // "无论用户调成多少，每次启动都是这么大"的要求由这里兜底。

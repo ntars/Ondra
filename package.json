@@ -84,7 +84,10 @@
     "check:dedupe-tally": "node tools/check-dedupe-tally.mjs",
     "check:dedupe-digit": "node cordis-host/check-dedupe-digit.mjs",
     "check:recall-archived": "node tools/check-recall-archived.mjs",
-    "check:e2e-stream": "node tools/check-e2e-stream.mjs"
+    "check:e2e-stream": "node tools/check-e2e-stream.mjs",
+    "check:e2e-mobile": "node tools/check-e2e-mobile.mjs",
+    "check:local-parity": "node tools/check-local-parity.mjs",
+    "build:mobile": "ONDRA_LOCAL=1 pnpm --filter @ondra/web run build:mobile"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.4"
