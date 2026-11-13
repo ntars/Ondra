@@ -10,15 +10,16 @@ name: Release Alpha
 #
 # ## 为什么 macOS 那个 job 允许失败
 #
-# 内测版的 macOS 包是**本机构建**的（理由见下），云端那一份只是「顺手也
-# 造一个」的备份，造不出来不该拦住发布——因此它 `continue-on-error`，且
-# `publish` 只 `needs` Windows。
+# 两个平台的包现在都由这条流水线产出，但 macOS 那份是**可替代**的：
+# `pnpm run build:app` 在本机能出等价的 dmg，所以云端 mac 造不出来时不该
+# 拦住整条发布——因此它 `continue-on-error`，且 `publish` 只 `needs`
+# Windows。（历史上 mac 是最初只在本机构建的，这个 `continue-on-error`
+# 就是那时候留下的；现在保留它是因为 mac 侧的失败面比 Windows 大：
+# runner 镜像版本、Xcode 版本都由 GitHub 侧决定。）
 #
-# 注意：两个平台的包**都没有签名、也没有公证**。macOS 是 ad-hoc 签名
-# （`codesign -dv` 显示 `flags=0x20002(adhoc,linker-signed)`），Windows
-# 没有代码签名证书。所以「本机构建」的理由不是钥匙串，而是本机产出经过
-# 了安装验证（挂载 dmg、检查 Contents/Resources 里的三层运行时）；签名是
-# 正式版阶段的工作。
+# 注意：两个平台的包**都没有签名、也没有公证**。macOS 是链接器 ad-hoc 签名
+# （`codesign -dv` 显示 `flags=0x20002(adhoc,linker-signed)`，`TeamIdentifier`
+# 未设置），Windows 没有代码签名证书。签名与公证是正式版阶段的工作。
 #
 # ## 为什么发布要单独一个 job
 #

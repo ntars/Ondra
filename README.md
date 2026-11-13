@@ -2022,7 +2022,16 @@ Ondra/
 11. **语音输入依赖系统能力**。语音走 Web Speech API，在多数桌面 WebView 中可能不可用，此时按钮给出「当前环境不支持语音输入」提示。
 12. **安装包自带运行时，但 Windows 上未做真机启动验证**。`build:runtime` 会把 Node 二进制、宿主与内核的 `node_modules` 一并收进 `src-tauri/runtime/`，再由 `bundle.resources` 打进安装包；`commands.rs` 按平台找 `Resources/node/bin/node`（Windows 为同级的 `node/bin/node.exe`）。macOS 已实测可双击运行；Windows 的路径查找与启动只在代码层核对过，缺一次真机确认。
 13. **dmg 由 `hdiutil` 手动生成**。Tauri 2.12.4 自带的 `bundle_dmg.sh` 在较新 macOS 上因 `grep` 正则未转义方括号而解析 `hdiutil` 输出失败，dmg 创建中断。`.app` 不受影响；`release` 流程改为在 Tauri 打包出 `.app` 后用 `hdiutil create -srcfolder` 直接封装 dmg，绕开该脚本缺陷。
-14. **念想型人格未开放**。第二章 2.5 节说明的三条前置条件（授权、范围声明、数据最小化）当前没有任何代码实现，因此该人格形态不对外开放。这是产品级约束，不是功能待办。
+14. **安装包未签名、未公证**。macOS 是链接器 ad-hoc 签名（`codesign -dv` 报
+    `flags=0x20002(adhoc,linker-signed)`，`TeamIdentifier` 未设置），Windows
+    没有代码签名证书。首次打开会被系统拦下，绕行办法写在 release 正文里。
+    签名与公证属于正式版阶段的工作，不在内测版的取舍范围内。
+15. **打进包里的 Node 运行时取自构建机，不是一个钉死的版本**。`build:runtime`
+    直接复制 `process.execPath`，所以云端构建的包带 Node 24.9.0、本机构建的
+    带 22.22.2，两者都满足 `engines: { node: ">=22" }`。这意味同一个版本号
+    在两处构建出的包，运行时未必一致。要彻底消除需要在收集运行时那一步改成
+    下载固定版本，目前没做。
+16. **念想型人格未开放**。第二章 2.5 节说明的三条前置条件（授权、范围声明、数据最小化）当前没有任何代码实现，因此该人格形态不对外开放。这是产品级约束，不是功能待办。
 
 以上限制均为当前阶段的明确取舍，不代表最终形态。
 
@@ -2109,9 +2118,12 @@ Ondra/
   提交版本文件、打 `v*` tag 并推送，由 `.github/workflows/release.yml`
   构建 macOS（arm64 dmg）与 Windows（x64 安装程序）并发布 **pre-release**。
   转公测或正式版始终是人工动作，不在流水线里。
-- 首次内测包的取得方式：macOS 本机构建 → `.dmg`；Windows 由 GitHub Actions
-  云端构建 → 下载 `.exe` 后附在同一条 release 上。两个资产现都挂在
-  `v1.0.1-alpha` 下。
+- 首次内测包的取得方式：两个平台都由 GitHub Actions 云端构建
+  （macOS 用 `macos-latest`、Windows 用 `windows-latest`），产物挂到同一条
+  release 上；Windows 那份另下载到本地留档。本机 `pnpm run build:app` 仍可
+  独立出一份 `.dmg`（产物在 `releases/`），作为云端不可用时的兜底。
+  发布出去的资产名是纯 ASCII（`Ondra_1.0.1-alpha_aarch64.dmg`）——GitHub 会
+  把资产名里的中文洗掉，这一步现在由流水线自己做，理由见下文第④条。
 - **两个包都没有签名，也没有公证**（macOS 是 ad-hoc 签名，`codesign -dv`
   显示 `flags=0x20002(adhoc,linker-signed)`；Windows 无代码签名证书）。
   因此首次打开会被系统拦：macOS 需右键 →「打开」，或执行
@@ -2119,11 +2131,15 @@ Ondra/
   Windows SmartScreen 需点「更多信息」→「仍要运行」。签名是后续要补的
   正式版工作，不是本版遗漏。
 - 打通云端构建时踩到的坑，原因都写进了对应位置的注释，不重复踩：
-  `pnpm run build` 里 sidecar 必须排在最前（类型引用顺序）；`pnpm.cmd` 在
-  Node 20+ 下无 shell 启动会报 `EINVAL`（改用 node 直调 tauri CLI）；NSIS
-  模板不能自定义 `.onGUIInit`（与 MUI2 生成的同名函数冲突，改用
-  `MUI_CUSTOMFUNCTION_GUIINIT`）；`macos-14` 标签已不再分配 runner
-  （job 会零步骤被取消，改用 `macos-latest`）。
+  ① `pnpm run build` 里 sidecar 必须排在最前（类型引用顺序）；
+  ② `pnpm.cmd` 在 Node 20+ 下无 shell 启动会报 `EINVAL`（改用 node 直调
+  tauri CLI）；③ NSIS 模板不能自定义 `.onGUIInit`（与 MUI2 生成的同名函数
+  冲突，改用 `MUI_CUSTOMFUNCTION_GUIINIT`）；④ 资产名里的中文会被 GitHub
+  洗成 ASCII，导致「按原名覆盖」的发布动作撞 `already_exists`，改为上传前
+  先自己改名；⑤ `macos-14` 标签已不再分配 runner（job 会零步骤被取消，改用
+  `macos-latest`）；⑥ `workflow_dispatch` 手动触发时版本校验不能读
+  `GITHUB_REF_NAME`（保留变量，覆盖无效），改读自定义的
+  `ONDRA_RELEASE_TAG`。
 
 ## 十七、后续路线图
 
