@@ -2013,13 +2013,13 @@ Ondra/
 3. **壳命令通道尚未完全接通**。`desktop-bridge` 的 `invoke` 在宿主侧尚未连接到 Tauri 的自定义命令端点，调用会返回明确错误。
 4. **Windows 文件选择未实现**。`pick_files` 在非 macOS 平台返回「尚未实现」。
 5. **托盘图标与菜单已接入，但未在 Windows / Linux 真机验证**。托盘由 `src-tauri/src/tray.rs` 创建，三档图标（16 / 32 / 64）由 `tools/build-tray-icons.mjs` 从 `icon.svg` 渲染，macOS 上按模板图染色。macOS 侧已实测：菜单四项齐全、单击唤回窗口、关闭拦截与「隐藏到托盘」生效。Windows 与 Linux 只做过代码复核。
-6. **单窗口形态（除偏好设置）**。主窗口关闭即隐藏到托盘，不退出；偏好设置是唯一的第二个窗口，560 × 480，建一次之后只显隐。
+6. **单窗口形态**。主窗口关闭即隐藏到托盘，不退出。设置是主窗口上的一张浮层（不是第二个窗口），关闭浮层即回到会话。
 7. **无自动更新**。更新流程尚未实现。
-8. **插件配置已接入界面，但只覆盖三层视图**。设置面板分「场景 / 模块 / 原始」三层呈现插件的 619 个字段，扩展抽屉列出 78 个包并能逐个开关（核心链成员置灰）；未被任何一级菜单归类的边角字段只能在「原始」层按 JSON 直接改。
+8. **插件配置已接入界面，但只覆盖三层视图**。设置面板分「场景 / 模块 / 原始」三层呈现插件的 619 个字段；扩展抽屉把 78 个包按职责收成三段（桌面桥接 / 内核客户端 / 能力包），**不提供逐包开关**——三段都是核心组件，缺一段应用就跑不起来，开关能力只在宿主侧保留作诊断。未被任何一级菜单归类的边角字段只能在「原始」层按 JSON 直接改。
 9. **两项严格类型检查对迁入插件不生效**。`exactOptionalPropertyTypes` 与 `noUncheckedIndexedAccess` 只在 `cordis-host`、`dsh-sidecar`、`src` 与新写的三个插件上启用。75 个迁入插件关闭了这两项，理由与代价见 4.1 与 5.8。
 10. **Windows 安装界面精确 410×290 待真机验证**。NSIS 默认窗口尺寸无法在配置里直接设成任意像素，自定义模板已在 `src-tauri/installer/installer.nsi` 实现：`guiInit` 里用 `SetWindowPos` 设框，`GetDpiForWindow` 按 96 DPI 基准等比换算（旧系统回退 96），`check:acceptance` 有静态断言守着这两个数字。缺的只是在 Windows 上真装一次，见 15.1 未验证清单。
 11. **语音输入依赖系统能力**。语音走 Web Speech API，在多数桌面 WebView 中可能不可用，此时按钮给出「当前环境不支持语音输入」提示。
-12. **打包的桌面端依赖本机 Node**。当前 `bundle.resources` 只打进了宿主与内核的编译产物（`cordis-host/lib`、`dsh-sidecar/lib`），未包含 Node 运行时与 `node_modules`。运行时的 Node 路径由 `commands.rs::which_node()` 在系统目录查找。因此本机（有 Node、有源码 `node_modules`）可直接双击运行，分发给无 Node 的机器会失败。要产出真正独立的安装包，需把 Node 二进制与两份 `node_modules` 一并打进 app，并在 `main.rs` 用 `TAURI_APP_RESOURCE_DIR` 重定向 `ONDRA_HOST_ENTRY` 与 `ONDRA_NODE`。
+12. **安装包自带运行时，但 Windows 上未做真机启动验证**。`build:runtime` 会把 Node 二进制、宿主与内核的 `node_modules` 一并收进 `src-tauri/runtime/`，再由 `bundle.resources` 打进安装包；`commands.rs` 按平台找 `Resources/node/bin/node`（Windows 为同级的 `node/bin/node.exe`）。macOS 已实测可双击运行；Windows 的路径查找与启动只在代码层核对过，缺一次真机确认。
 13. **dmg 由 `hdiutil` 手动生成**。Tauri 2.12.4 自带的 `bundle_dmg.sh` 在较新 macOS 上因 `grep` 正则未转义方括号而解析 `hdiutil` 输出失败，dmg 创建中断。`.app` 不受影响；`release` 流程改为在 Tauri 打包出 `.app` 后用 `hdiutil create -srcfolder` 直接封装 dmg，绕开该脚本缺陷。
 14. **念想型人格未开放**。第二章 2.5 节说明的三条前置条件（授权、范围声明、数据最小化）当前没有任何代码实现，因此该人格形态不对外开放。这是产品级约束，不是功能待办。
 

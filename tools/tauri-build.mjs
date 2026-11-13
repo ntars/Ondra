@@ -63,15 +63,30 @@ const bundles = process.platform === 'win32' ? 'nsis' : 'app'
 console.log(`打包目标：${bundles}`)
 
 /**
+ * tauri CLI 的 JS 入口。用 `node <entry>` 起它，而不是 `pnpm exec tauri`。
+ *
+ * ## 为什么绕开 pnpm
+ *
+ * Windows 上有两道叠加的坑：
+ *
+ * 1. `pnpm` 实际是 `pnpm.CMD`，`execFileSync` 不经过 shell，找不到；
+ * 2. 就算写成 `pnpm.cmd`，Node ≥ 18.20 出于安全考虑**拒绝**在不开 shell 的
+ *    情况下启动 `.cmd` / `.bat`，抛的是 `EINVAL`——而不是「找不到文件」。
+ *
+ * 第二条正是 1.0.1-alpha 第三次云端构建的报错（`spawnSync pnpm.cmd EINVAL`）。
+ * 开 `shell: true` 能绕过去，但 `--config '{"build":…}'` 这个参数带引号与
+ * 花括号，交给 shell 拼字符串就会在 Windows 上被拆坏。
+ *
+ * 于是换一条没有 shell 的路：`node node_modules/@tauri-apps/cli/tauri.js`。
+ * 三个平台同一个写法，参数按数组传，不存在引号问题。
+ */
+const tauriCli = join(repoRoot, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')
+
+/**
  * pnpm 的可执行名，按平台分。
  *
- * ## 为什么不能一律写 `pnpm`
- *
- * Windows 上 pnpm 是 `pnpm.CMD`，而 `execFileSync` **不经过 shell**，
- * 只认能直接执行的文件。写 `'pnpm'` 时它抛 ENOENT，被下面的 `catch`
- * 接住，只留下一句「tauri build 失败，见上方输出」——而上方什么都没有。
- * 那正是 1.0.1-alpha 第一次云端构建失败时的样子：0.4 秒退出、零输出，
- * 看上去像 tauri 崩了，实际是**脚本自己没跑起来**。
+ * 只在「前端产物落后、需要补一次 build:web」时用到。那条命令的参数不含
+ * 引号与空格，开 shell 是安全的，所以 Windows 上直接开 shell。
  */
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
@@ -130,17 +145,32 @@ function frontendIsStale() {
 if (frontendIsStale()) {
   console.log('前端产物落后于源码，先构建……')
   try {
-    execFileSync(pnpm, ['run', 'build:web'], { cwd: repoRoot, env, stdio: 'inherit' })
+    execFileSync(pnpm, ['run', 'build:web'], {
+      cwd: repoRoot,
+      env,
+      stdio: 'inherit',
+      // Windows 上 pnpm 是 .cmd，Node 不允许无 shell 启动它。这里的参数不含引号，开 shell 安全。
+      shell: process.platform === 'win32',
+    })
   } catch (error) {
     console.error('前端构建失败，见上方输出。', error instanceof Error ? error.message : '')
     process.exit(1)
   }
 }
 
+if (!existsSync(tauriCli)) {
+  console.error(`找不到 tauri CLI：${tauriCli}。请先在仓库根执行 pnpm install。`)
+  process.exit(1)
+}
+
 try {
+  /*
+   * 用 node 直接跑 CLI 的 JS 入口，见文件上方 `tauriCli` 的注释。
+   * `--config` 里清空 `beforeBuildCommand`：前端已由 root build 或上一步负责。
+   */
   execFileSync(
-    pnpm,
-    ['exec', 'tauri', 'build', '--bundles', bundles, '--config', '{"build":{"beforeBuildCommand":""}}'],
+    process.execPath,
+    [tauriCli, 'build', '--bundles', bundles, '--config', '{"build":{"beforeBuildCommand":""}}'],
     { cwd: repoRoot, env, stdio: 'inherit' },
   )
 } catch (error) {
