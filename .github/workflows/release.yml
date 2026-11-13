@@ -50,7 +50,16 @@ concurrency:
 jobs:
   mac:
     name: macOS (arm64)
-    runs-on: macos-14
+    # 不要改成钉死的 `macos-14`。
+    #
+    # 那个标签在 2026-11 前后已不再分配 runner，但 GitHub 不报错：job 会在
+    # 0 秒、0 步骤、没有 runner 的状态下被直接标成 cancelled，日志一个字
+    # 都没有，看上去像流水线自己出错。用一次性探针工作流对比同一时刻的两次
+    # 分配才确认——`macos-14` 取消，`macos-latest` 正常拿到 macOS 26 arm64。
+    #
+    # `macos-latest` 由 GitHub 跟进当前默认大版本，代价是升级时环境会变；
+    # 这个 job 只是备份产物，跟进收益大于钉版本的可复现性。
+    runs-on: macos-latest
     timeout-minutes: 120
     # 见文件头：云端 mac 包是备份，不是发布的必要条件。
     continue-on-error: true
