@@ -276,6 +276,13 @@ fn main() {
              * 壳只负责把 URL 交出去，路由逻辑留在前端——与「业务逻辑在宿主、
              * 壳只做 OS 边界」的分工一致。
              */
+            /*
+             * `RunEvent::Opened` 只在 macOS / iOS 上存在——Windows 与 Linux
+             * 的 Tauri 根本没有这个变体（协议唤起在那边走单实例插件）。
+             * 不加 `cfg` 时 Linux 与 Windows 编译直接报 E0599：
+             * `no variant named Opened found for enum RunEvent`。
+             */
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
             if let RunEvent::Opened { urls } = &event {
                 for url in urls {
                     let text = url.to_string();
