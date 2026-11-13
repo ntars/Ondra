@@ -57,12 +57,23 @@ impl ProjectLayout {
             .to_path_buf();
 
         // 安装态的 Resources 目录：从当前可执行文件反推。
-        // 路径形如 `<App>.app/Contents/MacOS/ondra`，向上两级即 Contents。
+        //
+        // 两个平台的布局不同，不能只写一种：
+        //
+        // | 平台 | 可执行文件 | 资源 |
+        // | --- | --- | --- |
+        // | macOS | `<App>.app/Contents/MacOS/ondra` | `<App>.app/Contents/Resources` |
+        // | Windows | `<安装目录>/ondra.exe` | `<安装目录>`（同级） |
+        //
+        // 只认 macOS 那一条时，Windows 上 `resources` 恒为 `None`，于是
+        // 回落到**编译期**的仓库路径——那份路径在别人的机器上不存在，
+        // 启动时只会得到 MODULE_NOT_FOUND，看起来像宿主代码坏了。
         let resources = std::env::current_exe().ok().and_then(|exe| {
-            exe.parent()
-                .and_then(|p| p.parent())
+            let dir = exe.parent()?.to_path_buf();
+            dir.parent()
                 .map(|contents| contents.join("Resources"))
-                .filter(|dir| dir.is_dir())
+                .filter(|candidate| candidate.is_dir())
+                .or(Some(dir).filter(|candidate| candidate.is_dir()))
         });
 
         // 候选入口：资源目录优先，源码兜底。取第一个**真正能用**的。
@@ -86,13 +97,19 @@ impl ProjectLayout {
         };
 
         // Node 可执行文件：环境变量 > 包内自带 > PATH 里的系统 node。
-        // 包内自带的位置是 Resources/node/bin/node，由打包脚本放入。
+        //
+        // 包内自带的位置是 `Resources/node/bin/node`（Windows 上是
+        // `node.exe`，由 `tools/collect-runtime.mjs` 按平台命名放入）。
+        // 文件名必须分平台写死：Windows 上 `.exists()` 对没有扩展名的
+        // `node` 恒为 false，于是会静默落到 PATH——而在用户机器上通常
+        // 没有系统 node，启动时只会得到一句「找不到 Node 可执行文件」。
+        let bundled_node_name = if cfg!(windows) { "node.exe" } else { "node" };
         let node_path = std::env::var_os("ONDRA_NODE")
             .map(PathBuf::from)
             .or_else(|| {
                 resources
                     .as_ref()
-                    .map(|dir| dir.join("node").join("bin").join("node"))
+                    .map(|dir| dir.join("node").join("bin").join(bundled_node_name))
                     .filter(|candidate| candidate.exists())
             })
             .or_else(which_node)

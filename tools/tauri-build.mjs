@@ -63,6 +63,19 @@ const bundles = process.platform === 'win32' ? 'nsis' : 'app'
 console.log(`打包目标：${bundles}`)
 
 /**
+ * pnpm 的可执行名，按平台分。
+ *
+ * ## 为什么不能一律写 `pnpm`
+ *
+ * Windows 上 pnpm 是 `pnpm.CMD`，而 `execFileSync` **不经过 shell**，
+ * 只认能直接执行的文件。写 `'pnpm'` 时它抛 ENOENT，被下面的 `catch`
+ * 接住，只留下一句「tauri build 失败，见上方输出」——而上方什么都没有。
+ * 那正是 1.0.1-alpha 第一次云端构建失败时的样子：0.4 秒退出、零输出，
+ * 看上去像 tauri 崩了，实际是**脚本自己没跑起来**。
+ */
+const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+
+/**
  * 源码是否比前端产物新。
  *
  * ## 为什么需要这一道
@@ -117,21 +130,28 @@ function frontendIsStale() {
 if (frontendIsStale()) {
   console.log('前端产物落后于源码，先构建……')
   try {
-    execFileSync('pnpm', ['run', 'build:web'], { cwd: repoRoot, env, stdio: 'inherit' })
-  } catch {
-    console.error('前端构建失败，见上方输出。')
+    execFileSync(pnpm, ['run', 'build:web'], { cwd: repoRoot, env, stdio: 'inherit' })
+  } catch (error) {
+    console.error('前端构建失败，见上方输出。', error instanceof Error ? error.message : '')
     process.exit(1)
   }
 }
 
 try {
   execFileSync(
-    'pnpm',
+    pnpm,
     ['exec', 'tauri', 'build', '--bundles', bundles, '--config', '{"build":{"beforeBuildCommand":""}}'],
     { cwd: repoRoot, env, stdio: 'inherit' },
   )
-} catch {
-  console.error('tauri build 失败，见上方输出。')
+} catch (error) {
+  /*
+   * 连错误信息一起打。
+   *
+   * `stdio: 'inherit'` 只转交**子进程**的输出；子进程根本没起来时（ENOENT、
+   * 权限、解释器缺失），上方会一片空白，只剩这一行「失败」——上一版就是
+   * 这样把「pnpm 不存在」读成了「tauri 崩了」。
+   */
+  console.error('tauri build 失败，见上方输出。', error instanceof Error ? error.message : '')
   process.exit(1)
 }
 
