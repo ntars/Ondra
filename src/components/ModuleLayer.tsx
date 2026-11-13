@@ -35,6 +35,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import type { SettingsField, SettingsSection } from '../lib/settingTypes.ts'
+import { stepOf } from '../lib/numberStep.ts'
 import type { SceneValues } from '../lib/scenes.ts'
 import { SETTINGS_CATEGORIES, categoryOfSection, isDedicated, isHighRisk } from '../lib/settingsTaxonomy.ts'
 
@@ -91,6 +92,16 @@ function NumberField({
    */
   const useSlider = max - min <= 200
 
+  /*
+   * 步长按字段自己的取值范围推导，不写死 1。
+   *
+   * 写死 1 的后果是**静默改值**：`<input type="range" step="1">` 会把 0.8
+   * 吸附到 1，用户还没拖，值就变了；数字框则进入 `:invalid` 但不报错，
+   * 点一次上下箭头就把 0.8 覆盖成 0 或 1。全仓 57 个小数字段（0–1 的
+   * 概率与阈值、0–2 的温度、0.0001 起步的权重）都在这个坑里。
+   */
+  const step = stepOf(min, max, field.default)
+
   /* 已填充比例（§12.16）。同 `SceneLayer`：轨道无法分段着色，填充画在元素背景上。 */
   const fill = max > min ? `${String(((current - min) / (max - min)) * 100)}%` : '0%'
 
@@ -115,7 +126,7 @@ function NumberField({
           type="range"
           min={min}
           max={max}
-          step={1}
+          step={step}
           value={current}
           aria-label={field.key}
           aria-valuetext={ariaText}
@@ -128,7 +139,7 @@ function NumberField({
         type="number"
         min={min}
         max={max}
-        step={1}
+        step={step}
         value={current}
         aria-label={field.key}
         aria-valuetext={ariaText}

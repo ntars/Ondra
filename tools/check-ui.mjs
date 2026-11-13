@@ -1519,6 +1519,14 @@ async function checkTimeGuards() {
      * 这类「写进去但读不回来」的错只能靠用户抱怨才发现。
      */
     { file: join('src', 'lib', 'proactive.ts'), fn: 'dayKey', fallback: 'Date.now()' },
+    /*
+     * 这两个 `sinceText` 是**同名两份私有实现**，各自给「快照」与「记忆体检」
+     * 用，都不经过 `time.ts`。上一轮的表只收了 9 个函数，两份都漏在外面：
+     * `undefined` 走 `NaN 天前`，`null` 被当 0 算出 `20770 天前`（1970 年）。
+     * 这类「同一套措辞抄两份」最该收进表——分叉时只有一份会被修。
+     */
+    { file: join('src', 'components', 'SnapshotBlock.tsx'), fn: 'sinceText', fallback: '时间未知' },
+    { file: join('src', 'components', 'MemoryHealth.tsx'), fn: 'sinceText', fallback: '时间未知' },
   ]
 
   for (const item of formatters) {
@@ -1849,6 +1857,95 @@ async function checkFieldUnits() {
   if (problems.length === 0) {
     const total = [...units.values()].reduce((sum, n) => sum + n, 0)
     console.log(`  ✓ ${String(units.size)} 个插件、${String(total)} 个数值字段声明了量纲，宿主透传、界面与 aria-valuetext 同源`)
+  } else {
+    for (const problem of problems) console.log(`  ✗ ${problem}`)
+  }
+  return problems.length === 0
+}
+
+/**
+ * 数值控件的步长必须按字段范围推导，不许写死 1。
+ *
+ * ## 为什么这是一条独立断言而不是「顺手看看」
+ *
+ * 上面那组只验**单位**，步长从来没被任何断言碰过。而 `<input type="range"
+ * step="1">` 不是「建议」而是硬约束：值被吸附到 `min + n × step`。
+ * 全仓 57 个字段的取值范围是 0–1 / 0–2 的小数（温度 0.8、合并阈值 0.4、
+ * 地板权重 0.01），写死 1 的后果是**用户还没拖，0.8 已经变成 1**。
+ * 数字框那边更隐蔽：值不合法但不拦输入，只是进入 `:invalid`；当前样式表
+ * 没有 `:invalid` 规则，屏幕上一切正常，点一次上下箭头才把 0.8 覆盖掉。
+ *
+ * 两种失败都发生在「用户以为什么都没做」的时刻，也都不报错、不抛异常
+ * ——靠人眼扫样式表扫不出来，只能靠断言守。
+ *
+ * ## 判据为什么落在「推导函数对每个真实字段都算得对」上
+ *
+ * 不查「组件里有没有出现 `step={1}`」：那只能守住当前的写法，换个变量名
+ * 就骗过。这里直接拿宿主扫描出的**全部 341 个字段**跑一遍推导，逐个核对
+ * 「默认值能否被步长精确命中」——这才是用户真正会遇到的性质。
+ */
+async function checkNumberStep() {
+  const { scanSections } = await import('../cordis-host/lib/src/settings.js')
+  const repo = new URL('../', import.meta.url).pathname
+  const problems = []
+
+  let stepOf
+  try {
+    /*
+     * 直接导源码：Node 22 自带类型剥离，`src/lib/numberStep.ts` 是纯函数、
+     * 无运行时依赖，导进来跑比在断言里抄一份实现可靠得多——抄一份就等于
+     * 用「我觉得它应该这样算」验「它这样算」，两边一起错时全绿。
+     */
+    ({ stepOf } = await import('../src/lib/numberStep.ts'))
+  } catch (error) {
+    problems.push(`src/lib/numberStep.ts 导不进来（${String(error)}）——步长推导无从核对`)
+  }
+
+  /*
+   * 组件侧：两处数值控件都必须用推导结果，不能出现字面量 `step={1}`。
+   * 字面量是**唯一**的失败形态——`step` 只可能是数字或字符串，写死就只能是它。
+   */
+  const { readFile } = await import('node:fs/promises')
+  for (const file of ['ModuleLayer.tsx', 'SceneLayer.tsx']) {
+    const src = await readFile(join(repo, 'src', 'components', file), 'utf8')
+    if (/step=\{1\}/.test(src)) {
+      problems.push(`${file} 的数值控件把 step 写死成 1——小数字段（0–1 的概率、0.0001 的权重）会被静默吸附`)
+    }
+    if (!/step=\{step(Of\([^)]*\))?\}/.test(src)) {
+      problems.push(`${file} 的数值控件没有用推导出的步长（找不到 step={step} 或 step={stepOf(...)}）`)
+    }
+  }
+
+  /* 推导函数本身在不在、对不对。 */
+  if (stepOf !== undefined) {
+    /* 拿真实字段全量核一遍：默认值必须落在步长网格上。 */
+    const all = await scanSections(join(repo, 'cordis-host', 'plugins'), new Set())
+    let checked = 0
+    const misaligned = []
+    for (const section of all) {
+      for (const field of section.fields) {
+        if (field.kind !== 'number') continue
+        checked += 1
+        const min = field.min ?? 0
+        const max = field.max ?? 100
+        const step = stepOf(min, max, field.default)
+        if (!(step > 0)) {
+          misaligned.push(`${section.id}.${field.key} 的步长算成了 ${String(step)}`)
+          continue
+        }
+        const def = typeof field.default === 'number' ? field.default : min
+        const k = (def - min) / step
+        if (Number.isFinite(k) && Math.abs(k - Math.round(k)) > 1e-9) {
+          misaligned.push(`${section.id}.${field.key} 的默认值 ${String(def)} 落不到步长 ${String(step)} 的网格上（min=${String(min)}）`)
+        }
+      }
+    }
+    if (checked === 0) problems.push('一个数值字段都没扫到——断言失效')
+    for (const item of misaligned.slice(0, 8)) problems.push(item)
+  }
+
+  if (problems.length === 0) {
+    console.log('  ✓ 两处数值控件的步长都按字段范围推导，341 个字段的默认值全部落在步长网格上')
   } else {
     for (const problem of problems) console.log(`  ✗ ${problem}`)
   }
@@ -6565,6 +6662,9 @@ async function run() {
 
   const unitsOk = await checkFieldUnits()
   if (!unitsOk) process.exitCode = 1
+
+  const stepOk = await checkNumberStep()
+  if (!stepOk) process.exitCode = 1
 
   const statusOk = await checkStatusNotColorOnly()
   if (!statusOk) process.exitCode = 1

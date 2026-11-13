@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { stepOf } from '../lib/numberStep.ts'
 import type { SceneItem, SceneState, SceneValues } from '../lib/scenes.ts'
 import { SCENE_ITEMS, resolveScene, writesFor } from '../lib/scenes.ts'
 import type { SettingsSection } from '../lib/settingTypes.ts'
@@ -168,8 +169,15 @@ function NumberControl({
         type="range"
         min={min}
         max={max}
-        // 步长 1：字段没有声明 step（§12.16），整数参数不该出现 30.5 天。
-        step={1}
+        /*
+         * 步长按字段自己的取值范围推导，不写死 1。
+         *
+         * 场景层这 13 项目前全是整数（天 / 分钟 / 字 / 轮），写 1 看着没问题
+         * ——但它是**按当前数据碰巧成立**，不是判据。一旦某项改成概率或
+         * 温度（0–1 区间），`step="1"` 会把 0.8 静默吸附成 1。同一份
+         * 推导写在 `numberStep.ts`，模块层与场景层共用一处，两处不会分叉。
+         */
+        step={stepOf(min, max, field?.default)}
         value={draft}
         aria-label={item.name}
         /*

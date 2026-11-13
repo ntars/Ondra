@@ -35,6 +35,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getSnapshots, verifySnapshot } from '../lib/api.ts'
 import type { SnapshotState } from '../lib/api.ts'
+import { isUsableStamp } from '../lib/time.ts'
 
 /** 字节数翻成人话。只用 KB / MB 两档，再多一档在窄栏里就挤了。 */
 function sizeText(bytes: number): string {
@@ -45,6 +46,13 @@ function sizeText(bytes: number): string {
 
 /** 相对时间：与记忆体检同一套措辞，不另起一套。 */
 function sinceText(at: number): string {
+  /*
+   * 守卫必须先走：`Date.now() - undefined` 是 `NaN`，而 `NaN` 与任何数
+   * 比大小都为假，会一路落到最后一档，直出「NaN 天前」。`null` 更隐蔽——
+   * 它会被当成 0，算出「20770 天前」（1970 年）。两者都是宿主老数据的
+   * 常见形状，不是假想输入。
+   */
+  if (!isUsableStamp(at)) return '时间未知'
   const diff = Date.now() - at
   if (diff < 60_000) return '刚刚'
   if (diff < 3_600_000) return `${String(Math.floor(diff / 60_000))} 分钟前`
