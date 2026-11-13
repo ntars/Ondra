@@ -31,7 +31,7 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 
 **Positioning in one sentence.** Ondra is an open-source AI companion application that can be deployed in one step and customised in depth. It gives a language model long-term memory, emotional rhythm and a way of speaking, and keeps all data on the user's own machine.
 
-**Where the project stands.** Ondra was indexed by XERJ on 29 October 2026, and on the same day the team's two original projects, NT-Sine and NT-Dpet, were merged and chartered as Ondra. The first public beta is planned for 12 November 2026. Core functionality is complete; the remaining work is integration and debugging.
+**Where the project stands.** Ondra was indexed by XERJ on 29 October 2026, and on the same day the team's two original projects, NT-Sine and NT-Dpet, were merged and chartered as Ondra. The first **internal beta**, `1.0.1-alpha`, shipped on 13 November 2026 and is marked as a GitHub Pre-release. **No public beta or stable release is scheduled**: promoting a build is a decision for the project owner and never happens automatically in the pipeline. Core functionality is complete; the remaining work is integration and debugging.
 
 **Three boundaries of that positioning:**
 

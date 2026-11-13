@@ -5,5 +5,6 @@
     "outDir": "lib",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../../../dsh-sidecar" }]
 }

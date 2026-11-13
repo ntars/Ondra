@@ -21,7 +21,7 @@
   "packageManager": "pnpm@11.28.5",
   "scripts": {
     "typecheck": "pnpm -r --if-present run typecheck",
-    "build": "pnpm run build:web && pnpm run build:plugins && pnpm run build:host && pnpm run build:sidecar",
+    "build": "pnpm run build:web && pnpm run build:sidecar && pnpm run build:plugins && pnpm run build:host",
     "build:web": "pnpm --filter @ondra/web run build",
     "build:host": "pnpm --filter @ondra/cordis-host run build",
     "build:sidecar": "pnpm --filter @ondra/dsh-sidecar run build",
