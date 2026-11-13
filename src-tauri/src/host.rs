@@ -367,9 +367,10 @@ trait CommandExt {
 #[cfg(windows)]
 impl CommandExt for Command {
     fn creation_flags_no_window(&mut self) -> &mut Self {
-        // Windows 的 creation_flags 来自 std::os::windows::process::CommandExt，
-        // 只在 Windows 目标下存在，因此导入也限定在条件编译内。
-        use std::os::windows::process::CommandExt as _;
+        // 这里的 `Command` 是 tokio 的，不是 std 的。tokio 在 Windows 上
+        // **自带** `creation_flags` 方法，不需要再导入
+        // `std::os::windows::process::CommandExt`——导入会换来一条
+        // `unused import` 警告。
         // CREATE_NO_WINDOW = 0x08000000
         self.creation_flags(0x0800_0000)
     }

@@ -250,6 +250,11 @@ pub fn apply_close_choice<R: Runtime>(app: &AppHandle<R>, action: CloseAction, r
 /// `#[cfg(target_os = "macos")]`，读代码要分平台理解主流程。
 pub trait NativeWindow {
     /// 原生 NSWindow 指针。非 macOS 或取不到时为空指针。
+    ///
+    /// 唯一的使用点（藏系统红绿灯按钮）整段都在 macOS 的 `cfg` 里，所以
+    /// Windows / Linux 上这个方法没有任何调用者，会触发 `dead_code` 警告。
+    /// 它不是残留代码，是跨平台 trait 的对称面，因此就地放行。
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     fn native_handle(&self) -> *mut std::ffi::c_void;
 }
 

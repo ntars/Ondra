@@ -525,7 +525,24 @@ FunctionEnd
   ${EndIf}
 !macroend
 
-Function .onGUIInit
+; `.onGUIInit` 这个名字**不能自己定义**。
+;
+; MUI2 会在插入语言宏时自己生成 `Function .onGUIInit`（它要往里塞 header
+; 透明化之类的代码），我们再定义一个同名函数，makensis 就会在
+; `!insertmacro MUI_LANGUAGE` 那一行报：
+;
+;     Function named ".onGUIInit" already exists.
+;     Error in macro MUI_FUNCTION_GUIINIT on macroline 2
+;
+; 正确做法是用 MUI2 的通用扩展点 `MUI_CUSTOMFUNCTION_GUIINIT`：MUI 在自己的
+; `.onGUIInit` 里 `Call` 我们指定的函数。这个 `!define` 必须写在语言宏之前
+; （见下方 `!insertmacro MUI_LANGUAGE`），否则 MUI 展开时读不到它。
+;
+; 参考 MUI2 文档「Custom functions → General Custom Functions」，原文：
+; "These defines should be set before inserting the language macros."
+!define MUI_CUSTOMFUNCTION_GUIINIT OndraOnGUIInit
+
+Function OndraOnGUIInit
   !insertmacro ONGUIINIT_BODY
 FunctionEnd
 
