@@ -11,6 +11,22 @@
   grid-template-rows: var(--h-titlebar) minmax(0, 1fr);
   height: 100%;
   /*
+   * 安卓安全区。**不加这段，标题栏会被系统状态栏压住。**
+   *
+   * `tauri.android.conf.json` 里 `decorations: false` 让 WebView 铺满整屏，
+   * 好处是没有一层系统标题栏，坏处是 WebView 的 0 点就是屏幕的 0 点——
+   * 状态栏（时间、电量、信号）与手势条都压在内容上面。
+   *
+   * 桌面端这几个变量恒为 0（`env()` 在无安全区的环境里取兜底值 0），
+   * 所以同一段规则对三端都安全，不需要按平台分支。
+   *
+   * 用 `padding` 而不是 `margin`：`padding` 落在 `container-type: inline-size`
+   * 的盒子里，子元素的高度计算照常从内容区起算；`margin` 会让 `height: 100%`
+   * 溢出到屏幕外，底部内容被裁掉。
+   */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /*
    * 窗身与标题栏**同色**，不是同色系的两档。
    *
    * 上一版这里是 `--ui-bg-sheet`（纸 #fcfcfc），而标题栏是 `--ui-bg-canvas`

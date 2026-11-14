@@ -120,6 +120,81 @@ function estimateSize(appPath) {
 console.log(`应用包：${appDir}`)
 console.log(`版本：${version}（${arch}）`)
 
+/*
+ * ## 签名：这一步不写，用户看到的是「已损坏」
+ *
+ * Tauri 的 `cargo build` 出来的是**链接器临时签名**（`flags=0x20002(adhoc,
+ * linker-signed)`），它只覆盖 Mach-O 本体，**不生成 `Contents/_CodeSignature/CodeResources`**。
+ *
+ * 本机跑没事（内核只验 Mach-O 那一段），但从网上下载的包会被打上
+ * `com.apple.quarantine`，Gatekeeper 校验的是**整个 bundle**：
+ *
+ * ```
+ * $ codesign -dv "空谷 Ondra.app"
+ * CodeDirectory ... flags=0x20002(adhoc,linker-signed)
+ * Signature=adhoc
+ * Sealed Resources=none        ← 资源封印缺失
+ * ```
+ *
+ * 资源封印缺失 = 无法证明 Resources 目录里那堆文件（插件、Node 运行时、
+ * 图标）没被改过。Gatekeeper 对「签名不完整 + 有隔离标记」的处理不是
+ * 「警告」而是直接判**「应用已损坏，无法打开」**——这个措辞让用户以为
+ * 下载坏了，反复重下，而文件其实一字不差。
+ *
+ * ## 为什么 `--deep` 与 `--force`
+ *
+ * - `--force`：覆盖掉链接器那份临时签名。不覆盖会报
+ *   `code object is not signed at all` 或保留旧封印。
+ * - `--deep`：连带签 `Contents/Frameworks` 里的动态库。只签外层时，
+ *   内层 dylib 的签名与外层封印对不上，校验仍失败。
+ * - `--sign -`：ad-hoc 身份（无开发者证书）。这不解决「未公证」——
+ *   首次打开仍要右键「打开」——但它把「已损坏」降级成「未验证的开发者」，
+ *   后者用户可以自行放行，前者会让人以为文件坏了。
+ *
+ * ## 为什么放在拷进 dmg 之前
+ *
+ * 签名会改写 bundle 内的文件（写入 `_CodeSignature`），必须在 dmg 的
+ * 映像定型之前完成。签完再拷，dmg 里就是已封印的完整包。
+ */
+function signApp(appPath) {
+  console.log('签名应用包（ad-hoc，生成资源封印）…')
+  try {
+    run('codesign', ['--force', '--deep', '--sign', '-', appPath])
+  } catch (error) {
+    /*
+     * 签名失败不中止打包：产物仍然可用（用户右键打开即可），
+     * 但要在日志里说清楚「这次的包会显示已损坏」，避免下一轮又从头查。
+     */
+    console.error('签名失败，本次 dmg 会在 Gatekeeper 下显示「已损坏」：')
+    console.error(error instanceof Error ? error.message : String(error))
+    return false
+  }
+  /*
+   * 验证封印真的生成了——只看退出码不够。
+   *
+   * `codesign -dv` 把详情写到 **stderr**（不是 stdout），而 `run()` 只返回
+   * stdout，所以这里单独调一次并把两股流都收上来。
+   */
+  try {
+    const detail = execFileSync('codesign', ['-dv', appPath], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    console.log(`签名完成：${detail.trim().split('\n')[0] ?? ''}`)
+  } catch (error) {
+    /* 非零退出也可能带着我们要的信息，从 error.stdout/stderr 里捞。 */
+    const text = [
+      typeof error === 'object' && error !== null && 'stdout' in error ? String(error.stdout) : '',
+      typeof error === 'object' && error !== null && 'stderr' in error ? String(error.stderr) : '',
+    ].join('\n')
+    const sealed = /Sealed Resources=[^\n]*/.exec(text)
+    console.log(`签名完成：${sealed === null ? '（详情不可读，不影响产物）' : sealed[0]}`)
+  }
+  return true
+}
+
+signApp(appDir)
+
 // 上一次失败可能留下同名中间文件。
 if (existsSync(tempDmg)) unlinkSync(tempDmg)
 

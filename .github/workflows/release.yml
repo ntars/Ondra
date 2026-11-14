@@ -328,8 +328,97 @@ jobs:
       # 只出 aarch64 一个架构：全架构的 universal APK 约 185 MB，
       # 而 arm64 单架构约 40 MB。GitHub Release 单文件上限 100 MB，
       # 全架构包会直接上传失败。手机端现在 99% 是 arm64。
+      # 签名材料从 secrets 还原。**不进仓库**：keystore 是身份凭据，
+      # 一旦提交就等于把「谁能发布这个应用」公开了。
+      #
+      # 三个 secret 缺任一个就跳过签名并明确警告——不要静默产出一个
+      # debug 签名的包，那会让用户以为「官方包」却无法覆盖安装后续版本
+      # （Android 要求升级包的签名与已装版本一致）。
+      - name: 还原签名密钥
+        id: keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::没有 ANDROID_KEYSTORE_BASE64，本次产出 debug 签名包（无法覆盖安装正式包）"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p src-tauri/gen/android
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/gen/android/ondra-release.jks
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          ls -lh src-tauri/gen/android/ondra-release.jks
+
+      # Tauri 生成的 Gradle 工程默认只有 debug 签名配置。release 签名要
+      # 写进 `app/build.gradle.kts` 的 `signingConfigs` 与 `buildTypes.release`。
+      #
+      # 用追加而非替换：Tauri 的模板内容会随版本变，整段重写会在升级后
+      # 悄悄丢掉它新增的配置。这里只在 release 块里补一行 signingConfig。
+      - name: 配置 release 签名
+        if: steps.keystore.outputs.signed == 'true'
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          GRADLE=src-tauri/gen/android/app/build.gradle.kts
+          if [ ! -f "$GRADLE" ]; then
+            echo "::error::找不到 $GRADLE，android init 可能失败了"
+            exit 1
+          fi
+          KEYSTORE_PATH="$(pwd)/src-tauri/gen/android/ondra-release.jks"
+          python3 - "$GRADLE" "$KEYSTORE_PATH" <<'PYEOF'
+          import os, re, sys
+          path, keystore = sys.argv[1], sys.argv[2]
+          src = open(path, encoding='utf-8').read()
+          block = f'''
+              signingConfigs {{
+                  create("release") {{
+                      storeFile = file("{keystore}")
+                      storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                  }}
+              }}
+          '''
+          # 插到 android { ... } 开括号之后
+          if 'signingConfigs' not in src:
+              src = re.sub(r'(android\s*\{)', r'\1' + block, src, count=1)
+          # release buildType 挂上签名配置
+          src = re.sub(
+              r'(buildTypes\s*\{[\s\S]*?getByName\("release"\)\s*\{)',
+              r'\1\n            signingConfig = signingConfigs.getByName("release")',
+              src, count=1)
+          open(path, 'w', encoding='utf-8').write(src)
+          print('已写入 release 签名配置')
+          PYEOF
+          grep -n -A 6 "signingConfigs" "$GRADLE" | head -20
+
       - name: 打包 APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: pnpm exec tauri android build --apk --target aarch64
+
+      # 校验产物签名：debug 签名与 release 签名的证书指纹完全不同，
+      # 这里直接把 apksigner 的结论打出来，发布日志里可查。
+      - name: 校验 APK 签名
+        if: steps.keystore.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -type f | head -n 1)
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -r | head -n 1)
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | head -12
+
+      # 签名材料用完即删：runner 是一次性的，但残留的 keystore 会进
+      # artifact 缓存与日志附件，没有必要留。
+      - name: 清理签名材料
+        if: always()
+        run: rm -f src-tauri/gen/android/ondra-release.jks
 
       # 产物路径随 Tauri 版本变过两次（apk/release → apk/universal/release）。
       # 用 find 找而不是写死路径：路径错了会静默上传一个空工件。

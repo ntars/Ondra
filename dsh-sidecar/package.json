@@ -1,6 +1,6 @@
 {
   "name": "@ondra/dsh-sidecar",
-  "version": "1.1.4-alpha",
+  "version": "1.1.5-alpha",
   "private": true,
   "description": "dsh 内核：独立 Node 子进程，只负责推理循环、工具调用、会话存储与模型适配，不加载任何界面代码。",
   "type": "module",
