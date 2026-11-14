@@ -10,7 +10,29 @@ The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps
 
 **[macOS installer · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows installer · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
 
+![Release Download](https://img.shields.io/github/downloads/ntars/Ondra/total?style=flat-square)
+[![Release Version](https://img.shields.io/github/v/release/ntars/Ondra?style=flat-square)](https://github.com/ntars/Ondra/releases/latest)
+[![GitHub license](https://img.shields.io/github/license/ntars/Ondra?style=flat-square)](./LICENSE)
+[![GitHub Star](https://img.shields.io/github/stars/ntars/Ondra?style=flat-square)](https://github.com/ntars/Ondra/stargazers)
+[![GitHub Fork](https://img.shields.io/github/forks/ntars/Ondra?style=flat-square)](https://github.com/ntars/Ondra/network/members)
+![GitHub Repo size](https://img.shields.io/github/repo-size/ntars/Ondra?style=flat-square&color=3cb371)
+[![GitHub Repo Languages](https://img.shields.io/github/languages/top/ntars/Ondra?style=flat-square)](https://github.com/ntars/Ondra/search?l=typescript)
+
+[![Tauri](https://img.shields.io/badge/tauri-2.x-24c8db.svg?style=flat-square)](https://tauri.app/)
+[![Cordis](https://img.shields.io/badge/cordis-4.x-8c45ab.svg?style=flat-square)](https://github.com/cordiverse/cordis)
+[![Node](https://img.shields.io/badge/node-22.x-brightgreen.svg?style=flat-square&color=6da86a)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/react-19.x-blue.svg?style=flat-square&color=61dafb)](https://react.dev/)
+
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-000000.svg?style=flat-square&logo=apple&logoColor=white)](#)
+[![Plugins](https://img.shields.io/badge/plugins-75%20loadable-2ea44f.svg?style=flat-square)](#)
+[![Data](https://img.shields.io/badge/data-100%25%20local-8957e5.svg?style=flat-square)](#)
+[![QQ Group](https://img.shields.io/badge/QQ%20Group-1061684298-blue.svg?style=flat-square&color=12b7f5)](#qq-group)
+
 Internal beta `1.0.1-alpha` — the `-alpha` suffix is the internal marker; this is not a stable build. Neither package is signed, so both are blocked on first launch — see the [release notes](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha) for the workaround.
+
+> **Document scope**: this README covers only the three core mechanisms (emotion, memory, context) plus an overview of everything else.
+> Per-package responsibilities, configurable fields, defaults and ranges for all 78 packages are in [`docs/PLUGINS_EN.md`](./docs/PLUGINS_EN.md);
+> per-version changes are in [GitHub Releases](https://github.com/ntars/Ondra/releases).
 
 | Item | Value |
 | --- | --- |
@@ -125,1074 +147,389 @@ If any one of the three does not hold, the feature is not opened.
 - No arms race toward being more like a chatbot: the difference is not in elaborate phrasing but in whether she remembers the user's timeline, whether she has an emotional rhythm of her own, and whether she knows when not to speak.
 
 ---
+
 ## 3. Core Features
 
-This chapter has two parts. Section 3.1 describes the runtime skeleton that carries every capability, covering only the necessary structure and boundaries. From 3.2 onward it describes the 78 packages one by one, together with their configurable settings, and that is the body of this document.
+This chapter expands on three things only: **where emotion comes from, how memory travels, and how context is assembled**. These three are the dividing line between Ondra and "one long prompt", and they are where all the engineering effort lands. Everything else (persona assembly, speech expression, voice and appearance, proactive gating, tool surface, storage fallback, UI grid) is covered in outline only; per-field defaults live in [`docs/PLUGINS_EN.md`](./docs/PLUGINS_EN.md).
 
 ### 3.1 Runtime skeleton
 
-**Three process layers.** Shell, host and kernel each occupy a process and communicate over explicit protocols, so any layer can be replaced, upgraded or restarted on its own.
+Three processes, each in its own process, communicating over explicit protocols. Any layer can be replaced, upgraded or restarted on its own.
 
 | Layer | Path | Stack | Responsibility | Explicitly not |
 | --- | --- | --- | --- | --- |
-| Shell | `src-tauri/` | Rust 2024 + Tauri 2 | Window, tray, single instance, host lifecycle, native capability commands | Contains no business logic |
-| Host | `cordis-host/` | Node 22 + Cordis 4 + TypeScript | Plugin container, local HTTP interface, token authentication | Does not touch the operating system directly |
-| Kernel | `dsh-sidecar/` | Node 22 + TypeScript | Inference loop, tool invocation, session storage, model adaptation | Loads no interface, listens on no port |
-| Interface | `src/` | React 19 + Vite 8 | Interface rendering | Does not own native capabilities |
+| Shell | `src-tauri/` | Rust 2024 + Tauri 2 | Window, tray, single instance, host lifecycle, native capability commands | No business logic |
+| Host | `cordis-host/` | Node 22 + Cordis 4 + TypeScript | Plugin container, local HTTP API, token auth | Never touches the OS directly |
+| Kernel | `dsh-sidecar/` | Node 22 + TypeScript | Inference loop, tool calls, session storage, model adapters | No UI, no listening ports |
+| UI | `src/` | React 19 + Vite 8 | Rendering | No native capabilities |
 
-**Three communication paths.** Between shell and host the transport is line-delimited JSON over standard input and output, where the host reports ready or fatal on standard output and the shell decides from that whether startup succeeded. Between host and kernel the transport is JSON-RPC 2.0 over standard input and output framed as newline-delimited JSON, defined in one place in `dsh-sidecar/src/protocol.ts`. Between interface and host the transport is HTTP on `127.0.0.1` with Bearer token authentication, where the token is generated by the shell at startup.
+Three communication paths: shell ↔ host is line-delimited JSON over stdio, where the host reports `ready` or `fatal` on stdout and the shell judges startup from that; host ↔ kernel is JSON-RPC 2.0 over stdio, framed as NDJSON, with the protocol defined in one place at `dsh-sidecar/src/protocol.ts`; UI ↔ host is HTTP on `127.0.0.1` with Bearer token auth, where the token is generated by the shell at startup.
 
-**The kernel's 18 methods** cover five domains: lifecycle, session (`create` / `get` / `list` / `archive` / `messages` / `deleteMessage` / `clear`), inference, tools and models (`list` / `select` / `configure` / `complete`). The handshake reports the capability list once, so callers can trim their interfaces accordingly rather than probing one method at a time.
+**How plugins load.** `ondra-core` declares all 75 members in an explicit array and loads them one by one with `await ctx.plugin()`, each wrapped in its own `try/catch`; failures go into a `skipped` list with a recorded reason. There is not a single code-level `import` between the 75 plugins. They discover each other purely through service keys: `ctx.provide(key, impl)` to register, `ctx.get(key)` to consume, and when a key is absent the plugin skips that step and logs one line — it neither throws nor waits.
 
-**How plugins are loaded.** `cordis-host/plugins/` holds 78 packages. Of these, 75 are declared in an explicit array inside `ondra-core`, loaded one at a time, each load wrapped in its own `try/catch` so a failure lands in the skipped list with its reason recorded. The other three belong to the assembly layer itself: `ondra-core` owns that member list, while `desktop-bridge` and `dsh-client` are mounted directly by the host entry and never enter the core array. None of the 75 imports another at code level; they discover each other entirely through service keys.
+78 packages = 75 independently loadable plugins + one manifest (`ondra-core`) + two bridges (`desktop-bridge`, `dsh-client`), totalling 619 configurable fields (609 directly settable).
 
 ---
-### 3.2 Plugin Inventory
 
-The 78 packages fall into 5 top-level menus and 18 second-level groups. Every field follows the declaration in that plugin's `src/settings.ts`, and the default values come from the same declaration, so there is never a second set of values.
+### 3.2 Emotion: state with inertia, not an adjective rewritten every turn
 
-**Reading conventions**: `Switch` is a boolean toggle; `Slider` is a number with bounds; `Segmented` is a fixed set of enumerated choices; `Tag list` is a list of strings that can be added to and removed from entry by entry; `URL` and `Route` are text inputs, the former for an address and the latter for a path relative to the site. **Advanced** fields are collapsed in the interface by default and can be set once expanded; their keys are listed here so they can be searched.
+This is the most fundamental difference from "write in the prompt that you are happy right now". Emotion here is **a set of state variables that decay, linger and saturate**; each turn reads them without recomputing, and all expression parameters derive from a single decision.
 
-> The full field list can be exported straight from `FIELD_SPECS` in `cordis-host/plugins/*/src/settings.ts`; no separate attachment is needed. Earlier versions of this file pointed at `ondra-settings.csv` and `ondra-panel-model.json`, neither of which exists in this repository, so that reference has been removed — **this document does not cite files the repository does not contain**.
+#### 3.2.1 Four layers
 
-| Top-level menu | Groups | Plugins | Enabled | Off at factory | Total fields | Directly settable | Not directly settable | Of which advanced | Of which secret |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Persona Detail | 6 | 18 | 18 | 0 | 161 | 158 | 3 | 81 | 0 |
-| Voice & Appearance | 2 | 4 | 4 | 0 | 48 | 48 | 0 | 22 | 0 |
-| Developer Features | 8 | 35 | 34 | 1 | 192 | 185 | 7 | 103 | 0 |
-| Emotion Engine | 1 | 4 | 4 | 0 | 13 | 13 | 0 | 6 | 0 |
-| Memory System | 1 | 17 | 17 | 0 | 205 | 205 | 0 | 131 | 0 |
-| **Total** | **18** | **78** | **77** | **1** | **619** | **609** | **10** | **343** | **0** |
+| Layer | Plugin | Responsibility | Key mechanism |
+| --- | --- | --- | --- |
+| State | `ondra-emotion-core` | Baseline, three-axis emotion, hormone pool, temperament knobs | PAD three axes + 10 fixed tags; six-dimension exponential regression; three-hormone chemical pool |
+| Ceiling | `ondra-emotion-stage` | How far intimacy can reach | Seven-stage relationship arc + four anti-jump gates; stages are a ratchet |
+| Expression | `ondra-emotion-express` | Convert state into expression parameters | Six-state mapping, the single source for all coefficients |
+| Dissipation | `ondra-emotion-diffuse` | Cross-session emotional residue | `(mood−baseline)×0.4×(1−familiarity×0.5)` |
 
-**Every column is counted field by field from `FIELD_SPECS` in each plugin's `src/settings.ts`**, so re-running the same script after any code change reproduces them exactly:
+#### 3.2.2 Why PAD instead of a single "happiness" number
 
-| Column | Definition |
+A single happiness axis cannot distinguish "quietly content" from "excitedly elated", nor express "nervous and hopeful at once". The state therefore uses PAD (pleasure–arousal–dominance) as its base, plus 10 fixed tags for finer grain.
+
+The decay constants are the heart of this mechanism and are hard-coded rather than configurable:
+
+| Item | Value | Why this number |
+| --- | --- | --- |
+| Per-tag intensity | 0.12 | One message should not flip the whole conversation's state |
+| Total tag ceiling | 0.6 | Leaves headroom for genuine long-conversation accumulation; one harsh sentence must not max it out |
+| Tag half-life | 45 min | The emotion of one conversation should halve within about an hour, not persist until tomorrow |
+| Mood half-life | 6 h | Mood is slower than momentary emotion but must still subside within one sleep |
+
+The chemical pool holds three hormones: dopamine (baseline 50, half-life 45 min), cortisol (20 / 30 min), serotonin (50 / 120 min plus slow-variable rules). The three half-lives differ deliberately — a stress response should fade fastest (30 min), pleasure next (45 min), and the stable undertone slowest (120 min). With identical half-lives the three would collapse into one quantity.
+
+**Missing fields in a save file are filled with the baseline 50, never 0.** This is the key fault-tolerance rule: filling 0 for a hormone field missing from an older save would drop the character into an "emotion reset" state after an upgrade, whereas filling 50 means "not recorded this time, treat as normal".
+
+#### 3.2.3 Why relationship stages are a ratchet rather than a continuous value
+
+Seven stages: hostile → probing → smitten (3 days, .18, .15) → possessive (14, .38, .32) → pathological (30, .62, .30 and trust ≤ .55) → sacrificial (45, .70, .45 and requires sacrifice) → settled (60, .75, .70).
+
+The three numbers in parentheses are **minimum days at that stage, intimacy floor, trust floor**. Four gates prevent jumps:
+
+1. **Time gate**: no promotion before the minimum days, so one long talk cannot skip three stages.
+2. **Step gate**: intimacy rises at most 0.06 per settlement, so one confession cannot reach the top.
+3. **Rise-only**: stages are a ratchet; ordinary friction does not demote — otherwise users would probe repeatedly to "get back to a good relationship".
+4. **Conflict lock**: a detected conflict overrides to hostile. This is the only demotion path.
+
+The three relationship axes (intimacy, trust, familiarity) each carry a half-life: 240 h / 720 h / 8760 h. A 30× spread is deliberate: **strangeness returns fastest (10 days), trust next (30 days), familiarity slowest (a year)**. Someone you have not spoken to for months feels "a bit distant but still familiar" — that is exactly the ratio of the three half-lives speaking.
+
+Familiarity is derived from interaction count rather than stored separately, avoiding two competing definitions. The pathological and sacrificial stages stay out of the default UI — they exist to make the state machine complete, not for display.
+
+#### 3.2.4 Six-state expression: single source of truth
+
+Six states: **elated / soft / calm / wilted / bristling / sleepy**. Names and count are fixed and cannot be added to, removed or renamed.
+
+One decision feeds three consumers — prompt, rhythm and speech — and every coefficient lives in this plugin only: speech rate ±10% / −15%, proactive quota ±1, whether to read aloud, sticker probability. The plugin emits parameters, never text; projection text belongs solely to `ondra-emotion-project`.
+
+The value here is eliminating definition drift: once emotion must influence four places, four copies of the coefficients will inevitably fall out of sync after some change, showing up as "the prompt says she is elated but the voice is calm".
+
+**Why three emotion-derivative plugins were removed.** Conflict, stress and hormone each had a derivative plugin; they are gone because they overlapped with six-state expression, and enabling both produced two emotion descriptions in the same turn. Better one dimension fewer than two answers.
+
+#### 3.2.5 Emotional dissipation: cross-session residue
+
+`(mood − baseline) × 0.4 × (1 − familiarity × 0.5)`
+
+This formula answers one question: **how much of the mood at the end of the previous session carries into this one**.
+
+- The further from baseline, the more carries over (`mood − baseline`);
+- The 0.4 factor means at most forty percent carries, so last session's low mood is not transplanted verbatim;
+- `(1 − familiarity × 0.5)` means the more familiar the person, the less last session affects this one — familiar people allow "I'm different this time".
+
+It computes, never writes: the plugin hands out `target` and `delta`, and the caller applies them through the emotion core's `setAxis`. Within one session, a boundary key plus an interval gate (default 30 minutes) prevents "fading as you chat" — without the gate every turn produces a new boundary key and the mood is repeatedly washed back to baseline.
+
+#### 3.2.6 How emotion enters the current turn
+
+`ondra-emotion-project` is emotion's only textual outlet. The template is fixed as **one behavioural instruction sentence + one hint**, and is forbidden from containing numbers, axis names or emotion tag names — only subjective phrasing such as "a bit low on energy".
+
+Three hard constraints:
+
+1. **Never expose numbers.** Only when the user explicitly asks for values may it redirect to `ui-api`'s `/status`. Saying "my pleasure is 62" in ordinary conversation leaks internal state into dialogue.
+2. **Fragment ordering is always positive** (default +800, i.e. tail). A negative value would break prefix caching — see 3.4.
+3. **Never include tag names.** Saying "I am in elated state" makes the model parrot the label instead of sounding elated.
+
+---
+
+### 3.3 Memory: a full chain, not a vector store
+
+Seventeen plugins split memory into a chain: intake → extraction → dedupe → pooling → decay → recall → human-like remembering → dreaming → promises and todos → forgetting audit → self-healing. Missing any link produces the same symptom — "she doesn't remember me" — but for entirely different reasons, so they must be handled separately.
+
+#### 3.3.1 Two-layer table: raw text and facts separated
+
+| Layer | Table | Holds | Why separate |
+| --- | --- | --- | --- |
+| Raw | `memory_raw` | Conversation verbatim | If fact extraction is wrong the original can be traced back; the right to be forgotten can locate the exact words |
+| Fact | `memory_fact` | Extracted structured entries | Injection and recall read only this layer, keeping whole conversations out of context |
+
+With extraction off (`extract: false`) only raw text is written: she remembers "that conversation happened" but cannot say "your name is X". This degradation is explicit, not a failure.
+
+#### 3.3.2 Four citation gates on the write path
+
+Every conclusion entering the store must carry one of four citation types, and the citation must actually appear in the source text:
+
+| Citation | Meaning | Use |
+| --- | --- | --- |
+| `[USER]` | The user's own words | Any fact about the user requires one |
+| `[TOOL]` | Tool return value | External data, computed results |
+| `[ACT]` | System action | What she did |
+| `[SELF]` | Character self-description | Her own settings and promises |
+
+Three deterministic checks, zero model calls:
+
+1. **Digits must have a verbatim source.** Numbers in the body must be covered verbatim by a citation (both `TOOL` and `USER` count by default; can be narrowed to `tool-only`).
+2. **Attribution claims require `[USER]`.** Asserting "the user likes X" without the user's own words is rejected outright.
+3. **Source-text comparison.** The citation must genuinely appear in the original, not be invented by the model.
+
+**Why the gate sits on the write path rather than recall**: contamination happens at the moment of writing. However precise recall is, it only picks the most relevant entry out of an already-contaminated store — a guess from the previous turn gets recorded as fact, read back next turn, and repeated with more confidence; no prompt can stop that. The cost is possibly missing a memory, and that cost is explicitly accepted: **better to miss one than to record one wrongly**.
+
+`allow-group` defaults to off: no extraction from group chats. Treating "no group chatter" as an admission red line rather than a performance trade-off.
+
+#### 3.3.3 Dedupe: five-way adjudication
+
+Before writing, each new fact gets one adjudication using a single measure — "character bigram containment 0.4":
+
+| Verdict | Meaning | Outcome |
+| --- | --- | --- |
+| `add` | New fact | Create an entry |
+| `merge` | Additional detail on the same thing | Merge into the existing entry |
+| `append` | Same topic, new information | Append to the existing entry |
+| `conflict` | Contradicts an existing entry | Handle per `conflict-policy` |
+| `drop` | Duplicate or low value | Discard |
+
+**Merging goes through `revise`, never `forget`**: `forget` writes a tombstone, whereas `revise` keeps the old text and leaves a correction record. If the user later asks "why did you say something different before", the answer is in the store.
+
+`max-candidates` defaults to 5: above five candidates the model is not consulted. This is a cost gate — handing 50 candidates to a model does not improve accuracy, only the bill.
+
+#### 3.3.4 Eight pools: lifetime is not one number
+
+| Pool | Lifetime | Injected |
+| --- | --- | --- |
+| `core` | ∞ (cap 32) | Yes |
+| `skillRule` | 730 days | Yes |
+| `skillExp` | 60 days | Yes |
+| `dailyCore` | 60 days | Yes |
+| `dailyPartial` | 20 days | Yes |
+| `emotion` | 1 day | Yes |
+| `hippocampus` | 1 day | **Never** |
+| Unclassified | → hippocampus | No |
+
+Three day-scale timelines: grace → half-life → archive.
+
+**The hippocampus never injects** is the key design point. It catches two kinds of content: tag misses, and unclassified items. These are "stored but not recallable" — which maps precisely onto human memory: some things are genuinely in your head but never surface on their own. `respect-pool` defaults to on; when the pool service is absent nothing is judged (without the service there is no way to know the pool, and letting it through beats guessing wrong).
+
+**A full core pool rejects rather than evicts** (cap 32). Deleting one core memory amounts to deciding for the user "you should not be yourself". The same discipline applies to promises (cap 20) and pins (cap 8) — at the cap, refuse the new entry and report it so the user clears it themselves.
+
+**A tag miss is never guessed**: if the same sentence fails to match three times it escalates to "needs manual pooling". A wrong pool is more dangerous than no pool, because a mis-pooled entry is cleaned up on the wrong lifetime.
+
+#### 3.3.5 Decay: strength is asked of the core, never recomputed
+
+`ondra-memory-decay` does three things: schedule reviews, produce clarity phrasing, and clean orphaned review plans. Strength is always asked of the memory core (public methods on `ondra-memory-core`); this plugin never recomputes a second formula.
+
+SM-2 and Ebbinghaus eight-band fusion schedule the reviews. Three clarity bands go straight into the injected text:
+
+| Strength | Phrasing | Effect |
+| --- | --- | --- |
+| ≥ 0.7 (`clear-above`) | No phrasing added | She states it normally |
+| 0.4 – 0.7 | "a bit fuzzy now" | Tone carries uncertainty |
+| < 0.4 (`faded-above`) | ", only a faint shadow left" | She only recalls the gist |
+
+The point of this phrasing: **she forgets a little more slowly and speaks a little more accurately**. If a low-strength memory were still stated with certainty, that would be fabrication.
+
+#### 3.3.6 Recall: five factors + RRF, no truncation by count
+
+`ondra-memory-recall` weights: semantic .18 / keyword .46 / graph .11 / importance .14 / recency .11.
+
+Keyword weight being highest (.46) is a product judgement rather than a technical compromise: in companionship the user usually mentions a specific noun (a name, a place, that thing), and semantic similarity drags in "similar things" while literal matching is more precise.
+
+Three fusion modes:
+
+- `rrf` (default): rank fusion, insensitive to score scale, suited to heterogeneous multi-path recall;
+- `weighted`: five-factor weighted sum, highly explainable;
+- plus BM25 and a vector branch that auto-switches between literal / hybrid / vector modes at 300 / 1000 thresholds.
+
+**Recall never truncates by count** (`dropped` is always 0): the recall stage does not know the downstream budget, so truncating here would rob the packing stage of its basis for judgement. Budget belongs to prompt injection (see 3.4).
+
+**Sealed memories never participate in recall** (`include-archived` defaults off): sealing is the user's explicit wish, not "unused for a long time". Archived (sunk) entries can still be found by category; sealed ones do not participate in active recall — the two have different semantics and must not be merged.
+
+#### 3.3.7 Human-like remembering: three paths
+
+Humans do not "retrieve" a memory, they are "reminded" of one. So beyond ordinary recall there are three paths (`ondra-memory-humanlike`):
+
+| Path | Mechanism | Why designed this way |
+| --- | --- | --- |
+| Fixed recall dice | The fuzzier it is, the more likely to surface | In real memory fuzzy things pop up unexpectedly; clear things are available at will and need no "sudden recall" |
+| Prompted by a phrase | Probability gate + reinforcement on hit | When a related word appears in conversation the memory is brought up, rather than waiting for retrieval |
+| Aimless association | Ripple diffusion (2 rings by default) | One ring does not look "aimless"; three rings drag the whole graph into context |
+
+Three channel views (`fact` / `gist` / `affect`) are kept apart: the same event can be remembered as detail (fact), as gist, and as how it felt (affect). Strength is asked of the core, diffusion of the graph, and the candidates for prompting come from the caller — this plugin never rebuilds retrieval.
+
+#### 3.3.8 Dreaming: offline consolidation, not random generation
+
+Three mutually exclusive branches behind a single enum rather than two switches (gated and surreal cannot coexist):
+
+| Mode | What it does | Model calls |
+| --- | --- | --- |
+| `gate` (default) | Four gates fill in only facts with source citations | Yes |
+| `lightweight` | Idle 2 min light sleep / 5 min deep sleep, pure rules mine five card types | **Zero** |
+| `surreal` | Absurd association and dream talk; `surreal` edges never enter recall | Yes |
+
+`lightweight` using zero model calls is the key trade-off: consolidating memory should not incur inference cost. Five card types (fact cards, tool pitfalls, tool playbooks, hot calls, unresolved failures) are mined silently by pure rules while the user is away.
+
+`surreal` edges start at weight 0.03 and never enter recall — absurd association affects "what comes to mind", never "what is believed".
+
+#### 3.3.9 Promises and todos: promises enter memory, todos do not
+
+| Type | Enters memory chain | Lifetime | Cap |
+| --- | --- | --- | --- |
+| Promise | Yes (`promise` class) | 8000 hours | 20 |
+| Todo | **No** | Expires after 3 days unmentioned | 3 |
+
+**Todos staying out of the memory chain** is deliberate: a todo is a short-term errand, and putting it in the chain would make it persist as "she remembers you said you would do X" long after it should have expired.
+
+Promises lock the original wording and carry reverse weighting (the nearer, the heavier). `kept` / `broken` settlement only emits a suggested relationship delta — the relationship belongs to `ondra-emotion-stage`, and two writers would fight. Extraction is pure regex, no model: `extract-min-chars` defaults to 4 (under 3 characters you cannot tell a promise from an offhand remark), `extract-max-chars` to 120 (longer sentences are usually narration).
+
+#### 3.3.10 Forgetting audit: answering "why did she forget"
+
+Three phrasing bands (strength / half-life / remaining time) plus pins (≤8) and four deletion modes:
+
+| Action | Behaviour | Recoverable |
+| --- | --- | --- |
+| `forget` | Writes a tombstone | Yes (trace remains) |
+| `seal` | Seals | Yes (not recalled but still stored) |
+| Natural sinking | Archive | Yes (findable by category) |
+| `revise` | Correct, keeping the old text | Yes |
+
+It only calls public memory-core methods and never writes any `memory_fact` column. **The right to be forgotten** is the end of this chain: when the user asks for deletion, both raw text and facts are genuinely deleted, not flagged.
+
+#### 3.3.11 Self-healing
+
+`ondra-memory-heal` repairs inconsistencies: orphaned facts, dangling edges, invalid review plans, pool/lifetime mismatches. Four settings — repair behaviour is deliberately not very configurable, to avoid repairing into a state the user does not recognise.
+
+---
+
+### 3.4 Context: frozen prefix, incremental injection, budget packing
+
+This section is the most easily overlooked part of the project and the one that most affects real experience. Three mechanisms each solve a specific problem, and they constrain one another.
+
+#### 3.4.1 Frozen prefix: why rebuilding the system prompt every turn is a disaster
+
+`ondra-conversation-compose` does this: **the stable segment is assembled once at session start and then locked, volatile segments are appended at the tail, history is append-only and never rebuilt, and compaction happens only at user-turn boundaries.**
+
+| Segment | Content | When it changes |
+| --- | --- | --- |
+| Stable (prefix) | Persona + resident world book | Once at session start, then locked |
+| Volatile (tail) | Date, emotion projection, injected fragments | Appended every turn |
+| History | Conversation record | Append only, never rewritten |
+
+Measured: rebuilding the system prompt every turn drops cache hit rate from **99% to 0**, and cost from **¥19.96 to ¥879.97**. This is the one line the whole repository defends — every other optimisation can yield, this one cannot.
+
+Consequently every downstream plugin must order its fragments positively (append to the tail):
+
+- `ondra-emotion-project`'s `projection-order` defaults to +800;
+- `ondra-prompt-inject` always appends its blocks;
+- `ondra-live` (date facts) **never enters the frozen prefix** — it changes daily, and putting it in the prefix would waste a cache every day.
+
+**Compaction only at user-turn boundaries**: compacting mid-model-turn makes the same turn's context inconsistent and interrupts streaming. Waiting until the user finishes is the only safe point.
+
+#### 3.4.2 Incremental injection: one big block first, then only deltas
+
+`ondra-inject-dedupe` solves "the same memory appearing across multiple turns and multiple blocks":
+
+1. First turn does one large injection;
+2. Afterwards only deltas are pushed — each memory appears once;
+3. When context is compacted, the seen ledger is released and a full block is injected again.
+
+**Accounting is per memory, not per block**: `mem:` / `pin:` prefixes are normalised to `fact:`. Otherwise the same fact arriving through different blocks counts as two and dedupe fails.
+
+**Two-phase commit**: `begin()` only produces the pending ledger, `commit()` actually writes. The caller confirms only after injection truly succeeded, preventing "recorded but not injected" from suppressing the next injection.
+
+**On failure the whole block passes, not half of it**: a partial block leaves injection incomplete, and a model reading a truncated fragment is more likely to misjudge.
+
+`auto-detect-compaction` defaults on: it reads the composition plugin's compaction counter to auto-release the seen ledger. **It only applies to a single session and explicitly does not guess with multiple sessions** — a wrong guess would double-inject another session's memories.
+
+#### 3.4.3 Budget packing: skip what does not fit, never cut text
+
+`ondra-prompt-inject` assembles eight blocks:
+
+| Block | Content | Participates in packing |
+| --- | --- | --- |
+| Things promised | Promises | Yes |
+| Must not forget | Pins / core | **No** (never trimmed) |
+| People I know | `person` memories (≤5) | Yes |
+| That day in history | Old events on the same date | Yes |
+| What comes to mind now | Human-like recall | Yes |
+| Lessons recorded | `skillRule` | Yes |
+| Prompted by the phrase | Phrase-prompted recall | Yes |
+| Remembered today | Minimum-exposure candidates | Yes |
+
+Packing rule: **try every item globally by weight, skip the one that does not fit and continue to the next**, with the block header reading "N more not expanded".
+
+Three hard constraints:
+
+1. **Never cut text.** Cutting destroys the correspondence between citation and body; half a sentence is worse than none.
+2. **Never drop silently.** Whatever does not fit must be counted in the block header so the user knows "12 more not expanded".
+3. **Due reminders and pins never participate in packing.** Something due, and something the user personally pinned, outrank any budget.
+
+#### 3.4.4 The full chain of three cooperating parts
+
+One turn's context is assembled like this:
+
+```
+User message
+  ↓
+[Composition] stable segment (locked) + volatile (date/emotion/injection) + history (appended)
+  ↓
+[Inject dedupe] begin() produces pending ledger → only deltas pushed
+  ↓
+[Prompt inject] eight blocks packed by weight, reports "N more not expanded"
+  ↓
+[Composition] commit() records → send to model
+  ↓
+[Model returns]
+  ↓
+[Nine-step filter chain] strips repetition, narration, support-desk tone, over-explanation
+  ↓
+[Memory intake] raw text to memory_raw → extract → dedupe → pool
+```
+
+If any link is missing the symptom is "she doesn't seem to remember me", but the causes are entirely different:
+
+| Missing link | Symptom |
 | --- | --- |
-| Plugins | Packages appearing as entries in this chapter. This includes `ondra-core` and the two bridges, hence 78; the number of independently loadable plugins is 75 |
-| Enabled / Off at factory | `FIELD_SPECS.enable.default`. 3 sections have no `enable` field and 14 plugins have no `settings.ts` at all; both are permanently enabled and counted under Enabled |
-| Total fields | Number of top-level keys in `FIELD_SPECS`, **including fields the interface gives no editing control for** |
-| Directly settable | Total fields minus "not directly settable". This is the number of entries a user can actually change in the UI, and it is what each plugin entry below calls its "configurable settings" |
-| Not directly settable | Two kinds: (1) **on-disk paths** (key ends in `Dir` / `File` / `Path` and `kind: 'string'`), which the program probes at runtime so the interface only echoes them read-only, and a hand-typed mistake surfaces only at runtime; (2) **structured arrays** (`kind: 'json'` with an array default), which need a per-item form rather than a single input box. Measured this round: no path field remains on a user-editable surface, so all 10 are structured arrays |
-| Of which advanced | Fields carrying `advancedOnly: true`, i.e. 55.4% of all fields (343 / 619). Collapsed by default, editable once expanded |
-| Of which secret | Fields carrying `secret: true`. **Measured at 0** — no field anywhere declares itself secret, so the interface needs no password input, see 5.6 |
+| No `ondra-memory-pool` | All facts land in the hippocampus flagged `unclassified`, and the hippocampus never injects |
+| No `ondra-prompt-inject` | Pooling works but nothing renders it into the prompt |
+| No `systemPrompt` service key | Packing is ready but unread; only a warn line |
+| No `ondra-inject-dedupe` | The same memory repeats, crowding out the budget |
+| Prefix not frozen | All features correct, cost up 44× |
 
-The figures reconcile in three directions: **row by row**, `Total fields = Directly settable + Not directly settable` holds for all 5 rows; **by column**, `619 = 609 + 10`; and `609` matches the sum of the 78 individual plugin entries in the body text, item by item.
+That last row means: **a broken prefix cache raises no functional error at all**, it only makes the bill ugly. Problems of this class must be caught by documentation and check scripts, never left for users to discover.
 
+---
 
-### 3.3 Persona Detail
+### 3.5 Other features at a glance
 
-This menu answers who she is, how she speaks, and in what capacity she keeps you company. It holds 6 groups, 18 plugins and 161 configurable fields, of which 158 can be changed directly, all enabled at the factory default. The persona is split into replaceable parts rather than one hard-coded prompt: Persona Core owns the six-slot structure that defines who she is, Persona Variables & Intensity owns how strong the delivery is, Persona Assembly owns the fixed order of the four segments, and Persona Pack owns swapping the character. The World Book supplies background knowledge, Speech Expression (colloquialism, output filtering, lexicon, dialogue staging, dialogue protocol) turns the model's written register into spoken language, Emotion Projection & Injection carries the current mood into this turn's tone, Relationship & Narrative owns the absence etiquette and first meetings, and Presence owns whether she should pause, split a message, or leave room to breathe.
+The following are not expanded here; per-field defaults and ranges are in [`docs/PLUGINS_EN.md`](./docs/PLUGINS_EN.md).
 
-
-#### Persona Detail · Persona Core
-
-**1. Persona Core** · package `ondra-persona-core` · enabled · 6 settings
-
-Persona Core: splits SKILL.md into six slots (identity, speech, drives, scenes, format, self-check) and pairs them with five relationship variants (girlfriend, sister, daughter, friend, assistant) plus a custom one, so only the relationship changes and the persona does not. It never trims, never adds intensity and never adds boundaries.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the core is no longer assembled and the service registers as unavailable. |
-| `relation` | Segmented | friend | girlfriend / sister / daughter / friend / assistant / custom | Relationship. Defaults to friend, the only one of the five that presumes no intimacy. The product does not decide for the user what she is to them. |
-
-Advanced (collapsed by default, 4): `persona-id`, `include-extras`, `cache-kernels`, `boundary-item-limit`
-
-**2. Persona Assembly** · package `ondra-persona-assemble` · enabled · 4 settings
-
-Persona Assembly: assembles four segments in the fixed order of core, relationship tuning, intensity and boundaries, never sorting by priority. Segments are packed one by one against a character budget, skipping any that do not fit and continuing with the next. The boundary layer is exempt from trimming as a whole. Exceeding the budget is reported honestly as overBudget, with a note that a number of further segments were left out written into the segment heading. It never cuts characters and never drops anything silently.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, nothing is assembled and the service registers as unavailable. |
-| `budget-chars` | Slider | 12000 | 400 – 48000 | Character budget for each turn's prompt. Defaults to 12000 — a complete persona load measures 7,725–10,057 characters, plus about 20% headroom for fragments and relation tuning. Lowering it to 2600 drops the entire "voice" slot and she stops sounding like herself. Exceeding it is reported as overBudget rather than silently truncated. |
-| `include-headings` | Switch | On | — | Whether to add a short heading to each segment. Turning it off saves a few dozen characters, but the model may then read the intensity segment as part of the core. |
-
-Advanced (collapsed by default, 1): `report-over-budget`
-
-**3. Persona Variables & Intensity** · package `ondra-persona-vars` · enabled · 5 settings
-
-Persona Variables & Intensity: substitutes the user, character and relationship placeholders with the values the user filled in, leaving anything unknown or empty exactly as written, then produces a five-tier intensity segment from a 0 to 100 slider. It only changes forms of reference and strength of delivery, never a single word of the persona, and intensity is never written into the core.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, no variables are substituted and no intensity segment is produced; the service registers as unavailable. |
-| `user-address` | Text | Blank | — | What she calls you, substituted into {{user}}. Leaving it empty means unset, and the runtime falls back to a generic second-person pronoun. Twelve characters maximum. |
-| `tone-level` | Slider | 50 | 0 – 100 | Speaking intensity. 0 is very reserved, 50 is moderate and matches the persona pack's original wording, 100 is very warm. It only changes how much of the same phrasing is used; it never adds new words. |
-
-Advanced (collapsed by default, 2): `char-name`, `substitute-in-boundaries`
-
-**4. Persona Pack** · package `ondra-persona-loader` · enabled · 10 settings · 1 not directly settable
-
-Persona Pack loader: scans the persona skills directory for packaged persona files in read-only mode, parses the metadata and the SKILL.md inside, and registers the available personas. A factory persona ships with the product and one example pack is included. The pack itself is never written back.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, persona packs are no longer scanned and the service registers as unavailable. |
-| `active-persona` | Text | oh-jingjing | — | Persona id to activate initially. Switching only changes the in-memory state; persisting the choice belongs to the user layer of the configuration source or to the interface. |
-
-Advanced (collapsed by default, 8): `user-subdir`, `factory-persona`, `sample-persona`, `max-archive-bytes`, `max-entry-bytes`, `max-text-cache-bytes`, `max-personas`, `keep-issues`
-
-Not directly settable (1): `bundled-dir` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.)
-
-**5. Persona Evolution** · package `ondra-persona-evolve` · enabled · 4 settings
-
-Persona Evolution: only the baseline ships at the factory, and character grows out of experience. It moves numbers and never prose: trait scores derive from the baseline plus un-rolled-back increments, which are bounded, reversible and explainable, with drift capped at a share of the scale. Thresholds rise with time spent together according to a formula that tops out at sixty percent above the baseline, and an explanation call can answer why sixty used to count as happy while eighty does now. The baseline is passed in by the caller; this plugin persists the interaction count only and keeps no second copy of the baseline.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, traits always read the baseline and thresholds never drift. The service still registers, so downstream callers never receive undefined. |
-| `default-trait-drift-ratio` | Slider | 0.15 | 0.01 – 0.6 | Default cap on trait drift as a share of the scale. 0.15 keeps the change visible while still recognisably the same person. |
-
-Advanced (collapsed by default, 2): `max-delta-ratio`, `verbose`
-
-#### Persona Detail · World Book & Scenes
-
-**6. World Book** · package `ondra-worldbook` · enabled · 9 settings · 1 not directly settable
-
-World Book: six budget layers, totalling 1600 tokens and split as 350, 180, 100, 500, 200 and 150. A layer that would overflow drops the whole entry rather than cutting characters. Resident entries form their own segment and are frozen as the session prefix, and ordering inside a layer is stable rather than floating with hit counts, which guarantees the prefix of one session never changes.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the world book no longer takes part in assembly and the service registers as unavailable. |
-| `load-file` | Switch | On | — | Whether to load the world book from a file at startup. A missing file is not an error, since having no world book is a normal state. |
-| `include-headings` | Switch | On | — | Whether to add a short heading to each layer. Turning it off saves a few dozen tokens, but the model may then read a prohibition as plot. |
-
-Advanced (collapsed by default, 6): `annotate-dropped`, `report-dropped`, `fit-policy`, `cjk-chars-per-token`, `ascii-chars-per-token`, `max-entry-tokens`
-
-Not directly settable (1): `worldbook-file` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.)
-
-#### Persona Detail · Speech Expression
-
-**7. Colloquialization** · package `ondra-oral` · enabled · 14 settings
-
-Colloquialization: shapes spoken texture. The verbal-tic pool holds twelve to twenty entries per persona, tiered by the six emotional states, with at most two uses per scene. Incomplete sentences run at eight percent, dropping either the subject or the closing particle. Punctuation habits cover no closing period, repeated question marks for doubt and ellipses for hesitation. Interjections are only ever subtracted. Median length of eight to twelve characters is reported rather than enforced, and the minimum sticker interval of three messages acts as a gate without ever sending a sticker. The zero-typo rule is written into a type literal, so pretending to be careless requires changing a type.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers and apply returns unchanged. |
-| `habit-enabled` | Switch | On | — | Whether to insert verbal tics. They are skipped automatically when the pool holds fewer than twelve. |
-| `habit-max-per-session` | Slider | 2 | 0 – 2 | Maximum number of verbal tics per scene. The original value is 2 and the cap is locked at 2. |
-| `habit-placement` | Segmented | suffix | suffix / prefix | Whether tics marked placement any go at the end or the start of a sentence. |
-| `incomplete-enabled` | Switch | On | — | Whether incomplete sentences are allowed, dropping either the subject or the closing particle. |
-| `particles-enabled` | Switch | On | — | Whether to filter interjections by the six-state expression tier. This only removes them; adding words is left to the model. |
-| `punct-enabled` | Switch | On | — | Whether to shape punctuation habits, such as no closing period, repeated question marks, and ellipses. |
-
-Advanced (collapsed by default, 7): `habit-min-pool-size`, `habit-max-pool-size`, `incomplete-p`, `median-min`, `median-max`, `sticker-gap`, `verbose`
-
-**8. Output Filtering** · package `ondra-filter-chain` · enabled · 20 settings
-
-Output Filtering: a nine-step chain running draft register, AI self-disclosure, hard red lines, relationship overreach, stage overreach, third-person narration, four-gram repetition, customer-service register and a length backstop, stripping each in turn and acting only at sentence boundaries. It also carries anchor detection and a post-hoc review loop. It does not generate the text, does not change tone and performs no semantic judgement that would need a second model.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but run returns the text unchanged. |
-| `max-chars` | Slider | 400 | 20 – 8000 | Upper bound on reply length. Set to 400, since anything longer is usually customer-service prose. |
-| `hard-redline` | Switch | On | — | Whether to enforce hard red lines taken from the persona core's hard constraints. |
-| `relation-guard` | Switch | On | — | Whether to enforce relationship violations taken from the current relationship's cautions. |
-| `stage-guard` | Switch | On | — | Whether to enforce stage violations against a built-in table of seven entries awaiting adjudication. |
-| `strip-parenthetical` | Switch | On | — | Whether to strip third-person narration. Short first-person actions are always kept, since they carry presence. |
-| `you-formal` | Switch | On | — | Whether to rewrite the formal second-person pronoun to the informal one. |
-| `review-enabled` | Switch | On | — | Whether to enable post-hoc review by an independent model scoring 1 to 100. |
-| `review-threshold` | Slider | 70 | 1 – 100 | Passing score for that review. User-defined. |
-| `review-max-rounds` | Slider | 2 | 1 – 4 | Maximum reviews per turn. The specification says at most two rounds per turn. |
-
-Advanced (collapsed by default, 10): `min-chars`, `repeat-ngram`, `repeat-threshold`, `repeat-recent-count`, `redline-patterns`, `relation-patterns`, `emotion-shrink`, `review-source`, `review-temperature`, `verbose`
-
-**9. Language Feel** · package `ondra-lexicon` · enabled · 10 settings
-
-Language Feel: computes how the owner speaks from the last 300 human messages and compresses it into a volatile segment of 56 to 62 characters carrying a marker. Four rulings are hard-coded. First, only the shape is kept and never the wording: an incoming message is immediately reduced to sentence-length arrays, whether punctuation was present and the count of trailing interjections, while the raw text is discarded that same pass and never appears in the archive, which makes remembering the shape without remembering the words a structural fact rather than a promise. Second, only real people count and she never counts herself: messages from the assistant are rejected outright, since otherwise her own sentences train her to resemble her previous turn and the owner's real changes get diluted. Third, the median rather than the mean, because one pasted block of code can fling the mean away while the median only cares that half the sentences are shorter than it. Fourth, the no-punctuation rate is computed per message rather than per sentence, since per sentence it collapses into the same measure as whether the whole message had punctuation. With fewer than thirty samples it yields an empty segment instead of a placeholder, because a placeholder crowds out real injection and is read by the model as information. The text never says how many recent messages were counted, since that is a tally and the model will repeat it back as a statement about the owner's messages. This plugin changes no persona, writes no system prompt, adds nothing to the eight injection blocks, calls no model, installs no timer and draws no interface.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but compose returns a disabled empty segment rather than silently continuing. |
-| `window-size` | Slider | 300 | 50 – 1000 | Sample window size in messages. 300 comes from the design specification; the floor of 50 is the empirical point below which a median is not stable. |
-| `min-samples` | Slider | 30 | 5 – 300 | Below how many samples no segment is produced. At 30, the window usually holds more than sixty sentences and the median starts to settle; fewer than that amounts to summarising a person from two sentences. |
-| `max-chars` | Slider | 130 | 40 – 400 | Character cap on the injected text. 130 comes from the design specification's roughly 130 characters; actual text runs about 55 characters, so this cap is a guardrail rather than a target. |
-| `top-particles` | Slider | 3 | 1 – 6 | Maximum number of interjections reported in the text. Above three the line turns into a list, whereas its purpose is to let her drop one in naturally. |
-| `owner-only` | Switch | On | — | Whether to count only the owner's own messages. On by default, because other people's messages in a group chat are real human messages but not the owner's language feel, and mixing them in teaches her the wrong person. |
-| `max-age-hours` | Slider | 720 | 0 – 8760 | Maximum sample age. 720 hours, or thirty days, because language feel shifts and sentences from a month ago should no longer represent the present. 0 disables ageing by time. |
-| `persist` | Switch | On | — | Whether to persist the computed shape. When off, every restart has to rebuild the sample, and the symptom is a language feel that comes and goes without any error. The archive holds the shape only, never the original wording. |
-
-Advanced (collapsed by default, 2): `flush-every`, `verbose`
-
-**10. Dialogue Orchestration** · package `ondra-dialogue` · enabled · 10 settings
-
-Dialogue Orchestration: freezes the prefix within a session. The stable segment of persona and resident world book is assembled once at the start of a session and locked, volatile segments such as date and emotion are appended at the tail, history only appends and is never reassembled, and compression happens only at user-turn boundaries. Reassembling the system prompt every turn drops the cache hit rate from ninety-nine percent to zero, measured as a cost change from roughly 880 to roughly 20 yuan, and this is the one place in the repository that holds that line. It creates no session, writes no application session log, rewrites no text and does no injection packing.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but turn ends immediately with an error rather than staying silent. |
-| `max-turns` | Slider | 10 | 1 – 200 | Upper bound on retained history rounds. One round is one user message plus one assistant message. Defaults to 10. |
-| `max-history-chars` | Slider | 2000 | 200 – 200000 | Character cap on history. This and the round cap are independent gates: the round cap cannot stop an oversized message and the character cap cannot stop many short ones. |
-| `temperature` | Slider | 0.8 | 0 – 2 | Sampling temperature. Companion dialogue leans loose, so the default is 0.8. |
-| `include-persona` | Switch | On | — | Whether to take the four segments from persona assembly automatically as the stable segment. They are read once at begin and frozen afterwards. |
-| `include-worldbook` | Switch | On | — | Whether to take the resident block from the world book automatically as part of the stable segment. Only the resident part is taken, never on-demand entries. |
-
-Advanced (collapsed by default, 4): `max-tokens`, `min-tail-confidence`, `max-conversations`, `verbose`
-
-**11. Dialogue Protocol** · package `ondra-dialogue-protocol` · enabled · 3 settings
-
-Dialogue Protocol: a five-frame protocol of text delta, text replace, crisis, usage and done, with a closed set of four finish reasons. The frame shapes, the cross-frame discipline of a single final frame and exactly one usage and one crisis each, and the NDJSON codec exist in one copy here. In the previous project those three shapes were scattered across the session loop, the interface and the channels, so a text-replace frame treated as an increment showed the user the opening twice, and a silently dropped crisis frame meant the crisis notice never reached the user. It makes no business judgement, rewrites no text, persists nothing and creates no session.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but create returns a writer that closes at once, so downstream callers receive no frames instead of silently continuing. |
-
-Advanced (collapsed by default, 2): `allow-empty-delta`, `verbose`
-
-
-#### Persona Detail · Emotion Projection & Injection
-
-**12. Emotional Projection** · package `ondra-emotion-project` · enabled · 6 settings
-
-Emotional Projection: the single textual outlet for emotion. The template is fixed as one behavioural instruction sentence plus one hint, and any number, dimension name or emotion label is forbidden, leaving only subjective phrasing such as not quite feeling up to it. Turning to numeric status is allowed only when the user explicitly asks for a value, and the fragment sort key is always positive so it stays at the tail and preserves the prefix cache.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but every projection request is refused with the reason code disabled. |
-| `projection-ttl-minutes` | Slider | 10 | 1 – 1440 | Lifetime of the projection segment in minutes. The default of 10 reflects that it is only advice on the tone for this turn, shorter-lived than any state variable. |
-| `projection-order` | Slider | 800 | 0 – 1000 | Sort key for the projection segment, positive by default so it lands at the tail. The requirement is that volatile segments are appended at the end; a negative value breaks the prefix cache. |
-| `confidence-matched` | Slider | 0.9 | 0 – 1 | Confidence when an explicit criterion is matched. The criteria are written literally, so 0.9. |
-| `confidence-fallback` | Slider | 0.5 | 0 – 1 | Confidence when falling back on a gap. A fallback is not a decision, so 0.5. |
-
-Advanced (collapsed by default, 1): `verbose`
-
-**13. Prompt Injection** · package `ondra-prompt-inject` · enabled · 14 settings
-
-Prompt Injection: packs eight blocks covering what was agreed, what must not be forgotten, people I know, on this day in past years, what comes to mind now, lessons recorded, what follows from the thread and what surfaced today. Packing works against a character budget, trying blocks by weight, skipping any that does not fit and continuing, with the block heading noting how many entries were left out. The due-reminder and pinned blocks never take part in packing. It does no dedupe bookkeeping and never touches the persona segment.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but render returns empty text with a stated reason. |
-| `budget-preset` | Segmented | standard | small / standard / large | Preset budget tiers: small 1200, standard 2600, large 24000. A positive budgetChars value overrides the preset. |
-| `max-pinned` | Slider | 8 | 0 – 32 | Upper bound on pinned entries. The specification says at most eight. |
-| `max-persons` | Slider | 5 | 0 – 32 | Upper bound on person-type memories. The specification says at most five. |
-| `max-anniversary` | Slider | 3 | 0 – 32 | Upper bound on On This Day entries. The specification says at most three. |
-| `max-lessons` | Slider | 3 | 0 – 32 | Upper bound on remembered lessons. The specification says at most three. |
-| `include-headings` | Switch | On | — | Whether to add a short heading to each block. Turning it off also hides the note about entries left out, which then only appears in the report. |
-| `respect-pool` | Switch | On | — | Whether to honour the memory pool's rule that some memories never enter injection. Nothing is judged while the pool service is absent. |
-| `clarity-suffix` | Switch | On | — | Whether to append a clarity phrase to each memory line. The phrasing comes from the memory core, so this plugin does not write its own copy. |
-
-Advanced (collapsed by default, 5): `budget-chars`, `max-promises`, `anniversary-scan-limit`, `ripple-rings`, `verbose`
-
-
-#### Persona Detail · Relationship & Narrative
-
-**14. Lull Etiquette** · package `ondra-absence` · enabled · 6 settings
-
-Lull Etiquette: answers one question, which is how to respond when someone returns after a long gap. It defines five tiers covering today, yesterday, a few days, a while and a long time, and each tier gives only what must be done, what must never be done, a sentence cap, whether to acknowledge the gap and whether a little warmth is allowed, with no number anywhere. Even the length of the gap appears only as one of five coarse words, because saying that seventeen days have passed is not care but turning a reunion into an interrogation. The type of the ask-about-gap field is the literal false, since a boolean would guarantee a true branch and that branch would inevitably be switched on during some attempt to show concern. Four general prohibitions hold across every tier: never ask where they went, never report the exact interval, never invent a story for the gap and never read the absence as being abandoned. Reading does not advance the state, and only the side that actually speaks records that it was mentioned, so a caller polling freely never says the same greeting twice. The archive holds three timestamps and two counters, never what was last discussed and never why the person left, since that would be attendance tracking rather than etiquette. It builds no interface, installs no timer and sends nothing on its own initiative.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, touch and mention throw disabled, and view stays readable. |
-| `brief-hours` | Slider | 6 | 1 – 48 | Gaps shorter than this many hours do not count. The default of 6 is one full night's sleep. |
-| `noticed-days` | Slider | 1 | 1 – 7 | Beyond this many days the gap moves to the tier that remembers the person but loses the thread. Defaults to 1. |
-| `long-days` | Slider | 3 | 2 – 30 | Beyond this many days the gap moves to the tier that remembers the person but forgets the details and must acknowledge the time apart. Defaults to 3. |
-| `distant-days` | Slider | 14 | 4 – 365 | Beyond this many days the gap moves to the tier that may have forgotten who she is. Defaults to 14 and must exceed the previous field. |
-
-Advanced (collapsed by default, 1): `max-sentences-cap`
-
-**15. First-meeting Script** · package `ondra-first-meet` · enabled · 3 settings
-
-First-meeting Script: cuts the first meeting into five beats of arrival, introduction, boundary, invitation and closing, where each beat gives only the purpose, what must be done, what must never be done and a sentence cap, with not one word of script. Boundaries come before the invitation, since explaining what she will not do before asking the first question keeps the opening from becoming a demand. Reading does not advance the water mark and only the side that actually speaks the beat advances it, so polling never consumes a beat, and when the user speaks first the flow jumps straight to the closing beat rather than forcing the script through. The archive holds only the beat watermark and timestamps and never a single sentence the other person said, because on a first meeting people give real names and circumstances, and those belong to the memory system and the right to be forgotten. It does not send the first message, does not initiate, and builds no interface.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, advance and reset throw disabled, and plan stays readable. |
-| `auto-start` | Switch | On | — | Whether the first exchange enters the first meeting automatically. When off, plan returns an empty beat and the flow only starts when called explicitly. |
-
-Advanced (collapsed by default, 1): `max-sentences-cap`
-
-#### Persona Detail · Presence
-
-**16. Message Splitting & Pauses** · package `ondra-rhythm` · enabled · 22 settings
-
-Message Splitting & Pauses as pure functions: at most 4 messages, 40 characters each, 6 characters per second, 300, 500 and 150 milliseconds added at punctuation, pauses between 300 and 6000 milliseconds clamped before and after a late-night multiplier of 1.6, first-character delay between 800 and 2000 ms, long pauses at 20% probability lasting 3 to 9 seconds and at most once per turn, self-correction at 5% and not inserted by default, and on overflow keeping the first three messages while merging the tail into the fourth. It only computes and never sends: timed execution belongs to the typing layer and text editing belongs to the filter chain.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but plan falls back to sending everything in one block. |
-| `max-messages` | Slider | 4 | 1 – 4 | Cap on message splits. Official QQ allows five calls, so one is held in reserve and the cap is locked at 4. |
-| `max-chars-per-message` | Slider | 40 | 10 – 120 | Character cap per message. The original value is 40. |
-| `chars-per-second` | Slider | 6 | 2 – 20 | Typing speed in characters per second. The original value is 6. |
-| `self-correct-enabled` | Switch | Off | — | Whether to enable self-correction. The specification says it is not inserted by default, so this is off. |
-| `night-enabled` | Switch | On | — | Whether to amplify pauses late at night. |
-
-Advanced (collapsed by default, 16): `min-delay-ms`, `max-delay-ms`, `first-delay-min-ms`, `first-delay-max-ms`, `long-pause-p`, `long-pause-min-ms`, `long-pause-max-ms`, `self-correct-p`, `night-factor`, `night-start`, `night-end`, `pause-period-ms`, `pause-ellipsis-ms`, `pause-comma-ms`, `emotion-adjust`, `verbose`
-
-**17. Typing & Pause Execution** · package `ondra-rhythm-typing` · enabled · 6 settings
-
-Typing & Pause Execution: runs the splitting plan from the rhythm module as a real timeline, showing thinking before the first message and typing between two, never showing typing during a long pause, allowing cancellation per conversation, letting a new turn displace the previous one in the same conversation, and stopping on unload. Without the rhythm service it falls back to sending everything in one block rather than simulating typing. It only executes and never produces content: splitting belongs to the rhythm module and typing display and presence belong to the breathing module.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but run falls back to sending everything in one block. |
-
-Advanced (collapsed by default, 5): `conversation-id`, `long-pause-threshold-ms`, `wake-buffer-ms`, `emit-phase-events`, `verbose`
-
-**18. Breathing Room** · package `ondra-breath` · enabled · 7 settings
-
-Breathing Room: maps the typing phase from the execution layer into whether typing should be shown right now, hiding it during long distracted pauses, and within a budget of twice a day supplies one bracketed action such as stretching. It only decides whether and which line, and never sends, draws no interface and installs no timer.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but presence reports nothing and take returns disabled. |
-| `presence-enabled` | Switch | On | — | Whether to answer the is-typing question. This only produces a decision; it does not draw any interface. |
-| `breath-enabled` | Switch | On | — | Whether to allow a bit-of-life action, at most twice a day. |
-| `daily-cap` | Slider | 2 | 0 – 2 | Daily cap on those actions. The original value is 2 and the cap is locked at 2. |
-
-Advanced (collapsed by default, 3): `same-action-once-per-day`, `extra-actions`, `verbose`
-
-
-### 3.4 Voice & Appearance
-
-This menu answers what she looks like and what voice she speaks with. It holds 2 groups, 4 plugins and 48 configurable fields, all of them directly changeable, all enabled at the factory default. The Voice group converts text to speech, decides when speaking is appropriate and when it is not, and converts speech back to text; the Appearance group is down to expression detection alone — the portrait, stickers and desktop pet entry point were removed with the plugin trim, since each needs its own rendering process and external assets.
-
-
-#### Voice & Appearance · Voice
-
-**19. Speech Synthesis** · package `ondra-tts` · enabled · 18 settings
-
-Speech Synthesis: three channels coexist, namely a local GPT-SoVITS service over api v2, macOS say with no dependencies, and Edge TTS with nineteen voices and eight presets. It only wires, selects a route and degrades, never reimplementing any synthesis mechanism: text goes in, audio comes out, the result lands in a content-addressed cache, and failures always return a reason code rather than throwing. Whether to speak at all is decided by the four voice gates, so this plugin makes no such judgement and registers no tools.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but speak always returns disabled. |
-| `provider` | Segmented | auto | auto / gpt-sovits / macos-say / edge-tts | Channel selection: auto picks the first ready path in the order local GPT-SoVITS, then macOS say, then Edge TTS. |
-| `preset` | Segmented | soft | soft / lively / broadcast / dongbei / shaanxi / cantonese / taiwan / english | Default voice pack preset: gentle, lively, broadcast, northeastern, shaanxi, cantonese, taiwan, english. |
-| `voice` | Text | Blank | — | Explicit voice id. Leaving it empty follows the preset. |
-| `volume` | Segmented | normal | normal / low | Volume tier. The macOS say branch has no volume parameter and ignores this setting. |
-| `gsv-endpoint` | URL | http://127.0.0.1:9880 | — | GPT-SoVITS service address for api_v2. Loopback addresses only. |
-| `gsv-ref-audio` | Text | Blank | — | Absolute path to the reference audio. Leaving it empty makes this channel unavailable, because it requires a voice sample. |
-| `playback` | Segmented | auto | auto / off | In auto mode, play through the system player; when off, only synthesise the file, which is what channels use to send voice clips. |
-
-Advanced (collapsed by default, 10): `rate`, `max-chars`, `gsv-prompt-text`, `gsv-text-lang`, `edge-bin`, `say-voice`, `say-wpm`, `timeout-ms`, `cache-files`, `verbose`
-
-**20. Voice Gate** · package `ondra-tts-gate` · enabled · 8 settings
-
-Voice Gate: four gates covering the switch, a length window of six to thirty characters, an emotion intensity of at least 0.15 or an emotion word present in the turn, and a three-second rate limit, plus a rule that forces text after two consecutive voice messages. It only decides and neither speaks nor synthesises: the decision carries a reason code, the real character count, the emotion intensity and the six-state speaking rate, and the dialogue chain hands it to synthesis. When the emotion service is absent it passes through as degraded and says so, while a missing synthesis channel is reported honestly as unavailable, and those two failure directions point opposite ways on purpose.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, nothing is ever read aloud. The service still registers. |
-| `min-chars` | Slider | 6 | 2 – 30 | Lower bound on sentence length, counted after whitespace is removed. A sentence that short sounds like a notification tone. |
-| `max-chars` | Slider | 30 | 6 – 120 | Upper bound on sentence length. Beyond it the text should be split rather than read out. |
-| `intensity-min` | Slider | 0.15 | 0 – 1 | Emotion intensity threshold between 0 and 1. Below it, and with no emotion word present, nothing is spoken, because plain statement is better served by text. |
-| `cooldown-ms` | Slider | 3000 | 0 – 10000 | Rate-limit interval in milliseconds. 0 disables rate limiting. |
-
-Advanced (collapsed by default, 3): `max-consecutive`, `emotive-bypass`, `verbose`
-
-**21. Speech Transcription** · package `ondra-asr` · enabled · 15 settings · 2 not directly settable
-
-Speech Transcription: local whisper first with a cloud fallback, producing text with timestamps. It only wires things up: it builds a whisper command, waits for it to finish and reads the JSON it writes into millisecond timestamps, and only when the local path is unavailable does it make a single multipart upload to the cloud. Three rulings are hard-coded. First, local first, because voice is among the most private content and anything that can be transcribed on this machine never leaves it. Second, silent failure, since a user sending a voice message should not receive an error and anything that cannot be transcribed counts as unheard. Third, no invented speakers: whisper does no speaker separation and this plugin does not pretend otherwise, keeping the speaker field but leaving it empty when unknown and reporting separation as always false. The transcript never enters memory directly; it hands a multimodal draft to multimodal memory instead. This plugin creates no tables, concatenates no prompts, draws no interface and installs no timer.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but transcribe always returns disabled. |
-| `provider` | Segmented | local | local / cloud | Preferred source. The requirement is local whisper first with a cloud fallback, so the default is local. |
-| `binary` | Text | whisper-cli | — | Whisper executable, located on PATH. Newer whisper.cpp builds name it whisper-cli and older ones name it main. |
-| `language` | Text | Blank | — | Language hint, one of zh, en or auto. Leaving it empty means detect automatically. |
-| `cloud-base-url` | URL | https://api.openai.com/v1 | — | Cloud endpoint, an OpenAI-compatible audio transcriptions route. |
-| `cloud-model` | Text | whisper-1 | — | Cloud model id. The example is OpenAI's whisper-1, though a compatible endpoint can use its own. |
-| `credential-ref` | Text | OPENAI_API_KEY | — | Name of the environment variable holding the cloud credential, not the value itself. |
-| `allow-cloud-fallback` | Switch | On | — | Whether to fall back to the cloud when the local path fails. Turning it off keeps everything on this machine. |
-| `quiet` | Switch | On | — | Whether to suppress warnings on failure. Counters and the last error are still recorded. |
-
-Advanced (collapsed by default, 6): `threads`, `timeout-ms`, `cloud-without-privacy`, `max-audio-bytes`, `max-chars`, `verbose`
-
-Not directly settable (2): `model-path` (Executable or model path. The panel cannot locate it on the user's behalf, and a wrong value only surfaces at runtime.); `ffmpeg-path` (Executable or model path. The panel cannot locate it on the user's behalf, and a wrong value only surfaces at runtime.)
-
-
-#### Voice & Appearance · Appearance
-
-**22. Expression Decision** · package `ondra-expression-decide` · enabled · 5 settings
-
-Expression Decision: classifies finished text into one of six states by clue words, punctuation and sentence shape, and hands that to the portrait layer to change the face. It answers only what the face should show when this line is spoken, inserting no marker into the text and writing no state name into the prompt. With no clue in the text it falls back to the current state from six-state expression, and when neither is available it gives the least error-prone default expression while letting the caller see that this time there was no basis.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, no marker is ever produced. The service still registers. |
-| `min-score` | Slider | 2 | 1 – 10 | Score threshold between 1 and 10, where a strong word scores 3, a medium word 2, punctuation 2 and sentence shape 1. The default of 2 means one medium word or two weak clues. |
-| `use-state-fallback` | Switch | On | — | Whether to follow the current six-state emotion when the text carries no clue, leaving the face unchanged. When off, the default expression is used directly. |
-
-Advanced (collapsed by default, 2): `fallback-state`, `verbose`
-
-### 3.5 Developer Features
-
-This menu answers how to find out why she behaves a certain way, how to change it, and how to inspect it. It holds 8 groups, 35 plugins and 192 configurable fields, of which 185 can be changed directly, the largest top-level menu in the project. It contains Foundation & Host (core assembly, desktop bridge, kernel client, clock, identity, configuration source of truth, path layout, model gateway, Chinese logging, port picking, process supervision, window), Storage & Data, Context Assembly, Gating & Compliance, Tools & Capability Surface, Life & Perception, Care & Guidance, and Installation & Assembly. Exactly one of its 35 plugins is off at the factory default: vision (`ondra-vision`), which reads the screen and sends captures to an external model, putting both steps outside the machine.
-
-
-#### Developer Features · Care & Guidance
-
-**23. Crisis Escalation** · package `ondra-crisis` · enabled · 4 settings · 1 not directly settable
-
-Crisis Escalation: answers exactly one question, which is whether this sentence carries a signal that deserves stopping for. Five signal classes covering indirect expression, direct expression, planning, farewell and self-harm each map to one of four tiers, then pass through contextual markers, and finally produce three boolean suggestions: whether to pause the persona, whether to offer help resources and whether to ask directly. It deliberately does not diagnose and does not score, because a stated risk score of seventy-two would be taken as a conclusion when it is only the output of a pattern match. It promises no confidentiality, since that would make the person stop looking for someone who can actually show up. It persists nothing and writes nothing into the memory library, because storing someone's darkest moment as a searchable memory means she may raise it again at any time, which is a second injury. It embeds no hotline numbers, since numbers differ by region and change over time, and a wrong hard-coded number at a crisis moment is a disaster. It does not treat low mood as a crisis, because sadness is not a crisis and treating every low point as one teaches people to hide their feelings. It returns no original text, only matched offsets, because the matched sentence is itself the most sensitive content. It installs no timer and builds no interface. An assumed context only affects wording and never downgrades anything, and negation and past tense lower the tier by one without zeroing it, so a statement that the person does not want to die but may lose control tonight must still be caught. It has zero upstream service dependencies, the decision is a pure function, and replaying the same text always yields the same conclusion.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but assess throws disabled instead of silently returning none. |
-| `extra-guidance` | Text | Blank | — | One sentence appended after the fallback guidance, for example the name of a local service. Leaving it empty uses the built-in guidance only. |
-
-Advanced (collapsed by default, 2): `scan-chars`, `third-party-resources`
-
-Not directly settable (1): `hotlines` (Structured array (readonly HotlineConfig[]). It needs a form with one row per entry, so a flat settings field does not fit.)
-
-**24. First-run Onboarding** · package `ondra-onboarding` · enabled · 3 settings · 1 not directly settable
-
-First-run Onboarding state machine: turns the four-stage first run into four decidable stages of checking the environment, reusing an existing installation, picking a free port and opening the interface with a token, where each stage must carry evidence to count as done and skipping is allowed only in the single optional stage. It doubles as the acceptance baseline for the opening chapter of the promotional video: the installer title is composed from the identity source, the progress percentage is computed rather than hard-coded, the status lines use two documented sentences, and the first message must be sent proactively by the current persona with copy taken from the current persona name, reporting no persona rather than signing on the persona's behalf when the name is missing. Each of the five acceptance items is three-valued, passing, failing or undecidable, because treating undecidable as passing is self-deception and treating it as failing is a false accusation. It also absorbs five frequent beginner pitfalls from the deployment guide, giving the next step for each rather than restating the symptom, because four of them share the trait that the error does not point at its cause and the fifth reports nothing at all. It renders no interface, sends no message and mounts no component, since rendering belongs to the interface layer, sending to the dialogue layer and component mounting to the installer, and a duplicate copy would inevitably diverge. No method ever throws, because any failed step during the first run should be displayed by the interface rather than reaching the host as an unhandled rejection.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Onboarding switch. When off, begin and advance always return disabled. |
-
-Advanced (collapsed by default, 2): `required-node-major`, `verbose`
-
-Not directly settable (1): `state-dir` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.)
-
-
-#### Developer Features · Context Assembly
-
-**25. Injection Dedupe** · package `ondra-inject-dedupe` · enabled · 7 settings
-
-Injection Dedupe: injects one large block on the first round and only deltas afterwards, so the same memory appears once across rounds and blocks, and once context is compressed it releases what has been seen and injects the full block again. Bookkeeping is per memory rather than per block, with memory and pin entries normalised into one fact namespace, and it commits in two stages where the first only lists what to record and the second actually writes, releasing the whole block rather than half of it on failure. It does no packing or budgeting and never touches the prefix.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, begin returns bypassed, and the caller falls back to injecting the whole block. |
-| `default-conversation` | Text | default | — | Default session id used when begin is called without one. Call release with the session restart reason before switching sessions. |
-| `auto-detect-compaction` | Switch | On | — | Whether to read the dialogue orchestrator's compression counter and release seen entries automatically. This only applies to a single session; with several, it explicitly does not guess. |
-
-Advanced (collapsed by default, 4): `max-seen-per-conversation`, `max-conversations`, `max-pending-batches`, `verbose`
-
-**26. Date Facts** · package `ondra-live` · enabled · 6 settings
-
-Date Facts: the weekday, the lunar date, whether a solar term falls today and whether a festival occurs, all computed locally without a network call. Not one line of lunar algorithm is written here: the lunar library is wired in, two branches are cross-checked against each other, and without the package it honestly degrades to the Gregorian calendar alone. The output is intended only for the volatile segment of the prompt and never enters the frozen prefix.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. The facts remain computable as pure date arithmetic when off, but the interface should show it as disabled. |
-| `provider` | Segmented | auto | auto / lunar-js / tyme4ts / solar-only | Calendar branch: auto uses a lunar package when present and the Gregorian calendar otherwise; lunar-js, tyme4ts and solar-only force a specific one. |
-
-Advanced (collapsed by default, 4): `crosscheck-on-start`, `upcoming-days`, `cache-days`, `verbose`
-
-
-#### Developer Features · Gating & Compliance
-
-**27. Evidence Gate** · package `ondra-evidence-gate` · enabled · 13 settings
-
-Evidence Gate: the memory write gate, covering four quotation classes of user, tool, action and self, verbatim comparison against the original, a requirement that numbers carry a source, and rejection of attribution claims lacking a user quotation. It is a deterministic code gate with zero model calls.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the gate admits everything, which amounts to abandoning the rule that nothing enters memory without a source. |
-| `max-text-chars` | Slider | 200 | 20 – 2000 | Character cap on the body. Entries are required to stay within 200 characters, and longer ones are truncated rather than rejected outright. |
-| `max-summary-chars` | Slider | 80 | 10 – 500 | Character cap on the summary, required to stay within 80. |
-| `digit-source` | Segmented | tool-or-user | tool-or-user / tool-only / off | Permitted sources for digits. tool-or-user accepts coverage by a TOOL or USER quotation, tool-only accepts TOOL alone, and off performs no check. |
-| `strict-attribution` | Switch | On | — | Whether to run text-level attribution detection, rejecting a body that names the user with an attribution verb while carrying no USER quotation. |
-
-Advanced (collapsed by default, 8): `min-quote-chars`, `max-evidence`, `unbacked-digit-action`, `strict-source`, `self-only-action`, `log-limit`, `log-prune-batch`, `max-log-text-chars`
-
-**28. Privacy & Egress** · package `ondra-privacy` · enabled · 6 settings
-
-Privacy & Egress: compliance notice, three-tier risk reminders and an egress manifest. It does no encryption and no proxying, because becoming a gateway would force data through this plugin, putting credential values into its memory, error context and logs, which would grow a second key pathway out of nothing, and the model gateway had just changed key injection into an existence pre-check plus reference registration for exactly that reason. So this plugin answers one question only: whether this may be sent, to whom, and who approved it. A capability first declares what it sends, where, why it must leave and which environment variable it needs, and then evaluates before actually sending; anything undeclared is refused rather than allowed by default. Risk has three tiers and the boundary is not an adjective but reversibility: metadata or text without identity goes through the first tier of notice, while images, voice, files, identifiable content and anything that cannot be recalled go through the second tier of confirmation, and key-shaped content leaving the boundary, a credential reference written as a value or an undeclared target host triggers the third tier of blocking. The tier setting changes only the handling and never the tier itself, because letting a fully automatic mode lower the tier would hide a genuinely high risk from the panel, which is a variant of a fake switch. Turning the gate off removes only notice and confirmation while the red lines still block, since a red line that a switch can disable is no red line at all. Consent is remembered and persisted per capability and host, because otherwise every start asks again and after three times the user switches it off; a parse failure counts as empty rather than as blanket consent; credentials are stored as variable names only and values never pass through here; and a scan hit returns position and kind, never the original text. It registers no tools, because consent is a human action and a model should not be able to nod on its own.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Privacy gate. Turning it off removes the notice and confirmation steps, while the red lines still block: keys leaving the boundary and undeclared hosts. |
-| `approval-mode` | Segmented | auto | supervised / auto / full | Tiered auto-approval: supervised asks for every high-risk action, auto lets low-risk actions through while asking for high-risk ones, and full skips approval but requires the sandbox write boundary. |
-| `strict-hosts` | Switch | On | — | Whether to refuse outright when the target host is missing from the declared list. Turning it off asks once instead of admitting it. |
-| `scan-secrets` | Switch | On | — | Whether to scan outgoing samples for key-shaped fragments. Long hashes trigger false positives, so turn it off if that happens. |
-
-Advanced (collapsed by default, 2): `consent-ttl-ms`, `verbose`
-
-**29. Capability Sandbox** · package `ondra-sandbox` · enabled · 6 settings
-
-Capability Sandbox: divides how much a plugin may do this time into four levels of read, suggest, act and spend, issues a ticket with an expiry and a use cap, and refuses anything beyond it. Four rulings are hard-coded. Deny by default, so no ticket means no capability. A ticket becomes invalid on expiry, and after expiry it must still be possible to find which ticket it was and the exact second it ended, with the end time stored as the expiry rather than the moment expiry was noticed. The spend level requires a second confirmation, where the caller must place the action name verbatim into the confirmation, because a boolean always gets copied as true while retyping the action name at least requires knowing what is being done. Tickets are persisted with mode 0600 and atomic writes, holding tickets only and no call content at all, since parameters, return values and reasons would amount to a behavioural log. The boundary with the tool gate is that one governs whether an organ may use the host facade as an in-process capability allow list raising a capability denied error, while this one governs whether a specific action should be admitted with a ticket, a deadline and a use count raising a sandbox denied error; both layers must pass, neither replaces the other, and the error classes are deliberately named differently so a single catch cannot conflate lacking authority with an expired ticket. It does not take over the host permission system, does not implement the organ interface, builds no interface, installs no timer and initiates nothing.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, grant, check and revoke throw disabled, and snapshot stays readable. |
-| `default-ttl-hours` | Slider | 24 | 1 – 8760 | Default ticket lifetime in hours. The default of 24 reflects that the world has usually changed overnight. |
-| `max-ttl-hours` | Slider | 168 | 1 – 8760 | Maximum ticket lifetime in hours, defaulting to 168, or seven days. Anything longer cancels the meaning of a time limit. |
-| `default-uses` | Slider | 8 | 1 – 10000 | Default cap on uses, defaulting to 8. Beyond that the action deserves its own ticket rather than one broad ticket. |
-| `max-uses` | Slider | 100 | 1 – 10000 | Maximum uses on a single ticket, defaulting to 100. At that point the ticket is standing authorisation and belongs to manual review. |
-
-Advanced (collapsed by default, 1): `max-tickets`
-
-**30. Tool Gate** · package `ondra-organ-gate` · enabled · 9 settings
-
-Tool Gate: schema gating and deterministic intent routing. It runs keyword rules over this turn's user wording, works out which tool families could actually be needed and removes the rest from that agent's schema view, saving input tokens every turn. On a measured set of forty-eight commands the figure went from 55,154 to 8,433, a reduction of 84.7 percent, though this plugin promises no particular ratio, since that number came from another agent's own rule table and this plugin's default rule table is written against real upstream tool names, so the ratio has to be measured. Three safety designs apply. It observes by default, computing without blocking so the report comes before enforcement, the same migration discipline as shadow billing. It gives everything when unsure, applying no restriction at all when no rule matches, preferring to spend tokens over guessing. And it breaks the circuit, abandoning gating for the whole turn when the share to be removed exceeds a ceiling or the remaining tools fall below a floor. In implementation there is one action only, restricting the agent's tool view, which changes no tool implementation and no upstream code. Each turn first withdraws last turn's restriction, since otherwise a view trimmed by itself would never let the needed tools come back. This plugin installs no timer, registers no tool, writes no prompt and calls no model.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `mode` | Segmented | observe | off / observe / enforce | off does nothing, observe computes without blocking and is the default for reading the report first, and enforce actually strips. |
-
-Advanced (collapsed by default, 8): `min-tools-to-gate`, `min-keep-tools`, `max-deny-ratio`, `chars-per-token`, `report-limit`, `never-deny`, `intent-chars`, `verbose`
-
-**31. Proactive Gate** · package `ondra-proactive-gate` · enabled · 21 settings
-
-Proactive Gate: whether a pending message may be sent right now. Nine gates apply, covering the master switch and the group-chat red line, the circuit breaker and backoff, content red lines, the silence period, the daily budget, the idle threshold, the conversation cooldown, duplicate dedupe and a three-layer token bucket. It only decides, never sending, never scheduling an alarm and installing no timer, and state is persisted with mode 0600 and atomic writes, because clearing it on restart would let a restart bypass the anti-ban protections.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but gate always drops with reason disabled. |
-| `daily-quota` | Slider | 3 | 0 – 20 | Daily budget for proactive delivery. It counts proactive messages only, never replies. |
-| `quiet-start` | Text | 23:00 | — | Start of the product silence period. It blocks proactive messages only. |
-| `quiet-end` | Text | 08:00 | — | End of the product silence period. |
-| `idle-minutes` | Slider | 25 | 0 – 1440 | How many minutes the target conversation must have been quiet before a proactive message is allowed. |
-
-Advanced (collapsed by default, 16): `anti-ban-quiet-start`, `anti-ban-quiet-end`, `per-minute`, `per-hour`, `per-day`, `max-len`, `hard-max-len`, `group-cooldown-ms`, `private-cooldown-ms`, `dedupe-minutes`, `dedupe-min-len`, `jitter-ms`, `circuit-hits`, `circuit-minutes`, `block-words`, `verbose`
-
-**32. Proactive Rhythm** · package `ondra-proactive-quota` · enabled · 9 settings
-
-Proactive Rhythm: whether she still feels like talking right now, how many messages remain today and whether it is time to bow out. It covers the quota tier of slow, standard and fast, the minimum interval between two proactive messages, characterful silence with a deterministic drop rate, the farewell line after several unanswered attempts, and a one-touch mute entry. It does not decide whether sending is allowed, does not recompute quota decay, generates no text and installs no timer.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but plan always drops with reason disabled. |
-| `profile` | Segmented | standard | slow / standard / fast | Quota tier: slow sends one a day, standard three a day and fast six a day. Use the enable switch to turn it off. |
-| `min-interval-minutes` | Slider | 90 | 0 – 1440 | Minimum interval between two proactive messages, in minutes. A provisional value of 90 awaits adjudication. |
-| `give-up-rate` | Slider | 0.3 | 0 – 1 | Drop rate for characterful silence. The documented value is 0.35 and two places disagree, so this awaits adjudication. |
-| `retreat-after-proactive` | Slider | 2 | 1 – 10 | How many proactive messages after the user speaks before switching to a farewell line. |
-| `retreat-silent-days` | Slider | 2 | 1 – 30 | How many consecutive silent days before switching to a farewell line. |
-
-Advanced (collapsed by default, 3): `quota-override`, `retreat-per-day`, `verbose`
-
-**33. Proactive Motivation** · package `ondra-proactive-reason` · enabled · 4 settings
-
-Proactive Motivation: what to use as a reason to speak right now. Eight candidate classes covering obsessions, due promises, emotional deviation, todos, recent events, the timeline, the environment and a line pool are ordered by priority in dictionary order, with weights compared only within the same class, and a seventy-two-hour topic cooldown guarantees the same matter is raised only once in three days. It produces the reason without generating text, does not decide whether to send and does not cut by count.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but plan returns disabled. |
-| `cooldown-hours` | Slider | 72 | 0 – 720 | Cooldown in hours for the same topic, with 72 as the documented value. |
-| `pool-enabled` | Switch | On | — | Whether a fallback line pool is allowed. |
-
-Advanced (collapsed by default, 1): `verbose`
-
-#### Developer Features · Tools & Capability Surface
-
-**34. Organ Host** · package `ondra-organ-host` · enabled · 11 settings
-
-Organ Host: the organ interface host, covering load topology, capability allow list, energy accounting, feedback arbitration, prompt assembly and telemetry. Three non-negotiable constraints live here. Organs never write state directly, since they can only propose through feedback while the flush accumulates per target, applies once and clamps, because applying each proposal would make the result depend on registration order. An organ must pay energy for its own perception and may be refused, since consuming is the only entry point to read-state permission and a denial makes the read throw rather than relying on self-restraint. And organ errors must not propagate, with each of the tick, tool-result and prompt handlers wrapped in its own try and catch that converts a throw into a degraded count. The context handed to organs is a facade rather than the raw context, exposing ten members for state, consumption, events, gap proposals, tool results, ticks, tool registration, prompts, key-value storage and logging, and the capability allow list denies by default, raising a capability denied error for anything undeclared rather than ignoring it. Prompt fragments carry order, lifetime and confidence, are sorted by order and filtered for expiry and low confidence. Scars are always pinned at the lowest weight, and an organ declaring a weight below the floor is refused rather than clamped, since clamping would let the author believe the value took effect. Energy accounting defaults to shadow billing that records without charging; after a week of telemetry each organ is switched to real charging individually, and any step can be rolled back with no window of double billing ever existing. This plugin installs no timer at all, since ticks are scheduled by the host, and that is exactly what zero residence means.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Organ host master switch. When off, every register call is refused with reason disabled. |
-| `charge-mode` | Segmented | shadow | shadow / additive | Billing mode. shadow only records without charging and is the default, while additive charges for real. Run shadow for a week during migration. |
-| `min-confidence` | Slider | 0.2 | 0 – 1 | Minimum fragment confidence; anything below it is not injected. The value of 0.2 is an engineering choice, since no number was supplied. |
-| `enforce-receipt` | Switch | On | — | Whether to enforce consuming before reading state. This is the only enforcement of that constraint, so avoid turning it off routinely. |
-
-Advanced (collapsed by default, 7): `receipt-ttl-ms`, `max-fragments`, `max-chars-per-fragment`, `kv-limit`, `max-pending`, `denied-capabilities`, `verbose`
-
-**35. Vision** · package `ondra-vision` · off at factory · 12 settings · 1 not directly settable
-
-Vision: image understanding, text extraction by OCR, object localisation and video frame sampling. The requirement is a pluggable provider with the feature off by default and linked to the privacy gate so egress is announced first, so this plugin does three things: turn an image into a Chinese description, pull the text out of an image and turn where something is into a normalised box, plus sampling four frames from a video. Not one line of model inference is written here: recognition belongs to the provider, and this plugin handles request shaping, configuration, timeouts, degradation and egress permission. Three rulings are hard-coded. It is off by default, because sending one image outward amounts to sending the user's screen to someone else. Egress must have someone say whether it may be sent, so with the privacy gate present its verdict of allow, ask or deny is followed, and without it nothing goes to the cloud unless cloud use without privacy is explicitly enabled. Failures quietly return a reason code without throwing or inventing content, since a guessed description would enter memory as a false fact. This plugin draws no interface, creates no session, writes no memory and installs no timer; storage belongs to multimodal memory, egress compliance to the privacy gate, and the interface to the shell.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | Off | — | Master switch, required to default to off: sending one image outward amounts to sending the user's screen to someone else. |
-| `provider` | Segmented | ollama | ollama / openai / qwen | Provider: ollama for a local service, openai for an OpenAI-compatible endpoint, or qwen for a Qwen-compatible endpoint. |
-| `base-url` | URL | Blank | — | Overrides the default endpoint. Leaving it empty uses the provider default, and a wrong value reports a bad base rather than falling back silently. |
-| `model` | Text | Blank | — | Model name, required. Examples are llava for ollama, gpt-4o-mini for openai and qwen-vl-plus for qwen, though these are examples rather than defaults. |
-| `credential-ref` | Text | Blank | — | Name of the environment variable holding the credential, not the value. Leaving it empty uses the provider default, OPENAI_API_KEY for openai and DASHSCOPE_API_KEY for qwen. |
-| `detail` | Segmented | auto | auto / low / high | Image detail tier, meaningful only for OpenAI-compatible endpoints. auto leaves the choice to the provider. |
-
-Advanced (collapsed by default, 6): `timeout-ms`, `max-image-bytes`, `max-output-chars`, `video-frames`, `cloud-without-privacy`, `verbose`
-
-Not directly settable (1): `ffmpeg-path` (Executable or model path. The panel cannot locate it on the user's behalf, and a wrong value only surfaces at runtime.)
-
-
-#### Developer Features · Storage & Data
-
-**36. SQLite Backend** · package `ondra-store-sqlite` · enabled · 0 settings
-
-SQLite Backend: the SQLite storage port, with write-ahead logging, foreign keys, strict tables, column backfill and file permissions tightened to 0600, degrading rather than blocking on failure.
-
-This plugin has no settings visible at the factory default.
-
-**37. JSON Backend** · package `ondra-store-json` · enabled · 0 settings
-
-JSON Backend: the JSONL persistence backend and the multi-scheme fallback used when SQLite is unavailable or its database is corrupt, with append logging and atomic compaction, degrading rather than blocking on failure.
-
-This plugin has no settings visible at the factory default.
-
-**38. In-memory Backend** · package `ondra-store-memory` · enabled · 0 settings
-
-In-memory Backend: the in-memory fallback store that keeps the main conversation going when SQLite cannot be opened, explicitly without persistence.
-
-This plugin has no settings visible at the factory default.
-
-**39. Snapshot** · package `ondra-snapshot` · enabled · 0 settings
-
-Memory Snapshot: a consistent copy through VACUUM INTO, rotation keeping three, integrity verification, and a restore that must be confirmed explicitly and never runs automatically.
-
-This plugin has no settings visible at the factory default.
-
-**40. Version Migration** · package `ondra-data-migrate` · enabled · 0 settings
-
-Version Migration: idempotent version migration, with the user version pragma as the single source of truth, one transaction per migration, and table rebuilds for type, primary key and not-null drift.
-
-This plugin has no settings visible at the factory default.
-
-#### Developer Features · Foundation & Host
-
-**41. Core Assembly** · package `ondra-core` · enabled · 0 settings
-
-Core Assembly: assembles the Cordis plugin members owned by this project through an explicit list, replacing the previous approach of stacking patches.
-
-This plugin has no settings visible at the factory default.
-
-**42. Desktop Bridge** · package `desktop-bridge` · enabled · 0 settings
-
-Desktop Bridge: bridges the native capabilities of the Tauri shell, covering file selection, system theme, window title and external links.
-
-This plugin has no settings visible at the factory default.
-
-**43. Kernel Client** · package `dsh-client` · enabled · 0 settings
-
-Kernel Client: wraps JSON-RPC communication with the kernel, covering child process lifecycle management and request pairing.
-
-This plugin has no settings visible at the factory default.
-
-**44. Clock** · package `ondra-clock` · enabled · 0 settings
-
-Clock: the unified time source, with a fixed time zone, calendar-correct day boundaries and revocable timer lifetimes.
-
-This plugin has no settings visible at the factory default.
-
-**45. Identity** · package `ondra-identity` · enabled · 0 settings
-
-Identity: the single source for product name, process name, pidfile name, environment variable prefix, directory names and the log namespace root.
-
-This plugin has no settings visible at the factory default.
-
-**46. Config Source of Truth** · package `ondra-config-schema` · enabled · 0 settings
-
-Config Source of Truth: the only implementation of four-layer merging from factory through bundle and user to runtime, with per-field fallback and provenance tracking.
-
-This plugin has no settings visible at the factory default.
-
-**47. Path Layout** · package `ondra-path-layout` · enabled · 0 settings
-
-Path Layout: the single entry point for resolving the data root, creating the five area directories and tightening permissions to 0700 and 0600.
-
-This plugin has no settings visible at the factory default.
-
-**48. Model Gateway** · package `ondra-llm-gateway` · enabled · 8 settings · 1 not directly settable
-
-Model Gateway: a three-source list of online API, local and free models, priority-based routing, first-chunk and inter-chunk timeouts, pre-first-chunk retries with cross-source degradation, and usage accounting.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `timeout-ms` | Slider | 20000 | 1000 – 600000 | First-chunk timeout in milliseconds, measured from sending the request to the first chunk. A local large model may take over twenty seconds to load the first time, so raise this per source. |
-| `idle-timeout-ms` | Slider | 60000 | 1000 – 600000 | Inter-chunk timeout in milliseconds, the longest wait allowed between two chunks. The total length of a streaming reply is unpredictable, so the gap is bounded rather than the total. |
-| `max-attempts` | Slider | 2 | 1 – 5 | Maximum attempts per source including the first. A request that has already produced text is never retried, so this number only covers the time before the first chunk. |
-| `backoff-ms` | Slider | 500 | 0 – 10000 | Retry backoff base in milliseconds, growing as powers of two with symmetric jitter. |
-| `max-backoff-ms` | Slider | 8000 | 0 – 60000 | Retry backoff ceiling in milliseconds. |
-| `allow-fallback` | Switch | On | — | Whether to move on to the next source after one fails completely before producing a first chunk. |
-| `check-credential` | Switch | On | — | Whether to check that the credential reference resolves before making a request. When off, a missing key surfaces as an authentication error from upstream. |
-
-Advanced (collapsed by default, 1): `retryable-codes`
-
-Not directly settable (1): `sources` (Structured array (readonly SourceSpec[]). It needs a form with one row per entry, so a flat settings field does not fit.)
-
-**49. Chinese Log** · package `ondra-log-zh` · enabled · 0 settings
-
-Chinese Log: a two-layer log where sentences meant for people and code logs meant for developers are written separately, rotating at 4 MB across three files, with duplicate errors deduplicated to prevent write amplification.
-
-This plugin has no settings visible at the factory default.
-
-**50. Port Picker** · package `ondra-port-picker` · enabled · 9 settings
-
-Port Picker: splits the request for a port number into two intents. When a listener needs a number nobody currently holds, the system may allocate one, equivalent to port zero and the most robust option, or a fixed range from the design may be used. When the interface needs the number the host already holds, there is only the established fact of the host web server to read. Mixing the two intents hands a child process the port the host itself occupies, whose symptom is a port conflict at startup while the log claims a free port was found. It releases the port immediately after probing and the interface has no hold operation, because holding one means keeping in hand the number meant to be handed over, leaving the child unable to bind. Every allocation therefore states honestly whether a race window exists, and only reading an already-bound host port has none. It accepts loopback literals only and refuses wildcard addresses, matching the upstream stance. It never assembles URLs, since assembling addresses belongs to the bootstrap layer, which is the side that knows where the token comes from, and two copies would eventually produce two shapes. It also does not probe at load time, since binding a port when nobody needs it only wastes one slot in the kernel table. No method throws, because failing to find a port is normal and callers should not have to choose whether to wrap the call.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Port picking switch. When off, pick returns disabled while the ledger stays readable. |
-| `branch` | Segmented | system | system / fixed | system lets the kernel allocate, equivalent to port zero and the most robust choice; fixed scans within the range, useful when a whitelist or firewall needs a fixed port. |
-
-Advanced (collapsed by default, 7): `range-start`, `range-end`, `host`, `probe-timeout-ms`, `max-scan`, `ledger-ttl-ms`, `verbose`
-
-**51. Process Supervisor** · package `ondra-process-host` · enabled · 10 settings · 1 not directly settable
-
-Process Supervisor wiring layer: hands the argument vector, working directory, standard streams and grace period explicitly to the upstream subprocess service, restarts once on a crash within budget, cleans up through the provider's supervised process scope so the whole group is killed, and keeps state under the user's process host directory. It deliberately never kills on its own, because POSIX process scopes and Windows job objects are the layer that prevents a trail of orphaned grandchildren, and rebuilding a job object would be in-house work where reuse is required. It also deliberately does not outlive its parent, because a process detached from the parent's lifetime has nobody to collect it after the plugin unloads, leaving the port occupied and the pid file stale until the next start hits a conflict, and the platform rules forbid shipping anything but a plugin package with no resident background service. The pid file does only what it can: the upstream handle does not expose a pid, so it is written when available and not created otherwise, since a fake pid is far worse than a missing file when scripts read it and kill an unrelated process. Restarts carry a generation number, so a late callback from an old handle cannot misjudge the new process as crashed. Stopping reports the group kill being issued separately from silence being confirmed, because the first is a request and only the second is a fact. No method ever throws, because supervision failure is normal and callers should not have to choose whether to wrap the call.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Supervision switch. When off, start refuses outright while stop can still clean up something already running. |
-| `max-restarts` | Slider | 1 | 0 – 5 | Maximum restarts. The documented value is 1, and 0 means a crash is left alone. A second retry is worth close to nothing. |
-| `cwd` | Text | Blank | — | Default working directory. Empty means the host working directory, since upstream requires the caller to supply one and this plugin never guesses a project path. |
-
-Advanced (collapsed by default, 7): `restart-delay-ms`, `min-uptime-ms`, `grace-ms`, `stop-timeout-ms`, `write-pid-file`, `collect-bytes`, `verbose`
-
-Not directly settable (1): `state-dir` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.)
-
-**52. Window** · package `ondra-window` · enabled · 6 settings
-
-Window: consolidates the window specification and the version guard, gathering the title-bar height, draggable hot zone, traffic light geometry, centre point, three-column widths and five breakpoints into one definition, offering two branches of hidden inset with system traffic lights as the default and most robust, or hidden with custom drawing on macOS only where the coordinates have no documented source, and checking the version allow list in the shell-side patch. It creates no window, because no window service key exists upstream, the Electron shell is not here, and inventing a service key would only yield a dependency that is forever undefined. It patches nothing either, since that needs the shell main process, so the applied field in its plan is typed as the literal false, which pins the truth down in the type system and makes any attempt to change it fail compilation. The version guard is written against the named past failures: the allow list is not a minimum version but the list actually verified, and a version outside it leaves the patch unapplied, because applying wrongly is far worse than not applying, producing a misaligned title bar, traffic lights overlapping content and a drag zone covering buttons, all without any error. The expected version defaults to empty, because empty means nothing was declared verified and judging it as passing would treat silence as full verification. The self-consistency check reports three conflicting figures, the relationship between the title and drag values, a one-pixel discrepancy between two radii and a layout that does not fit, reporting all of them honestly without altering any settled value.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Window spec switch. When off, plan reports disabled while spec stays readable, since a spec is not behaviour. |
-| `branch` | Segmented | a | a / b | a gives hiddenInset with the system traffic lights and is the default and most robust; b gives hidden with custom drawing, macOS only, and its coordinates have no documented source. |
-| `platform` | Segmented | auto | auto / macos / windows / linux | auto follows the process platform. An unrecognised platform stays unrecognised rather than defaulting to macOS. |
-| `patch-target` | Text | Blank | — | Absolute path to the shell-side patch file, such as a patch-host script. Empty means it cannot be judged. |
-| `expected-versions` | Text | Blank | — | Verified Electron versions, comma or space separated, for example 33,34. Empty means it cannot be judged, and nothing is signed off on your behalf. |
-
-Advanced (collapsed by default, 1): `verbose`
-
-#### Developer Features · Life & Perception
-
-**53. Life & Routine** · package `ondra-life-rhythm` · enabled · 10 settings
-
-Life & Routine: on one side she lives her own days, with six activity classes, interest weights and tags of demanding, relaxing and creative, a ten percent chance of exploring a new interest, a preference for relaxing activities when mood is low, one weighted draw per cycle, half-life decay for interests long untouched, and notes split into long-term and temporary. On the other side sits the energy score, rising while awake, rising faster during deep sleep or late at night, with a natural ceiling, a slow decline above the full mark, a freeze during an emergency stop, integration in five-minute slices, and a waking buffer that clears once taken. There is a single clock-driven tick, no subprocess, no resident loop, and it stops on unload.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but plan always returns disabled. |
-| `activity-every-minutes` | Slider | 45 | 10 – 180 | Minimum interval between two activities, in minutes between 10 and 180. A provisional value, since the requirement only says random. |
-| `explore-rate` | Slider | 0.1 | 0 – 1 | Probability of exploring a new interest. Drawn deterministically, so it stays constant within the same time slot. |
-| `rest-start` | Text | 23:30 | — | Start of the rest period. No activity is scheduled during it; late night is for recovery only. |
-| `rest-end` | Text | 07:00 | — | End of the rest period, exclusive and allowed to cross midnight. |
-| `enable-energy` | Switch | On | — | Energy system switch. When off, only the life layer runs and the energy readout keeps returning the value from when it was closed. |
-
-Advanced (collapsed by default, 4): `interest-decay-hours`, `mood-low-threshold`, `max-notes`, `verbose`
-
-**54. Gap Pool** · package `ondra-drive-gap` · enabled · 8 settings
-
-Gap Pool: records the few things she has not worked out. Three sources generate entries, namely the model admitting it does not know, a tool search returning nothing and a request failing. Tension derives idempotently from creation time as base plus hours times rate minus relief plus added pressure from dedupe, similarity at or above 0.6 adds pressure without creating a new entry and keeps the earliest wording, and closing an entry closes similar open ones with it. Four wake conditions apply, with tension at least 80, energy above 30, idle time beyond 30 minutes and no cooldown within 60 minutes, plus an offline dream window from 02:00 to 05:00, and sleep duration only feeds gaps that already existed at that time.
-
-**The writer for the first source is `ondra-memory-intake`.** After each turn, `intake` takes her own sentences that admit uncertainty, failed searches or an inability to recall, passes the whole sentence to `detect()` and then to `open()` — at most one per turn, and only from `role=assistant`. Before that, `open()` had no caller anywhere in the repository: however complete the pool was, it had been empty since the database was created, and the symptom matches "this feature was never built" exactly.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, nothing is tracked, no wake-up is judged and no fragment is produced. The service still registers, and readers see an empty pool. |
-| `base-tension` | Slider | 40 | 0 – 100 | Starting tension of a new gap, between 0 and 100. The default of 40 with 2.5 per hour reaches the wake line in about sixteen hours, which means leaving it for a whole day. |
-| `tension-per-hour` | Slider | 2.5 | 0.1 – 20 | How many points are added per hour. The default is 2.5. Raising it only makes the same matter wake her sooner. |
-| `fragment-ttl-minutes` | Slider | 30 | 1 – 720 | How long an obsession fragment stays alive, in minutes. The default of 30 reflects that whether to raise something in one conversation stays relevant for half an hour. |
-
-Advanced (collapsed by default, 4): `max-open`, `fragment-order`, `closed-retain-days`, `verbose`
-
-#### Developer Features · Installation & Assembly
-
-**55. Installer** · package `ondra-installer` · enabled · 7 settings · 4 not directly settable
-
-Installer: a manifest-driven installer with a nine-step pipeline, a separate sha256 per component verified both before and after writing, a ledger kept in the user's bootstrap file, and a final self-check. The old project's root cause is named plainly: the manifest held hashes but there was no ledger and no self-check command, so those three are the backbone here. Ordering puts verification strictly before writing, since a hash mismatch means not one byte is written, because otherwise the target directory is already dirty and a rollback either deletes something unrecoverable or leaves bad files to explode somewhere further away on the next start. Overwriting is a separate step: a path present in the ledger means this installer put it there and an upgrade is allowed, while a same-named file at the target that is absent from the ledger belongs to somebody else and is refused by default. Bookkeeping is two-stage, recording half-installed before recording installed, so a process killed mid-copy is seen next time as needing a reinstall rather than as never installed. It rehearses by default and writes nothing, because installation is the only capability that writes the user's directories and an irreversible operation belongs after an explicit second confirmation. All paths default to empty, and being empty it honestly reports a missing manifest, source or target, since a guessed target directory would grow a runtime tree out of nowhere on the user's machine. A failed install is not rolled back automatically, since rollback belongs to the snapshot module, and archives are never extracted, because dependencies may not be added, so this plugin reports the lack of support honestly rather than pretending to unpack.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Installer switch. When off, run refuses outright while verify can still read the ledger. |
-| `dry-run` | Switch | On | — | Dry run by default: work out the nine-step conclusion without writing a single byte. Turn this off only after confirming it. |
-
-Advanced (collapsed by default, 5): `max-components`, `max-component-bytes`, `verify-after-copy`, `allow-overwrite`, `verbose`
-
-Not directly settable (4): `manifest-path` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.); `source-dir` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.); `dest-dir` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.); `ledger-path` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.)
-
-**56. Install Self-check** · package `ondra-install-doctor` · enabled · 5 settings · 1 not directly settable
-
-Install Self-check: uses ported patch parsing, entry patching and entry composition to compute the entry tree the host would actually see, reporting which bundles would be skipped and how many patch warnings arise. It answers a different question from the per-package check: that one asks whether a given package will load, while this one asks what the composed profile looks like, since a package with a correct patch of its own is not necessarily installable in its profile, and the four failures of an unregistered package, an unresolvable bundle, a missing declaration and a patch path written relative to the wrong directory all happen outside the package, all without any error, and all silently remove features. Three implementation rulings follow. Layers are applied one at a time rather than flattened, which is semantically equivalent but lets warnings name the layer, and the layer name is the reason this plugin exists. Reports are cached by content fingerprint with a thirty-second lifetime compared on read, installing no timer. And inspection never throws, folding any exception into an undetermined verdict plus one conclusion, because it is called by both the startup self-check and the interface, and throwing once would get it switched off for good. Read-only is a hard property: it changes no profile, writes no disabled marker, installs no package and runs no organ. It deliberately does not guess the profile path, because the host resolves it from an install anchor and module hoisting rules this plugin cannot see, and a hard-coded copy would inevitably drift, at which point a report saying it will install while the host skips it is worse than no report at all.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Check-up switch. Turning it off only skips the check and never affects loading. This plugin decides without ever blocking startup. |
-| `user-layer` | Switch | On | — | Whether to treat the profile's own cordis.patch.yml as the last layer. |
-
-Advanced (collapsed by default, 3): `max-file-bytes`, `verbose`, `ttl-ms`
-
-Not directly settable (1): `profile-path` (State or data file. Leaving it empty uses the built-in default; no manual entry is needed.)
-
-**57. Load Self-check** · package `ondra-startup-check` · enabled · 8 settings
-
-Load Self-check: ten items that only judge and never block startup. What it verifies is not whether the code is correct but whether it was actually installed at all. Three silent failures are listed, and none of them raises an error, affects startup or shows up in the interface. When the package manifest omits the bundle patch declaration, the host prints one line saying so and never loads it. When the patch semantics are wrong, such as an insert carrying an id but pointing at something that is not a group, or an insert with no id, the host warns once and skips it. And when the entry field or the name disagrees with the package name, the outcome is equally silent. All three share the same bad form: clean logs, a healthy process and an absent feature. The tenth item therefore ports the host's entry-patching semantics, computes the entry tree the host would see and checks whether it is in it. The port follows the source rather than a summary: the name mismatch check only applies to patch lines without an insert, the insert branch never looks at the name, an insert with an id silently turns a non-array target into an empty array, and an inserted line immediately enters the index so later patches in the same list can target it, and missing any one of these would make the check report an error against a package that actually loads. When a patch contains syntax outside the supported subset, such as embedded code tags, anchors or streaming collections, the verdict is undetermined rather than passing, because pretending to compute would produce a self-check saying it loads while the host says it does not. The first nine items are the platform's mechanical checks covering structure, manifest, build configuration, the entry contract, service key uniqueness, resolvable dependencies, no out-of-boundary imports, degradation in place and complete deliverables. Degradation in place is a heuristic and produces reminders at most, never a fatal verdict, while service key uniqueness and dependency resolution need a repository-wide index and honestly report that they are not judged when no index exists, rather than treating a single package as unique. The root defaults to empty, because a guessed scan root would run the check against the wrong directory and report everything as passing, which is worse than not checking.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Self-check switch. It only decides and never blocks startup, so turning it off skips the check without affecting any plugin load. |
-| `root` | Text | Blank | — | Parent directory holding the plugin packages, which is cordis/ in the development repository. Empty means no scan, and status reports no-root. |
-| `self-check` | Switch | On | — | Whether to run its own tenth item at startup, whether the host will load it, and log the result. It only logs and never blocks startup. |
-
-Advanced (collapsed by default, 5): `max-files`, `max-file-bytes`, `max-packages`, `host-keys`, `verbose`
-
-### 3.6 Emotion Engine
-
-This menu answers what state she is in right now. It holds 1 group, 4 plugins and 13 configurable fields, all of them directly changeable. Emotion is not the prompt line you are happy right now; it is a set of state variables that carry inertia and decay on their own. The core maintains the baseline, the relationship stage caps the upper bound of intimacy, six-state expression decides which six words describe the state, and diffusion decides how long an emotion takes to settle. The three derived plugins (conflict, stress, hormone) were removed in that trim: they overlapped with six-state expression, and enabling both made a single turn carry two descriptions of the same mood.
-
-
-#### Emotion Engine · Emotion Engine
-
-**58. Emotion Core** · package `ondra-emotion-core` · enabled · 4 settings
-
-Emotion Core: three PAD dimensions plus ten fixed labels with each label capped at 0.12, a total label weight capped at 0.6, a label half-life of 45 minutes and a mood half-life of 6 hours, six-dimension exponential regression, a chemical pool with three hormones, temperament knobs, and at most twelve dynamic hormones. A stored record missing a field is filled from the baseline of 50 rather than from zero. It produces state only and handles neither expression nor the stress multiplier.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off nothing is settled or persisted, and downstream reads the baseline state rather than an error. |
-| `tension-high-threshold` | Slider | 0.5 | 0 – 1 | Criterion for tension running high. It only answers whether a line was crossed; it is not the conflict lock. |
-
-Advanced (collapsed by default, 2): `max-settle-minutes`, `verbose-save`
-
-**59. Relationship Stage** · package `ondra-emotion-stage` · enabled · 4 settings
-
-Relationship Stage: a seven-stage relationship arc running from hostility through testing, attraction, possessiveness, dysfunction, devotion and finally settling, with four guards against jumping, namely a time gate, a step limit, monotonic increase only and the conflict lock overriding the stage to hostility, which makes the stage a ratchet. The three relationship dimensions carry half-lives, and familiarity derives from interaction count. The five-stage and six-segment views are read-only derivations, and the dysfunction and devotion stages are not shown in the default interface.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, no stage advances and no decay occurs, so the relationship stays as last settled. |
-| `idle-settle-minutes` | Slider | 15 | 1 – 10080 | How much idle time must pass before settling. Shorter gaps are skipped, which avoids a disk write every turn. |
-
-Advanced (collapsed by default, 2): `max-settle-hours`, `verbose`
-
-**60. Six-state Emotion Expression** · package `ondra-emotion-express` · enabled · 2 settings
-
-Six-state Emotion Expression: the six states of elated, soft, calm, wilted, bristling and sleepy, matching the promotional chapter exactly with no additions, removals or renaming. One decision feeds the prompt, the rhythm and the speech layers at once, and the speaking rate changes, the proactive quota adjustment, the decision not to read aloud and the sticker probability appear exactly once in the whole repository, here. It emits parameters and never text, since projected text belongs solely to emotional projection.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers but always reports the calm tier and changes no expression parameter. |
-
-Advanced (collapsed by default, 1): `verbose`
-
-**61. Emotion Diffusion** · package `ondra-emotion-diffuse` · enabled · 3 settings
-
-Emotion Diffusion: computes how much of the mood at the end of the previous session carries into this one, by the difference between mood and baseline scaled by 0.4 and damped by familiarity. It computes without writing: it hands out a target and a delta, and the write is done by the caller through the emotion core, while idempotence by boundary key plus an interval gate prevents a conversation from washing the mood out.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, no diffusion is claimed, so the mood keeps the warmth of the previous session. |
-| `min-gap-minutes` | Slider | 30 | 0 – 1440 | Interval in minutes between decisions within one session. This number was not supplied and 30 is an engineering choice that keeps a fresh boundary key each turn from washing the mood back to baseline. |
-
-Advanced (collapsed by default, 1): `verbose`
-
-
-### 3.7 Memory System
-
-This menu answers what she remembers, what she forgets, and when something comes back to her. It holds 1 group, 17 plugins and 205 configurable fields, all of them directly changeable, the largest top-level menu by setting count, all enabled at the factory default. Memory is built as a complete pipeline rather than a vector store: write turns a conversation into both raw text and facts, extraction pulls the facts out, dedupe merges and resolves conflicts, recall retrieves, recognition provides a second retrieval path, the graph holds relations, the eight pools assign tiered lifetimes, decay lets memories fade, dreaming tidies up while idle, promises and todos hold what is unfinished, the forgetting audit answers why she forgot, self-healing repairs inconsistencies, and the right to be forgotten performs real deletion.
-
-
-#### Memory System · Memory System
-
-**62. Memory Core** · package `ondra-memory-core` · enabled · 12 settings
-
-Memory Core: the two-layer tables of raw text and extracted facts, eleven baseline lifetime classes multiplied together, write scoring, four-state deletion with tombstones, archiving and sinking, and minimum-exposure candidates.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `important-salience` | Slider | 70 | 0 – 100 | Salience boundary for important. Reaching it uses the ninety-day archive window, otherwise thirty days. |
-| `archive-normal-days` | Slider | 30 | 1 – 3650 | How long an ordinary memory goes unreferenced before it sinks. It is forgotten rather than deleted, and can still be found by category. |
-| `archive-important-days` | Slider | 90 | 1 – 3650 | How long an important memory goes unreferenced before it sinks. |
-| `resurface-days` | Slider | 30 | 1 – 3650 | After how many days without being brought up a memory should surface once, as a minimum exposure. This only proposes candidates; injection decides. |
-| `max-text-chars` | Slider | 200 | 20 – 4000 | Character cap on the body. Oversized text is truncated with an issue recorded rather than rejected, since rejection would erase the memory entirely. |
-| `max-summary-chars` | Slider | 80 | 10 – 1000 | Character cap on the summary. |
-
-Advanced (collapsed by default, 6): `long-term-base-hours`, `channel-anchor-days`, `floor-weight`, `default-channel`, `max-select-rows`, `score-on-write`
-
-**63. Memory Write** · package `ondra-memory-intake` · enabled · 5 settings
-
-Memory Write: writes conversation turns into memory, putting raw text into the raw layer and then handing it to extraction to pull out facts.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | When off, the service still registers but accepts nothing, so the side panel keeps showing no memories. |
-| `extract` | Switch | On | — | When off, only the raw text is written: she remembers the conversation happened but cannot say your name. |
-| `maxConcurrent` | Slider | 1 | 1 – 4 | Extraction calls the model once per turn. Raising this makes her more responsive and costs more. |
-| `maxFacts` | Slider | 6 | 1 – 30 | Leaving it empty lets the extraction service decide, and its default collects by evidence strength. |
-| `verbose` | Switch | On | — | Whether to log one line on both acceptance and failure, which is useful when investigating why she does not remember. |
-
-**64. Memory Extraction** · package `ondra-memory-extract` · enabled · 10 settings
-
-Memory Extraction: calls a model to extract facts from conversation, with four quotation classes and verbatim comparison, a requirement that numbers carry a tool source and five levels of parse fallback. It does no deduplication and computes no lifetime.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Extraction master switch. When off, the service still registers but reports unavailable, since off and not installed must be distinguishable. |
-| `allow-group` | Switch | Off | — | Whether to extract from group chats. Off by default: not collecting group chatter is an admission red line, not a performance trade-off. |
-| `max-facts` | Slider | 8 | 1 – 64 | Maximum extractions per turn. The remainder is refused and recorded as over-limit rather than silently dropped. |
-| `max-text-chars` | Slider | 200 | 20 – 2000 | Character cap on the body. Oversized text is truncated on the same basis as the memory core rather than rejected. |
-| `max-summary-chars` | Slider | 80 | 10 – 500 | Character cap on the summary. When the model returns none, the leading characters of the body are used instead. |
-| `require-tool-for-digits` | Switch | On | — | Whether digits require TOOL coverage. When off, spoken numbers such as an age given in conversation still enter memory. |
-
-Advanced (collapsed by default, 4): `min-quote-chars`, `temperature`, `max-tokens`, `max-input-chars`
-
-**65. Memory Dedupe** · package `ondra-memory-dedupe` · enabled · 15 settings
-
-Memory Dedupe: a five-way verdict before writing, choosing add, merge, append, conflict or drop on a single measure of character bigram containment at 0.4. Merging revises rather than forgets, and the decision log explains it.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, dedupe does not apply and every write creates a new entry, which amounts to disabling deduplication. |
-| `merge-threshold` | Slider | 0.4 | 0.05 – 1 | Merge threshold on containment. Below it two texts count as different matters and a new entry is created. The documented value is 0.4. |
-| `max-candidates` | Slider | 5 | 1 – 50 | Maximum candidates brought back. The requirement is that only five or fewer candidates reach the model, which is the cost gate. |
-
-Advanced (collapsed by default, 12): `duplicate-threshold`, `append-novelty`, `append-novelty-grams`, `min-compare-chars`, `slot-coverage`, `max-slot-chars`, `candidate-pool`, `max-scan-rows`, `conflict-policy`, `log-limit`, `log-prune-batch`, `max-log-text-chars`
-
-**66. Memory Decay** · package `ondra-memory-decay` · enabled · 9 settings
-
-Memory Decay: strength is always asked of the memory core rather than recomputed, while spaced repetition and Ebbinghaus eight-tier fusion order the reviews, clarity phrasings have three tiers, and orphaned review plans are cleaned up. It decays entries only, since edges belong to the graph.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, nothing is scanned and no review is scheduled, and the memory core's strength calculation is unaffected since it never depended on this plugin. |
-| `clear-above` | Slider | 0.7 | 0.05 – 1 | Strength floor for clear. Above it no phrasing is appended at injection time. |
-| `faded-above` | Slider | 0.4 | 0.01 – 0.99 | Strength floor for faint. Below it only a shadow remains, and injection appends a note that only a faint shadow is left. |
-| `max-review-batch` | Slider | 100 | 1 – 1000 | Cap on the review list per call. Review is for a human to read, and a thousand entries at once is more than anyone finishes. |
-
-Advanced (collapsed by default, 5): `max-scan-rows`, `max-init-per-scan`, `max-interval-days`, `auto-scan`, `scan-interval-minutes`
-
-**67. Memory Graph** · package `ondra-memory-graph` · enabled · 18 settings
-
-Memory Graph: builds four kinds of edges and diffuses one hop. Same-topic edges start at 0.72 and gain 0.05 each time, co-occurrence edges start at 0.15 and gain 0.10, and absurd edges start at 0.03 and never enter retrieval; diffusion has a threshold of 0.4, a hub-degree ceiling of 40 and a ninety-day decay of one half, tracked with a decay cursor. It touches the edge table only and never writes a fact row.
-
-| Setting | Control | Default | Range | Description |
+| Top-level menu | Groups | Plugins | Fields | One-line description |
 | --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, neither edge creation nor queries work and the service registers as unavailable. |
-| `diffuse-min-weight` | Slider | 0.4 | 0 – 1 | Diffusion threshold. The documented value is 0.4, shared with the memory core's graph factor threshold. |
-| `hub-cap` | Slider | 40 | 2 – 1000 | Cap on hub degree. Edge creation and diffusion share this constant. |
+| Persona detail | 6 | 18 | 161 | Six-slot persona, fixed four-part assembly, world book, speech expression, relationship narrative, presence |
+| Voice & appearance | 2 | 4 | 48 | Speech synthesis and transcription, portrait and expression detection |
+| Developer features | 8 | 35 | 192 | Context assembly, gating and compliance, tool surface, storage fallback, care and guidance, system integration |
+| Emotion engine | 1 | 4 | 13 | See 3.2 |
+| Memory system | 1 | 17 | 205 | See 3.3 |
+| **Total** | **18** | **78** | **619** | One off by default: `ondra-vision` (reads the screen and calls an external model) |
 
-Advanced (collapsed by default, 15): `same-topic-init`, `same-topic-step`, `cooccur-init`, `cooccur-step`, `surreal-weight`, `default-init`, `default-step`, `max-rings`, `decay-days`, `decay-factor`, `prune-below`, `prune-to`, `max-edges`, `validate-endpoints`, `page-size`
+A few points worth calling out (details in `docs/PLUGINS_EN.md`):
 
-**68. Memory Eight Pools** · package `ondra-memory-pool` · enabled · 8 settings
-
-Memory Eight Pools: a three-stage day-level timeline of grace, half-life and archive, where the core pool never expires but is capped at 32 entries and the other pools run from two years down to one day, with two of them never injected. An unmatched tag is not guessed at but routed to the hippocampus and unclassified, and the same sentence written three times is escalated for manual pool assignment. It computes no strength and changes no column of the fact table.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, neither pool classification nor the timeline works and the service registers as unavailable. |
-| `core-cap` | Slider | 32 | 1 – 512 | Cap on the core pool. Reaching it refuses new entries rather than evicting, since deleting a core memory decides for the user that they should not be themselves. |
-
-Advanced (collapsed by default, 6): `escalate-after`, `hint-cap`, `preview-chars`, `allow-legacy-skill`, `due-scan-limit`, `page-size`
-
-**69. Memory Recall** · package `ondra-memory-recall` · enabled · 17 settings
-
-Memory Recall: five factors of semantic, keyword, graph, importance and recency plus rank fusion and BM25. Recall never cuts by count, and sealed memories never take part.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, recall does not work and the service registers as unavailable. |
-| `fuse` | Segmented | rrf | rrf / weighted | Fusion mode: rrf for rank fusion, the default, or weighted for a five-factor sum as documented. |
-| `graph-seeds` | Slider | 3 | 0 – 20 | Graph seed count, taking the top N literal hits as starting points for one-hop diffusion. 0 disables the graph factor. |
-| `include-archived` | Switch | Off | — | Whether sunken memories enter the candidate pool. They do not by default: sunk memories occupy no active slot even though they were never deleted. |
-| `vector-branch` | Segmented | auto | auto / off | Vector branch: auto uses vector retrieval when installed, while off forces it closed and drops the semantic factor from normalisation. |
-| `recognition-branch` | Segmented | auto | auto / off | Recognition branch: auto uses memory recognition when installed, while off forces it closed. |
-
-Advanced (collapsed by default, 11): `rrf-k`, `bm25-k1`, `bm25-b`, `bm25-half`, `rare-idf`, `rare-min-docs`, `graph-min-weight`, `index-ttl-ms`, `page-size`, `max-scan-rows`, `external-limit`
-
-**70. Memory Recognition** · package `ondra-memory-recognition` · enabled · 15 settings
-
-Memory Recognition: the recognition retrieval branch, where a full index of one trigger line per memory enters the prompt, a small model picks the slug and the walk moves through the link neighbourhood. 500 entries run about 6000 tokens, and the index block is ordered by sequence so it can serve as a prefix cache.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, this service registers as unavailable and the memory core's recognition channel leaves the fusion automatically. |
-| `max-entries` | Slider | 500 | 20 – 5000 | Maximum entries indexed. The documented value is 500 entries, roughly 6k tokens, where one Chinese character counts as about one token and four ASCII characters as about one token. |
-| `max-ring` | Slider | 2 | 0 – 3 | How many hops to walk along links. 0 disables walking. The requirement only says neighbouring hops, so this plugin supplies the count and defaults to 2, since the third hop is already down to a weight of 0.16 and mostly brings noise. |
-| `include-archived` | Switch | Off | — | Whether sunken memories enter the index. They do not by default, since something sunk should not be recognised proactively, though it can still be found by category. |
-| `pick-enabled` | Segmented | auto | auto / off | Small-model branch: auto uses the model gateway when available, while off keeps only synchronous deterministic recognition. |
-
-Advanced (collapsed by default, 10): `index-budget-tokens`, `entry-char-limit`, `triggers-per-entry`, `min-score`, `max-seeds`, `index-ttl-ms`, `page-size`, `pick-max-tokens`, `pick-temperature`, `pick-timeout-ms`
-
-**71. Vector Retrieval** · package `ondra-memory-vector` · enabled · 0 settings
-
-Vector Retrieval: the vector branch, with deterministic hash embeddings, cosine recall and inverted-file bucketing, automatically switching between literal, hybrid and vector modes at the 300 and 1000 thresholds with rank fusion. It ships disabled.
-
-This plugin has no settings visible at the factory default.
-
-**72. Memory Anthropomorphization** · package `ondra-memory-humanlike` · enabled · 13 settings
-
-Memory Anthropomorphization: three channel views of fact, gist and affect plus three paths to remembering. A fixed recall dice roll makes fainter memories easier to surface, being prompted by the thread uses a probability gate with reinforcement on a hit, and aimless association ripples outward. Strength is always asked of the memory core and diffusion always of the graph, candidates are supplied by the caller, and no retrieval is rebuilt.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, all three recall paths report unavailable, and the service still registers. |
-| `ripple-rings` | Slider | 2 | 1 – 3 | Number of ripple rings. The default of 2 reflects that one ring does not read as aimless and three rings pull the whole graph into context. |
-
-Advanced (collapsed by default, 11): `long-term-base-hours`, `permanent-base-hours`, `min-strength`, `max-strength`, `recent-skip-days`, `cue-base-probability`, `cue-overlap-weight`, `cue-strength-weight`, `min-shared-grams`, `scan-limit`, `page-size`
-
-**73. Memory Dreaming** · package `ondra-memory-dream` · enabled · 30 settings
-
-Memory Dreaming: gated dreaming, where four gates admit only facts carrying textual provenance and which is the default; light sleep consolidation, with shallow sleep after two idle minutes and deep sleep after five, mining five card types by pure rules with zero model calls; and absurd association with dream talk, whose edges never enter retrieval. The three branches are mutually exclusive and every write goes through the memory core.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. The service still registers but reports unavailable when off. |
-| `mode` | Segmented | gate | gate / lightweight / surreal | Branch selection. gate supplements only facts carrying textual provenance and is the default; lightweight produces five rule-based card types with no model call; surreal does absurd association and dream talk. Gate and surreal are mutually exclusive, so this is one enumeration rather than two switches. |
-| `max-items` | Slider | 6 | 1 – 64 | Maximum facts written per night. Candidates beyond it are refused and recorded as max-items rather than silently dropped. |
-| `max-text-chars` | Slider | 200 | 20 – 2000 | Character cap on a fact. Longer text is refused rather than truncated, since truncation destroys the correspondence between quotation and body. |
-| `card-half-life-hours` | Slider | 168 | 1 – 8760 | Half-life of a card in hours, with unused cards at 168 hours. A card that has been used restarts from the moment of use. |
-
-Advanced (collapsed by default, 25): `max-candidates`, `dream-salience`, `min-quote-chars`, `surreal-min-gap-days`, `max-surreal-per-night`, `surreal-min-shared-grams`, `card-archive-weight`, `idle-shallow-ms`, `idle-deep-ms`, `talk-min-chars`, `talk-max-chars`, `scan-limit`, `page-size`, `fact-card-days`, `fact-card-salience`, `max-fact-cards`, `temperature`, `max-tokens`, `talk-temperature`, `surreal-recent-seeds`, `tool-pitfall-streak`, `tool-playbook-repeat`, `tool-hotspot-calls`, `tool-hotspot-rate`, `tool-unresolved-fails`
-
-**74. Promises & Todos** · package `ondra-memory-prospective` · enabled · 16 settings
-
-Promises & Todos: promises lock the original wording, weigh more the closer they come, and settle as kept or broken while only suggesting a relationship delta. Promises enter memory with a long lifetime, while todos stay outside the memory chain. Extraction is pure pattern matching with no model call.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, nothing is extracted or stored and the service registers as unavailable. |
-| `extract-min-chars` | Slider | 4 | 2 – 40 | Minimum characters for extraction. The documented value of 4 reflects that within three characters a promise cannot be told apart from an offhand remark. |
-| `extract-max-chars` | Slider | 120 | 20 – 600 | Maximum characters for extraction. The documented value of 120 reflects that longer sentences are usually narrative rather than promises. |
-| `max-promises` | Slider | 20 | 1 – 200 | Cap on promises. Reaching it refuses new entries and reports the refusal rather than evicting, since deleting a promise decides for the user which matter is unimportant. |
-| `max-todos` | Slider | 3 | 1 – 20 | Cap on todos. Reaching it refuses new entries and suggests clearing first, the same discipline as the core pool cap. |
-| `todo-idle-days` | Slider | 3 | 1 – 30 | How many days an unmentioned todo may live before it expires. |
-| `expire-grace-days` | Slider | 3 | 0 – 90 | How many days past the grace period an unsettled promise takes before being converted to expired. |
-| `remind-ahead-hours` | Slider | 24 | 0 – 240 | How many hours ahead to remind. |
-| `grace-hours` | Slider | 24 | 0 – 240 | Grace period in hours. Within it a promise still counts as in time and is not treated as broken. |
-
-Advanced (collapsed by default, 7): `urgency-horizon-days`, `urgency-floor`, `soon-hours`, `promise-salience`, `promise-arousal`, `max-scan-rows`, `auto-expire`
-
-**75. Forgetting Audit** · package `ondra-memory-audit` · enabled · 9 settings
-
-Forgetting Audit: answers why she can no longer remember, giving strength, half-life, remaining time and three tiers of phrasing, alongside pins capped at eight and four deletion modes, where forgetting writes a tombstone, sealing closes an entry, sinking is natural and revision keeps the old text. It calls only the memory core's public methods and writes no column of the fact table.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, neither explanation nor deletion works and the service registers as unavailable. |
-| `pin-cap` | Slider | 8 | 1 – 64 | Cap on pins. Reaching it refuses new entries and reports the refusal rather than evicting, since pulling a pin decides for the user which matter may be forgotten. |
-| `resurface-days` | Slider | 30 | 1 – 3650 | Days for minimum exposure. This plugin only produces a candidate list; deciding what to inject belongs to prompt injection. |
-
-Advanced (collapsed by default, 6): `fading-days`, `scan-limit`, `page-size`, `pin-note-max-chars`, `preview-chars`, `auto-scan`
-
-**76. Memory Self-healing** · package `ondra-memory-heal` · enabled · 4 settings
-
-Memory Self-healing: inspects the memory library on demand for fixable problems such as orphaned edges, pins pointing at deleted memories, tombstone leaks, mutually exclusive state flags and empty summaries, sorts each into automatically fixable, advisory only or must not touch, and produces a checkable repair plan that rehearses first. It produces plans and executes item by item only, running nothing in the background, nothing automatically and guessing nothing.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. Self-healing only runs checks on demand, so when off the service still registers but reports unavailable. |
-| `check-duplicates` | Switch | On | — | Whether to also check for likely duplicates, reporting only and never merging, since merging belongs to memory dedupe. |
-
-Advanced (collapsed by default, 2): `scan-limit`, `verbose`
-
-**77. Multimodal Memory** · package `ondra-multimodal-memory` · enabled · 19 settings
-
-Multimodal Memory: stores visual descriptions and speech transcripts as ordinary memories while remembering which file they came from. Four rulings are hard-coded. First, the memory body exists in one copy, written into the memory core's fact table, and this plugin builds no second memory library; since that table has no modality or source path columns, this plugin keeps its own edge table hanging metadata off each fact id, and dropping that table would not affect retrieval or injection of any memory. Second, entries stay short while the full text is archived, because entries are capped at 200 characters while a three-minute transcript runs to thousands, so the truncated entry enters retrieval and the full text stays in the edge table, and the 800 characters cut away do not vanish. Third, the fingerprint is recomputed, because the meaning of deduplication is that one piece of content is stored once, and one piece of content must be decided by the content rather than asserted by upstream, so this plugin hashes modality, source path and text again and uses its own value while recording the degradation when they disagree, preferring one visible duplicate over one invisible missing memory. Fourth, the evidence source follows who said it: a transcript is marked as the user speaking and an image description as the tool speaking, since otherwise either the user's words would be recorded as the model's guess or a guess about an image would testify on the user's behalf. This plugin exposes no tools, installs no timer, makes no outbound request and draws no interface; frame sampling belongs to vision, transcription to speech transcription, the evidence gate to its own module, storage to the SQLite backend and the interface to the shell.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but ingest always returns disabled. |
-| `default-subject` | Text | user | — | Which subject to assume when the caller names none. The default is user, since both images and voice come from the user; group chats should pass the speaker explicitly. |
-| `max-text-chars` | Slider | 200 | 20 – 4000 | Character cap on an entry entering retrieval, where entries are capped at 200 characters and the remainder stays in the full-text column of the edge table. |
-| `dedupe` | Switch | On | — | Whether to deduplicate by content fingerprint. When off, describing the same image twice produces two memories. |
-| `respect-tombstone` | Switch | On | — | Whether to respect tombstones, so content the user asked to forget never re-enters even when the same file arrives again. |
-| `use-evidence-gate` | Switch | On | — | Whether to pass through the evidence gate. When the gate is absent the entry still lands but the degradation is recorded. |
-| `video-frames` | Slider | 4 | 1 – 12 | How many frames to sample from a video. The documented value is 4. |
-| `video-describe-frames` | Switch | On | — | Whether to ask vision for a description of each frame. When off only frame paths are stored, saving four model calls but leaving the entry with just a count of frames. |
-| `quiet` | Switch | Off | — | Whether to suppress warnings on failure. The default is false, since a failed write is invisible to the user at the time and must leave a trace. |
-| `verbose` | Switch | On | — | Whether to log a line on success as well. |
-
-Advanced (collapsed by default, 9): `default-channel`, `image-kind`, `image-category`, `audio-kind`, `audio-category`, `video-kind`, `video-category`, `max-title-chars`, `max-full-chars`
-
-**78. Right to be Forgotten** · package `ondra-forget-right` · enabled · 5 settings
-
-Right to be Forgotten: when the user asks for something to be forgotten, it counts in one pass every place that must be cleared, eleven surfaces in all, covering body text in the memory core, pins in the forgetting audit, graph edges, vectors, todos and promises, time capsules, language-feel samples, diary entries, narrative logs, decision logs and snapshots. What can be deleted is deleted with a per-surface count, and what cannot be deleted is reported honestly with the best available count of what remains. It runs in two stages: planning is read-only and produces the list, while execution must carry an explicit confirmation token. If any surface fails or a surface that should have been cleared is skipped, completeness is false, because the right to be forgotten has exactly two outcomes, fully done and not done. It connects to no data table directly, deletes no file itself, never declares the result clean on its own, never clears the line pool automatically, which would also erase what other people said, and builds no interface.
-
-| Setting | Control | Default | Range | Description |
-| --- | --- | --- | --- | --- |
-| `enable` | Switch | On | — | Master switch. When off, the service still registers, but plan and execute always throw disabled. |
-| `scan-diary` | Switch | On | — | Whether the residual scan counts diary entries. When off, that line shows not counted rather than zero. |
-| `scan-trace` | Switch | On | — | Whether the residual scan counts narrative log entries. When off, that line shows not counted rather than zero. |
+- **Four-part persona assembly**: core → relationship tuning → concentration → boundary, order fixed rather than priority-sorted; packed item by item under a character budget, the boundary layer wholly exempt from trimming, over-budget reported honestly as `overBudget` with "N more not expanded" in the segment header.
+- **Nine-step output filter chain** (`ondra-filter-chain`, 20 settings): strips repetition, narration, support-desk tone and over-explanation after the model returns. Independent of the model and of context length; each step can be disabled or tightened.
+- **Language-feel statistics** (`ondra-lexicon`): stores shape, never wording — a message is immediately reduced to sentence-length array, punctuation presence and sentence-final particle counts, with the original discarded. Uses median not mean (one pasted block of code would skew a mean).
+- **Three proactive gates**: `gate` decides whether to speak (21 settings), `quota` how many times today (9), `reason` what to say (4). Any one failing means silence.
+- **Crisis intervention grading**: five signal classes map to four bands, yielding three booleans (pause persona / offer resources / ask directly). No diagnosis, no scoring, no persistence, no hard-coded hotline numbers, no treating low mood as crisis.
+- **Three-tier storage fallback**: SQLite (WAL + STRICT + 0600) → JSONL → in-memory. Fallback is never silent; the UI shows "currently in-memory, lost on restart".
+- **Spacing grid**: all whitespace lands on multiples of 8, with 4 the only permitted half-step. `pnpm check:ui` scans every value and reports file and property for anything off-grid.
 
-Advanced (collapsed by default, 2): `clear-lexicon`, `verbose`
+---
 ## 4. Highlights
 
 All six can be reproduced and verified. Each gives the name, the value, the implementation, the difference from common approaches, and the evidence that supports it.
@@ -2023,55 +1360,15 @@ The bar is simple: **once any row above has been walked through manually on its 
 
 ## 16. Changelog
 
-> **Version numbering restarts here.** The internal beta line begins at `1.0.1-alpha`
-> and no longer continues the earlier 2.x records; the previous 2.0–2.3 entries have
-> been removed as requested. Every internal build carries the `-alpha` suffix. It means
-> **neither a public beta nor a stable release**.
->
-> Internal builds are published as ordinary GitHub releases, without the Pre-release flag.
-> That is not a promotion to stable — it is what puts the download entry in the repository
-> sidebar: GitHub's Releases block only lists the Latest release, and a Pre-release shows up
-> there merely as a line reading "N tags" that leads nowhere.
+The changelog lives on the **GitHub Releases** page; this README no longer duplicates it.
 
-### 1.0.1-alpha · first internal beta (2026-11-13)
+- All versions and per-item changes: <https://github.com/ntars/Ondra/releases>
+- Current internal beta `1.0.1-alpha`: <https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha>
 
-#### Title bar: from "one hard-coded name" to "the current persona"
+**Why releases rather than the README**: a changelog corresponds to one specific build, and the download entry, installer checksums and known issues all live in the same place; the README describes the project's current state. Mixing the two leaves readers unable to tell "how it is now" from "what changed that time". So the README covers only the present, and changes belong to releases.
 
-- The name is now the **display name of the active persona pack**, served by the host at `GET /api/personas`; it falls back to「空谷」while the host is not up yet. The pack list comes from `ondra-persona-loader` scanning `.skill.zip` archives; the factory pack is `oh-jingjing`（哦鲸鲸）.
-- The top-left avatar is **the app icon itself**: white ground, black mark, the same geometry and the same proportions as `icon.svg`. It can be replaced in Settings → Persona (centre-cropped to 96×96, stored on this machine, never uploaded) and restored to the default in one click.
-- Clicking the avatar or the name opens a **persona switcher**: factory, sample and user packs are listed, and picking one switches immediately. It goes through `POST /api/persona/activate` → `loader.setActive()`, so **the next prompt already uses the new persona** (hot swap), while `persona-loader.active-persona` is persisted so a restart keeps the same one. This is the path the persona loader always supported but which had no entry point.
-- Presence is now **derived from real conditions**, and there are three states rather than two:
+Version numbering: the internal beta line starts at `1.0.1-alpha`; the `-alpha` suffix marks an internal build and means **neither a public beta nor a stable release**.
 
-  | State | Condition |
-  | --- | --- |
-  | thinking | generating, and the path is up |
-  | online | network up + host alive (`/api/health`) + at least one model connected (`/api/models` non-empty) |
-  | offline | any of the above fails — drawn as a hollow dot, not a lie that says "online" |
-
-#### Extension drawer: 78 rows collapsed into three sections, per-package switches gone
-
-- Grouped by responsibility into **Desktop bridge (`desktop-bridge`) / Kernel client (`dsh-client`) / Capability packs (every other `ondra-*`)**. Sections collapse, and search still spans all of them.
-- All three are **core components**: lose any one and the app either cannot reach the shell, cannot reach the kernel, or "she" has nothing left. So **no per-package switch is offered and there is no way to turn one off** — a greyed-out switch still implies that the thing is optional, and it is not.
-- Packs added later need no code change: the test is the directory name, and a new pack lands in "Capability packs" automatically. The toggle capability stays in the host (`plugins.json` + `POST /api/plugins/:id/toggle`) as a diagnostic and advanced tool only; the interface exposes no entry point for it.
-
-#### Right column "profile": wired to real numbers
-
-- A new host route, `GET /api/companion/state`, merges the readings of two engines: the six axes of `ondra-emotion-core` (pleasure / arousal / dominance / mood / energy / tension) and the seven stages plus four relationship axes (affection / trust / intimacy / familiarity) of `ondra-emotion-stage`.
-- Two derivation functions that always returned empty values were deleted from the interface (`deriveMood()` always `{0,0}`, `deriveBond()` always empty). They were correct when written — the engines were not connected; once the engines were connected they became "a page that admits a gap and always keeps it".
-- The honest boundary stays: when the emotion service is absent `measured` is `false`, the interface says "not measured yet", and no bar parked at the midpoint pretends she is calm.
-
-#### Frame and title bar in one colour
-
-- The window body (the 8px frame and the four corners) now uses the same `--ui-bg-canvas` as the title bar; content sheets keep `--ui-bg-sheet`. The previous frame was one step lighter than the title bar, leaving a sandwich on all four edges that was only visible at the corners. **Only the colour changed — thickness and margins are untouched.**
-
-#### Versioning and release
-
-- The version is `1.0.1-alpha`, synchronised in seven places (four `package.json` files, `tauri.conf.json`, `Cargo.toml`, `Cargo.lock`).
-- New `pnpm version:alpha`: patch +1 (`1.0.1 → 1.0.2`), local only, no release.
-- New `pnpm version:alpha:minor`: minor +1 (`1.0.2 → 1.1.0`), commits the version files, tags `v*` and pushes; `.github/workflows/release.yml` then builds macOS (arm64 dmg) and Windows (x64 installer) and publishes a **release**. Promoting to public beta or stable is always a manual act, never part of the pipeline.
-- How the first internal build is obtained: both platforms are built in the cloud by GitHub Actions (`macos-latest` for the arm64 dmg, `windows-latest` for the x64 installer) and attached to the same release; the Windows artefact is additionally downloaded locally for archive. `pnpm run build:app` still produces an equivalent local `.dmg` into `releases/` as a fallback. Published asset names are chosen by the pipeline itself, e.g. `Ondra-1.0.1-alpha-macos-arm64.dmg` / `Ondra-1.0.1-alpha-windows-x64-setup.exe` — pure ASCII (GitHub strips non-ASCII, see trap ④) and readable enough to tell the platform and architecture at a glance.
-- **Neither package is signed or notarised** (macOS is ad-hoc signed — `codesign -dv` reports `flags=0x20002(adhoc,linker-signed)`; Windows has no code-signing certificate). Both will therefore be blocked on first launch: on macOS right-click the app → Open, or run `xattr -dr com.apple.quarantine "/Applications/空谷 Ondra.app"`; on Windows click More info → Run anyway at the SmartScreen prompt. Signing is stable-release work, not an omission in this build.
-- Six traps found while getting the cloud release green; each is explained in a comment at the place it bit, so it is not repeated: ① `sidecar` must be built first inside `pnpm run build` (type-reference order); ② launching `pnpm.cmd` without a shell fails with `EINVAL` on Node 20+ (now `node` calls the Tauri CLI directly); ③ the NSIS template must not define `.onGUIInit` (it collides with the one MUI2 generates — use `MUI_CUSTOMFUNCTION_GUIINIT`); ④ non-ASCII asset names are rewritten by GitHub, so an upload that looks for the file by its original name never finds the old asset and hits `already_exists` — the pipeline renames before uploading; ⑤ the `macos-14` label no longer gets a runner (the job is cancelled with zero steps — use `macos-latest`); ⑥ under `workflow_dispatch` the version check must not read `GITHUB_REF_NAME` (reserved variable, overriding it silently fails) — it reads `ONDRA_RELEASE_TAG` instead.
 
 ## 17. Roadmap
 
@@ -2136,6 +1433,19 @@ Please state the reproduction steps, the expected result, the actual result, and
 ### 18.4 Contributing content
 
 Persona packs, world books and scene cards are welcome. Contributors must confirm the copyright of their own content and must not include copyrighted text written by others. Material relating to memorial personas must come with authorisation evidence, otherwise it will not be merged.
+
+### 18.5 Contact
+
+| Channel | Address |
+| --- | --- |
+| QQ group | **1061684298** |
+| Website | <https://ai.ntars.cn/> |
+| Repository | <https://github.com/ntars/Ondra> |
+| Releases and changelog | <https://github.com/ntars/Ondra/releases> |
+| Issues | <https://github.com/ntars/Ondra/issues> |
+| Email | <ntars@qq.com> · <ntarsx@163.com> |
+
+During the internal beta the QQ group is the fastest channel: you can ask about the current build's actual state and hear about workarounds for known issues. Feature requests and defects should go to Issues so they stay public and traceable.
 
 ---
 
