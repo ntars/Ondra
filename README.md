@@ -10,6 +10,14 @@
 
 **[macOS 安装包 · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows 安装包 · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
 
+[![Version](https://img.shields.io/badge/version-1.0.1--alpha-fb8500)](#)
+[![Status](https://img.shields.io/badge/status-beta-8250df)](#)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows-000000?logo=apple&logoColor=white)](#)
+[![Stack](https://img.shields.io/badge/stack-Tauri%20%C2%B7%20Cordis%20%C2%B7%20dsh-24C8DB?logo=tauri&logoColor=white)](#)
+[![Plugins](https://img.shields.io/badge/plugins-75%20loadable-2ea44f)](#)
+[![Data](https://img.shields.io/badge/data-100%25%20local-8957e5)](#)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](./LICENSE)
+
 内测版 `1.0.1-alpha`——版本号末尾的 `-alpha` 就是内测标记，不是稳定版。两个包都没有签名，首次打开会被系统拦下，绕行办法见[发布说明](https://github.com/ntars/Ondra/releases/tag/v1.0.1-alpha)。
 
 | 项目 | 内容 |
