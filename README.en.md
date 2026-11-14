@@ -2,7 +2,6 @@
 
 # 空谷 Ondra
 
-[中文](./README.md) ｜ [English](./README_EN.md)
 
 **On No Sound's Depth, Resonance Arises.**
 
@@ -1202,7 +1201,7 @@ Because `doc` shares its source with the code, documentation cannot drift from a
 ```
 Ondra/
 ├── README.md                     Chinese main document
-├── README_EN.md                  Full English version
+├── README.en.md                  Full English version
 ├── NOTICE                        Third-party dependency and licence statement
 ├── LICENSE                       Full AGPL-3.0 text
 ├── package.json                  Repository metadata and scripts
