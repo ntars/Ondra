@@ -502,30 +502,146 @@ That last row means: **a broken prefix cache raises no functional error at all**
 
 ---
 
-### 3.5 Other features at a glance
+### 3.5 Remaining features, item by item
 
-The following are not expanded here; per-field defaults and ranges are in [`docs/PLUGINS_EN.md`](./docs/PLUGINS_EN.md).
+The first three sections of this chapter cover the three core mechanisms in depth. The remaining 57 plugins carry concrete responsibilities too; they are simply given less space in proportion to their importance. Each entry states **what it does** and **how it is implemented**. Per-field defaults are in [`docs/PLUGINS_EN.md`](./docs/PLUGINS_EN.md).
 
-| Top-level menu | Groups | Plugins | Fields | One-line description |
-| --- | --- | --- | --- | --- |
-| Persona detail | 6 | 18 | 161 | Six-slot persona, fixed four-part assembly, world book, speech expression, relationship narrative, presence |
-| Voice & appearance | 2 | 4 | 48 | Speech synthesis and transcription, portrait and expression detection |
-| Developer features | 8 | 35 | 192 | Context assembly, gating and compliance, tool surface, storage fallback, care and guidance, system integration |
-| Emotion engine | 1 | 4 | 13 | See 3.2 |
-| Memory system | 1 | 17 | 205 | See 3.3 |
-| **Total** | **18** | **78** | **619** | One off by default: `ondra-vision` (reads the screen and calls an external model) |
+#### 3.5.1 Persona detail (18 plugins, 161 fields)
 
-A few points worth calling out (details in `docs/PLUGINS_EN.md`):
+This group answers "who she is, how she speaks, in what role she accompanies you". The persona is split into replaceable parts rather than one hard-coded prompt.
 
-- **Four-part persona assembly**: core → relationship tuning → concentration → boundary, order fixed rather than priority-sorted; packed item by item under a character budget, the boundary layer wholly exempt from trimming, over-budget reported honestly as `overBudget` with "N more not expanded" in the segment header.
-- **Nine-step output filter chain** (`ondra-filter-chain`, 20 settings): strips repetition, narration, support-desk tone and over-explanation after the model returns. Independent of the model and of context length; each step can be disabled or tightened.
-- **Language-feel statistics** (`ondra-lexicon`): stores shape, never wording — a message is immediately reduced to sentence-length array, punctuation presence and sentence-final particle counts, with the original discarded. Uses median not mean (one pasted block of code would skew a mean).
-- **Three proactive gates**: `gate` decides whether to speak (21 settings), `quota` how many times today (9), `reason` what to say (4). Any one failing means silence.
-- **Crisis intervention grading**: five signal classes map to four bands, yielding three booleans (pause persona / offer resources / ask directly). No diagnosis, no scoring, no persistence, no hard-coded hotline numbers, no treating low mood as crisis.
-- **Three-tier storage fallback**: SQLite (WAL + STRICT + 0600) → JSONL → in-memory. Fallback is never silent; the UI shows "currently in-memory, lost on restart".
-- **Spacing grid**: all whitespace lands on multiples of 8, with 4 the only permitted half-step. `pnpm check:ui` scans every value and reports file and property for anything off-grid.
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Persona core** `persona-core` | Defines who she is | Splits `SKILL.md` into six slots (identity / speech / drive / scene / format / self-check) and five relationship variants (girlfriend / sister / daughter / friend / assistant) plus custom; changing the relationship never changes the persona |
+| **Persona assembly** `persona-assemble` | Assembles the parts into one persona | Four fixed stages: core → relationship tuning → concentration → boundary; packed item by item under a character budget, skipping and continuing when an item does not fit; the boundary layer is wholly exempt from trimming; over-budget reports `overBudget` and writes "N more not expanded" into the segment header |
+| **Persona vars and concentration** `persona-vars` | Replaces pronouns and controls speech density | Substitutes `{{user}}`/`{{char}}`/`{{relation}}` with user-supplied values (unknown or empty values are left verbatim); a 0–100 slider yields five concentration bands; concentration is never written into the core |
+| **Persona loader** `persona-loader` | Loads replaceable personas | Read-only scan of `ondra-persona-skills/*.skill.zip`, parsing `meta.json` and `SKILL.md` to register available personas; ships with Jingjing, with Xia Ningqi as a sample pack; the pack itself is never written back |
+| **Persona evolution** `persona-evolve` | Lets character drift with time spent | Numbers only, never prose: trait scores derive from "baseline + un-rolled-back delta" (bounded, reversible, explainable); thresholds move by `base × (1 + 0.6 × min(1, interactions/5000))`, capped at +60%; both `×1.00` and `0` are legal values, so neither drifting nor not-drifting raises an error |
+| **World book** `worldbook` | Supplies background knowledge | Six hard-bucketed budget layers (1600 tokens total: L1 350 / L2 180 / L3 100 / L4 500 / L5 200 / L6 150); an entry that hits the limit is dropped whole, never truncated; resident entries form a separate segment frozen as the session prefix; in-layer ordering is stable and does not shift with hit counts |
+| **Oral shaping** `oral` | Turns written language into speech | Catchphrase pool of 12–20 per persona, banded by the six states, at most twice per session; 8% incomplete sentences; punctuation habits (no closing full stop / repeated question marks for doubt / ellipsis for hesitation); particles only ever subtracted; stickers gated at a minimum 3-message interval but never sent by this plugin |
+| **Output filter** `filter-chain` | Strips nine kinds of non-speech | Nine-step chain: draft tone → AI self-disclosure → hard red lines → relationship overreach → stage overreach → narration → 4-gram repetition → support-desk tone → length fallback; strips item by item, acting only at sentence boundaries; includes anchor detection and a post-hoc review loop |
+| **Language feel** `lexicon` | Measures how the user speaks | Takes the last 300 human messages, computes median sentence length, unpunctuated rate and particle frequency, and compresses them into a 56–62 character volatile segment tagged `[语感]`; stores shape, never wording — the original text is discarded immediately |
+| **Dialogue composition** `dialogue` | Decides how context is assembled | Freezes the prefix within a session: the stable segment is assembled once and locked, volatile segments are appended at the tail, history is append-only, and compaction happens only at user-turn boundaries (see 3.4) |
+| **Dialogue protocol** `dialogue-protocol` | Defines the streaming frame format | Five frames: `text-delta` / `text-replace` / `crisis` / `usage` / `done`; end reasons are a closed set of four; cross-frame discipline (exactly one terminal frame, `usage` and `crisis` once each) and the NDJSON codec exist in exactly one place |
+| **Emotion projection** `emotion-project` | Turns emotion into one sentence | Template fixed as "behavioural instruction + one hint", forbidden from containing numbers, axis names or tag names; fragment ordering is always positive (tail) to protect the prefix cache (see 3.2.6) |
+| **Prompt injection** `prompt-inject` | Renders memory into the prompt | Eight-block assembly packed under a character budget; due reminders and pins never participate in packing (see 3.4.3) |
+| **Absence etiquette** `absence` | How to open after a long gap | Five bands (today / yesterday / a few days / a while / a long time), each giving only what must be done, what must never be done, a sentence cap, whether to acknowledge the gap and whether warmth is allowed; **no numbers at all** — "we haven't spoken in 17 days" is not care, it turns a reunion into an interrogation |
+| **First meeting** `first-meet` | How the first encounter unfolds | Five beats: arrival → self-introduction → setting boundaries → invitation → closing; each beat gives only purpose, must-do, must-not-do and a sentence cap, not one word of script; boundaries come before the invitation (state what I will not do, then ask the first question) |
+| **Rhythm** `rhythm` | How many bubbles and how long to pause | Pure function: ≤4 bubbles, ≤40 characters each, 6 characters per second, punctuation adds 300/500/150 ms, pauses 300–6000 ms (clamp first → late night ×1.6 → clamp again), first-character delay 800–2000 ms, long pause 20% × 3000–9000 ms (at most once per turn) |
+| **Typing execution** `rhythm-typing` | Runs the rhythm plan as a real timeline | First bubble "thinking", "typing" between bubbles, no fake typing during long pauses; cancellable per session; a new turn supersedes the old one in the same session; falls back to sending the whole block at once when the rhythm service is absent |
+| **Breath** `breath` | Whether to show "typing" | Maps the typing stage onto "should typing be shown right now" (not shown during an absent-minded long pause); within a quota of at most twice a day it supplies one parenthetical action (a stretch, say) |
+
+#### 3.5.2 Voice and appearance (4 plugins, 48 fields)
+
+This group handles what she sounds and looks like.
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Speech synthesis** `tts` | Text to speech | Three parallel channels: local GPT-SoVITS (api_v2), macOS `say` (zero dependencies), Edge TTS (19 voices plus 8 presets); only wiring, routing and degradation — never reimplementing a synthesis mechanism; audio goes to a content-addressed `cache/tts`; failures return reason codes rather than throwing |
+| **Voice gate** `tts-gate` | Whether this line should be spoken | Four gates: switch, 6–30 characters, emotion intensity ≥0.15 (or an emotion word this turn), 3-second rate limit; plus "force text after two consecutive voice messages"; judgement only, no speech; results carry a reason code, real character count, emotion intensity and the six-state speech rate |
+| **Transcription** `asr` | Speech to text | Local whisper first, cloud fallback; wiring only: assemble a whisper command, wait for it, read the JSON into millisecond timestamps; cloud multipart only when local is unavailable; failures are silent (no transcript means she did not hear it); never invents a speaker (whisper does no diarisation, so `diarized` is always false) |
+| **Expression decide** `expression-decide` | What her face should do as the line is said | Judges the finalised body into one of six states by cue words, punctuation and sentence shape, handing it to the portrait to change faces; inserts no markers into the body and writes no state names into the prompt; falls back to the current six-state value when the body has no cues, and to the least error-prone default when neither exists, while letting the caller see "no basis this time" |
+
+#### 3.5.3 Care and guidance (2 plugins, 7 fields)
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Crisis intervention** `crisis` | Whether this line contains a signal that must be taken seriously | Five signal classes (indirect expression / direct expression / plan / farewell / self-harm) each map to one of four bands, then a context marker pass, finally three boolean suggestions (pause persona / offer resources / ask directly); no diagnosis, no scoring, no persistence, no built-in hotline numbers, no treating low mood as crisis; hypothetical context affects wording only and never downgrades, negation and past tense lower by one band only and never to zero |
+| **Onboarding** `onboarding` | The four-stage first-run flow | A four-stage state machine: check the runtime environment → reuse an installed `.ondra` → pick a free port → open the interface with a token; each stage needs evidence to count as done, and skipping is allowed only in the single optional stage; the progress percentage is computed, never invented |
+
+#### 3.5.4 Gating and compliance (4 plugins, 34 fields)
+
+This group decides what she may do and may send. Shared discipline: **a red line that can be switched off is not a red line**, so red-line behaviour is not configurable.
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Privacy and egress** `privacy` | Whether this may be sent, to whom, with whose approval | Capability providers first `declare()` (what is sent, where, why it must leave, which environment variable is needed), then call `evaluate()` before sending; anything undeclared is refused (not allowed by default); three risk tiers are divided by "can it be undone": metadata only goes to L1 notice, images/audio/files or identifiable content to L2 confirmation, key-shaped content leaving the domain to L3 block; consent is remembered per "capability + host" and persisted; credentials are stored as variable names only, values never pass through |
+| **Capability sandbox** `sandbox` | How much this plugin may do this time | Four levels (`read` / `suggest` / `act` / `spend`) with a ticket carrying an expiry and a call cap; overreach is refused; four hard rules: deny by default (no ticket, no capability), expired tickets are invalid and must be traceable to which ticket and its exact expiry, exhausted caps are invalid, overreach attempts leave a trace |
+| **Tool gate** `organ-gate` | Which tools this turn could actually need | Keyword rules over the user's actual words compute the tool families "likely needed" and remove the rest from that agent's schema view, saving input tokens every turn; measured 48 commands 55,154 → 8,433 tokens (84.7%), with no promise of the same ratio |
+| **Proactive gate** `proactive-gate` | Whether a pending message may be sent right now | Nine gates: master switch and group-chat red line, circuit breaker and backoff, content red lines, quiet hours, daily budget, idle threshold, session cooldown, duplicate suppression, three-tier token bucket; judgement only, no sending and no timers; state persisted to `user/proactive-state.json` (0600, atomic write), because "resetting on restart = repeated harassment" |
+
+#### 3.5.5 Tool and capability surface (3 plugins, 26 fields)
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Proactive quota** `proactive-quota` | Whether she still wants to speak, and how many lines remain today | Quota tiers (slow / standard / fast), minimum interval between proactive messages, character-based silence (deterministic draw with a give-up rate), a farewell line after consecutive non-responses, and a one-tap mute entry; never judges whether a message may be sent, never recomputes quota decay |
+| **Proactive reason** `proactive-reason` | What to use as the reason to speak now | Eight candidate classes (preoccupations / due promises / emotion deviation / todos / recent events / timeline / environment / line pool) sorted by priority (lexicographic, weights compared only within a class); a 72-hour topic cooldown ensures "the same thing is mentioned once in three days"; produces reasons only, never body text |
+| **Organ host** `organ-host` | Manages loading and settlement of pluggable capabilities | Load topology, capability allowlist, energy accounting, feedback arbitration, prompt assembly, telemetry; three non-negotiable constraints: organs never write state directly (they may only propose via `feedback()`, and `flush()` accumulates per target then applies once and clamps — applying one by one would make the result depend on registration order), an organ bound by that constraint must be responsible for itself, and registration order must not affect the result |
+
+#### 3.5.6 Storage and data (5 plugins, 0 fields)
+
+This group is organised as a degradation chain: SQLite → JSONL → in-memory. All three have zero settings — degradation behaviour is not configurable, preventing a user from disabling automatic fallback and ending up with a half-broken storage layer.
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **SQLite backend** `store-sqlite` | Primary storage | WAL mode, foreign keys, STRICT table definitions, file permissions tightened to 0600 after writing; on failure it registers in a "degraded" state rather than throwing |
+| **JSON backend** `store-json` | Second-level fallback | A multi-option branch used when SQLite is unavailable or the database is corrupt; append log plus compressed atomic write; failures degrade rather than block |
+| **Memory backend** `store-memory` | Third-level fallback | Keeps the main conversation working when SQLite cannot open, and **explicitly declares itself non-persistent**; the UI shows "currently in-memory, lost on restart" |
+| **Snapshot** `snapshot` | Memory backup and restore | `VACUUM INTO` for a consistent copy, `KEEP=3` rotation, `quick_check` validation; restore requires explicit confirmation and never runs automatically |
+| **Version migration** `data-migrate` | Data format upgrades (off by default) | Registers only the `MigrationRunner` service; **the repository contains no migration scripts yet**, so it ships disabled — a migration runner with no scripts installed is a fake switch |
+| **Vision** `vision` | Image understanding, OCR, object localisation, video frame extraction (off by default) | Pluggable providers (cloud OpenAI-compatible / local Ollama / Qwen), off by default; wired to `privacy`, deferring to its three-state verdict when present and never sending to the cloud without it; failures return reason codes quietly and never fabricate content (a guessed description would become a false memory) |
+
+#### 3.5.7 Foundation and host (12 plugins, 27 fields)
+
+This layer is the ground the application stands on. Most have zero fields: they provide contracts, not knobs.
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Core assembly** `core` | Assembles all members | Declares the 75 members in an explicit list and loads them one by one with `await ctx.plugin()`, each wrapped in its own `try/catch`; failures go to `skipped` with a recorded reason |
+| **Desktop bridge** `desktop-bridge` | Bridges native capabilities from the Tauri shell | Four command families: file selection, system theme, window title, external links; mounted unconditionally outside the main load list |
+| **Kernel client** `dsh-client` | Talks to the dsh kernel | Wraps JSON-RPC 2.0: process lifecycle management and request pairing, framed as NDJSON |
+| **Clock** `clock` | A single time source | Fixed timezone, calendar-based natural-day conversion, cancellable timer lifetimes; no direct `Date.now()` anywhere else in the repository |
+| **Identity** `identity` | Single source for names and paths | Product name, process name, pidfile name, environment variable prefix, directory names and log namespace roots all come from here; no second hard-coded copy is allowed |
+| **Config schema** `config-schema` | Four-layer configuration merge | Factory → bundle → user → runtime; the only implementation of verbatim-segment fallback and provenance tracing |
+| **Path layout** `path-layout` | Data root and directory permissions | The only entry point for resolving the data root, creating five region directories and tightening to 0700/0600 |
+| **Model gateway** `llm-gateway` | Selects a model, sends requests, accounts for usage | Three-source list (online API / local / free), priority routing, first-chunk and inter-chunk timeouts, retry before the first chunk with cross-source fallback, usage accounting; keys get an existence pre-check and reference registration only, never injection |
+| **Chinese log** `log-zh` | Chinese log formatting (off by default) | The `ondra-log-zh` service key it provides has **no runtime consumer anywhere in the repository**, so installing it would be a no-op; hence disabled |
+| **Port picker** `port-picker` | Finds a usable port | Splits "get me a number" into two intents: for a listener, a port nobody is bound to (system allocation, equivalent to `--port 0`); for the UI, a port the host is already bound to (read the established fact); mixing the two intents hands a child process the port the host itself occupies |
+| **Process host** `process-host` | Manages child processes | Hands argv/cwd/stdio/grace period explicitly to upstream `ctx.subprocess`; restarts once under budget on crash; teardown goes through the provider's managed process scope (group kill); state lives in the user's `process-host` directory; deliberately never kills on its own |
+| **Window** `window` | Window specification and version guard | Collects title area 48, draggable hotspot 44, traffic lights 20/19/12, circle centre 25, three columns 272/520/300 and five breakpoints into one definition; offers branch A (`hiddenInset` with native traffic lights, the safest default) and branch B (`hidden` with custom drawing, macOS only); checks the shell-side patch version allowlist |
+
+#### 3.5.8 Life and perception (2 plugins, 18 fields)
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Life rhythm** `life-rhythm` | Lets her live her own days | On one side, activities: six activity classes, interest weights and tags (demanding / relaxing / creative), a 10% chance of exploring a new interest, relaxing types preferred when mood is low, one weighted pick per run, half-life decay for long-unused interests, notes split into long-term and temporary. On the other side, energy: +0.2/min awake, +1/min in deep sleep or late night, natural cap 60, decaying at 0.1/min above 100 when fed |
+| **Drive gap** `drive-gap` | Remembers what she has not figured out | Generated from three sources (the model admitting ignorance / a tool returning nothing / a request failing); tension derived idempotently from `created_at` (`base + hours×rate − relief + dedupe pressure`); similarity ≥0.6 adds pressure without creating a new entry and keeps the earliest wording; closing an entry also closes similar `open` entries; four wake conditions |
+
+#### 3.5.9 Install and assembly (3 plugins, 20 fields)
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Installer** `installer` | Manifest-driven installation | Nine-step pipeline, an independent `sha256` per component, verified once before and once after writing, a ledger in the user's `.ondra-bootstrap.json`, and a final `bootstrap-ok` self-check; **verification is hard-ordered before writing** (a file with a wrong hash never reaches disk) |
+| **Install doctor** `install-doctor` | Which parts would this assembly miss | Uses ported `parsePatchYaml` / `applyEntryPatches` / `composeEntries` to compute "the entry tree the host will actually see", reporting which bundles would be skipped and how many patch warnings exist |
+| **Startup check** `startup-check` | Whether it actually got installed | Ten checks that only judge and never block startup; what they verify is not "is the code correct" but "did it take effect"; three silent failures are listed: a `package.json` missing `ondra.bundle.patch` makes the host print one stderr line, with no effect on startup and nothing visible in the UI |
+
+#### 3.5.10 Remaining emotion and memory plugins
+
+The four emotion-engine plugins are expanded in 3.2 and the seventeen memory-system plugins in 3.3. The following are the ones not singled out there:
+
+| Plugin | What it does | How it is implemented |
+|---|---|---|
+| **Memory graph** `memory-graph` | Remembers which things are related | Four edge classes and 1-hop diffusion: same-topic from 0.72 rising 0.05 per hit, co-occurrence from 0.15 rising 0.10, absurd 0.03 never entering recall; diffusion threshold 0.4, hub cap 40, 90-day ×0.5 (with a `decayed_at` cursor); touches only the edge table and never writes `memory_fact` |
+| **Memory recognition** `memory-recognition` | A second retrieval path | A full index (one line of trigger words per memory) enters the prompt, a small model picks slugs, then a walk along `[[links]]` neighbourhoods; 500 entries ≈ 6k tokens; the index block is fixed in ascending `seq` order, so it can be prefix-cached |
+| **Vector retrieval** `memory-vector` | A third retrieval path (off by default) | Deterministic hash embeddings + cosine recall + IVF bucketing; two thresholds at 300/1000 auto-switch between literal / hybrid / vector modes, fused with RRF; zero settings |
+| **Multimodal memory** `multimodal-memory` | Stores image descriptions and transcripts as ordinary memories | Memory body exists in one place only (`memory_fact`); this plugin keeps no second copy; carries `modality` and `source_path` to remember provenance; image → description, speech → transcript, video → 4 frames + audio track |
+| **Right to be forgotten** `forget-right` | Counts every place to clear when the user says "forget this" | Eleven surfaces: body, pins, graph edges, vectors, todos and promises, time capsules, language-feel samples, diary, narrative log, snapshots, decision log; two stages: planning is read-only and produces the list, execution requires an explicit confirmation token; if any surface fails or a surface that should have been cleared is skipped, `completeness = false` — the right to be forgotten has exactly two outcomes, fully done and not done |
+
+#### 3.5.11 Totals
+
+| Top-level menu | Groups | Plugins | Fields |
+| --- | --- | --- | --- |
+| Persona detail | 6 | 18 | 161 |
+| Voice & appearance | 2 | 4 | 48 |
+| Developer features | 8 | 35 | 192 |
+| Emotion engine | 1 | 4 | 13 |
+| Memory system | 1 | 17 | 205 |
+| **Total** | **18** | **78** | **619** |
+
+Three ship disabled: `ondra-vision` (reads the screen and calls an external model), `ondra-data-migrate` (no migration scripts), `ondra-log-zh` (its service key has no consumer). **Every one of them has a reason; none were disabled to shorten the list.**
 
 ---
+
 ## 4. Highlights
 
 All six can be reproduced and verified. Each gives the name, the value, the implementation, the difference from common approaches, and the evidence that supports it.
