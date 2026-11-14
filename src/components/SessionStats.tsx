@@ -35,6 +35,23 @@ function formatMoment(at: number): string {
 
 /** 千分位。总字数会到五位数，不分节读起来要数位。 */
 function grouped(value: number): string {
+  /*
+   * 必须挡住非数。
+   *
+   * 起因是一次真实白屏：手机端本地实现里没有 `/api/sessions/:id/stats`
+   * 这个端点，分发层兜底返回了 `{}`。于是 `stats` 不是 `undefined`
+   * （空对象也是真值），组件走「有数据」分支，`grouped(undefined)` 在
+   * `undefined.toLocaleString()` 上抛 TypeError——React 遇到渲染期异常
+   * 会**卸载整棵树**，用户看到的是点开抽屉后一片空白，连关闭键都没了，
+   * 退不回来。
+   *
+   * 类型上这里写的是 `number`，但类型只约束编译期。宿主给什么运行时才知道，
+   * 所以每个对外来数据做算术或格式化的函数都要自己兜住。
+   *
+   * 返回「—」而不是 `0`：0 是一个有意义的读数（真的没说过话），
+   * 「—」表示「这个数没拿到」。两者混用会让用户以为会话是空的。
+   */
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
   return value.toLocaleString('zh-Hans-CN')
 }
 
@@ -93,14 +110,28 @@ export function SessionPanel({ stats, title, busy, onClearAll }: SessionPanelPro
 
   const heading = title.trim() === '' ? '新对话' : title.trim()
 
+  /*
+   * 「有没有真的拿到统计」不能用 `stats !== undefined` 判。
+   *
+   * 宿主没实现那个端点时，分发层兜底返回 `{}`——空对象是真值，于是
+   * `stats !== undefined` 成立，组件走进「有数据」分支，四个格子渲染
+   * 成 `undefined`，`grouped()` 再抛错，整棵树卸载。
+   *
+   * 判据落在「轮数是不是一个有效数字」上：它是这四个数里唯一每个会话
+   * 都必然有的（0 轮也是有效值），而其余三个在极端情况下可以缺。
+   */
+  const usable = stats !== undefined
+    && typeof stats.rounds === 'number'
+    && Number.isFinite(stats.rounds)
+
   return (
     <div className="sess">
       <div className="sess__head">
         <span className="sess__title" title={heading}>{heading}</span>
-        <span className="sess__badge">{stats === undefined ? '未开始' : '进行中'}</span>
+        <span className="sess__badge">{usable ? '进行中' : '未开始'}</span>
       </div>
 
-      {stats === undefined ? (
+      {!usable ? (
         /*
          * 空态：还没有会话。
          *
@@ -133,11 +164,16 @@ export function SessionPanel({ stats, title, busy, onClearAll }: SessionPanelPro
            * 工作区：空串表示没有绑定。
            *
            * 不显示一条猜出来的路径——找不到的东西比「未绑定」更让人焦虑。
+           * 用 `typeof` 判而不是 `=== ''`：宿主没给这个字段时它是 `undefined`，
+           * `undefined === ''` 为假，会把 `undefined` 直接渲染到屏幕上。
            */}
           <div className="sess__row">
             <span className="sess__key">工作区</span>
-            <span className="sess__path" title={stats.workspace === '' ? undefined : stats.workspace}>
-              {stats.workspace === '' ? '未绑定' : stats.workspace}
+            <span
+              className="sess__path"
+              title={typeof stats.workspace === 'string' && stats.workspace !== '' ? stats.workspace : undefined}
+            >
+              {typeof stats.workspace === 'string' && stats.workspace !== '' ? stats.workspace : '未绑定'}
             </span>
           </div>
         </>
@@ -148,7 +184,7 @@ export function SessionPanel({ stats, title, busy, onClearAll }: SessionPanelPro
           type="button"
           className="sess__clear"
           data-armed={armed ? '' : undefined}
-          disabled={busy || stats === undefined}
+          disabled={busy || !usable}
           onClick={onClearClick}
         >
           {armed ? '再次点击以清空' : '清空全部'}

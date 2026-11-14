@@ -186,8 +186,16 @@ export function ExtensionDrawer({ onConfigure }: ExtensionDrawerProps): React.JS
             还没落地（改的是开关文件），这一格是唯一提示。
           */}
           <div className="ext__totals">
-            <span>{String(data.totals.all)} 个包</span>
-            <span>{String(data.totals.loaded)} 个在跑</span>
+            {/*
+              两个数都要兜底。
+              
+              手机端本地实现曾把字段名写成 `total`/`enabled`，而界面读
+              `all`/`loaded`——`String(undefined)` 得到字符串 "undefined"，
+              屏幕上直出「undefined 个包」。它不抛错（`String()` 什么都接受），
+              所以比抛错更隐蔽：不白屏，但界面在说假话。
+            */}
+            <span>{`${String(typeof data.totals.all === 'number' ? data.totals.all : 0)} 个包`}</span>
+            <span>{`${String(typeof data.totals.loaded === 'number' ? data.totals.loaded : 0)} 个在跑`}</span>
             {pendingCount > 0 ? (
               <span className="ext__totals--pending">{`${String(pendingCount)} 个待重启`}</span>
             ) : null}

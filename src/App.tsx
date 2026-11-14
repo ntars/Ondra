@@ -97,6 +97,8 @@ function Chrome(props: {
   resting: boolean
   onOpenDrawer(): void
   onOpenInspector(): void
+  /** 手机上唯一能进设置的入口（左脊在窄屏被隐藏）。 */
+  onOpenSettings(): void
   onSwitchPersona(id: string): void
   onOpenPersonaSettings(): void
 }): React.JSX.Element {
@@ -120,6 +122,7 @@ function Chrome(props: {
         resting={props.resting}
         onOpenDrawer={props.onOpenDrawer}
         onOpenInspector={props.onOpenInspector}
+        onOpenSettings={props.onOpenSettings}
       />
     </>
   )
@@ -1119,6 +1122,7 @@ function Shell(): React.JSX.Element {
         resting={false}
         onOpenDrawer={() => { toggleDrawer('session') }}
         onOpenInspector={toggleInspector}
+        onOpenSettings={openPreferences}
         onSwitchPersona={switchPersona}
         onOpenPersonaSettings={openPersonaPage}
       />

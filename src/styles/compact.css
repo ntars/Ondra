@@ -2,11 +2,114 @@
  * 窄屏与触屏。锚点在 layout.css 的 `.shell { container-type }`。
  *
  * 断点分工：819 管骨架形态（双脊收起、顶栏登场、单列），599 管密度。
+ *
+ * ## 为什么触屏端还要单独一条「强制手机形态」
+ *
+ * 819 这条判据量的是**宽度**，而横屏手机是 844×390——宽度 844 超过断点，
+ * 于是它切回了桌面形态：`.topbar` 隐藏、`.titlebar` 登场。
+ *
+ * 但桌面 TitleBar 在手机上**不可用**：左侧红绿灯只在 macOS 渲染，
+ * Windows 菜单键只在 Windows 渲染，而安卓两者都不是。结果横屏下
+ * 左上角什么都没有，抽屉彻底没有入口。
+ *
+ * 所以「是不是手机形态」不能只看宽度。触屏设备无论横竖都该用手机形态：
+ * 横屏 844 宽时单列布局依然成立（主列本来就占满），而顶部一条 48 的
+ * 顶栏比一条用不了的自绘标题栏有用得多。
+ *
+ * 判据用 `pointer: coarse`（主指针是手指），与文件下方热区规则同一个
+ * 判据——带触屏的 Windows 笔记本主指针是鼠标，不该被当成手机。
  */
+@media (pointer: coarse) {
+  .shell {
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
 
-/* ===========================================================================
-   一、窄窗：双脊收起、顶栏登场（同一块里三件事必须同时发生）
-   =========================================================================== */
+  .titlebar {
+    display: none;
+  }
+
+  .topbar {
+    display: flex;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  /*
+   * 双脊收起。
+   *
+   * 触屏横屏下宽度可能到 1000+，但手指点不到 56px 宽的图标脊——
+   * 它太窄，且与主列争抢横向空间。抽屉与检查器改由顶栏两个按钮
+   * 全屏展开，比一个窄条好点得多。
+   */
+  .rail,
+  .spine {
+    display: none;
+  }
+
+  .drawer__panel {
+    left: 0;
+    width: min(360px, 92vw);
+  }
+
+  .drawer__tabs {
+    display: flex;
+  }
+
+  .inspector {
+    width: min(360px, 92vw);
+  }
+
+  .settings {
+    width: 100%;
+    border-left: 0;
+  }
+
+  /*
+   * 设置面板在触屏上一律「上下两段」。
+   *
+   * 这段与下面 `@container (max-width: 819px)` 里那段是同一套规则，
+   * 必须两处都有：
+   *
+   * - 竖屏手机（390）命中容器查询，也命中触屏；
+   * - **横屏手机（844×390）只命中触屏**——844 超过 819 的容器断点。
+   *
+   * 只在容器查询里写时，横屏下设置面板会退回 168 竖排导航，内容区
+   * 只剩 676 里的 508，但导航是竖向的、跟桌面一样高，在 390 的高度里
+   * 滚不动——这是实测出来的（5 个尺寸里只有横屏报红）。
+   */
+  .settings__pen {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .pref__nav {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: var(--rule) solid var(--ui-line-soft);
+    scrollbar-width: none;
+  }
+
+  .pref__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pref__nav-item {
+    flex: none;
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .settings__main {
+    min-width: 0;
+  }
+}
 
 @container shell (max-width: 819px) {
   .shell {
@@ -89,17 +192,55 @@
     border-left: 0;
   }
 
-  .pref__body {
-    grid-template-columns: 160px minmax(0, 1fr);
-  }
+  /*
+     * 手机上设置面板必须改成「上下两段」，不能保留 168 的竖排导航。
+     *
+     * 390 宽的屏上，168 的导航 + 内容区只剩 222——而内容区里还有开关、
+     * 滑杆、下拉，222 宽下几乎每一样都会换行或截断。实测 320 宽时只剩
+     * 152，连一个开关标签都放不下。
+     *
+     * 改成单列 + 导航横排滚动：导航变成一条可以左右滑的标签栏，内容
+     * 占满整个宽度。这是移动端设置页的标准形态。
+     *
+     * 选择器是 `.settings__pen`（`settings.css` 里那个 grid），不是
+     * `.pref__body`——后者在本仓不存在，曾经按那个名字写过一版规则，
+     * 从写下那天起就没生效过。
+     */
+    .settings__pen {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+    }
 
-  .pref__nav {
-    padding: 8px 8px;
-  }
+    .pref__nav {
+      display: flex;
+      flex-direction: row;
+      gap: 4px;
+      padding: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-right: 0;
+      border-bottom: var(--rule) solid var(--ui-line-soft);
+      /* 横滑不显示滚动条：手指拖动即可，条会挡住标签。 */
+      scrollbar-width: none;
+    }
 
-  .pref__content {
-    padding: 16px 16px 24px;
-  }
+    .pref__nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    /*
+     * 导航项在横排下不能是竖排那种「整行占满」的形状，否则一屏只看得见
+     * 一个分类。改成内容宽度、不换行、不收缩。
+     */
+    .pref__nav-item {
+      flex: none;
+      width: auto;
+      white-space: nowrap;
+    }
+
+    .settings__main {
+      min-width: 0;
+    }
 
   .sheet {
     padding: 32px 8px 8px;

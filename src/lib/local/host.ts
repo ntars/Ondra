@@ -250,6 +250,46 @@ async function sessionView(): Promise<unknown> {
   }
 }
 
+/**
+ * 会话统计，与桌面版 `/api/sessions/:id/stats` 对齐。
+ *
+ * ## 为什么必须有这个端点
+ *
+ * 缺它的时候，分发层兜底返回 `{}`，而界面的判据是 `stats !== undefined`
+ * ——空对象也是真值，于是组件走进「有数据」分支，`grouped(undefined)`
+ * 在 `undefined.toLocaleString()` 上抛 TypeError。React 遇到渲染期异常
+ * 会卸载整棵树：用户点开抽屉，看到的是一片空白，连关闭键都没了，
+ * **退不回来**。
+ *
+ * 所以这里不只是「补一个端点」，而是让手机端的四个读数真的有来源。
+ *
+ * ## 四个数的口径与桌面版一致
+ *
+ * | 读数 | 口径 |
+ * | --- | --- |
+ * | 轮数 | 用户消息条数 |
+ * | 开始时间 | 会话创建时间（不是首条消息时间：会话可以先建后说） |
+ * | 总字数 | 用户与助手正文合计，不含工具与系统消息 |
+ * | 已归档段数 | 手机端没有归档机制，恒为 0 |
+ */
+async function sessionStats(): Promise<unknown> {
+  const session = await store.currentSession()
+  const messages = await store.listMessages()
+  /* 只数「说过的话」。工具调用与系统注入不是对话内容。 */
+  const spoken = messages.filter((item) => item.role === 'user' || item.role === 'assistant')
+  const totalChars = spoken.reduce((sum, item) => sum + item.content.length, 0)
+  return {
+    sessionId: session.id,
+    rounds: messages.filter((item) => item.role === 'user').length,
+    startedAt: session.startedAt,
+    totalChars,
+    archivedSegments: 0,
+    messages: messages.length,
+    title: session.title,
+    workspace: '',
+  }
+}
+
 /** 情绪状态的对外形状，与桌面版 `/api/companion/state` 对齐。 */
 async function companionView(): Promise<unknown> {
   const now = Date.now()
@@ -320,6 +360,16 @@ export async function dispatch(rawPath: string, method: string, body: unknown): 
         at: item.at,
       })),
     }
+  }
+
+  /* ---- 会话统计 ----
+   *
+   * 必须排在 `/messages` 之后、`/clear` 之前？不必——三者后缀互不相同
+   * （`/stats` / `/messages` / `/clear`），`endsWith` 不会互相误匹配。
+   * 放在这里是为了与「会话」那一组挨着，读起来是一件事。
+   */
+  if (path.startsWith('/api/sessions/') && path.endsWith('/stats') && method === 'GET') {
+    return { status: 200, body: await sessionStats() }
   }
 
   /* ---- 消息删除 ---- */
@@ -435,7 +485,15 @@ export async function dispatch(rawPath: string, method: string, body: unknown): 
     return { status: 200, body: { sections: [], user: {}, totals: { sections: 0, fields: 0, unregistered: 0 } } }
   }
   if (path === '/api/plugins') {
-    return { status: 200, body: { items: [], totals: { total: 0, loaded: 0, enabled: 0 } } }
+    /*
+     * 字段名必须与桌面版契约一致：`all` / `loaded` / `pending`。
+     *
+     * 上一版这里写的是 `total` / `enabled`，而界面读的是 `data.totals.all`
+     * ——于是「扩展」抽屉里直出「undefined 个包」。类型上 `PluginList` 声明
+     * 的是 `all`，但本地实现的返回是 `unknown`（`LocalResponse.body` 不参与
+     * 类型检查），契约错位在编译期完全看不出来，只有打开那个页面才发现。
+     */
+    return { status: 200, body: { items: [], totals: { all: 0, loaded: 0, pending: 0 } } }
   }
   if (path === '/api/personas') {
     return { status: 200, body: { items: [], activeId: '' } }

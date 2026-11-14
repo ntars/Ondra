@@ -35,7 +35,7 @@
  */
 
 import { Icon } from './Icon.tsx'
-import { IconPanelLeft } from './icons.ts'
+import { IconPanelLeft, IconSettings } from './icons.ts'
 import { energyRatio, moodWord, waterColor } from '../lib/moodColor.ts'
 import { useResolvedTheme } from '../lib/useResolvedTheme.ts'
 
@@ -54,6 +54,24 @@ export interface TopBarProps {
   onOpenDrawer(): void
   /** 点状态点：展开全屏检查器。 */
   onOpenInspector(): void
+  /**
+   * 点齿轮：打开设置。
+   *
+   * ## 为什么手机上必须有这个按钮
+   *
+   * 设置的唯一入口原来是左脊（`Rail`）底部的齿轮，而窄屏与触屏下
+   * `.rail` 是 `display: none`。于是手机上：
+   *
+   * - 设置（主题、字号、模型、权限、数据、备份、知识库……）全部不可达；
+   * - `Cmd/Ctrl + ,` 是另一条路，但手机没有物理键盘。
+   *
+   * 实测过：390 宽下页面上可见的按钮只有 9 个（抽屉、侧写、发送、附件、
+   * 模型、关闭、三个页签），没有任何一个能进设置。
+   *
+   * 顶栏右侧原本只有一个状态点，加一个齿轮不挤：两侧各 44，中间标题
+   * 仍有 300 左右的空间。
+   */
+  onOpenSettings(): void
 }
 
 /**
@@ -73,6 +91,7 @@ export function TopBar({
   resting,
   onOpenDrawer,
   onOpenInspector,
+  onOpenSettings,
 }: TopBarProps): React.JSX.Element {
   const dark = useResolvedTheme() === 'dark'
   const ratio = energyRatio(energy, hasData, resting)
@@ -103,6 +122,20 @@ export function TopBar({
           aria-hidden="true"
           style={{ '--specific-water': color, opacity: hasData ? 1 : 0.3 } as React.CSSProperties}
         />
+      </button>
+
+      {/*
+        设置入口。左脊在手机上整个消失，这是唯一能进设置的地方。
+        图标用齿轮而不是「⋯」：齿轮的含义没有歧义，而省略号在移动端
+        常被理解成「更多操作」而不是「设置」。
+      */}
+      <button
+        type="button"
+        className="topbar__hit"
+        aria-label="打开设置"
+        onClick={onOpenSettings}
+      >
+        <Icon icon={IconSettings} size={20} />
       </button>
 
       {/*
