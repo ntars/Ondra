@@ -1,6 +1,6 @@
-# 空谷 Ondra
+**简体中文** | [English](README.en.md)
 
-[中文](./README.md) ｜ [English](./README_EN.md)
+# 空谷 Ondra
 
 **于无声处，听见共鸣。**
 
