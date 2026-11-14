@@ -2,7 +2,7 @@
   "name": "ondra",
   "productName": "空谷 Ondra",
   "description": "空谷 Ondra：全插件式桌面 AI 陪伴体应用",
-  "version": "1.2.0-alpha",
+  "version": "1.2.1-alpha",
   "private": true,
   "license": "AGPL-3.0",
   "author": {
@@ -88,7 +88,9 @@
     "check:e2e-mobile": "node tools/check-e2e-mobile.mjs",
     "check:mobile-drawer": "node tools/check-mobile-drawer.mjs",
     "check:local-parity": "node tools/check-local-parity.mjs",
-    "build:mobile": "ONDRA_LOCAL=1 pnpm --filter @ondra/web run build:mobile"
+    "build:mobile": "ONDRA_LOCAL=1 pnpm --filter @ondra/web run build:mobile",
+    "check:flows": "node tools/check-flows.mjs",
+    "check:stability": "node tools/check-stability.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.4"
