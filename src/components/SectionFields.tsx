@@ -23,7 +23,6 @@
  * 不复制。
  */
 
-import { useState } from 'react'
 import type { SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
 import { SectionBlock } from './ModuleLayer.tsx'
@@ -62,57 +61,64 @@ export function SectionFields({
   label = '更多设置',
   developerMode = false,
 }: SectionFieldsProps): React.JSX.Element | null {
-  const [open, setOpen] = useState(false)
-
+  /*
+   * ## 为什么取消了折叠
+   *
+   * 上一版这里是一个「更多设置 12 项」的折叠头，点了才铺开字段。当时的
+   * 理由是「`tts` 18 项、`filter-chain` 20 项，全铺开会把一页撑成长卷」。
+   *
+   * 但那个理由站不住：这一层存在的意义就是「在这一页把这件事调完」。
+   * 折起来之后，用户看到一张卡只有一个开关，想调「语速」得先点一次
+   * 「更多设置」——**多一次点击，且那一次点击不告诉他里面有什么**。
+   * 用户的反馈是「应该是直达，而非用户点击展开后才能设置」。
+   *
+   * 长卷的问题用别的方式解决：字段按「常用在前」排（`FIELD_SPECS` 的
+   * 声明顺序已经是这个顺序），且高级字段默认仍被 `advancedOnly` 挡住。
+   * 真正需要深调的人才看得到那 20 项，而他们本来就要往下翻。
+   */
   if (section === undefined) return null
 
   const changedCount = Object.keys(user[section.id] ?? {}).length
   const visible = developerMode ? section.fields : section.fields.filter((field) => !field.advancedOnly)
-  /* 只有 `enable` 一个可见字段时不给折叠区：那一项卡片上已经有开关了。 */
+  /* 只有 `enable` 一个可见字段时不给字段区：那一项卡片上已经有开关了。 */
   const rest = visible.filter((field) => field.key !== 'enable')
   if (rest.length === 0) return null
 
   return (
     <div className="sec-fields">
-      <button
-        type="button"
-        className="sec-fields__toggle"
-        aria-expanded={open}
-        onClick={() => { setOpen(!open) }}
-      >
-        <span className="sec-fields__label">
-          {open ? '收起' : label}
-        </span>
+      {/*
+        保留一行摘要，但不再是按钮——它只说明「这一段有几项、改过几项」。
+        没有可点的东西就不该长得像按钮：上一版的折叠头有 hover 变色，
+        取消折叠后若留着那套样式，用户会去点一个没反应的东西。
+      */}
+      <p className="sec-fields__label">
+        {label}
         <span className="sec-fields__count">
           {rest.length} 项
           {changedCount > 0 ? ` · 已改 ${String(changedCount)}` : ''}
         </span>
-      </button>
+      </p>
 
-      {open ? (
-        <div className="sec-fields__body">
-          {/*
-            复用模块层的段块，但只取它的字段区。
-            传 `expanded` 恒为 true：外层已经是折叠态，内层再折一次
-            会得到两层展开按钮。
+      <div className="sec-fields__body">
+        {/*
+          复用模块层的段块，但只取它的字段区。
 
-            `omitKeys` 排除 `enable`：卡片上已经有一个开关写着同一件事。
-            不排除的话，展开后第一行又是一个「总开关」，两个开关控同一个
-            字段——用户会以为其中一个是「这一组的开关」而另一个是「总开关」，
-            然后发现拨动任何一个另一个也跟着变。
-          */}
-          <SectionBlock
-            section={section}
-            user={user}
-            onWrite={onWrite}
-            expanded
-            onToggle={() => {}}
-            developerMode={developerMode}
-            chrome="fields"
-            omitKeys={OMIT}
-          />
-        </div>
-      ) : null}
+          `omitKeys` 排除 `enable`：卡片上已经有一个开关写着同一件事。
+          不排除的话，第一行又是一个「总开关」，两个开关控同一个
+          字段——用户会以为其中一个是「这一组的开关」而另一个是「总开关」，
+          然后发现拨动任何一个另一个也跟着变。
+        */}
+        <SectionBlock
+          section={section}
+          user={user}
+          onWrite={onWrite}
+          expanded
+          onToggle={() => {}}
+          developerMode={developerMode}
+          chrome="fields"
+          omitKeys={OMIT}
+        />
+      </div>
     </div>
   )
 }

@@ -3762,8 +3762,8 @@ async function run() {
       segments: document.querySelectorAll('.scene__segment').length,
       switches: document.querySelectorAll('.scene__switch').length,
       times: document.querySelectorAll('.scene__time-input').length,
-      changed: texts.filter((text) => text.includes('已改')).length,
-      unchanged: texts.filter((text) => text.includes('默认') && !text.includes('已改')).length,
+      changed: texts.filter((text) => text.includes('恢复默认')).length,
+      unchanged: texts.filter((text) => !text.includes('恢复默认')).length,
       head: document.querySelector('.settings__title')?.textContent ?? '',
       foot: document.querySelector('.settings__foot')?.textContent ?? '',
       /*
@@ -3841,10 +3841,16 @@ async function run() {
 
   /*
    * 用户层只覆盖一项（`memory-core.archive-normal-days`），而它在
-   * **人物设定**页的场景项里——所以这一页恰好一行标着「已改」。
+   * **人物设定**页的场景项里——所以这一页恰好一行有「恢复默认」。
+   *
+   * 判据从「已改」改成「恢复默认」：上一版每行都写 `5 · 默认 3 · 已改`，
+   * 把当前值与默认值并排摊开。控制件本身已经显示了当前值（滑杆填充、
+   * 开关开合、分段选中），再写一遍是重复；默认值则是用户不需要知道、
+   * 但会拿来比较的内部状态。现在只留一个「恢复默认」按钮，且只在
+   * 改过时出现——按钮的存在本身就承载了「这一项改过」这个信息。
    */
-  same('设置·恰有一项标记为已改', scene.changed, 1)
-  truthy('设置·未改项也显示默认值', scene.unchanged >= 5)
+  same('设置·恰有一项可恢复默认', scene.changed, 1)
+  truthy('设置·未改项不显示恢复默认', scene.unchanged >= 5)
 
   /*
    * 底部统计只存在于「扩展功能」页——它是那一页的页脚，报「N 个配置段 /
@@ -5385,11 +5391,26 @@ async function run() {
   same('通用页嵌入了全部归它的主动发言段', 0, generalMissing.length)
   if (generalMissing.length > 0) console.log(`    通用页缺少：${generalMissing.join('、')}`)
 
-  /* 原始层不能给已上移的段留一个点了会空结果的跳转按钮。 */
-  const rawSrc = await readSrc('components/RawLayer.tsx')
+  /*
+   * 「原始」层已删除（见 `SettingsPlugins.tsx` 的 TABS 注释）。
+   *
+   * 它是一张 1116 行的只读表，页面自己写着「改值请回模块层」——用户
+   * 点进去什么都改不了，还得再回去。留着它只有一个效果：让这个入口
+   * 看起来有三层，而其中一层是死胡同。
+   *
+   * 这条断言改成守「它不会回来」：源码里不该再出现 RawLayer 的引用，
+   * 页签也不该有三项。删掉的东西最容易在合并时被带回来，而带回来时
+   * 不会有任何测试报错——除非有一条断言专门盯着它不在。
+   */
+  const plugSrc = await readSrc('components/SettingsPlugins.tsx')
   truthy(
-    '原始层对已上移的段不给跳转（否则点了搜不到）',
-    /isDedicated\(row\.section\.id\)/.test(rawSrc),
+    '扩展功能不再引用已删除的原始层',
+    !/RawLayer/.test(plugSrc),
+  )
+  truthy(
+    '扩展功能的页签只剩两层（场景/模块）',
+    /const TABS = \[\s*\{ key: 'scene'[\s\S]*?\{ key: 'module'[\s\S]*?\] as const/.test(plugSrc)
+      && !/key: 'raw'/.test(plugSrc),
   )
 
   /*
@@ -5926,8 +5947,8 @@ async function run() {
     cards: document.querySelectorAll('.scene__item').length,
     foot: document.querySelector('.settings__foot')?.textContent ?? '',
   }))
-  same('扩展功能页三层齐全', '场景/模块/原始', set_plugins.tabs)
-  same('三层是 tablist', 'tablist', set_plugins.tabRole)
+  same('扩展功能页两层齐全', '场景/模块', set_plugins.tabs)
+  same('两层是 tablist', 'tablist', set_plugins.tabRole)
   truthy(`场景层渲染出旋钮（${String(set_plugins.cards)} 个）`, set_plugins.cards > 0)
   truthy('统计条给出段数与字段数', /个配置段/.test(set_plugins.foot))
   await setPage.screenshot({ path: join(OUT, 'settings-set_plugins.png') })

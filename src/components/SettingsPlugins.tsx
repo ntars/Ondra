@@ -17,17 +17,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SceneLayer } from './SceneLayer.tsx'
 import { ModuleLayer } from './ModuleLayer.tsx'
-import { RawLayer } from './RawLayer.tsx'
 import { getSettings, saveSetting } from '../lib/settings.ts'
 import { usePreferences, setPreferences } from '../lib/preferences.ts'
 import type { SettingsSection } from '../lib/settingTypes.ts'
 import type { SceneValues } from '../lib/scenes.ts'
 
-/** 三层的名字。顺序即渲染顺序：浅 → 深。 */
+/**
+ * 两层的名字。顺序即渲染顺序：浅 → 深。
+ *
+ * ## 为什么删掉了原来的第三层「原始」
+ *
+ * 那一层是一张 1116 行的只读表（类型 / 默认值 / 来源段），页面自己写着
+ * 「这一层只读。改值请回模块层——那里有对应的控件与校验」。
+ *
+ * 换句话说：用户点进去看得到一切，但什么都改不了，还得再回模块层。
+ * 它服务的是「排查配置为什么不对」，而那个场景在开发者模式下由模块层
+ * 的字段说明就能覆盖（每行都有 `doc` 与段 id）。留着它只有一个效果：
+ * 让「扩展功能」这个入口看起来有三层，而其中一层是死胡同。
+ *
+ * 用户的反馈是「多余和重复」——这一层就是那个多余。
+ */
 const TABS = [
   { key: 'scene', label: '场景' },
   { key: 'module', label: '模块' },
-  { key: 'raw', label: '原始' },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -259,6 +271,14 @@ export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React
                * 到扩展功能又看见一个同名滑杆，会以为改错了地方。
                *
                * 判据与模块层同源（`isDedicated`），不另写一张表。
+               *
+               * ## 现在只剩两项，为什么还留着这个页签
+               *
+               * 这两项（上下文长度、高风险操作）没有专门的归属页：前者
+               * 属于对话编排，后者属于权限，而权限在「通用」里只有一档
+               * 粗粒度的开关，改不到「全部确认 / 仅高风险 / 不确认」这个
+               * 细分。把它们放进模块层也能找到，但那需要用户先知道它们
+               * 属于哪个段——而这两个恰恰是最常调的两项。
                */
               <SceneLayer
                 sections={sections}
@@ -276,19 +296,6 @@ export function SettingsPlugins({ initialSection }: SettingsPluginsProps): React
                 query={query}
                 onQueryChange={setQuery}
                 developerMode={preferences.developerMode}
-              />
-            ) : null}
-
-            {tab === 'raw' ? (
-              <RawLayer
-                sections={sections}
-                user={user}
-                onJump={(sectionId) => {
-                  // 切到模块层并把搜索框填成段 id：模块层按段 id 过滤，
-                  // 跳过去正好只剩那一段。比"只切层不定位"少一次手动搜索。
-                  setQuery(sectionId)
-                  setTab('module')
-                }}
               />
             ) : null}
           </>

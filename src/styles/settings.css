@@ -642,6 +642,37 @@
 }
 
 /*
+ * 「恢复默认」按钮。
+ *
+ * 它只在**改过**这一项时出现，所以不需要常驻一排骨按钮——出现本身就
+ * 是「这一项被你改过」的信号。
+ *
+ * 做成文字级而不是 `.button`：恢复默认是一个**退让**动作，它把用户
+ * 刚做的修改撤掉。给它和「保存」一样的重量会让误点变得昂贵。
+ * 悬停时才显出强调色，说明它是可点的。
+ */
+.scene__restore {
+  padding: 0;
+  font-size: var(--text-micro);
+  color: var(--ui-ink-3);
+  text-decoration: underline;
+  text-decoration-color: var(--ui-line);
+  text-underline-offset: 3px;
+  transition: color var(--motion-f) var(--ease-fluid);
+}
+
+.scene__restore:hover {
+  color: var(--ui-ink);
+  text-decoration-color: currentColor;
+}
+
+.scene__restore:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/*
  * 三层的容器。
  *
  * ## 这不是空规则：它修的是搜索框撑不满

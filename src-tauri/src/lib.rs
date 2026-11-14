@@ -411,6 +411,40 @@ fn desktop_run_event(app_handle: &AppHandle, event: RunEvent) {
         }
     }
 
+    /*
+     * 点 Dock 图标 = 「把我叫回来」。
+     *
+     * ## 不加这一段会发生什么
+     *
+     * macOS 的最小化（黄键）把窗口收进 Dock，而 `tauri.conf.json` 里
+     * 窗口关闭走的是「隐藏到托盘」。两条路都会让窗口「不见了」，用户
+     * 的本能反应是点 Dock 图标——这是 macOS 上「叫回一个应用」的
+     * 标准手势。
+     *
+     * 但 Tauri **不会**自动把窗口 show 出来：`Reopen` 事件交给我们，
+     * 我们什么都不做，窗口就一直是收起的。用户看到的是「点了图标，
+     * 图标跳了一下，窗口没出来」——反复点十次也一样。
+     *
+     * 这个缺陷在桌面三端里只有 mac 有：Windows 与 Linux 点任务栏是
+     * 系统的窗口管理动作，不需要应用参与。
+     *
+     * ## 为什么调 `window::reveal` 而不是只 `show()`
+     *
+     * `show()` 对最小化的窗口无效——它已经是「显示」状态，只是被
+     * 收起了。`reveal()` 里 show → unminimize → set_focus 三件都做，
+     * 且顺带广播 `window-visibility`，让前端知道她又回到前台了
+     * （系统通知的判据读这个）。
+     *
+     * `has_visible_windows` 为 false 才需要救——用户只是切了 Space
+     * 或者窗口本来就在前台时，多一次 show/focus 会让窗口抢焦点。
+     */
+    #[cfg(target_os = "macos")]
+    if let RunEvent::Reopen { has_visible_windows, .. } = event {
+        if !has_visible_windows {
+            window::reveal(app_handle);
+        }
+    }
+
     if let RunEvent::ExitRequested { .. } = event {
         /*
          * 退出前必须收掉宿主与它拉起的整组进程，否则会留下孤儿。

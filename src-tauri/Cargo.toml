@@ -1,6 +1,6 @@
 [package]
 name = "ondra"
-version = "1.1.8-alpha"
+version = "1.2.0-alpha"
 description = "空谷 Ondra：全插件式桌面 AI 陪伴体应用"
 authors = ["Ntarstudio（星玖工作室）"]
 edition = "2024"

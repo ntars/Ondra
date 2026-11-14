@@ -56,36 +56,41 @@ export interface SceneLayerProps {
   only?: ReadonlySet<string>
 }
 
-/** 把一个值写成用户看得懂的一小段文字。 */
-function formatValue(value: unknown, kind: string | undefined): string {
-  if (value === undefined) return '未设置'
-  if (typeof value === 'boolean') return value ? '开' : '关'
-  if (typeof value === 'number') return String(value)
-  if (typeof value === 'string') return value === '' ? '空' : value
-  // json / 数组：不在这里展开，交给模块层。展开成一行只会是一串括号。
-  return kind === 'json' ? '（见模块层）' : '—'
-}
-
 /**
- * 元数据行的文案：当前值 · 默认值 · 是否已改。
+ * 「已改」标记 + 恢复默认。
  *
- * ## 为什么这里不再显示段 id（本轮修正）
+ * ## 为什么不再显示「当前值 · 默认值」
  *
- * 上一版在这行后面接一个 `memory-core`。理由是「用户报问题时说目录名、
- * 配置里存段 id，两句话要对得上」——那是**排查者**的需求，不是使用者的。
+ * 上一版这行是 `metaLine()`，写成 `5 · 默认 3 · 已改`。它把三个数字
+ * 并排摆出来，而这一层的控制件（滑杆、开关、分段）**已经显示了当前值**
+ * ——滑杆的填充比例、开关的开合、分段的选中项，都是当前值的视觉表达。
+ * 再写一遍数字是重复；再补一个默认值，则是把「用户不需要知道、但会
+ * 拿来比较」的内部状态摊在眼前。
  *
- * 「场景」这一层存在的意义正是：把 1116 个字段收成 13 个能用日常语言
- * 说清楚的选择。在这一层里出现 `memory-core`、`proactive-quota` 这样的
- * 内部标识，等于把刚收起来的东西又漏回用户眼前——界面会同时说两种话，
- * 而说内部标识的那一句会让人怀疑「我是不是用错地方了」。
+ * 用户的反馈很直接：**原始数值无需展示，给一个恢复默认就行**。
  *
- * 段 id 没有消失：`模块` 与 `原始` 两层逐段列出它，排查时去那里看。
- * 一层只说一种话。
+ * 所以这里只保留两件事：
+ * - 改过 → 显示一个「恢复默认」按钮（没改过时不显示，避免一排灰按钮）；
+ * - 没改过 → 什么都不显示（空 `<p>` 会占一行高度，所以整行条件渲染）。
+ *
+ * 「改过」这个状态本身仍要说出来——它是用户唯一需要知道的事，且
+ * 按钮的存在本身就承载了这个信息（有按钮 = 改过）。
  */
-function metaLine(state: SceneState): string {
-  const current = formatValue(state.value, state.field?.kind)
-  const fallback = formatValue(state.fallback, state.field?.kind)
-  return `${current} · 默认 ${fallback}${state.changed ? ' · 已改' : ''}`
+function RestoreRow({
+  state,
+  onRestore,
+}: {
+  state: SceneState
+  onRestore(): void
+}): React.JSX.Element | null {
+  if (!state.changed) return null
+  return (
+    <p className="scene__meta">
+      <button type="button" className="scene__restore" onClick={onRestore}>
+        恢复默认
+      </button>
+    </p>
+  )
 }
 
 /** 数字滑杆 + 可选锚点。 */
@@ -503,7 +508,26 @@ export function SceneLayer({
               {item.hint === undefined ? null : <p className="scene__hint">{item.hint}</p>}
               {missing
                 ? <p className="scene__hint scene__hint--warn">这个插件没有装载，改不了它的参数</p>
-                : <p className="scene__meta">{metaLine(state)}</p>}
+                : (
+                  <RestoreRow
+                    state={state}
+                    onRestore={() => {
+                      /*
+                       * 恢复默认 = 把值写回插件声明的 `default`。
+                       *
+                       * 不删用户层那条覆盖记录，而是**写一个等于默认值的新值**：
+                       * 写入接口只有「设成某个值」这一个动作，没有「删掉覆盖」
+                       * ——后者要让宿主与内核都理解「这个键不存在」，牵扯到
+                       * 四层合并的语义。写回默认值在观感上等价（界面显示的就是
+                       * 默认值），代价只是配置里多一条与默认相同的记录。
+                       *
+                       * 区间项（作息）要连终点一起恢复，否则只恢复了起点，
+                       * 区间会变成「默认起点 + 用户终点」这种半恢复状态。
+                       */
+                      commit(state.fallback, state.endField?.default)
+                    }}
+                  />
+                )}
 
               <PreviewBlock item={item} values={values} revealed={touched.has(item.id)} />
             </li>
