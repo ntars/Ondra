@@ -1321,28 +1321,59 @@ function Shell(): React.JSX.Element {
         首次关闭的解释框（§2.7）。
         §12.10 要求「关闭 = 隐藏到托盘」，而 Windows 用户默认认为关闭
         即退出——两个预期冲突，只能当场解释一次，并让他记住选择。
+
+        ## 为什么必须有一个「取消」
+
+        这个框原先只有两个按钮：「退出应用」（放在取消位）与「隐藏到托盘」。
+        想「改主意、不关了」的用户没有可点的出口——只有 Esc 与点遮罩，
+        而这两个都不在界面上，不可发现。更糟的是「退出应用」正好坐在
+        用户习惯点「取消」的位置上，一点就是不可逆的退出。
+
+        所以这里给三个出口，且**把「取消」放在最左**（即原先
+        「退出应用」的位置）：
+        - 取消 → 关掉这个框，窗口保持原样，什么都不会发生
+        - 退出应用 → 真正退出（不可逆，所以用 `danger` 语气）
+        - 隐藏到托盘 → 主按钮，默认焦点所在
+
+        `onCancel` 与 `onDismiss` 走同一件事：对这个框来说，
+        「按 Esc」和「点取消」都是「我还没想好」，不该有任何副作用。
+        原先 `onCancel` 绑的是 `resolveClose('quit')`，把取消键变成了
+        退出键——那正是误操作的来源。
       */}
       {closing ? (
         <Dialog
           title="关闭窗口后，应用仍在后台运行"
           confirmLabel="隐藏到托盘"
-          cancelLabel="退出应用"
+          cancelLabel="取消"
           onConfirm={() => { resolveClose('hide') }}
-          onCancel={() => { resolveClose('quit') }}
-          /* Esc 与点遮罩 = 「先别关」，不是「退出应用」。 */
+          onCancel={() => { setClosing(false) }}
           onDismiss={() => { setClosing(false) }}
           extra={
-            <label className="dialog__check">
-              <input
-                type="checkbox"
-                checked={rememberClose}
-                onChange={(event) => { setRememberClose(event.target.checked) }}
-              />
-              记住此选择，以后不再询问
-            </label>
+            <>
+              <label className="dialog__check">
+                <input
+                  type="checkbox"
+                  checked={rememberClose}
+                  onChange={(event) => { setRememberClose(event.target.checked) }}
+                />
+                记住此选择，以后不再询问
+              </label>
+              {/*
+                「退出应用」单独放在勾选框下方，不挤进按钮行。
+                理由：它不是这个框的主问题（主问题是「关窗等于隐藏」），
+                摆进按钮行会与「取消」争夺同一块视觉位置。
+              */}
+              <button
+                type="button"
+                className="dialog__quit"
+                onClick={() => { resolveClose('quit') }}
+              >
+                退出应用
+              </button>
+            </>
           }
         >
-          空谷将继续驻留于菜单栏托盘：点击托盘图标即可恢复窗口。如需完全退出，请选择「退出应用」，或在托盘菜单中选择「退出」。
+          空谷将继续驻留于菜单栏托盘：点击托盘图标即可恢复窗口。如需完全退出，请点下方「退出应用」，或在托盘菜单中选择「退出」。
         </Dialog>
       ) : null}
     </div>

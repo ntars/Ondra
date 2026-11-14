@@ -1,6 +1,6 @@
 {
   "name": "@ondra/cordis-host",
-  "version": "1.1.6-alpha",
+  "version": "1.1.7-alpha",
   "private": true,
   "description": "Cordis 宿主：建立上下文、装配空谷核心与基础插件、提供本地 HTTP 接口，并把就绪状态报告给 Tauri 壳。",
   "type": "module",

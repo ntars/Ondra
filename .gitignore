@@ -72,3 +72,15 @@ src-tauri/runtime/
 # 开发期界面截图（`tools/shot.mjs` 的输出，880 KB）。
 # 没有被任何文档引用，随界面改版即过时，不入库。
 .shots/
+
+# 签名凭据。**永远不要入库。**
+#
+# `.jks` 是安卓发布身份的私钥容器：拿到它 + 密码就能签出「看起来是官方」的包，
+# 也能给已安装用户推升级包。它只该存在于两处：GitHub Secrets（CI 用）与
+# 本地安全备份。
+#
+# 加这条是因为踩过：生成 keystore 时用 `git add -A` 把 `docs/xxx.jks`
+# 一起带进了暂存区。那次侥幸没提交，但下一次不会有这么好的运气。
+*.jks
+*.keystore
+keystore.properties

@@ -1426,6 +1426,55 @@ async function checkStaticSpecs() {
     problems.push('base.css 没有把 html 的 font-size 设为 100%')
   }
 
+  /*
+   * 每个对话框都必须有「取消」出口。
+   *
+   * ## 这条守的是什么
+   *
+   * 关窗确认框曾经只有「退出应用」与「隐藏到托盘」两个按钮，没有取消。
+   * 想「改主意、先别关」的用户没有可点的东西——只有 Esc 与点遮罩，
+   * 两者都不在界面上，不可发现。更糟的是「退出应用」正好坐在用户
+   * 习惯点「取消」的位置上，一点就是不可逆的退出。
+   *
+   * ## 为什么扫源码而不是点按钮
+   *
+   * 浏览器测试只能验「当前渲染出来的那一个」对话框。项目里有四个调用点，
+   * 而且以后会加新的——漏掉 `cancelLabel` 不会报错，只是少一个按钮，
+   * 属于「静默退化」。只有扫全部调用点才能拦住。
+   *
+   * ## 判据
+   *
+   * `<Dialog ...>` 开标签里必须出现 `cancelLabel=`，且不能是空字符串。
+   * `Dialog` 组件本身允许省略（`cancelLabel === undefined` 时只渲染主按钮），
+   * 那是给「纯告知、只有一个确定」的场景留的——但本应用目前没有这种场景，
+   * 所以宁可让断言严格。
+   */
+  const componentDir = new URL('../src/', import.meta.url).pathname
+  const scanTargets = []
+  for (const sub of ['', 'components/']) {
+    let entries = []
+    try {
+      entries = await readdir(join(componentDir, sub))
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      if (name.endsWith('.tsx')) scanTargets.push(join(componentDir, sub, name))
+    }
+  }
+  for (const file of scanTargets) {
+    const text = await read(file)
+    /* 逐个 `<Dialog` 开标签取出属性段（到第一个 `>` 为止）。 */
+    for (const m of text.matchAll(/<Dialog\b([\s\S]*?)>/g)) {
+      const attrs = m[1]
+      if (!/cancelLabel\s*=/.test(attrs)) {
+        problems.push(`${short(file)} 有一处 <Dialog> 没给 cancelLabel（对话框必须有取消出口）`)
+      } else if (/cancelLabel\s*=\s*(?:''|""|undefined)/.test(attrs)) {
+        problems.push(`${short(file)} 的 <Dialog> cancelLabel 是空值（等于没有取消）`)
+      }
+    }
+  }
+
   console.log('\n静态规格：')
   if (problems.length === 0) {
     console.log('  ✓ 组件无越层令牌引用、两段辅助功能降级就位、字号全为 rem 且基准 100%')

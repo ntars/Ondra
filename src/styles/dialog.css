@@ -142,6 +142,42 @@
   margin-top: 16px;
 }
 
+/*
+ * 「退出应用」——关窗确认框里的不可逆出口。
+ *
+ * ## 为什么它不是 `.button`
+ *
+ * 按钮行里已经有「取消」与「隐藏到托盘」两个 `button` 级别的选项。
+ * 退出如果也做成同样重的一块，三个按钮并排会形成「三选一」的错觉，
+ * 而实际上这里有一个明确的默认答案（隐藏到托盘）。
+ *
+ * 所以它降到文字级：左对齐、无边框、灰色，只有悬停时才显出警示色。
+ * 想找它的人找得到（文案直白写在勾选框下方），不想找它的人不会
+ * 误点——这正是不可逆动作该有的分量。
+ *
+ * 左对齐而不是跟随按钮区右对齐：它属于「勾选框那一段」的语义
+ * （都是对「以后怎么办」的补充说明），不是主决策行的一部分。
+ */
+.dialog__quit {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 0;
+  font-size: var(--text-caption);
+  color: var(--ui-ink-3);
+  text-align: left;
+  transition: color var(--motion-f) var(--ease-fluid);
+}
+
+.dialog__quit:hover {
+  color: var(--ui-bad);
+}
+
+.dialog__quit:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
 
 /* ===========================================================================
    Toast
