@@ -8,8 +8,6 @@ Ondra is a fully plugin-based desktop AI companion application. It splits the th
 
 The name comes from the Chinese idiom 空谷足音, hearing a person's footsteps in a silent valley, a metaphor for rare and precious news.
 
-**[macOS installer · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows installer · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
-
 ![Release Download](https://img.shields.io/github/downloads/ntars/Ondra/total?style=flat-square)
 [![Release Version](https://img.shields.io/github/v/release/ntars/Ondra?style=flat-square)](https://github.com/ntars/Ondra/releases/latest)
 [![GitHub license](https://img.shields.io/github/license/ntars/Ondra?style=flat-square)](./LICENSE)
@@ -1480,3 +1478,6 @@ Every third-party software component, asset and algorithm source used by this pr
 **Where others' content is referenced**, the source is stated and compliance with its licence confirmed. This project's own copyright notices and third-party notices are kept side by side in the same file without overriding each other.
 
 If you believe this project infringes your copyright, trademark or other rights, or you find an omission or error in NOTICE, please reach us through the repository issues or the website. We will correct or remove the relevant content within seven working days of verification.
+---
+
+Ntarstudio · <https://www.ntars.cn/>

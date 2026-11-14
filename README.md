@@ -8,8 +8,6 @@
 
 名称取自成语「空谷足音」——寂静的山谷中听见人的脚步声，喻极难得的音讯。英文 slogan 为 `On No Sound's Depth, Resonance Arises.`
 
-**[macOS 安装包 · Apple Silicon](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-macos-arm64.dmg)**　**[Windows 安装包 · x64](https://github.com/ntars/Ondra/releases/download/v1.0.1-alpha/Ondra-1.0.1-alpha-windows-x64-setup.exe)**
-
 ![Release Download](https://img.shields.io/github/downloads/ntars/Ondra/total?style=flat-square)
 [![Release Version](https://img.shields.io/github/v/release/ntars/Ondra?style=flat-square)](https://github.com/ntars/Ondra/releases/latest)
 [![GitHub license](https://img.shields.io/github/license/ntars/Ondra?style=flat-square)](./LICENSE)
@@ -1510,3 +1508,6 @@ AGPL-3.0 的核心义务：若修改本程序并通过网络提供服务，须�
 **若引用他人内容**。已注明来源并确认符合其许可证要求。本项目自身版权声明与第三方版权声明在同一文件中并列保留，不互相覆盖。
 
 若认为本项目侵犯了你的著作权、商标权或其他权利，或发现 NOTICE 存在遗漏与错误，请通过仓库议题或官网联系。核实后 7 个工作日内更正或移除相关内容。
+---
+
+Ntarstudio（星玖工作室）· <https://www.ntars.cn/>
