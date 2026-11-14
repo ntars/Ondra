@@ -325,6 +325,52 @@ jobs:
       - name: 初始化 Android 工程
         run: pnpm exec tauri android init --ci
 
+      # 覆盖图标。**这一步不能省。**
+      #
+      # `tauri android init` 只从 `bundle.icon` 里挑**桌面尺寸**的 PNG 塞进
+      # mipmap，而安卓要的是三套专用图：
+      #
+      # | 文件 | 用途 | 尺寸 |
+      # | --- | --- | --- |
+      # | ic_launcher.png | 传统图标（API < 26 与部分启动器） | 48–192 |
+      # | ic_launcher_round.png | 圆形启动器 | 48–192 |
+      # | ic_launcher_foreground.png | 自适应图标前景（API 26+） | 108–432 |
+      # | ic_launcher_background.png | 自适应图标背景 | 108–432 |
+      #
+      # 少了 foreground/background 那两套时，系统会把 `ic_launcher.png`
+      # 直接当自适应图标用并**裁成圆形/圆角**——我们的源图标是「透明底 +
+      # 白色 squircle」，裁完只剩一块被切掉边缘的白形状，这就是「图标不对」。
+      #
+      # 这套图由 `tauri icon --manifest` 预先生成并入库（`icons/android/`），
+      # 这里只做一次目录同步。用 `cp -R` 而不是让 init 自己生成：init 的
+      # 图标逻辑绑在 `bundle.icon` 的桌面文件上，没法表达「前景/背景分离」。
+      - name: 覆盖安卓自适应图标
+        run: |
+          set -euo pipefail
+          SRC=src-tauri/icons/android
+          DST=src-tauri/gen/android/app/src/main/res
+          if [ ! -d "$SRC" ]; then
+            echo "::error::缺少 $SRC，图标不会生效"
+            exit 1
+          fi
+          for dir in "$SRC"/mipmap-*; do
+            name=$(basename "$dir")
+            # `mipmap-anydpi-v26` 里只有 XML 没有 PNG，直接 cp *.png 会因
+            # 通配符没匹配到而报 "No such file or directory"，在 `set -e`
+            # 下整步中止。所以 PNG 与 XML 分开处理。
+            mkdir -p "$DST/$name"
+            if ls "$dir"/*.png >/dev/null 2>&1; then
+              cp -f "$dir"/*.png "$DST/$name/"
+            fi
+            if ls "$dir"/*.xml >/dev/null 2>&1; then
+              cp -f "$dir"/*.xml "$DST/$name/"
+            fi
+          done
+          echo "已覆盖的图标："
+          find "$DST" -name 'ic_launcher*' -type f | sort | head -30
+          echo "自适应图标描述（API 26+ 走这份，缺了系统就退回裁切传统图标）："
+          cat "$DST/mipmap-anydpi-v26/ic_launcher.xml"
+
       # 只出 aarch64 一个架构：全架构的 universal APK 约 185 MB，
       # 而 arm64 单架构约 40 MB。GitHub Release 单文件上限 100 MB，
       # 全架构包会直接上传失败。手机端现在 99% 是 arm64。
