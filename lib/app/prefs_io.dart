@@ -10,13 +10,34 @@ File get _file {
   return File('$home/.ondra/prefs.json');
 }
 
+/// 测试用的重定向：非 null 时读写都落到这个文件。
+///
+/// 没有它的话，任何一次 `settingsClient.set(...)` 的测试都会写进
+/// 用户真实的 `~/.ondra/prefs.json`——跑一遍测试，用户的开机自启动、
+/// 通知开关、字号全被改成测试里的值，而且没人告诉他。
+/// 测试改成 `setPrefHome(tempDir)` 即可完全隔离。
+String? _overrideHome;
+
+/// 把偏好文件重定向到 [home] 下的 `.ondra/prefs.json`（测试用）。
+/// 传 null 恢复默认，同时清掉缓存，否则读到的还是上一份。
+void setPrefHome(String? home) {
+  _overrideHome = home;
+  _cache = null;
+}
+
+File get _resolved {
+  final home = _overrideHome;
+  if (home == null) return _file;
+  return File('$home/.ondra/prefs.json');
+}
+
 Map<String, String>? _cache;
 
 Map<String, String> get _data {
   final cached = _cache;
   if (cached != null) return cached;
   try {
-    final f = _file;
+    final f = _resolved;
     if (f.existsSync()) {
       final raw = jsonDecode(f.readAsStringSync());
       if (raw is Map) {
@@ -36,7 +57,7 @@ String readPref(String key, {String fallback = ''}) => _data[key] ?? fallback;
 void writePref(String key, String value) {
   _data[key] = value;
   try {
-    final f = _file;
+    final f = _resolved;
     f.parent.createSync(recursive: true);
     f.writeAsStringSync(jsonEncode(_data));
   } catch (_) {

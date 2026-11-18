@@ -1,9 +1,15 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../../app/data_root.dart';
+import '../../../../../app/desktop_picker.dart';
+import '../../../../../app/keychain.dart';
+import '../../../../../app/prefs.dart';
+import '../../../../../app/update_check.dart';
 import '../../../../../app/version.dart';
 import '../../../../../design/avatar.dart';
 import '../../../../../design/brand.dart';
+import '../../../../../design/dialog.dart';
 import '../ondra-models/ui/model_client.dart';
 import '../ondra-models/ui/probe.dart';
 import '../ondra-models/ui/provider_catalog.dart';
@@ -12,8 +18,11 @@ import '../ondra-persona/ui/persona_client.dart';
 import '../../ondra-browser/ui/browser_client.dart';
 import '../../ondra-llama/ui/llama_panel.dart';
 import '../../ui/shell_state.dart';
+import './feedback.dart';
+import './maintenance.dart';
 import './settings_client.dart';
 import './settings_spec.dart';
+import './settings_targets.dart';
 import '../../../../../design/glyph.dart';
 import '../../../../../design/motion.dart';
 import '../../../../../design/primitives.dart';
@@ -201,13 +210,17 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
 
   /// 由声明生成一行设置：文案、默认值、选项都取自 `settings_spec.dart`，
   /// 页面里不再逐条手写开关。
+  ///
+  /// 每行都带一句「这一项在内核里有没有落点」的说明（见 [settings_targets.dart]）。
+  /// 没有落点的项不假装生效——那一句小字就是它的诚实标签。
   Widget _specRow(String key, {bool showDivider = true}) {
     final spec = ondraSettingSpec(key);
+    final desc = _wiringNote(key, spec.description);
     switch (spec.kind) {
       case OndraSettingKind.toggle:
         return _Row(
           title: spec.label,
-          desc: spec.description,
+          desc: desc,
           action: OndraSwitch(
             value: settingsClient.boolean(key),
             onChanged: (v) => settingsClient.set(key, v),
@@ -219,7 +232,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         final index = spec.options.indexWhere((o) => o.value == current);
         return _Row(
           title: spec.label,
-          desc: spec.description,
+          desc: desc,
           action: _PillSegmented(
             value: index < 0 ? 0 : index,
             items: [for (final o in spec.options) o.label],
@@ -230,7 +243,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       case OndraSettingKind.stepper:
         return _Row(
           title: spec.label,
-          desc: spec.description,
+          desc: desc,
           action: _Stepper(
             value: settingsClient.number(key),
             unit: spec.unit ?? '',
@@ -240,6 +253,23 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           showDivider: showDivider,
         );
     }
+  }
+
+  /// 说明文字后面缀一句接线状态。
+  ///
+  /// 为什么值得占这一行：这一版最重要的修复就是「开关拨了到底生不生效」。
+  /// 用户没法自己验证——他看不见 `settings.json`。所以界面必须自己说清楚。
+  ///
+  /// 两种情况要分开说，因为用户的下一步动作不一样：
+  /// - **内核没有这个配置段**：装了也没用，等内核更新；
+  /// - **缺的是插件**（QQ 通道这类）：装上对应插件就能生效。
+  /// 一律写成「只影响界面」会让人以为永远没救。
+  static String? _wiringNote(String key, String? desc) {
+    if (ondraSettingIsWired(key)) return desc;
+    final note = key.startsWith('channels.')
+        ? '本项需要通道插件：未安装时只记录界面选择'
+        : '本项只影响界面：内核还没有对应的配置段';
+    return desc == null || desc.isEmpty ? note : '$desc · $note';
   }
 
   // ── 通用设置（权限 / 语言 / 字号，通知已并入） ───────────────────────────────
@@ -529,7 +559,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
               title: '导入人设包',
               desc: '支持 .skill / .zip 文件，校验与落盘由 ondra-persona 完成',
               chevron: true,
-              onTap: () {},
+              onTap: _importPersona,
             ),
             _Row(
               title: '重置为默认人设',
@@ -545,9 +575,9 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           children: [
             _Row(
               title: '让你怎么叫我',
-              value: '不指定',
+              value: _nickname.isEmpty ? '不指定' : _nickname,
               chevron: true,
-              onTap: () {},
+              onTap: _editNickname,
               showDivider: false,
             ),
           ],
@@ -580,18 +610,24 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _Section(
           title: '数据',
           children: [
-            _specRow('data.location'),
+            // 不给选择器：数据根目录由内核写死，改这里不会搬家。
+            // 显示真实路径，用户至少知道东西在哪、能自己去备份。
+            _Row(
+              title: '数据位置',
+              desc: '记忆、会话与配置都写在这里',
+              value: ondraDataRoot,
+            ),
             _Row(
               title: '导出全部数据',
               desc: '记忆、会话、人设与配置打包；明文，自己挑存放位置',
               chevron: true,
-              onTap: () {},
+              onTap: _exportAll,
             ),
             _Row(
               title: '清空全部数据',
               desc: '删掉记忆与会话，不可恢复',
               chevron: true,
-              onTap: () {},
+              onTap: _wipeAll,
               showDivider: false,
             ),
           ],
@@ -633,14 +669,14 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _Row(
           title: 'AppID',
           desc: '在 QQ 开放平台创建机器人后取得',
-          value: '未填写',
-          action: _LinkText(label: '填写', onTap: () {}),
+          value: _qqAppId.isEmpty ? '未填写' : _qqAppId,
+          action: _LinkText(label: '填写', onTap: () => _editQqCredential(qqAppIdKey)),
         ),
         _Row(
           title: '密钥',
           desc: '只存在本机钥匙串，不上传',
-          value: '未填写',
-          action: _LinkText(label: '填写', onTap: () {}),
+          value: _qqSecretSet ? '已保存' : '未填写',
+          action: _LinkText(label: '填写', onTap: () => _editQqCredential(qqSecretKey)),
           showDivider: false,
         ),
       ],
@@ -665,7 +701,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _Row(
           title: '空谷 Ondra',
           desc: '$ondraVersion · $ondraStage',
-          action: _SmallPill(label: '检查更新', onTap: () {}),
+          action: _SmallPill(label: _checkingUpdate ? '检查中…' : '检查更新', onTap: _checkUpdates),
         ),
         _specRow('about.channel'),
         AnimatedBuilder(
@@ -685,9 +721,9 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           title: '清除缓存',
           desc: '清掉不会丢对话与记忆',
           chevron: true,
-          onTap: () {},
+          onTap: _clearCache,
         ),
-        _Row(title: '系统权限', chevron: true, onTap: () {}),
+        _Row(title: '系统权限', chevron: true, onTap: _showPermissions),
         // 许可必须点得开：MiSans 许可协议第 2 条第 1 款要求「在软件中特别
         // 注明使用了 MiSans 字体」，一个点不动的行满足不了这条。
         _Row(
@@ -708,31 +744,54 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _specRow('privacy.screenRead'),
         _specRow('privacy.redactLogs'),
         _specRow('privacy.crashReport'),
-        _specRow('privacy.keychain', showDivider: false),
+        // 「API Key 存放」不给选择器：当前只有钥匙串一种实现，
+        // 「本地加密文件」这个选项背后没有代码。留一个选了会静默失效的
+        // 单选，用户会以为密钥存到了别处。
+        _Row(
+          title: 'API Key 存放',
+          desc: '密钥只进系统钥匙串，不写进任何配置文件',
+          value: Keychain.supported ? '系统钥匙串' : '当前环境不可用',
+          showDivider: false,
+        ),
       ],
     ),
     // 问题反馈：与版本信息同屏，报问题时版本号就在上面。
     _Section(
       title: '问题反馈',
       children: [
-        _Row(title: '问题类型', value: '请选择问题类型', chevron: true, onTap: () {}),
-        const _Row(
+        _Row(
+          title: '问题类型',
+          value: _feedbackKind ?? '请选择问题类型',
+          chevron: true,
+          onTap: _pickFeedbackKind,
+        ),
+        _Row(
           title: '建议详情',
-          desc: '请具体描述您的建议（不少于 10 个字，最多 200 字）',
-          multiline: true,
+          desc: _feedbackBody.isEmpty
+              ? '请具体描述您的建议（不少于 10 个字，最多 200 字）'
+              : '${_feedbackBody.length} / 200 字',
+          value: _feedbackBody.isEmpty ? null : _ellipsis(_feedbackBody, 18),
+          multiline: _feedbackBody.isEmpty,
+          action: _LinkText(
+            label: _feedbackBody.isEmpty ? '填写' : '修改',
+            onTap: _editFeedbackBody,
+          ),
         ),
         _Row(
           title: '添加图片或视频',
-          desc: '最多添加 3 个附件',
+          desc: _attachments.isEmpty
+              ? '最多添加 3 个附件'
+              : '已选 ${_attachments.length} 个：${_attachmentNames()}',
+          descMaxLines: 2,
           chevron: true,
-          onTap: () {},
+          onTap: _pickAttachments,
           showDivider: false,
         ),
       ],
     ),
     Align(
       alignment: Alignment.centerRight,
-      child: _PrimaryPill(label: '提交反馈', onTap: () {}),
+      child: _PrimaryPill(label: '提交反馈', onTap: _submitFeedback),
     ),
     const SizedBox(height: 4),
     Text(
@@ -740,6 +799,405 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       style: ondraText(11, color: s.ink30, height: 16 / 11),
     ),
   ]);
+
+  // ── 人设：装包与称呼 ────────────────────────────────────────────────────
+
+  /// 称呼存在偏好里，键与开发侧同名前缀。
+  ///
+  /// 它不是设置项（不进 `settings_spec.dart`），因为「你叫什么」属于**关系**，
+  /// 不属于应用配置；放同一张表里会让 33 个开关的清单多出一条完全不同性质的条目。
+  static const String _nicknameKey = 'persona.nickname';
+
+  String get _nickname => readPref(_nicknameKey);
+
+  /// 导入人设包：系统面板选文件 → 交给 personaClient 校验落盘 → 报告结论。
+  ///
+  /// 这里**不读文件内容**：判后缀、判 PK 头、解压、找 meta.json、查 slug 合法性
+  /// 全在 `PersonaStore.install` 里做。界面层如果自己也判一遍，两处的规则
+  /// 迟早会分叉——一处放行、另一处拒绝，用户看到的是「选完没反应」。
+  Future<void> _importPersona() async {
+    final path = await DesktopPicker.pickFile(
+      prompt: '选择人设包（.skill / .zip / .ondra）',
+    );
+    if (path == null) return; // 取消就是什么都不做。
+    final r = await personaClient.importPack(archivePath: path);
+    if (!mounted) return;
+    OndraToast.show(context, r.message, ok: r.ok);
+  }
+
+  /// 改称呼：一个输入框、一句话说明。
+  Future<void> _editNickname() async {
+    final controller = TextEditingController(text: _nickname);
+    final value = await OndraDialog.show<String>(
+      context,
+      _TextPromptDialog(
+        title: '让你怎么叫我',
+        hint: '留空表示不指定，就按「你」称呼',
+        controller: controller,
+        maxLength: 16,
+      ),
+    );
+    controller.dispose();
+    if (value == null) return; // 取消。
+    writePref(_nicknameKey, value.trim());
+    if (mounted) setState(() {});
+  }
+
+  // ── 数据：导出与清空 ────────────────────────────────────────────────────
+
+  final OndraMaintenance _maintenance = OndraMaintenance();
+
+  /// 导出全部数据：挑目录 → 复制成 `ondra-export/` → 报文件数与体积。
+  Future<void> _exportAll() async {
+    final dir = await _maintenance.pickDirectory('选择导出位置');
+    if (dir == null) return;
+    final r = await _maintenance.exportAll(dir);
+    if (!mounted) return;
+    OndraToast.show(context, r.message, ok: r.ok);
+  }
+
+  /// 清空全部数据。**两步确认**：这是一条不可逆的动作，
+  /// 单击就执行等于把「手滑」也当成意愿。
+  Future<void> _wipeAll() async {
+    final confirmed = await OndraDialog.show<bool>(
+      context,
+      const OndraDialog(
+        title: '清空全部数据？',
+        body: '会删掉记忆、会话与设备缓存，以及设置里的全部偏好。'
+            '插件装配表与你导入的人设包会保留——删掉它们应用就起不来了。\n\n'
+            '这一步不可恢复，也没有回收站。想留一份就先「导出全部数据」。',
+        actions: [
+          OndraDialogButton(label: '取消', value: false),
+          OndraDialogButton(
+            label: '确认清空',
+            filled: true,
+            danger: true,
+            value: true,
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final r = await _maintenance.wipeAll();
+    if (!mounted) return;
+    if (r.ok) {
+      // 偏好文件被删了，内存里那份也要跟着回默认值，
+      // 否则界面还显示着刚被删掉的开关位置。
+      settingsClient.resetAll();
+      setState(() {
+        _attachments.clear();
+        _feedbackBody = '';
+        _feedbackKind = null;
+      });
+    }
+    OndraToast.show(context, r.message, ok: r.ok);
+  }
+
+  // ── 关于：更新、缓存、权限 ──────────────────────────────────────────────
+
+  bool _checkingUpdate = false;
+
+  Future<void> _checkUpdates() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    final r = await UpdateChecker.check(
+      currentVersion: ondraVersion,
+      channel: settingsClient.choice('about.channel'),
+    );
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+    // 有新版本时把链接也说出来：用户要的是「去哪拿」，不是「有更新」三个字。
+    final text = r.status == UpdateStatus.available && r.url != null
+        ? '${r.message} 下载页：${r.url}'
+        : r.message;
+    OndraToast.show(context, text, ok: r.status != UpdateStatus.failed);
+  }
+
+  Future<void> _clearCache() async {
+    final r = await _maintenance.clearCache();
+    if (!mounted) return;
+    OndraToast.show(context, r.message, ok: r.ok);
+  }
+
+  Future<void> _showPermissions() async {
+    final list = await _maintenance.permissions();
+    if (!mounted) return;
+    await OndraDialog.show<void>(
+      context,
+      OndraDialog(
+        title: '系统权限',
+        body: '「未知」是如实的：系统不提供这两项的查询接口，'
+            '只能等它第一次弹窗时由你决定。',
+        width: 440,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < list.length; i++)
+              _permissionRow(list[i], last: i == list.length - 1),
+          ],
+        ),
+        actions: const [
+          OndraDialogButton(label: '知道了', filled: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _permissionRow(PermissionStatus p, {required bool last}) {
+    final s = OndraSkin.of(context);
+    final (String label, Color color) = switch (p.granted) {
+      true => ('已授权', const Color(0xFF16A34A)),
+      false => ('未授权', OndraColor.danger),
+      null => ('未知', s.ink45),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : Border(bottom: BorderSide(color: s.lineFaint, width: 1)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(p.name, style: ondraText(12.5, color: s.ink80, height: 18 / 12.5)),
+                const SizedBox(height: 1),
+                Text(p.detail, style: ondraText(11, color: s.ink40, height: 15 / 11)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(label, style: ondraText(11.5, weight: 500, color: color, height: 18 / 11.5)),
+        ],
+      ),
+    );
+  }
+
+  // ── 反馈 ────────────────────────────────────────────────────────────────
+
+  final FeedbackStore _feedback = FeedbackStore();
+
+  String? _feedbackKind;
+  String _feedbackBody = '';
+  final List<String> _attachments = [];
+
+  Future<void> _pickFeedbackKind() async {
+    final chosen = await OndraDialog.show<String>(
+      context,
+      OndraDialog(
+        title: '问题类型',
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final k in FeedbackStore.kinds)
+              _kindOption(k, selected: k == _feedbackKind),
+          ],
+        ),
+        actions: const [
+          OndraDialogButton(label: '取消'),
+        ],
+      ),
+    );
+    if (chosen == null) return;
+    setState(() => _feedbackKind = chosen);
+  }
+
+  Widget _kindOption(String kind, {required bool selected}) {
+    final s = OndraSkin.of(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => OndraDialog.close(context, kind),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? s.fill : Colors.transparent,
+          borderRadius: BorderRadius.circular(OndraRadius.md),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                kind,
+                style: ondraText(13, color: s.ink80, height: 18 / 13),
+              ),
+            ),
+            if (selected)
+              const Glyph(Glyphs.check, size: 14, color: OndraColor.accent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editFeedbackBody() async {
+    final controller = TextEditingController(text: _feedbackBody);
+    final value = await OndraDialog.show<String>(
+      context,
+      _TextPromptDialog(
+        title: '建议详情',
+        hint: '具体说说你遇到的情况：做了什么、看到什么、期望什么',
+        controller: controller,
+        maxLength: 200,
+        minLines: 4,
+        maxLines: 8,
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    setState(() => _feedbackBody = value.trim());
+  }
+
+  Future<void> _pickAttachments() async {
+    final picked = await _feedback.pickAttachments();
+    if (picked.isEmpty) return;
+    setState(() {
+      _attachments
+        ..clear()
+        ..addAll(picked.take(3));
+    });
+  }
+
+  /// 提交反馈：落盘 + 附日志尾巴 + 打开邮件草稿。
+  ///
+  /// 三件事都做了才算「提交成功」。任何一步失败都如实说，
+  /// 不因为另外两步成功就报一个「已提交」。
+  Future<void> _submitFeedback() async {
+    final kind = _feedbackKind;
+    if (kind == null) {
+      OndraToast.show(context, '先选一个问题类型。', ok: false);
+      return;
+    }
+    if (_feedbackBody.trim().length < 10) {
+      OndraToast.show(context, '描述至少写 10 个字，否则看不出是什么问题。', ok: false);
+      return;
+    }
+    final r = await _feedback.write(
+      kind: kind,
+      body: _feedbackBody,
+      version: '$ondraVersion+$ondraBuild',
+      attachmentPaths: _attachments,
+      // 「日志脱敏」是隐私页的一项：用户关了它，就不该再擅自把日志带进来。
+      attachLog: settingsClient.boolean('privacy.redactLogs'),
+    );
+    if (!mounted) return;
+    if (!r.ok) {
+      OndraToast.show(context, r.message, ok: false);
+      return;
+    }
+    // 落盘成功后再问「要不要发邮件」：发不发是用户的决定，
+    // 但不能让用户以为这一步替他发了。
+    final send = await OndraDialog.show<bool>(
+      context,
+      OndraDialog(
+        title: '已存到本机',
+        body: '${r.message}\n\n要现在用系统邮件客户端写一封吗？'
+            '草稿会填好类型、描述与版本号，收件人与是否发送由你决定。',
+        actions: const [
+          OndraDialogButton(label: '先不发', value: false),
+          OndraDialogButton(
+            label: '打开草稿',
+            filled: true,
+            value: true,
+          ),
+        ],
+      ),
+    );
+    if (send == true) {
+      final m = await _feedback.compose(
+        kind: kind,
+        body: _feedbackBody,
+        version: '$ondraVersion+$ondraBuild',
+      );
+      if (mounted) OndraToast.show(context, m.message, ok: m.ok);
+    }
+  }
+
+  String _attachmentNames() {
+    // 只显示文件名：完整路径太长，一行放不下，而用户认得的是文件名。
+    final names = [
+      for (final p in _attachments)
+        p.split('/').last,
+    ];
+    return names.join('、');
+  }
+
+  static String _ellipsis(String text, int max) {
+    final flat = text.replaceAll('\n', ' ');
+    return flat.length <= max ? flat : '${flat.substring(0, max)}…';
+  }
+
+  // ── 通道凭据 ────────────────────────────────────────────────────────────
+
+  /// AppID 存在偏好里、密钥进系统钥匙串。
+  ///
+  /// 分开存不是随意的：AppID 在 QQ 开放平台的控制台里是可见的公开标识，
+  /// 而密钥是密码。两样都塞钥匙串会让「AppID 填错了」这种排查变得麻烦
+  /// （得开钥匙串访问才能看），两样都放明文则是把密码摊在磁盘上。
+  static const String qqAppIdKey = 'channels.qqAppId';
+  static const String qqSecretKey = 'channels.qqSecret';
+
+  String get _qqAppId => readPref(qqAppIdKey);
+
+  bool _qqSecretSet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 「已填写 / 未填写」要让用户一眼看清，而密钥本身永远不读回界面。
+    //
+    // 放到首帧之后：查钥匙串要起一个 `security` 子进程，在 initState 里同步
+    // 发起会让帧预算里挂一个未完成的定时器——测试里 `pumpWidget` 会因此报
+    // 「pending timers」，真机上则是打开设置的第一帧多一次进程创建的抖动。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshSecretState());
+  }
+
+  Future<void> _refreshSecretState() async {
+    final has = await Keychain.exists(qqSecretKey);
+    if (mounted && has != _qqSecretSet) setState(() => _qqSecretSet = has);
+  }
+
+  /// 填写凭据。AppID 走偏好，密钥走钥匙串，两者校验规则不同：
+  /// AppID 是纯数字，密钥是 32 位十六进制以上的串——但这里**不强制**，
+  /// 只挡掉明显错的（空、带空格）。格式校验归通道插件，界面不该抢着判。
+  Future<void> _editQqCredential(String key) async {
+    final isSecret = key == qqSecretKey;
+    final controller = TextEditingController(text: isSecret ? '' : _qqAppId);
+    final value = await OndraDialog.show<String>(
+      context,
+      _TextPromptDialog(
+        title: isSecret ? 'QQ 机器人密钥' : 'QQ 机器人 AppID',
+        hint: isSecret
+            ? (_qqSecretSet ? '已保存；重新输入可覆盖，留空则不修改' : '在 QQ 开放平台 → 开发设置里取得')
+            : '机器人资料页上的 AppID',
+        controller: controller,
+        maxLength: 64,
+      ),
+    );
+    final text = value?.trim();
+    controller.dispose();
+    if (text == null) return;
+    if (text.isEmpty) {
+      // 密钥留空 = 「不修改」。要清掉得显式点删除，避免手滑清空一个正确的密钥。
+      if (isSecret) return;
+      writePref(key, '');
+      setState(() {});
+      return;
+    }
+    if (!isSecret) {
+      writePref(key, text);
+      if (mounted) setState(() {});
+      return;
+    }
+    final r = await Keychain.write(key, text);
+    if (!mounted) return;
+    OndraToast.show(context, r.message, ok: r.ok);
+    if (r.ok) await _refreshSecretState();
+  }
 
   /// 开源许可的展开内容。
   ///
@@ -2113,6 +2571,98 @@ class _InputRowState extends State<_InputRow> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 一个「输入一段文字」的对话框。
+///
+/// 称呼与反馈详情共用它：两者都只是「写一段话然后确定」，
+/// 差别只在行数。各写一个对话框会让两处的确定键位置、字数提示、
+/// 回车行为都不一样。
+class _TextPromptDialog extends StatefulWidget {
+  const _TextPromptDialog({
+    required this.title,
+    required this.hint,
+    required this.controller,
+    this.maxLength = 200,
+    this.minLines = 1,
+    this.maxLines = 1,
+  });
+
+  final String title;
+  final String hint;
+  final TextEditingController controller;
+  final int maxLength;
+  final int minLines;
+  final int maxLines;
+
+  @override
+  State<_TextPromptDialog> createState() => _TextPromptDialogState();
+}
+
+class _TextPromptDialogState extends State<_TextPromptDialog> {
+  @override
+  void initState() {
+    super.initState();
+    // 字数提示要跟着输入走。
+    widget.controller.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    final over = widget.controller.text.length > widget.maxLength;
+    return OndraDialog(
+      title: widget.title,
+      width: widget.maxLines > 1 ? 460 : 380,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: s.field,
+          borderRadius: BorderRadius.circular(OndraRadius.lg),
+          border: Border.all(color: s.line),
+        ),
+        child: TextField(
+          controller: widget.controller,
+          autofocus: true,
+          minLines: widget.minLines,
+          maxLines: widget.maxLines,
+          cursorColor: OndraColor.accent,
+          style: ondraText(13, color: s.ink, height: 20 / 13),
+          decoration: InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+            hintText: widget.hint,
+            hintStyle: ondraText(12, color: s.ink25, height: 19 / 12),
+            counterText: '', // 自绘：Material 的计数器位置与这套内距对不上
+          ),
+        ),
+      ),
+      actions: [
+        const OndraDialogButton(label: '取消'),
+        OndraDialogButton(
+          label: '保存',
+          filled: true,
+          // 空内容也允许保存：称呼留空是合法选择（「不指定」）。
+          // 超长时按钮不关闭，把面板留在原地让用户删几个字。
+          closeAfter: !over,
+          value: widget.controller.text,
+        ),
+      ],
     );
   }
 }

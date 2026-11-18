@@ -1,5 +1,7 @@
+import 'package:ondra/app/platform_actions.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ondra/app/keychain.dart';
 import 'package:ondra/app/ondra_app.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-backup/ui/backup_actions.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-backup/ui/backup_model.dart';
@@ -30,12 +32,18 @@ void main() {
     memorySnapshotLoader = () async =>
         const MemorySnapshot(facts: [], links: [], note: '测试环境');
     logEntriesLoader = (LogKind kind) async => const <LogEntry>[];
+    // 平台行为层会真的写 launchd 登录项、起 caffeinate 子进程。
+    // 测试跑一遍就在用户机器上留下一个开机启动项，比测试失败糟糕得多。
+    PlatformActions.probe = const PlatformActionsProbe();
     // 备份页要扫真实目录、算指纹；测试里换成空总览，理由同上。
     backupOverviewLoader = () async =>
         BackupOverview.empty.copyWithNote('测试环境');
     // 状态面板与导入导出页也会读库（同样走子进程），一并换成空读数。
     statusSnapshotLoader = () async => StatusSnapshot.empty;
     transferLoader = () async => TransferSnapshot.empty;
+    // 设置面板打开时会查钥匙串里有没有 QQ 密钥。真查要起 `security` 子进程，
+    // 在 fake_async 里同样走不完——换成「没有」，这一页只验版式。
+    Keychain.existsProbe = (_) async => false;
   });
 
   Future<void> pumpShell(WidgetTester tester, Size size) async {

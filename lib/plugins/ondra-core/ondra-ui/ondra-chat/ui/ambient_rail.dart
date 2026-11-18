@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
+import '../../../../../app/desktop_picker.dart';
 import '../../ui/shell_state.dart';
 import '../../../../../design/brand.dart';
 import '../../../../../design/glyph.dart';
@@ -11,6 +13,7 @@ import './chat_client.dart';
 import './neuron_backdrop.dart';
 import '../../ondra-settings/ondra-persona/ui/persona_client.dart';
 import '../../ondra-settings/ondra-models/ui/model_client.dart';
+import '../../ondra-settings/ui/settings_client.dart';
 
 /// 右栏：跟 TA 说话的地方。
 ///
@@ -215,7 +218,7 @@ class _RailHeader extends StatelessWidget {
               glyph: Glyphs.navNewChat,
               glyphSize: 16,
               tooltip: '新建对话',
-              onTap: () {},
+              onTap: () => chatClient.newConversation(),
             ),
           ],
         ),
@@ -615,6 +618,13 @@ class _Bubble extends StatelessWidget {
 
   final ChatMessage message;
 
+  /// 设置里的「字号大小」：12–20，默认 14。
+  ///
+  /// 界面上标的是「仅影响会话内容的字号」，所以只有这一处折算，其余排版
+  /// 保持原值。基准是 14：在 14 时系数正好 1.0，16 号的正文与设计稿一致；
+  /// 用户把滑块推到 20 时正文 16 → 22.9，推到 12 时 16 → 13.7。
+  double get _scale => settingsClient.number('general.fontSize') / 14;
+
   @override
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
@@ -643,7 +653,7 @@ class _Bubble extends StatelessWidget {
                 child: Text(
                   message.text,
                   // 1.5 行高是参考应用 `.xu-user-content` 的原值。
-                  style: ondraText(16, color: s.bubbleInk, height: 1.5),
+                  style: ondraText(16 * _scale, color: s.bubbleInk, height: 1.5),
                 ),
               ),
             ),
@@ -661,7 +671,7 @@ class _Bubble extends StatelessWidget {
           child: Text(
             message.streaming && message.text.isEmpty ? '…' : message.text,
             style: ondraText(
-              16,
+              16 * _scale,
               color: message.streaming && message.text.isEmpty
                   ? s.ink25
                   : s.answerInk,
@@ -756,10 +766,23 @@ class _RailComposerState extends State<_RailComposer> {
       final has = _controller.text.trim().isNotEmpty;
       if (has != _hasText) setState(() => _hasText = has);
     });
+    // 设置里的「回车发送」改了要立刻反映到输入框：这项只在按键那一刻判定，
+    // 不需要重建整棵树，但要让 setState 触发一次以更新 textInputAction。
+    settingsClient.addListener(_onSettingsChanged);
   }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    final want = settingsClient.boolean('dialog.enterSend');
+    if (want != _enterSend) setState(() {});
+  }
+
+  /// 「回车发送」。关掉后回车换行、⌘ Enter 才发送。
+  bool get _enterSend => settingsClient.boolean('dialog.enterSend');
 
   @override
   void dispose() {
+    settingsClient.removeListener(_onSettingsChanged);
     _controller.dispose();
     _focus.dispose();
     super.dispose();
@@ -767,9 +790,28 @@ class _RailComposerState extends State<_RailComposer> {
 
   void _submit() {
     final text = _controller.text;
-    if (text.trim().isEmpty || chatClient.busy) return;
+    // 生成期间不拦：交给 chatClient 按「繁忙时的发送行为」处理
+    // （排队 / 插话）。这里再拦一次，那两个设置就永远轮不到生效。
+    if (text.trim().isEmpty) return;
     _controller.clear();
     widget.onSend(text);
+    // 附件随这一条一起发出去：发完就撤掉，不然下一句会莫名其妙地
+    // 又带上同一张图。内核接上来之后，这里改成「把附件一起递给 send」。
+    chatClient.clearAttachments();
+  }
+
+  /// 选附件。选完挂在 chatClient 上，输入盒上方会出现一行小标签。
+  ///
+  /// 一次最多 5 个：再多的话那行标签会占掉输入盒的两行，
+  /// 而用户其实也记不清自己选了哪几个。
+  Future<void> _pickAttachments() async {
+    final picked = await DesktopPicker.pickFiles(
+      prompt: '选择要一起发送的文件',
+      limit: 5,
+    );
+    for (final path in picked) {
+      chatClient.attach(ChatAttachment.fromPath(path));
+    }
   }
 
   @override
@@ -778,7 +820,51 @@ class _RailComposerState extends State<_RailComposer> {
     return Padding(
       // `shrink-0 px-3 pb-3 pt-3` 的外框不变，变的是里面那一层的高度。
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      child: Container(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 附件行在输入盒**上面**：它属于「这条消息要带什么」，
+          // 是发送前的状态；放到下面会和「刚才发了什么」混在一起。
+          AnimatedBuilder(
+            animation: chatClient,
+            builder: (context, _) => chatClient.attachments.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: _AttachmentStrip(
+                      items: chatClient.attachments,
+                      onRemove: chatClient.detach,
+                    ),
+                  ),
+          ),
+          // 排队行：`queue` 策略下，用户在生成期间发的话攒在队列里，
+          // 这一行告诉他「话没丢，等这一轮完了就发」。
+          //
+          // 没有这一行的话，「排队发送」与「点了没反应」在界面上长得一模一样——
+          // 用户会以为自己的话被吞了，然后再打一遍。
+          AnimatedBuilder(
+            animation: chatClient,
+            builder: (context, _) {
+              final n = chatClient.queued.length;
+              if (n == 0) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _QueueStrip(
+                  count: n,
+                  onClear: chatClient.clearQueue,
+                ),
+              );
+            },
+          ),
+          _composerBox(s),
+        ],
+      ),
+    );
+  }
+
+  Widget _composerBox(OndraSkin s) {
+    return Container(
         // 70 高：与「一行文字 + 一颗 32 的按钮」等身。
         //
         // 上一版是 140 高的卡片（上行多行输入、下行附件与发送），占掉了右栏
@@ -797,24 +883,41 @@ class _RailComposerState extends State<_RailComposer> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: TextField(
-                controller: _controller,
-                focusNode: _focus,
-                minLines: 1,
-                maxLines: 3,
-                cursorColor: OndraColor.accent,
-                // 15/22：比旧版 16/24 小一档，因为这一栏现在更矮，
-                // 16 的字在一行 70 的盒子里会显得顶天立地。
-                style: ondraText(15, color: s.ink, height: 22 / 15),
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                  hintText: widget.hint,
-                  hintMaxLines: 1,
-                  hintStyle: ondraText(15, color: s.hintInk, height: 22 / 15),
+              child: CallbackShortcuts(
+                // 「回车发送」关掉时，回车只换行；发送交给 ⌘ Enter。
+                // 两种模式都保留 ⌘ Enter 作为发送键——它是 macOS 上的肌肉记忆，
+                // 关掉回车发送的人往往正是想用这个组合。
+                bindings: <ShortcutActivator, VoidCallback>{
+                  const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                      _submit,
+                },
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focus,
+                  minLines: 1,
+                  maxLines: 3,
+                  cursorColor: OndraColor.accent,
+                  // 15/22：比旧版 16/24 小一档，因为这一栏现在更矮，
+                  // 16 的字在一行 70 的盒子里会显得顶天立地。
+                  style: ondraText(15, color: s.ink, height: 22 / 15),
+                  // 回车键的语义由设置决定：
+                  //  - 回车发送（默认）：textInputAction 为 send，软键盘上是「发送」，
+                  //    按下即发；换行改用 ⇧ Enter / ⌥ Enter。
+                  //  - 关掉：textInputAction 为 newline，回车就是换行，发送只能 ⌘ Enter。
+                  textInputAction: _enterSend
+                      ? TextInputAction.send
+                      : TextInputAction.newline,
+                  onSubmitted: _enterSend ? (_) => _submit() : null,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                    hintText: widget.hint,
+                    hintMaxLines: 1,
+                    hintStyle: ondraText(15, color: s.hintInk, height: 22 / 15),
+                  ),
                 ),
               ),
             ),
@@ -822,16 +925,118 @@ class _RailComposerState extends State<_RailComposer> {
             _InputIconButton(
               glyph: Glyphs.plus,
               tooltip: '上传文件',
-              onTap: () {},
+              onTap: _pickAttachments,
             ),
             const SizedBox(width: 6),
             _SendButton(
-              enabled: _hasText && !chatClient.busy,
+              // 生成期间也能按：这正是「繁忙时的发送行为」两项设置生效的地方——
+              // 排队与插话都发生在 busy 的那一刻。上一版这里写了
+              // `&& !chatClient.busy`，那颗键在生成时一直是灰的，
+              // 于是那两个选项无论怎么设都没有机会被触发。
+              enabled: _hasText,
               onTap: _submit,
             ),
           ],
         ),
-      ),
+    );
+  }
+}
+
+/// 已选附件的一行小标签：文件名 + 一个叉。
+class _AttachmentStrip extends StatelessWidget {
+  const _AttachmentStrip({required this.items, required this.onRemove});
+
+  final List<ChatAttachment> items;
+  final void Function(String path) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final a in items)
+          Container(
+            padding: const EdgeInsets.fromLTRB(9, 4, 5, 4),
+            decoration: BoxDecoration(
+              color: s.surface,
+              borderRadius: BorderRadius.circular(OndraRadius.pill),
+              border: Border.all(color: s.lineFaint),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    a.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ondraText(11, color: s.ink80, height: 15 / 11),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                OndraPressable(
+                  radius: OndraRadius.pill,
+                  onTap: () => onRemove(a.path),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Glyph(Glyphs.close, size: 11, color: s.ink30),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 排队中的话：一行浅色提示 + 一个「撤掉」。
+///
+/// 形状与附件行一致（药丸 + 小字 + 一颗叉），因为它们是同一类东西：
+/// 「已经交给你、但还没真正发出去的内容」。用两套样式会让人以为
+/// 附件是附件、排队是别的什么状态。
+class _QueueStrip extends StatelessWidget {
+  const _QueueStrip({required this.count, required this.onClear});
+
+  final int count;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(9, 4, 5, 4),
+          decoration: BoxDecoration(
+            // 比附件行更淡：它是「还在等」的状态，不该比内容本身更抢眼。
+            color: s.lineFaint.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(OndraRadius.pill),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$count 句排队中，本轮结束后依次发送',
+                style: ondraText(11, color: s.ink60, height: 15 / 11),
+              ),
+              const SizedBox(width: 3),
+              OndraPressable(
+                radius: OndraRadius.pill,
+                onTap: onClear,
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Glyph(Glyphs.close, size: 11, color: s.ink30),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

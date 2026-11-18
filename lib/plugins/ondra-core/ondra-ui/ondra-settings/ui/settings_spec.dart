@@ -116,7 +116,13 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'general.focusMute',
     label: '专注时静音',
-    description: '全屏应用运行时只留角标',
+    // 这一项**当前不生效**，原因不是没做，是要付的代价太大：
+    // 判断「是不是有全屏应用在前台」只能查 System Events 的前台进程，
+    // 而那需要「辅助功能」授权——一个能读所有窗口内容的权限。
+    // 实测（`osascript -e '... frontmost is true'`）在没有授权时直接
+    // 返回 -10004 权限违例。为一个「通知要不要响」去要这种权限，
+    // 比不做更糟。等有了不需要授权的前台查询（或系统 API）再接。
+    description: '全屏应用运行时只留角标（需要辅助功能权限，当前未生效）',
     defaultValue: false,
   ),
 
@@ -246,18 +252,6 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
     description: '每晚把零散的对话收成记忆点',
     defaultValue: true,
   ),
-  OndraSettingSpec(
-    key: 'data.location',
-    label: '数据位置',
-    description: '记忆、会话与配置都写在这里',
-    kind: OndraSettingKind.choice,
-    defaultValue: 'app',
-    options: [
-      OndraSettingOption('app', '应用目录'),
-      OndraSettingOption('custom', '自定义目录'),
-    ],
-  ),
-
   // ── 语音与音色（已并入人设设定） ──────────────────────────────────────
   OndraSettingSpec(
     key: 'voice.tts',
@@ -313,7 +307,10 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'privacy.crashReport',
     label: '崩溃上报',
-    description: '只发堆栈与版本号，不发对话内容',
+    // 文案必须说清「发」与「记」是两件事：本地那份永远写，
+    // 这个开关只管要不要往外发。写成「上报」而不解释，用户会以为
+    // 关掉之后连本地日志都没有——那不是隐私保护，那是让问题查不了。
+    description: '把崩溃堆栈发给开发者；本地记录始终保留，不含对话内容',
     defaultValue: false,
   ),
   OndraSettingSpec(
@@ -322,16 +319,9 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
     description: '插件需要时才能截取当前窗口',
     defaultValue: false,
   ),
-  OndraSettingSpec(
-    key: 'privacy.keychain',
-    label: 'API Key 存放',
-    kind: OndraSettingKind.choice,
-    defaultValue: 'keychain',
-    options: [
-      OndraSettingOption('keychain', '系统钥匙串'),
-      OndraSettingOption('file', '本地加密文件'),
-    ],
-  ),
+  // 「API Key 存放」曾经是二选一（系统钥匙串 / 本地加密文件），但后者
+  // 没有实现：密钥写入只有钥匙串一条路。与其留一个选了会静默失效的选项，
+  // 不如在界面那一行如实写「系统钥匙串」。见 `console_sheet` 的隐私段。
 
   // ── 关于空谷 ────────────────────────────────────────────────────────────
   OndraSettingSpec(

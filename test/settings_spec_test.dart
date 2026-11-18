@@ -26,14 +26,13 @@ void main() {
       'dialog.busySend', 'dialog.enterSend', 'dialog.replyLength',
       'dialog.remember', 'dialog.citeMemory', 'dialog.inferPreference',
       'memory.retention', 'memory.capacity', 'memory.autoSummarize',
-      'data.location',
       'voice.tts', 'voice.timbre', 'voice.rate', 'voice.asrLanguage',
       // 通道接口
       'channels.qqBot', 'channels.qqSandbox', 'channels.allowGroups',
       'channels.busyPolicy',
       // 关于空谷（隐私已并入）
       'privacy.online', 'privacy.screenRead', 'privacy.redactLogs',
-      'privacy.crashReport', 'privacy.keychain',
+      'privacy.crashReport',
       'about.channel',
       // 日志页底部
       'logs.usageDetail',

@@ -580,6 +580,84 @@ OndraModule(
 - 右栏不在模块里声明：它是**聊天窗口**，全应用只有一个，切页不换名字、不换建议。
 - 缺席靠 `--dart-define=ondra_absent=a,b`，缺席的模块只是不出现，不改代码。
 
+## 设置到底生不生效
+
+界面上有 30 多个开关。**「拨了有没有用」必须能被验证**，否则一个选项齐备的设置页
+只是装饰。这一节记录每一条去处的真值，改代码时照这里对。
+
+### 三条落点，判定方式不同
+
+| 落点 | 判据 | 谁执行 |
+|---|---|---|
+| 内核配置 | 在 `settings_targets.dart` 的 `ondraSettingTargets` 里 | `DshSettings.writeField` → `~/.ondra/dsh/settings.json` |
+| 系统行为 | 在 `_platformWiredKeys` 里 | `PlatformActions` / `Notifier`（launchd、`caffeinate`、`osascript`） |
+| 只影响界面 | 两处都没有 | 界面自身（字号、更新通道…） |
+
+界面用 `ondraSettingIsWired(key)` 判定，没有落点的项在说明文字后面缀一句
+「本项只影响界面：内核还没有对应的配置段」。**这一句必须是真的**——
+上一版所有项都拨着没反应，而两边都不报错，用户只能怀疑自己。
+
+### 内核配置的形状（唯一正确写法）
+
+`~/.ondra/dsh/settings.json`：
+
+```json
+{ "user": { "tts": { "rate": 0.25 }, "privacy": { "approval-mode": "strict" } } }
+```
+
+- **段 id** 来自各插件 `settings.ts` 的 `CONFIG_SECTION_ID`（`tts` / `asr` / `privacy`…），
+  一共 63 个段。
+- **字段名是 kebab**（`archive-normal-days`、`score-on-write`）。写成 camel
+  **不报错**，内核按默认值跑——`ondra-tts` 的 `KEY_PAIRS` 就是这个转换表。
+- 少一层 `user` 也**不报错**，整份配置被当成空的。
+
+### 两个踩过的坑（都是静默失效）
+
+1. **`voice.timbre` 映射到 `gentle`**：内核的 `PRESET_IDS` 只有八个
+   （soft / lively / broadcast / dongbei / shaanxi / cantonese / taiwan / english），
+   不在表里的 id 会被 `isPresetId()` 拒掉并**静默回落 `soft`**。
+   现在三档落到 soft / lively / broadcast，并有测试守着这个集合。
+2. **`voice.rate` 写进 `say-wpm`**：`say-wpm` 是 macOS `say` 的**基准**语速
+   （120–300 词/分钟），`rate` 才是**增量**（−0.5–+0.5，0.1 = 快一成）。
+   写前者等于每次都改基准。现在写 `rate`，并且**分段换算**：界面 100 往下一共
+   40 格、往上一共 60 格，而内核两头都是 0.5，用一个分母两端对不齐
+   （60% 只能落到 −0.333，拉到底也到不了下限）。
+
+### 系统侧的三件事
+
+| 设置 | 真实动作 | 不做会怎样 |
+|---|---|---|
+| 开机自启动 | 写 `~/Library/LaunchAgents/com.ntars.ondra.plist` 并 `launchctl load` | 只写 prefs 的话开机不会有空谷 |
+| 阻止空闲睡眠 | 起 `caffeinate -i` 子进程，关掉即 kill | 进程本身就是那个状态，不需要额外记录 |
+| 系统通知 | `osascript display notification`（可带 `sound name`） | 三个通知开关都没触发点 |
+
+「开机自启动」选 LaunchAgent 而不是 System Events 登录项：后者要**辅助功能授权**，
+为一个自启动弹一个「允许读取所有窗口内容」的对话框，代价太大。
+
+### 明确不生效的三项（如实标注，不假装）
+
+| 项 | 为什么 |
+|---|---|
+| 专注时静音 | 判断「有没有全屏应用在前台」只能查 System Events 前台进程，需要辅助功能授权（实测未授权返回 `-10004`）。为一个通知音量要这种权限，比不做更糟 |
+| 崩溃上报 | 本地堆栈**永远写**（`~/.ondra/logs/crash.log`，5 份滚动）；「往外发」还没有接收端，不做假动作 |
+| 数据位置 | 根目录由内核写死 `~/.ondra`，搬家要停进程→搬库→改配置→再起，是一次独立操作。界面改成只读显示真实路径 |
+
+QQ 通道那几项需要通道插件；未安装时界面写「本项需要通道插件：未安装时只记录界面选择」——
+与「内核没这个段」分开说，因为用户的下一步动作不一样。
+
+### 不做的事：测试不许改用户环境
+
+`prefs.json` 与 LaunchAgents 是**真文件**。任何一次 `settingsClient.set(...)`
+都会落盘，测试跑一遍就把用户的开机自启动、通知开关、字号改成测试值。
+所以每层都有重定向口子，且都遵循同一套约定（与 `memorySnapshotLoader` 等同形）：
+
+```dart
+setPrefHome(tempDir);                    // prefs.json
+DshSettings.setHome(tempDir);            // settings.json
+PlatformActions.probe = const PlatformActionsProbe();  // launchd / caffeinate
+Notifier.probe = NotifierProbe();        // 系统通知
+```
+
 ## 视觉约定
 
 - **单色界面**：强调色是近黑（`#1C1F28`），状态色只用语义红 / 橙；涨跌类色另行约定。
@@ -666,7 +744,7 @@ OndraModule(
 | 本地部署 | 真实能力：`ondra-llama` 找 `llama-server`、下 GGUF（带进度）、起停进程、轮询 `/v1/models` 判定就绪，并把地址回填给 provider。需要本机 `brew install llama.cpp` |
 | 网页浏览 | `ondra-browser`：白名单 + 系统 WKWebView 平台视图。**被动出现**（左栏无入口），从设置的白名单或其它功能的打开请求进来 |
 | 历史对话 | 完成；读内核会话库 `~/.ondra/dsh/sessions/**/session.v4.jsonl`，标题取第一句用户消息，按最后活动倒序（本机实测 35 条） |
-| 插件扩展 | 完成；随包清单 18 条 + profile 装配层 75 条，扩展插件可开关（改装配层注释，下次连内核生效） |
+| 插件扩展 | 完成；随包清单 18 条 + profile 装配层 78 条，扩展插件可开关（改装配层注释，下次连内核生效） |
 | 记忆星图 | 完成；读 `~/.ondra/user/ondra.db` 的 `memory_fact` / `memory_link`（走 `/usr/bin/sqlite3 -json`，不引原生包），坐标按 id 哈希确定性排布，本机实测 10 条事实 |
 | 三类日志 | 完成；对话→`transport.log`、插件→`ondra-code.log`、系统→`window.log`，从尾部倒读 200 行，UTF-8 解码 |
 | 备份还原 | **完成**：内容寻址对象库（`~/.ondra/backups`），本机实测 32 个文件 / 437 KB：第二份快照与第一份内容全同，新增 0 字节；恢复前自动存底、只覆盖不删除；超额裁剪 + 孤儿对象回收 | 

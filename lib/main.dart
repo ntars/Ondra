@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'app/crash_log.dart';
 import 'app/ondra_app.dart';
 import 'app/window_geometry.dart';
 import 'design/font_face.dart';
@@ -11,14 +13,36 @@ import 'plugins/ondra-core/ondra-ui/ondra-chat/ui/chat_client.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/stdio_transport.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-plugins/ui/plugins_client.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-backup/ui/backup_engine.dart';
+import 'plugins/ondra-core/ondra-ui/ondra-settings/ui/settings_client.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 全局错误捕获。没有这两个钩子，「崩溃上报」这个开关无论怎么设都不会
+  // 有任何东西被上报——它连触发点都没有。
+  //
+  // 这里**不联网**：只写本地日志（`~/.ondra/logs/crash.log`）并弹一条通知。
+  // 报给谁、报什么、走不走网，是「隐私与安全」里的开关决定的；
+  // 而那个开关默认是关的。本地留一份堆栈是底线——用户来问「为什么闪退」时，
+  // 没有这份东西就只能猜。
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    _logCrash('FlutterError', details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    _logCrash('PlatformDispatcher', error, stack);
+    return true; // 已处理：不要让它在控制台再抛一次
+  };
+
   // 字体要在 runApp 之前装：字体族一旦被首帧用过，中途注册会让已排好版的
   // 文字按旧字体测量、按新字体绘制，出现一次跳变。装不上就降级到系统字体。
   await OndraFont.load();
   // 桌面端在这里把窗口定成 960×600；web 上是空实现。
   await applyWindowGeometry();
+
+  // 偏好在首帧之前读回来：字号与语言一旦晚一步，界面会先按默认值排一次版
+  // 再重排，肉眼能看见一次抖。文件只有几百字节，同步读不会拖慢启动。
+  settingsClient.load();
 
   // 运行时（Cordis 宿主）接通前，先把内置人设包读进来，首帧就有名字。
   // 接上运行时后这一行换成 personaClient.connect()，界面不用动。
@@ -74,3 +98,12 @@ void _followModelChoice() {
 }
 
 String _currentRoute() => '${modelClient.defaultProviderId}/${modelClient.defaultModelId}';
+
+/// 记一次崩溃。
+///
+/// 上报开关（`privacy.crashReport`）只决定**要不要往外发**；
+/// 本地这一份永远写——用户来问「为什么闪退」时，没有堆栈就只能猜。
+/// 往外发的那一半等有接收端再接，否则就是一个永远发不出去的假开关。
+void _logCrash(String scope, Object error, StackTrace? stack) {
+  CrashLog.write(scope, error, stack);
+}
