@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra memory",
+    "description": "Remember what was said, dedupe it, let it fade, recall it when relevant. Extraction, merging, decay and recall live in one plugin because they all mutate the same records."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "ondra-persona",
+  "version": "0.1.0",
+  "private": true,
+  "description": "人设：包的加载、热切换、重载与提示词段渲染，合成一个插件。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

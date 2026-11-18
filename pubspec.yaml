@@ -1,0 +1,46 @@
+name: ondra
+description: "空谷 · 桌面陪伴体（Flutter 前端骨架）"
+publish_to: 'none'
+
+# 2.0.0-alpha：Flutter 重写版。预发布标识写在 + 之前，语义版本合法。
+version: 2.0.0-alpha+1
+
+environment:
+  sdk: ^3.14.0
+
+# 运行时依赖：flutter、material_ui（3.50 起 Material 拆到这里）、flutter_svg（品牌标记）。
+# 包解析全部落在系统 pub 缓存（~/.pub-cache），工程内不留依赖副本。
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: ^1.11.0
+  flutter_svg: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # 品牌资产：ondra-mark.svg 由设计侧提供，是标记的唯一真源，代码不得改写其几何。
+    - assets/brand/
+    # 图标：统一 24×24 画布、2px 描边、圆角端点。其中 30 枚取自 Lucide 0.577（ISC，
+    # 路径数据逐字节一致），6 枚自绘（nav_guide / edit / rail_collapse / rail_toggle /
+    # plugin / dsh.png）。第三方来源与授权见 NOTICE 第五节。
+    - assets/icons/
+    # 内置人设包（哦鲸鲸）：Agent Skills 规范，meta.json + SKILL.md + references/。
+    # 目录不能递归，references 必须单独列一行，否则运行时读不到。
+    - assets/personas/
+    - assets/personas/oh-jingjing/
+    # 插件清单：真源兜底；运行时接通后改由 Cordis 宿主下发。
+    - assets/plugins/
+    - assets/personas/oh-jingjing/references/
+    # 字体目录：只声明目录，不声明具体文件。
+    # MiSans 许可禁止再分发字体副本，所以仓库里没有 .ttf（只留 .gitkeep 占位）；
+    # 在 `fonts:` 段声明具体文件的话，文件缺失会让 `flutter build` 直接失败，
+    # 就降级不了。这里声明目录 + `lib/design/font_face.dart` 运行时加载：
+    # 有字体就装上，没有就整个应用降级到系统字体，构建和功能都不受影响。
+    # 生成方式见 tool/subset_font.sh。
+    - assets/fonts/

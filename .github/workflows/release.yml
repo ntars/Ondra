@@ -1,0 +1,58 @@
+# 三端发布构建（GitHub Actions）。
+#
+# 为什么需要它：Windows 桌面目标只能在 Windows 机器上构建（MSVC 工具链没有
+# 交叉编译），所以 macOS 之外的两端要靠这台「远端的 Windows」。
+#
+# 用法：
+#   1. 推到 GitHub 后，Actions → Release build → Run workflow（手动触发）；
+#   2. 或者推一个 `v*` 的 tag 自动触发；
+#   3. 结束后在本次 run 的 Artifacts 里下载 ondra-windows / ondra-android。
+#
+# 说明：
+#   - Android 用 ubuntu（比 windows 快很多，且 Gradle 在 Linux 上跑得稳）；
+#   - 两个 job 都没有签名步骤：APK 未签名也能侧载安装（ Release 构建默认
+#     用 debug 签名；正式上架要另配 keystore），Windows 未签名会被
+#     SmartScreen 提示，点「仍要运行」即可——这是 alpha 阶段的选择。
+name: Release build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+      - run: flutter build windows --release
+      # Release 目录里是裸 exe + 一堆 dll + data/，必须整个目录一起带，
+      # 少一个 dll 双击就起不来。7z 是 runner 自带的。
+      - run: 7z a ondra-windows-${{ github.ref_name }}.zip ./build/windows/x64/runner/Release/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ondra-windows
+          path: ondra-windows-${{ github.ref_name }}.zip
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ondra-android
+          path: build/app/outputs/flutter-apk/app-release.apk

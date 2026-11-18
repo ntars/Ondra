@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Partner API",
+    "description": "Publishes a partner provider preset to the model base. Swapping partners means editing this plugin only."
+  }
+}

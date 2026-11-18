@@ -1,0 +1,15 @@
+{
+  "id": "ondra-plugins",
+  "name": "插件管理",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "插件管理",
+  "provides": [
+    "导入 / 安装 / 卸载 / 导出插件"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

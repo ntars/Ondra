@@ -1,0 +1,15 @@
+{
+  "id": "ondra-persona",
+  "name": "人设设定",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-settings",
+  "summary": "人设设定",
+  "provides": [
+    "人设包加载 / 热切换 / 导入导出"
+  ],
+  "depends": [
+    "ondra-settings"
+  ]
+}

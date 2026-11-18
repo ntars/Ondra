@@ -1,0 +1,22 @@
+{
+  "name": "ondra-model",
+  "version": "0.1.0",
+  "private": true,
+  "description": "模型网关：提供商与模型目录的解析、校验与默认模型。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

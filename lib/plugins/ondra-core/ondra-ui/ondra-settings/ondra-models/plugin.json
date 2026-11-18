@@ -1,0 +1,15 @@
+{
+  "id": "ondra-models",
+  "name": "模型基座",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-settings",
+  "summary": "模型基座",
+  "provides": [
+    "提供商 / 模型 / 接口"
+  ],
+  "depends": [
+    "ondra-settings"
+  ]
+}

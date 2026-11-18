@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 空谷要拉起本机的 dsh 子进程（stdio JSON-RPC），还要读写用户选定的数据目录，
+	     这两件事在 App Sandbox 下都做不到，所以关闭沙箱。
+	     代价是上架 Mac App Store 不可行；本应用直接分发，不走商店。 -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+</dict>
+</plist>

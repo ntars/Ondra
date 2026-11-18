@@ -1,0 +1,4 @@
+# 独立根插件：不带 config（默认值的唯一真源是 src/settings.ts 的 FIELD_SPECS）。
+- insert:
+    - id: ondra-memory
+      name: 'ondra-memory'

@@ -1,0 +1,11 @@
+{
+  "id": "ondra-llama",
+  "name": "本地模型",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "用 llama.cpp 在本机跑大模型：下载 GGUF、启动 llama-server、看日志、停掉",
+  "provides": ["本地模型目录", "llama-server 生命周期", "下载进度"],
+  "depends": ["ondra-settings"]
+}

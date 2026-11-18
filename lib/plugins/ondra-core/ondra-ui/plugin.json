@@ -1,0 +1,11 @@
+{
+  "id": "ondra-ui",
+  "name": "UI 总层",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "三栏外壳、左栏菜单、插件注册表、壳状态",
+  "provides": ["模块注册表", "壳状态", "页面装配"],
+  "depends": []
+}

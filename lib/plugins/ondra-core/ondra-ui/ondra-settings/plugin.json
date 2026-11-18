@@ -1,0 +1,15 @@
+{
+  "id": "ondra-settings",
+  "name": "设置面板",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "设置面板",
+  "provides": [
+    "6 个设置分类的容器"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

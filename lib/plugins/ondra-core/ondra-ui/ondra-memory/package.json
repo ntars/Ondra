@@ -1,0 +1,13 @@
+{
+  "name": "ondra-memory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "空谷的记忆：抽取、去重、衰减、召回、图谱与做梦式整理，合成一个插件。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "scripts": { "build": "tsc -b", "typecheck": "tsc -b --noEmit" },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.1.0" },
+  "ondra": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

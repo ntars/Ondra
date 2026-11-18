@@ -1,0 +1,11 @@
+{
+  "id": "ondra-browser",
+  "name": "网页浏览",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "内嵌浏览器：只打开白名单里的站点，供后续「读网页」类能力复用",
+  "provides": ["白名单", "内嵌 WebView"],
+  "depends": ["ondra-ui"]
+}

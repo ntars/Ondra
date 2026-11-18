@@ -1,0 +1,15 @@
+{
+  "id": "ondra-general",
+  "name": "通用设置",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-settings",
+  "summary": "通用设置",
+  "provides": [
+    "外观 / 权限 / 启动 / 通知"
+  ],
+  "depends": [
+    "ondra-settings"
+  ]
+}

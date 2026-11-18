@@ -1,0 +1,21 @@
+{
+  "name": "ondra-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "右栏对话：会话流、输入盒与内核接线。",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "dsh": {
+    "plugin": {
+      "id": "ondra-dsh"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-agent-loop": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-system-prompt": "workspace:*"
+  }
+}

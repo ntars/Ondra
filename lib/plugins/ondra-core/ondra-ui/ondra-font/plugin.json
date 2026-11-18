@@ -1,0 +1,15 @@
+{
+  "id": "ondra-font",
+  "name": "字体",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "字体",
+  "provides": [
+    "MiSans（不可见、不可改）"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

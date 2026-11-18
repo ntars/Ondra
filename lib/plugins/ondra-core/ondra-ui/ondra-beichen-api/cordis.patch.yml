@@ -1,0 +1,4 @@
+# 合作 API 是根插件：配置只有一个地址与一个密钥变量名，默认值在 src/settings.ts。
+- insert:
+    - id: ondra-beichen-api
+      name: 'ondra-beichen-api'

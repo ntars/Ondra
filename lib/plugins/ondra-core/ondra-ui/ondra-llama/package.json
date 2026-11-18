@@ -1,0 +1,13 @@
+{
+  "name": "ondra-llama",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地部署：llama.cpp 的模型目录与 llama-server 生命周期。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "scripts": { "build": "tsc -b", "typecheck": "tsc -b --noEmit" },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.1.0" },
+  "ondra": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

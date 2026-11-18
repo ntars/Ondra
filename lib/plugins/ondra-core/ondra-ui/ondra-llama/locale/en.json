@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Local models",
+    "description": "Download GGUF models, run llama-server and hand its OpenAI-compatible endpoint to the model base."
+  }
+}

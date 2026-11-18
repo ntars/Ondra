@@ -1,0 +1,22 @@
+{
+  "name": "ondra-channel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "通道接口：把空谷接到 QQ / 飞书 / 邮件这类聊天工具上，一套投递策略。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

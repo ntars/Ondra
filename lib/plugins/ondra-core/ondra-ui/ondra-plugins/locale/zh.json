@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "空谷插件管理",
+    "description": "插件文件的进出：导入、安装、卸载、导出。只管文件与清单，不管插件跑起来之后做什么——那是每个插件自己的事。目录分布在 ondra-core / ondra-extensions / dsh-base / ondra-custom 四处，本插件按这四个分类定位。"
+  }
+}

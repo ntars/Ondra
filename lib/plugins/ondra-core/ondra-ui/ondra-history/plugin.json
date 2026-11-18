@@ -1,0 +1,15 @@
+{
+  "id": "ondra-history",
+  "name": "历史对话",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "历史对话",
+  "provides": [
+    "会话列表与检索"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

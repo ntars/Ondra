@@ -1,0 +1,11 @@
+{
+  "id": "ondra-flutter",
+  "name": "Flutter 平台层",
+  "version": "0.0.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "占位：平台能力（窗口 / 托盘 / 文件选择）",
+  "provides": [],
+  "depends": []
+}

@@ -1,0 +1,15 @@
+{
+  "id": "ondra-guide",
+  "name": "使用教程",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "使用教程",
+  "provides": [
+    "帮助内容"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "ondra-memory",
+  "name": "记忆星图",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "记忆星图",
+  "provides": [
+    "记忆点与关联图"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

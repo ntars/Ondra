@@ -1,0 +1,201 @@
+# NOTICE
+
+空谷 Ondra — 桌面陪伴体
+Copyright (c) 2024-2026 星玖工作室 Ntarstudio
+<https://www.ntars.cn/>
+
+本文件是本仓库的版权与第三方组件声明。它回答四个问题：本项目自身归谁、用了别人的什么、
+再分发时必须保留什么、哪些东西本仓库明确没有用。修改或再分发前请先读本文件与仓库根
+[`LICENSE`](./LICENSE)。
+
+---
+
+## 一、本项目自身的许可
+
+| 范围 | 许可 | 依据 |
+|---|---|---|
+| `lib/plugins/ondra-core/` `ondra-extensions/` `ondra-custom/` `dsh-base/` | Apache-2.0 | 见 [`LICENSE`](./LICENSE) |
+| `lib/app/` `lib/design/` `lib/main.dart` `tool/` `test/` | MIT | 同上 |
+| 品牌名称、Logo、界面设计 | 保留所有权利 | 不随代码许可授予 |
+| `assets/personas/` 人设文本 | 保留所有权利 | 创作内容 |
+| `assets/fonts/` | 各自上游许可 | 见第四节 |
+
+分层理由：插件宿主与扩展 API 用 Apache-2.0，是为了给插件作者明示专利授权，
+让闭源插件也能安心接入；界面与胶水代码用 MIT，门槛最低。
+
+**两种许可都无传染性**：第三方插件、二次开发、商业分发均无需开放自己的代码。
+
+---
+
+## 二、第三方运行时依赖
+
+Flutter / Dart 生态依赖通过 `pub` 解析，落在系统缓存（`~/.pub-cache`），
+工程内不保留依赖副本。
+
+| 组件 | 版本 | 版权方 | 许可证 | 用途 |
+|---|---|---|---|---|
+| Flutter | SDK | Google LLC | BSD-3-Clause | 应用框架 |
+| material_ui | ^1.11.0 | Flutter 团队 | BSD-3-Clause | Material 组件（3.50 起从 SDK 拆出） |
+| flutter_svg | ^2.4.0 | Flutter 社区 | MIT | 品牌标记 SVG 渲染 |
+| flutter_lints | ^6.0.0 | Flutter 团队 | BSD-3-Clause | 静态检查规则（开发期） |
+
+以上均为宽松许可，与本项目的 Apache-2.0 / MIT 兼容。
+**没有任何 GPL / LGPL / AGPL / MPL 组件。**
+
+---
+
+## 三、随仓库内置的上游代码
+
+| 目录 | 上游 | 版本 | 许可证 | 处理方式 |
+|---|---|---|---|---|
+| `lib/plugins/cordis/` | [cordiverse/cordis](https://github.com/cordiverse/cordis) | 4.1.0 | **MIT** | 原样引入发行包，不改写；`LICENSE` 随目录保留 |
+
+`cordis` 是插件体系的宿主框架，不是本项目自有代码。本项目对它的使用方式是
+「原样引入 + 版本对齐」，便于与上游一比一同步。修改上游代码前须先向上游提 PR，
+不要在本仓库内打补丁——否则下次同步会冲突。
+
+---
+
+## 四、字体
+
+界面字体为 **MiSans**，由使用者在本机自行生成，**本仓库不含任何字体文件**。
+
+- 版权方：小米科技有限责任公司（Xiaomi Inc.）
+- 许可：《MiSans 字体知识产权许可协议》
+- 官方下载：<https://hyperos.mi.com/font/zh/download/>
+- 生成方式：`tool/subset_font.sh`，输入为官方 `MiSansVF.ttf`（完整版 19MB / 29414 字）
+- 产物：`assets/fonts/MiSans-Ondra.ttf`（子集，约 463KB），已被 `.gitignore` 排除
+
+### 4.1 为什么不随仓库分发
+
+许可协议第 2 条原文（下载自官网 PDF）：
+
+> 1）您应在软件中特别注明使用了 MiSans 字体。
+>
+> 2）您不得对 MiSans 字体或其任何单独组件进行改编或二次开发。
+>
+> 3）您不得单独将 MiSans 字体或其组件对外租赁、再许可、给予、出借或进一步
+> 分发字体软件或其任何副本以及重新分发或售卖。
+
+对照本项目：
+
+| 行为 | 是否触碰协议 |
+|---|---|
+| 子集化（裁剪字符集） | 触碰第 2 款「改编」 |
+| 子集文件放进公开仓库 | 触碰第 3 款「分发副本」 |
+| 使用者本机生成、本机使用 | 不触碰——属正常「使用」 |
+
+因此选择「本机生成、不入库」。第 1 款要求的署名已完成：见 §4.2。
+
+### 4.2 署名（协议第 2 条第 1 款要求的「特别注明」）
+
+软件内两处：
+
+- 关于页的「开源许可」段列出 MiSans 与版权方；
+- 本 NOTICE 与 `LICENSING.md` 的第三方组件表。
+
+再分发**编译产物**（安装包、网页构建结果）时，产物内含字体子集，属协议允许的
+「使用 MiSans 字体创作的作品」，可自由分发；但需一并保留本节与版权声明。
+
+### 4.3 没有字体时如何降级
+
+字体缺失不影响构建与任何功能，应用自动降级到系统中文字体：
+
+1. `pubspec.yaml` **不在 `fonts:` 段声明字体文件**——一旦声明，文件缺失会让
+   `flutter build` 直接失败，连降级的机会都没有。改为声明 `assets/fonts/`
+   目录，只要求目录存在（由 `.gitkeep` 保证）。
+2. `lib/design/font_face.dart` 在 `runApp` 之前用 `rootBundle` + `FontLoader`
+   尝试运行时加载，失败则静默跳过。
+3. `tokens.dart` 的 `ondraFontFallback` 给出回退链：苹方 → 冬青黑 → 微软雅黑
+   → 思源黑。它是**唯一真源**，`theme.dart` 与 `ondraText` 都引用它。
+4. 失去的只是 MiSans 字形本身，以及 330 / 380 这类非整数字重档的细腻差别；
+   粗细仍正确，因为 `ondraWeight()` 已把同一档映射成 `FontWeight`。
+
+验收见 `test/font_fallback_test.dart`。
+
+---
+
+## 五、图标
+
+`assets/icons/` 下为 36 个 SVG 图标。**已全部核查，来源清晰**。
+
+### 5.1 Lucide（30 个，ISC 许可）
+
+以下图标经逐字节路径比对，与 [Lucide](https://lucide.dev/)（0.577 版几何，
+24 画布、2px 描边、圆角端点）完全一致：
+
+`arrow_up` `check` `chevron_down` `chevron_left` `chevron_right` `close`
+`download` `expand` `external` `info` `more` `refresh` `search` `send`
+`sparkles` `trash`（16 个通用小图标）
+
+`nav_browser` `nav_history` `nav_knowledge` `nav_memory` `nav_newchat`
+`nav_plugin` `nav_status` `nav_transfer` `nav_backup` `nav_log_system`
+`nav_log_dialog` `nav_log_plugin`（12 个侧栏图标，对应 Lucide 的
+globe / history / folder-open / brain / message-square-plus / puzzle /
+activity / arrow-left-right / archive-arrow-up / terminal /
+message-square / plug）
+
+- 版权方：Lucide Contributors
+- 许可证：**ISC**（宽松，与本项目的 Apache-2.0 / MIT 兼容）
+- 处理方式：仅把 `currentColor` 改为 `#000000`，运行时靠主题上色；几何未改动
+- 项目地址：<https://github.com/lucide-icons/lucide>
+
+### 5.2 本项目自绘（6 个）
+
+| 图标 | 说明 |
+|---|---|
+| `nav_guide` | 打开的书本，自绘 |
+| `edit` | 32 画布实心编辑图标，自绘 |
+| `rail_collapse` `rail_toggle` | 19 画布侧栏折叠/展开，自绘（同一几何，互为镜像） |
+| `plugin` `dsh.png` | 品牌标记：白底圆角 + 空谷标记 / dsh 内核官方图标 |
+
+品牌标记与自绘图标归星玖工作室所有，随代码许可一并授权。
+
+### 5.3 已移除的历史资源
+
+侧栏早期使用的 22×22 实心图标取自「小米互联服务」的渲染层。这些图形已在
+信息架构重构时**全部删除**（见 `lib/design/glyph.dart` 注释），现仓库内
+不含任何取自该应用的图形资源。
+
+### 5.4 为什么不用 Morphicons
+
+[Morphicons](https://github.com/guillermolg00/morphicons)（MIT）是**形状变形引擎**，
+不是图标库：它只消费 Lucide / Tabler / Heroicons / Iconoir 等图标库的数据，
+本身不提供任何图标。本项目只需静态图标，不需要图标之间的形变动画，
+因此直接使用 Lucide 的静态 SVG，不引入该引擎及其运行时依赖。
+
+---
+
+## 六、许可证兼容性
+
+本项目采用 **Apache-2.0 与 MIT**（宽松许可）。
+
+| 许可证 | 与本项目的兼容性 |
+|---|---|
+| MIT / BSD / Apache-2.0 / ISC | **兼容**，可直接引入 |
+| 专有 / 无许可证 / 自定义限制条款 | **不兼容**，不得引入 |
+| GPL-2.0 / GPL-3.0 / LGPL / AGPL / MPL | **不兼容**，不得引入 |
+
+---
+
+## 七、明确没有使用的内容
+
+| 对象 | 权利方 | 说明 |
+|---|---|---|
+| DeepSeek dsh 内核 | DeepSeek | 以独立命令行进程调用（`npm i -g @deepseek-ai/dsh`），不内嵌、不改写、不随本项目分发 |
+| macOS / Windows 系统 UI 资源 | Apple / Microsoft | 仅作设计参照，未使用任何代码、素材、字体或图标 |
+
+---
+
+## 八、再分发要求
+
+使用或再分发本项目时，请一并保留：
+
+1. 本 NOTICE 文件；
+2. `LICENSES/Apache-2.0.txt` 与 `LICENSES/MIT.txt` 许可全文；
+3. `lib/plugins/cordis/LICENSE`（上游 MIT 声明）；
+4. 源文件中已有的版权与许可声明。
+
+---
+
+Ntarstudio（星玖工作室）· <https://www.ntars.cn/>

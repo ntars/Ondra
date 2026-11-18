@@ -1,0 +1,4 @@
+# 本地模型是根插件：默认值写在 src/settings.ts，不在这里抄第二份。
+- insert:
+    - id: ondra-llama
+      name: 'ondra-llama'

@@ -1,0 +1,15 @@
+{
+  "id": "ondra-channels",
+  "name": "通道接口",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-settings",
+  "summary": "外部通道接入：QQ 机器人、飞书、邮件等把空谷接到别的聊天工具上。",
+  "provides": [
+    "通道接口"
+  ],
+  "depends": [
+    "ondra-settings"
+  ]
+}

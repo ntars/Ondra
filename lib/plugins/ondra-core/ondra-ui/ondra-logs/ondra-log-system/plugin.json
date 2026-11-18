@@ -1,0 +1,13 @@
+{
+  "id": "ondra-log-system",
+  "name": "系统日志",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "启动、崩溃、异常与版本变更。",
+  "provides": [],
+  "depends": [
+    "ondra-logs"
+  ]
+}

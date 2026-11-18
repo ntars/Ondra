@@ -1,0 +1,16 @@
+{
+  "id": "ondra-backup",
+  "name": "备份还原",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "备份还原",
+  "provides": [
+    "快照与容量",
+    "时间线"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

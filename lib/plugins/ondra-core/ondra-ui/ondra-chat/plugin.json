@@ -1,0 +1,11 @@
+{
+  "id": "ondra-chat",
+  "name": "右栏对话",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "右栏整块：会话流 / 输入盒 / 直连 dsh 内核",
+  "provides": ["聊天窗"],
+  "depends": ["ondra-ui", "dsh-base", "ondra-persona"]
+}

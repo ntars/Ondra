@@ -1,0 +1,82 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# HarmonyOS（由 OpenHarmony Flutter 移植版生成 ohos/ 后生效）
+ohos/**/build/
+ohos/**/oh_modules/
+ohos/.hvigor/
+ohos/local.properties
+
+# ── 本机环境与本地配置（不随仓库走）────────────────────────────
+# 本地 AI 协作目录：记忆、工作日志、会话状态都是这台机器的。
+.workbuddy/
+
+# Gradle / 各平台构建的中间状态
+**/.gradle/
+android/key.properties
+*.keystore
+*.jks
+**/ephemeral/
+
+# 打包产物（build/ 已整目录排除，这里兜底）
+*.apk
+*.aab
+*.dmg
+
+# ── 字体（不随仓库分发）────────────────────────────────────────
+# assets/fonts/MiSans-Ondra.ttf 是 MiSans 的子集。MiSans 许可协议第 2 条
+# 第 2、3 款禁止「改编或二次开发」与「单独再分发字体软件或其任何副本」，
+# 子集化与随公开仓库分发同时触碰这两条。因此字体文件不入库：
+#   1. 从 https://hyperos.mi.com/font/zh/download/ 下载 MiSansVF.ttf
+#   2. 运行 tool/subset_font.sh <路径> 在本地生成
+#   3. 缺字体时应用自动降级到系统中文字体，功能不受影响
+/assets/fonts/MiSans-Ondra.ttf
+/assets/fonts/*.ttf
+/assets/fonts/*.otf
+/assets/fonts/*.woff2

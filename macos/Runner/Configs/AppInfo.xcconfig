@@ -1,0 +1,20 @@
+// Application-level settings for the Runner target.
+//
+// This may be replaced with something auto-generated from metadata (e.g., pubspec.yaml) in the
+// future. If not, the values below would default to using the project name when this becomes a
+// 'flutter create' template.
+
+// The application's name. By default this is also the title of the Flutter window.
+// 这是「显示名」：访达里的 .app、程序坞气泡、菜单栏、关于面板都读它。
+PRODUCT_NAME = 空谷 Ondra
+
+// 可执行文件名，也就是 `ps` / 活动监视器里看到的进程名。
+// 不用 PRODUCT_NAME 的原因：那串带空格和中文，进程名会变成难读的样子，
+// 而且 `ps aux | grep` 和退出信号都得转义。显示名与进程名分开设是 macOS 的常规做法。
+EXECUTABLE_NAME = Ondra
+
+// The application's bundle identifier
+PRODUCT_BUNDLE_IDENTIFIER = cn.ondra.ondra
+
+// The copyright displayed in application information
+PRODUCT_COPYRIGHT = Copyright © 2026 cn.ondra. All rights reserved.

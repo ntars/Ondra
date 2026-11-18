@@ -1,0 +1,15 @@
+{
+  "id": "ondra-locale",
+  "name": "语言包",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "语言包",
+  "provides": [
+    "界面语言"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

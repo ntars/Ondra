@@ -1,0 +1,13 @@
+{
+  "id": "ondra-log-plugin",
+  "name": "插件日志",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "插件被调用、授权与失败的记录。",
+  "provides": [],
+  "depends": [
+    "ondra-logs"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra model base",
+    "description": "Single source of truth for providers and model catalogs, shaped like DSH settings.yaml."
+  }
+}

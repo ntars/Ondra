@@ -1,0 +1,15 @@
+{
+  "id": "ondra-onboarding",
+  "name": "初始引导",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "初始引导",
+  "provides": [
+    "首次使用的引导界面"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

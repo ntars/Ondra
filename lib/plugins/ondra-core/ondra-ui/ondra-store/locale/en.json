@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra store",
+    "description": "Atomic writes, snapshots and format migration for one on-disk state."
+  }
+}

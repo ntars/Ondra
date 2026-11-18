@@ -1,0 +1,11 @@
+{
+  "id": "ondra-beichen-api",
+  "name": "合作 API",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "把合作方的模型接口作为一组预设交给模型基座，整包可替换",
+  "provides": ["合作 API 预设"],
+  "depends": ["ondra-settings"]
+}

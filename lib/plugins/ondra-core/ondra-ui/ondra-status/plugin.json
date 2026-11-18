@@ -1,0 +1,15 @@
+{
+  "id": "ondra-status",
+  "name": "状态面板",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "状态面板",
+  "provides": [
+    "生命体征 / 情绪 / 监测源"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}

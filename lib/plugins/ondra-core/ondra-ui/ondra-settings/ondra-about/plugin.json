@@ -1,0 +1,15 @@
+{
+  "id": "ondra-about",
+  "name": "关于空谷",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-settings",
+  "summary": "关于空谷",
+  "provides": [
+    "版本 / 缓存 / 权限 / 隐私 / 许可"
+  ],
+  "depends": [
+    "ondra-settings"
+  ]
+}

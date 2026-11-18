@@ -1,0 +1,4 @@
+# 右栏是根插件：它不往别人的组里塞，自己开一条入口。
+- insert:
+    - id: ondra-chat
+      name: 'ondra-chat'

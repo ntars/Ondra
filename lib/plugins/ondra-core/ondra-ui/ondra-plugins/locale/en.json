@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ondra plugin manager",
+    "description": "Import, install, uninstall and export plugin packages across the four plugin roots."
+  }
+}

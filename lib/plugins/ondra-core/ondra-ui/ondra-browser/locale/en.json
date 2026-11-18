@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Browser",
+    "description": "An embedded browser restricted to an allow-list. The list is the single gate for page reading."
+  }
+}

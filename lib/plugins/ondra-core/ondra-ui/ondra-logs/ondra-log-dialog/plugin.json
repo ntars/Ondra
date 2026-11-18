@@ -1,0 +1,13 @@
+{
+  "id": "ondra-log-dialog",
+  "name": "对话日志",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-ui",
+  "summary": "模型思考链、工具调用与轮次耗时。",
+  "provides": [],
+  "depends": [
+    "ondra-logs"
+  ]
+}

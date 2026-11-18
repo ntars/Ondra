@@ -1,0 +1,15 @@
+{
+  "id": "ondra-transfer",
+  "name": "导入导出",
+  "version": "0.1.0",
+  "layer": "core",
+  "closable": false,
+  "owner": "ondra-core",
+  "summary": "导入导出",
+  "provides": [
+    "记忆 / 人设 / 配置的明文进出（不含插件）"
+  ],
+  "depends": [
+    "ondra-ui"
+  ]
+}
