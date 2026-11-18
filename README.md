@@ -176,23 +176,47 @@ cd Ondra && flutter pub get
 flutter run -d macos
 ```
 
-### 7.3 构建与分发
+### 7.3 直接下载
+
+三端安装包在 [Releases](https://github.com/ntars/Ondra/releases) 里，附 `SHA256SUMS.txt`：
+
+| 平台 | 文件 | 说明 |
+|---|---|---|
+| macOS（通用二进制） | `Ondra-2.0.0-alpha-macos-universal.dmg` | Intel 与 Apple Silicon 同一个包 |
+| Windows（x64） | `Ondra-2.0.0-alpha-windows-x64.zip` | 解压后运行 `ondra.exe`，必须整目录解压 |
+| Android | `Ondra-2.0.0-alpha-android-arm64.apk` | 常规手机；`-universal.apk` 含 32 位与模拟器 |
+
+校验：`shasum -a 256 -c SHA256SUMS.txt`。三个包都没有正式签名，首次打开按发行版说明处理系统拦截。
+
+### 7.4 构建与分发
 
 ```sh
+# macOS：本机可出通用二进制（x86_64 + arm64），无需分架构
 flutter build macos --release
 # → build/macos/Build/Products/Release/空谷 Ondra.app
-ditto -c -k --sequesterRsrc --keepParent "空谷 Ondra.app" ondra-macos.zip
-hdiutil create -volname "空谷 Ondra" -srcfolder "空谷 Ondra.app" -ov -format UDZO ondra-macos.dmg
+ditto -c -k --norsrc --noextattr --keepParent "空谷 Ondra.app" Ondra-macos.zip
+hdiutil create -volname "空谷 Ondra" -srcfolder "空谷 Ondra.app" -ov -format UDZO Ondra-macos.dmg
+
+# Android：arm64 单架构 18.6 MB，全架构 52.7 MB
+flutter build apk --release --target-platform android-arm64
+
+# Web：静态产物，连不上本机内核
 flutter build web --release     # → build/web
 ```
 
+`ditto` 必须用 `--norsrc --noextattr`。`--sequesterRsrc` 会把扩展属性塞进 `__MACOSX/`，
+解压端多出几百个 `._*` 叶文件，WinRAR 与部分解压工具还会误判为损坏。
+
+**Windows 只能在 Windows 上构建**（MSVC 没有交叉编译），走 `.github/workflows/release.yml`：
+Actions → Release build → Run workflow，结束后在 Artifacts 取 `ondra-windows`。
+
 四条硬约束：关闭 App Sandbox（要拉起本机子进程）、不引入原生插件、GUI 应用自行探测 `dsh` 路径、数据目录独立（`DSH_HOME=~/.ondra/dsh`）。
 
-### 7.4 升级与卸载
+### 7.5 升级与卸载
 
 升级：替换 `.app`，数据目录不动。卸载：删除应用与 `~/.ondra/`（含会话、记忆、备份、日志），删除后不可恢复，操作前建议先用备份页导出一份。
 
-### 7.5 容器化
+### 7.6 容器化
 
 桌面应用不做容器化；Web 构建产物为静态文件，可部署到任意静态托管，但无法连本机内核。
 

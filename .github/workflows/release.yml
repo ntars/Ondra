@@ -1,24 +1,33 @@
 # 三端发布构建（GitHub Actions）。
 #
-# 为什么需要它：Windows 桌面目标只能在 Windows 机器上构建（MSVC 工具链没有
-# 交叉编译），所以 macOS 之外的两端要靠这台「远端的 Windows」。
+# 为什么需要它：Windows 桌面目标只能在 Windows 上构建（MSVC 没有交叉编译，
+# 没有别的办法）。macOS job 也放进来，是为了让三端产物出自同一份提交，
+# 免得本机与 CI 的 Flutter 版本漂移出不一致的包。
 #
 # 用法：
-#   1. 推到 GitHub 后，Actions → Release build → Run workflow（手动触发）；
-#   2. 或者推一个 `v*` 的 tag 自动触发；
-#   3. 结束后在本次 run 的 Artifacts 里下载 ondra-windows / ondra-android。
+#   1. 推一个 `v*` 的 tag：三个 job 构建完，自动挂到该 tag 的发行版上；
+#      发行版已存在（比如先手工写了说明）就只补资产，不覆盖说明。
+#   2. 或者 Actions → Release build → Run workflow：只出 Artifacts，不动发行版。
 #
 # 说明：
-#   - Android 用 ubuntu（比 windows 快很多，且 Gradle 在 Linux 上跑得稳）；
-#   - 两个 job 都没有签名步骤：APK 未签名也能侧载安装（ Release 构建默认
-#     用 debug 签名；正式上架要另配 keystore），Windows 未签名会被
-#     SmartScreen 提示，点「仍要运行」即可——这是 alpha 阶段的选择。
+#   - 三个 job 都没有签名步骤：APK 是 debug 签名，侧载能装；Windows 未签名
+#     会被 SmartScreen 提示，点「仍要运行」；macOS 是 ad-hoc 签名，首次打开
+#     要右键 →「打开」。这是 alpha 阶段的选择，正式分发要另配 keystore 与公证。
+#   - APK 不能靠解压再压缩来「剔架构」：v2 签名覆盖整个文件，改完就装不上。
+#     单架构包只能重新构建，靠 Gradle 缓存，第二次很快。
 name: Release build
 
 on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   windows:
@@ -31,13 +40,18 @@ jobs:
       - run: flutter config --enable-windows-desktop
       - run: flutter pub get
       - run: flutter build windows --release
-      # Release 目录里是裸 exe + 一堆 dll + data/，必须整个目录一起带，
-      # 少一个 dll 双击就起不来。7z 是 runner 自带的。
-      - run: 7z a ondra-windows-${{ github.ref_name }}.zip ./build/windows/x64/runner/Release/*
+      - name: Package
+        shell: pwsh
+        run: |
+          # Release 目录是裸 exe + 一堆 dll + data/，必须整目录一起带，
+          # 少一个 dll 双击就起不来。
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          Compress-Archive -Path build/windows/x64/runner/Release/* `
+            -DestinationPath "Ondra-$tag-windows-x64.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: ondra-windows
-          path: ondra-windows-${{ github.ref_name }}.zip
+          name: windows
+          path: Ondra-*-windows-x64.zip
 
   android:
     runs-on: ubuntu-latest
@@ -51,8 +65,74 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Build arm64
+        run: |
+          flutter build apk --release --target-platform android-arm64
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "Ondra-${GITHUB_REF_NAME#v}-android-arm64.apk"
+      - name: Build universal
+        run: |
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "Ondra-${GITHUB_REF_NAME#v}-android-universal.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: ondra-android
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: android
+          path: Ondra-*-android-*.apk
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Package
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app="build/macos/Build/Products/Release/空谷 Ondra.app"
+          # --norsrc --noextattr：不带资源叉。用 --sequesterRsrc 的话解压端会
+          # 多出几百个 ._* 与 __MACOSX/，WinRAR 还会误判压缩包损坏。
+          ditto -c -k --norsrc --noextattr --keepParent "$app" \
+            "Ondra-$tag-macos-universal.zip"
+          # dmg 用 udzo 压缩，20 MB 上下；不签名，只有链接器的 ad-hoc 签名。
+          hdiutil create -volname "空谷 Ondra" -srcfolder "$app" -ov -format UDZO \
+            "Ondra-$tag-macos-universal.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            Ondra-*-macos-universal.zip
+            Ondra-*-macos-universal.dmg
+
+  # 只有 tag 触发才发布；workflow_dispatch 停在 Artifacts，免得误发。
+  release:
+    needs: [windows, android, macos]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          ls -l
+          sha256sum Ondra-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Publish
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "发行版已存在，只上传资产"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG" --generate-notes --prerelease
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*

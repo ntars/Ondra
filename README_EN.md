@@ -176,23 +176,47 @@ cd Ondra && flutter pub get
 flutter run -d macos
 ```
 
-### 7.3 Build and distribute
+### 7.3 Direct download
+
+Installers for all three platforms live in [Releases](https://github.com/ntars/Ondra/releases), with `SHA256SUMS.txt`:
+
+| Platform | File | Notes |
+|---|---|---|
+| macOS (universal) | `Ondra-2.0.0-alpha-macos-universal.dmg` | One bundle for Intel and Apple Silicon |
+| Windows (x64) | `Ondra-2.0.0-alpha-windows-x64.zip` | Unzip, then run `ondra.exe`; extract the whole folder |
+| Android | `Ondra-2.0.0-alpha-android-arm64.apk` | Regular phones; `-universal.apk` adds 32-bit and emulators |
+
+Verify with `shasum -a 256 -c SHA256SUMS.txt`. None of the three is properly signed; see the release notes for bypassing each OS prompt.
+
+### 7.4 Build and distribute
 
 ```sh
+# macOS: a universal binary (x86_64 + arm64) straight from this machine
 flutter build macos --release
 # → build/macos/Build/Products/Release/空谷 Ondra.app
-ditto -c -k --sequesterRsrc --keepParent "空谷 Ondra.app" ondra-macos.zip
-hdiutil create -volname "空谷 Ondra" -srcfolder "空谷 Ondra.app" -ov -format UDZO ondra-macos.dmg
+ditto -c -k --norsrc --noextattr --keepParent "空谷 Ondra.app" Ondra-macos.zip
+hdiutil create -volname "空谷 Ondra" -srcfolder "空谷 Ondra.app" -ov -format UDZO Ondra-macos.dmg
+
+# Android: 18.6 MB for arm64 alone, 52.7 MB for every ABI
+flutter build apk --release --target-platform android-arm64
+
+# Web: static output, cannot reach the local kernel
 flutter build web --release     # → build/web
 ```
 
+`ditto` must use `--norsrc --noextattr`. `--sequesterRsrc` stuffs extended attributes into `__MACOSX/`,
+which lands hundreds of `._*` leaf files on the unpacking side; WinRAR and some extractors then flag the archive as corrupt.
+
+**Windows can only be built on Windows** (no MSVC cross-compilation), via `.github/workflows/release.yml`:
+Actions → Release build → Run workflow, then grab `ondra-windows` from Artifacts.
+
 Four hard constraints: App Sandbox off (needed to spawn a local subprocess), no native plugins, the GUI locates `dsh` itself, and a separate data directory (`DSH_HOME=~/.ondra/dsh`).
 
-### 7.4 Upgrade and uninstall
+### 7.5 Upgrade and uninstall
 
 Upgrade: replace the `.app`, leave the data directory alone. Uninstall: delete the app and `~/.ondra/` (sessions, memory, backups, logs) — irreversible, so export a backup first.
 
-### 7.5 Containerisation
+### 7.6 Containerisation
 
 A desktop app is not containerised; the web build is static output that can be hosted anywhere, but cannot reach the local kernel.
 
