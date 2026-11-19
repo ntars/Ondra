@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../../../../../app/sqlite_cli.dart';
 import '../../ondra-backup/ui/backup_actions.dart' show backupOverviewLoader;
+import '../../ondra-chat/ui/chat_client.dart' show chatClient;
 import 'status_types.dart';
 import '../../../../../app/home_dir.dart';
 
@@ -17,20 +18,18 @@ String get _sqlite {
   return path;
 }
 
-/// 本机网关（magpie）的地址。它是右栏能不能说话的唯一前提，
-/// 所以状态面板第一条要回答的就是「它在不在」。
-const String _gatewayHost = '127.0.0.1';
-const int _gatewayPort = 3425;
-
 /// 读一次状态面板的全部读数。
 ///
 /// 每一条都对应一个具体文件或一张表：`~/.ondra/user/ondra.db` 的几张表、
 /// `~/.ondra/dsh/sessions/` 的会话文件、`~/.ondra/logs/` 的三份日志、
-/// `~/.ondra/backups/` 的快照，以及 127.0.0.1:3425 能不能连上。
+/// `~/.ondra/backups/` 的快照，以及对话客户端的接入状态。
 ///
 /// 任何一项读失败都只影响它自己：状态面板的职责是把**知道的部分**如实呈现，
 /// 不是「一条读不到就整页报错」。
-Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) async {
+Future<StatusSnapshot> loadStatus({
+  DateTime Function()? now,
+  String? home,
+}) async {
   final clock = now ?? DateTime.now;
   final resolveHome = home ?? ondraUserHome;
   final root = '$resolveHome/.ondra';
@@ -38,8 +37,14 @@ Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) asyn
 
   final backups = await _backupStats();
   final boot = await _bootDigest(root);
-  final sessions = _sessionCount('$root/dsh/sessions');
-  final plugins = _pluginCount('$root/dsh/profiles/ondra/cordis.patch.yml');
+  final dshHome = home == null
+      ? (Platform.environment['ONDRA_DSH_HOME'] ?? '$root/dsh')
+      : '$root/dsh';
+  final sessions = _sessionCount('$dshHome/sessions');
+  final plugins = _pluginCount('$dshHome/profiles/ondra/cordis.patch.yml');
+  final kernelOnline = chatClient.connected;
+  final kernelDetail =
+      chatClient.offlineReason ?? (kernelOnline ? '对话内核已连接' : '对话内核未连接');
 
   if (!db.existsSync()) {
     return StatusSnapshot(
@@ -58,6 +63,8 @@ Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) asyn
       bootIssues: boot.$3,
       bootWarnings: boot.$1,
       bootErrors: boot.$2,
+      kernelOnline: kernelOnline,
+      kernelDetail: kernelDetail,
       note: '还没有记忆库。跟空谷说过话之后，这里会开始有读数。',
     );
   }
@@ -79,7 +86,6 @@ Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) asyn
   final rawAt = await _lastTime(db.path, 'memory_raw');
 
   final emotion = await _readEmotion(db.path);
-  final gateway = await _probeGateway();
 
   final sinkRatio = raws <= 0 ? 0.0 : (facts / raws).clamp(0.0, 1.0);
   // 缺 sqlite3 时上面每一条都降级成了 0。0 看上去和「真的没有记忆」一样，
@@ -122,8 +128,8 @@ Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) asyn
       ),
     ],
     emotion: emotion,
-    kernelOnline: gateway.$1,
-    kernelDetail: gateway.$2,
+    kernelOnline: kernelOnline,
+    kernelDetail: kernelDetail,
     bootIssues: boot.$3,
     bootWarnings: boot.$1,
     bootErrors: boot.$2,
@@ -265,7 +271,10 @@ Future<EmotionReading?> _readEmotion(String dbPath) async {
       axes['valence'] ?? axes['v'] ?? axes['pleasure'],
       0,
     );
-    final arousal = _number(axes['arousal'] ?? axes['a'] ?? axes['energy'], 0.5);
+    final arousal = _number(
+      axes['arousal'] ?? axes['a'] ?? axes['energy'],
+      0.5,
+    );
 
     var label = '';
     final labels = row['labels'];
@@ -298,21 +307,6 @@ Future<EmotionReading?> _readEmotion(String dbPath) async {
   }
 }
 
-/// 网关探活。300 毫秒连不上就当它不在——状态面板不该因为一次探活卡住首屏。
-Future<(bool, String)> _probeGateway() async {
-  try {
-    final socket = await Socket.connect(
-      _gatewayHost,
-      _gatewayPort,
-      timeout: const Duration(milliseconds: 300),
-    );
-    socket.destroy();
-    return (true, '$_gatewayHost:$_gatewayPort');
-  } catch (_) {
-    return (false, '$_gatewayHost:$_gatewayPort 连不上');
-  }
-}
-
 Future<(int, int)> _backupStats() async {
   try {
     final overview = await backupOverviewLoader();
@@ -339,7 +333,10 @@ int _pluginCount(String patchPath) {
   if (!f.existsSync()) return 0;
   return f
       .readAsLinesSync()
-      .where((l) => RegExp(r'^\s*-\s+id:').hasMatch(l) && !l.trimLeft().startsWith('#'))
+      .where(
+        (l) =>
+            RegExp(r'^\s*-\s+id:').hasMatch(l) && !l.trimLeft().startsWith('#'),
+      )
       .length;
 }
 
@@ -380,7 +377,9 @@ Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
     // 退回 URI 只读还能读到主库，总比整页显示成 0 强。
     r = await Process.run(_sqlite, ['-json', 'file:$dbPath?mode=ro', sql]);
   }
-  if (r.exitCode != 0) throw ProcessException(_sqlite, const [], 'exit', r.exitCode);
+  if (r.exitCode != 0) {
+    throw ProcessException(_sqlite, const [], 'exit', r.exitCode);
+  }
   final text = '${r.stdout}'.trim();
   if (text.isEmpty) return const [];
   final decoded = jsonDecode(text);

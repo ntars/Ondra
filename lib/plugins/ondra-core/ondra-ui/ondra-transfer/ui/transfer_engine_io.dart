@@ -5,7 +5,10 @@ import '../../../../../app/sqlite_cli.dart';
 import '../../ondra-backup/ui/backup_actions.dart'
     show backupCreate, backupExport, backupImport, backupOverviewLoader;
 import 'transfer_model.dart';
+import '../../ondra-settings/ui/maintenance_io.dart'
+    show maintenanceDataIsOffline, maintenanceOfflineHint;
 import '../../../../../app/home_dir.dart';
+import '../../../../../app/data_maintenance.dart';
 
 /// 本机的 `sqlite3` 命令行。解析交给 `app/sqlite_cli.dart`：
 /// 从前这里写死 `/usr/bin/sqlite3`，在 Windows 上导入导出会直接失败。
@@ -33,10 +36,13 @@ const String _prefix = '空谷';
 /// 导入是**会写库**的，因此有一条硬规矩：写之前先存一份备份。记忆是用户的东西，
 /// 一次写坏就是永久损失，而这个动作的成本只有几百毫秒。
 class TransferEngine {
-  TransferEngine({String? home, DateTime Function()? now})
+  TransferEngine({String? home, DateTime Function()? now, this.dataIsOffline})
     : _home = home ?? ondraUserHome,
       _now = now ?? DateTime.now;
 
+  final bool Function()? dataIsOffline;
+  bool get _offline =>
+      dataIsOffline?.call() ?? maintenanceDataIsOffline(dataRoot);
   final String _home;
   final DateTime Function() _now;
 
@@ -76,9 +82,7 @@ class TransferEngine {
       final lastRows = await _query(
         'select max(created_at) as at from memory_fact',
       );
-      final lastAt = lastRows.isEmpty
-          ? null
-          : _time(lastRows.first['at']);
+      final lastAt = lastRows.isEmpty ? null : _time(lastRows.first['at']);
 
       return TransferSnapshot(
         facts: facts,
@@ -122,9 +126,7 @@ class TransferEngine {
       final facts = await _readFacts();
       final links = await _readLinks();
       if (facts.isEmpty) {
-        return const TransferResult.fail(
-          '记忆库里还没有事实，导出会是一份空文件。先去聊几句再回来。',
-        );
+        return const TransferResult.fail('记忆库里还没有事实，导出会是一份空文件。先去聊几句再回来。');
       }
 
       final stamp = _stamp();
@@ -165,9 +167,17 @@ class TransferEngine {
     if (!out.existsSync()) {
       return const TransferResult.fail('目标目录不存在。');
     }
+    Directory? partial;
     try {
-      final root = Directory('${out.path}/$_prefix人设-${_stamp()}');
-      await root.create(recursive: true);
+      final sourceRoot = Directory(dataRoot);
+      if (sourceRoot.existsSync() &&
+          '${out.resolveSymbolicLinksSync()}/'.startsWith(
+            '${sourceRoot.resolveSymbolicLinksSync()}/',
+          )) {
+        return const TransferResult.fail('不能把人设导出到当前数据目录内部。');
+      }
+      final root = await out.createTemp('$_prefix人设-${_stamp()}-');
+      partial = root;
 
       var files = 0;
 
@@ -186,9 +196,8 @@ class TransferEngine {
 
       final personaConfig = _personaConfig();
       if (personaConfig.isNotEmpty) {
-        await File(
-          '${root.path}/人设配置.yml',
-        ).writeAsString(personaConfig, flush: true);
+        await File('${root.path}/人设配置.yml')
+            .writeAsString(personaConfig, flush: true);
         files++;
       }
 
@@ -200,11 +209,10 @@ class TransferEngine {
 
       if (files == 0) {
         await root.delete(recursive: true);
-        return const TransferResult.fail(
-          '没有可携带的人设或偏好：人设还是内置的那份，偏好也没改过。',
-        );
+        return const TransferResult.fail('没有可携带的人设或偏好：人设还是内置的那份，偏好也没改过。');
       }
 
+      partial = null;
       return TransferResult(
         ok: true,
         message: '导出人设与偏好，共 $files 项。',
@@ -213,27 +221,28 @@ class TransferEngine {
       );
     } catch (e) {
       return TransferResult.fail('导出失败：${_clean(e)}');
+    } finally {
+      if (partial != null && partial.existsSync()) {
+        try {
+          partial.deleteSync(recursive: true);
+        } catch (_) {}
+      }
     }
   }
 
   /// 整包导出：交给备份引擎，不另写一套打包逻辑。
   ///
-  /// 一份备份都没有时先现场存一份——「导出全部数据」不能因为「你还没备份过」
-  /// 就失败，这个动作的用户预期是「我现在就要一份」。
+  /// 每次都现场捕获当前状态，使用 create 返回的编号，不复用过期快照。
   Future<TransferResult> exportArchive(String dir) async {
     try {
-      final overview = await backupOverviewLoader();
-      var id = overview.snapshots.isEmpty ? null : overview.snapshots.first.id;
+      // 每次采集当前状态，不能把历史快照冒充「全部当前数据」。
+      final created = await backupCreate();
+      if (!created.ok) {
+        return TransferResult.fail('先存一份快照失败：${created.message}');
+      }
+      final id = created.snapshotId;
       if (id == null) {
-        final created = await backupCreate();
-        if (!created.ok) {
-          return TransferResult.fail('先存一份快照失败：${created.message}');
-        }
-        final again = await backupOverviewLoader();
-        if (again.snapshots.isEmpty) {
-          return const TransferResult.fail('快照建好了但读不回来，请重试。');
-        }
-        id = again.snapshots.first.id;
+        return const TransferResult.fail('快照没有返回编号，未导出旧快照。');
       }
       final r = await backupExport(id, dir);
       return TransferResult(
@@ -254,12 +263,21 @@ class TransferEngine {
   /// 不要求用户先在下拉框里选「这是记忆还是人设」：文件名和内容本身说得清，
   /// 让用户选只是在把一个可以自动判断的事推回给他。
   Future<TransferResult> importPath(String path) async {
-    final entity = FileSystemEntity.typeSync(path);
-    if (entity == FileSystemEntityType.notFound) {
-      return const TransferResult.fail('找不到这个路径。');
+    try {
+      final entity = FileSystemEntity.typeSync(path, followLinks: false);
+      if (entity == FileSystemEntityType.notFound) {
+        return const TransferResult.fail('找不到这个路径。');
+      }
+      if (entity == FileSystemEntityType.directory) {
+        return await _importDir(path);
+      }
+      if (entity != FileSystemEntityType.file) {
+        return const TransferResult.fail('不接受符号链接或特殊文件。');
+      }
+      return await _importFile(File(path));
+    } catch (e) {
+      return TransferResult.fail('导入失败：${_clean(e)}');
     }
-    if (entity == FileSystemEntityType.directory) return _importDir(path);
-    return _importFile(File(path));
   }
 
   Future<TransferResult> _importDir(String path) async {
@@ -273,31 +291,209 @@ class TransferEngine {
         count: r.ok ? 1 : 0,
       );
     }
-    var restored = 0;
-    final prefsSrc = File('$path/偏好.json');
-    if (prefsSrc.existsSync()) {
-      await prefsSrc.copy('$dataRoot/prefs.json');
-      restored++;
+    return _importBundle(path);
+  }
+
+  /// 先校验、暂存全部内容，再逐项 rename；任何失败都恢复被替换的旧内容。
+  /// 不覆盖整个 profile，仅替换人设条目；同名包整体替换以免残留旧文件。
+  Future<TransferResult> _importBundle(
+    String path, {
+    Map<String, String>? prefs,
+  }) async {
+    // 独立偏好是 UI 的小文件，不是内核活动库；原子合并可在线进行。
+    if (prefs == null && !_offline) {
+      return const TransferResult.fail(maintenanceOfflineHint);
     }
-    final personasSrc = Directory('$path/personas');
-    if (personasSrc.existsSync()) {
-      for (final pack in personasSrc.listSync().whereType<Directory>()) {
-        final name = pack.uri.pathSegments.where((s) => s.isNotEmpty).last;
-        await _copyTree(pack, Directory('$dataRoot/personas/$name'));
-        restored++;
+    final staged = await Directory.systemTemp.createTemp('ondra-transfer-');
+    final targets = <String>[];
+    try {
+      if (prefs == null) {
+        for (final relative in ['偏好.json', '人设配置.yml', '头像.png', 'personas']) {
+          if (FileSystemEntity.isLinkSync('$path/$relative')) {
+            throw FileSystemException('不接受符号链接', '$path/$relative');
+          }
+        }
+      }
+      void stageText(String relative, String text) {
+        final file = File('${staged.path}/$relative');
+        file.parent.createSync(recursive: true);
+        file.writeAsStringSync(text, flush: true);
+        targets.add(relative);
+      }
+
+      final prefsSrc = File('$path/偏好.json');
+      if (prefs != null || prefsSrc.existsSync()) {
+        final incoming =
+            prefs ?? _prefsFromJson(jsonDecode(prefsSrc.readAsStringSync()));
+        final local = File('$dataRoot/prefs.json');
+        final merged = local.existsSync()
+            ? _prefsFromJson(jsonDecode(local.readAsStringSync()))
+            : <String, String>{};
+        merged.addAll(incoming);
+        stageText('prefs.json', jsonEncode(merged));
+      }
+      if (prefs == null) {
+        final personas = Directory('$path/personas');
+        if (personas.existsSync()) {
+          for (final pack in personas.listSync(followLinks: false)) {
+            if (pack is! Directory) throw const FormatException('人设目录含非目录项');
+            final name = pack.uri.pathSegments.where((s) => s.isNotEmpty).last;
+            final relative = 'personas/$name';
+            await _copyTree(pack, Directory('${staged.path}/$relative'));
+            targets.add(relative);
+          }
+        }
+        final config = File('$path/人设配置.yml');
+        if (config.existsSync()) {
+          const relative = 'dsh/profiles/ondra/cordis.patch.yml';
+          final local = File('$dataRoot/$relative');
+          stageText(
+            relative,
+            _mergePersonaConfig(
+              local.existsSync() ? local.readAsStringSync() : '- insert:\n',
+              config.readAsStringSync(),
+            ),
+          );
+        }
+        final avatar = File('$path/头像.png');
+        if (avatar.existsSync()) {
+          if (FileSystemEntity.isLinkSync(avatar.path)) {
+            throw const FormatException('头像不能是符号链接');
+          }
+          await avatar.copy('${staged.path}/avatar.png');
+          targets.add('avatar.png');
+        }
+      }
+      if (targets.isEmpty) {
+        return const TransferResult.fail('这个目录里既没有备份清单，也没有偏好或人设，认不出来。');
+      }
+      // 验证目标在备份前完成，绝不通过符号链接写出数据根目录。
+      for (final relative in targets) {
+        _checkTarget(relative);
+      }
+      final guard = await backupCreate();
+      if (!guard.ok) return TransferResult.fail('写前备份失败，未导入：${guard.message}');
+      await _commitBundle(staged, targets, preferences: prefs);
+      return TransferResult(
+        ok: true,
+        message: '导入了 ${targets.length} 项人设与偏好，重启后生效。',
+        path: path,
+        count: targets.length,
+      );
+    } finally {
+      if (staged.existsSync()) await staged.delete(recursive: true);
+    }
+  }
+
+  Map<String, String> _prefsFromJson(Object? value) {
+    if (value is! Map ||
+        value.keys.any((key) => key is! String) ||
+        value.values.any((v) => v is! String && v is! num && v is! bool)) {
+      throw const FormatException('偏好必须是键值对象，值只能是字符串、数字或布尔值');
+    }
+    return {
+      for (final entry in value.entries) entry.key as String: '${entry.value}',
+    };
+  }
+
+  void _checkTarget(String relative) {
+    var current = Directory(dataRoot).absolute.path;
+    if (FileSystemEntity.isLinkSync(current)) {
+      throw const FileSystemException('数据根目录是符号链接');
+    }
+    final parts = relative.split('/');
+    for (var i = 0; i < parts.length; i++) {
+      current = '$current/${parts[i]}';
+      final type = FileSystemEntity.typeSync(current, followLinks: false);
+      if (type == FileSystemEntityType.link ||
+          (i < parts.length - 1 &&
+              type != FileSystemEntityType.notFound &&
+              type != FileSystemEntityType.directory)) {
+        throw FileSystemException('目标路径不是安全的目录/文件', current);
       }
     }
-    if (restored == 0) {
-      return const TransferResult.fail(
-        '这个目录里既没有备份清单，也没有偏好或人设，认不出来。',
-      );
+  }
+
+  Future<void> _commitBundle(
+    Directory staged,
+    List<String> targets, {
+    Map<String, String>? preferences,
+  }) async {
+    if (preferences == null && !_offline) {
+      throw StateError(maintenanceOfflineHint);
     }
-    return TransferResult(
-      ok: true,
-      message: '导入了 $restored 项人设与偏好，重启后生效。',
-      path: path,
-      count: restored,
-    );
+    Directory(dataRoot).createSync(recursive: true);
+    final transaction = Directory(dataRoot).createTempSync('.transfer-');
+    final committed = <String>[];
+    final originals = <String>[];
+    var safeToDelete = false;
+    try {
+      // 复制到同一文件系统再提交，跨卷 rename 也不会导致半份导入。
+      for (final relative in targets) {
+        final src = '${staged.path}/$relative';
+        final next = '${transaction.path}/new/$relative';
+        Directory(File(next).parent.path).createSync(recursive: true);
+        if (FileSystemEntity.isDirectorySync(src)) {
+          await _copyTree(Directory(src), Directory(next));
+        } else {
+          await File(src).copy(next);
+        }
+      }
+      for (final relative in targets) {
+        _checkTarget(relative);
+        final target = '$dataRoot/$relative';
+        File(target).parent.createSync(recursive: true);
+        if (relative == 'prefs.json' && preferences != null) {
+          // 备份/暂存期间 UI 可能又改了偏好，提交前同步重读合并，避免覆盖新值。
+          final local = File(target);
+          final merged = local.existsSync()
+              ? _prefsFromJson(jsonDecode(local.readAsStringSync()))
+              : <String, String>{};
+          merged.addAll(preferences);
+          File('${transaction.path}/new/$relative')
+              .writeAsStringSync(jsonEncode(merged), flush: true);
+        }
+        if (FileSystemEntity.typeSync(target) !=
+            FileSystemEntityType.notFound) {
+          final old = '${transaction.path}/old/$relative';
+          File(old).parent.createSync(recursive: true);
+          _rename(target, old);
+          originals.add(relative);
+        }
+        _rename('${transaction.path}/new/$relative', target);
+        committed.add(relative);
+      }
+      safeToDelete = true;
+    } catch (_) {
+      for (final relative in committed.reversed) {
+        final target = '$dataRoot/$relative';
+        if (FileSystemEntity.isDirectorySync(target)) {
+          Directory(target).deleteSync(recursive: true);
+        } else {
+          File(target).deleteSync();
+        }
+      }
+      for (final relative in originals.reversed) {
+        _rename('${transaction.path}/old/$relative', '$dataRoot/$relative');
+      }
+      safeToDelete = true;
+      rethrow;
+    } finally {
+      // 回滚失败时保留 old，不能在 finally 里把唯一旧副本也删掉。
+      if (safeToDelete) {
+        try {
+          transaction.deleteSync(recursive: true);
+        } catch (_) {}
+      }
+    }
+  }
+
+  void _rename(String source, String target) {
+    if (FileSystemEntity.isDirectorySync(source)) {
+      Directory(source).renameSync(target);
+    } else {
+      File(source).renameSync(target);
+    }
   }
 
   Future<TransferResult> _importFile(File file) async {
@@ -310,7 +506,11 @@ class TransferEngine {
     }
 
     if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
-      return _importFacts(_parseMarkdown(text), source: file.path);
+      return _importFacts(
+        _parseMarkdown(text),
+        links: _markdownLinks(text),
+        source: file.path,
+      );
     }
     if (lower.endsWith('.json')) {
       final Object? decoded;
@@ -319,31 +519,46 @@ class TransferEngine {
       } catch (e) {
         return TransferResult.fail('这不是合法的 JSON：${_clean(e)}');
       }
-      final facts = _factsFromJson(decoded);
-      if (facts.isNotEmpty) return _importFacts(facts, source: file.path);
-      // 不是记忆就试偏好：顶层是对象且没有 facts 数组。
-      if (decoded is Map && decoded.containsKey('themeMode')) {
-        await file.copy('$dataRoot/prefs.json');
-        return TransferResult(
-          ok: true,
-          message: '偏好已导入，重启后生效。',
-          path: file.path,
-          count: 1,
+      if (decoded is List ||
+          decoded is Map &&
+              (decoded.containsKey('facts') ||
+                  decoded['format'] == 'ondra.memory')) {
+        return _importFacts(
+          _factsFromJson(decoded),
+          links: _linksFromJson(decoded),
+          source: file.path,
         );
       }
-      return const TransferResult.fail(
-        '这份 JSON 里没有记忆（找不到 facts 数组），也不像偏好文件。',
-      );
+      // prefs 是扁平字符串表，并不要求用户改过主题。按真实应用使用的键识别。
+      if (decoded is Map &&
+          decoded.keys.any(
+            (key) =>
+                key is String &&
+                (key.startsWith('settings.') || _prefKeys.contains(key)),
+          )) {
+        return _importBundle(file.path, prefs: _prefsFromJson(decoded));
+      }
+      return const TransferResult.fail('这份 JSON 里没有记忆（找不到 facts 数组），也不像偏好文件。');
     }
     return TransferResult.fail('不认识的格式：${file.path.split('/').last}');
   }
 
   /// 真正写库的地方。
   ///
-  /// 两道去重：id 相同的由 `insert or ignore` 拦掉，文本相同的在这里先比一遍——
-  /// 不同来源导出的同一句话 id 会不一样，只靠主键会让同一件事在记忆里长出两条。
+  /// 同 id 异文拒绝整批；同文异 id 去重并重映射关联端点。
+  /// 事实和关联在同一个 bail-on-error 事务提交，按数据库实际 changes() 计数。
+  static const _prefKeys = {
+    'themeMode',
+    'language',
+    'onboardingDone',
+    'persona.activeId',
+    'persona.nickname',
+    'channels.qqAppId',
+  };
+
   Future<TransferResult> _importFacts(
     List<TransferFact> facts, {
+    List<TransferLink> links = const [],
     required String source,
   }) async {
     if (facts.isEmpty) {
@@ -351,55 +566,63 @@ class TransferEngine {
     }
     final db = File(dbPath);
     if (!db.existsSync()) {
-      return const TransferResult.fail(
-        '还没有记忆库。先让空谷收到一次对话，它会自己建库，再来导入。',
-      );
+      return const TransferResult.fail('还没有记忆库。先让空谷收到一次对话，它会自己建库，再来导入。');
     }
 
-    // 写库前先存底。失败不阻断——挡住导入比冒一次险更糟，但要在结果里说出来。
-    final guard = await backupCreate();
-    final guardNote = guard.ok ? '' : '（写前备份失败：${guard.message}）';
-
     try {
-      final existing = await _query('select text from memory_fact');
-      final seen = <String>{
-        for (final row in existing) _text(row['text']).trim(),
+      final existing = await _query('select id, text from memory_fact');
+      final byId = {
+        for (final row in existing) _text(row['id']): _text(row['text']).trim(),
       };
-
+      final byText = {
+        for (final row in existing) _text(row['text']).trim(): _text(row['id']),
+      };
+      final remapped = <String, String>{};
       final toWrite = <TransferFact>[];
-      var skipped = 0;
       for (final f in facts) {
-        if (seen.contains(f.text.trim())) {
-          skipped++;
-          continue;
+        if (byId.containsKey(f.id) && byId[f.id] != f.text.trim()) {
+          return TransferResult.fail('记忆编号 ${f.id} 的内容冲突，整份导入已取消，未覆盖本机记忆。');
         }
-        seen.add(f.text.trim());
-        toWrite.add(f);
+        final target = byText[f.text.trim()];
+        if (target != null) {
+          remapped[f.id] = target;
+        } else {
+          toWrite.add(f);
+          remapped[f.id] = f.id;
+          byText[f.text.trim()] = f.id;
+        }
+        byId[f.id] = f.text.trim();
       }
-
-      if (toWrite.isEmpty) {
-        return TransferResult(
-          ok: true,
-          message: '这 ${facts.length} 条记忆本机都有了，没有新增。$guardNote',
-          path: source,
-          skipped: skipped,
-        );
+      final known = {
+        ...existing.map((r) => _text(r['id'])),
+        ...toWrite.map((f) => f.id),
+      };
+      for (final link in links) {
+        if (!known.contains(remapped[link.from] ?? link.from) ||
+            !known.contains(remapped[link.to] ?? link.to)) {
+          return const TransferResult.fail('关联引用了不存在的记忆，整份导入已取消。');
+        }
       }
-
-      await _exec(_insertSql(toWrite));
-      final now = await _count('select count(*) from memory_fact');
+      final guard = await backupCreate();
+      if (!guard.ok) return TransferResult.fail('写前备份失败，未写库：${guard.message}');
+      final result = await _exec(_insertSql(toWrite, links, remapped));
+      final written = _int(result['facts']);
+      final linked = _int(result['links']);
+      final skipped = facts.length - toWrite.length;
+      final unwritten = toWrite.length - written;
       return TransferResult(
         ok: true,
         message:
-            '导入 ${toWrite.length} 条记忆'
-            '${skipped == 0 ? '' : '，$skipped 条重复跳过'}；'
-            '记忆库现有 $now 条。$guardNote',
+            '导入 $written 条记忆、$linked 条关联，$skipped 条重复记忆跳过；'
+            '${unwritten == 0 ? '' : '$unwritten 条被数据库规则忽略；'}'
+            '${links.length == linked ? '' : '${links.length - linked} 条关联未新增；'}'
+            '记忆库现有 ${result['total']} 条。',
         path: source,
-        count: toWrite.length,
+        count: written,
         skipped: skipped,
       );
     } catch (e) {
-      return TransferResult.fail('写库失败：${_clean(e)}');
+      return TransferResult.fail('写库失败（本批未提交）：${_clean(e)}');
     }
   }
 
@@ -407,7 +630,9 @@ class TransferEngine {
 
   /// 让用户挑一个目录。走系统的选目录面板，不自己造文件浏览器。
   Future<String?> pickDirectory(String prompt) async {
-    final r = await _osascript('POSIX path of (choose folder with prompt "$prompt")');
+    final r = await _osascript(
+      'POSIX path of (choose folder with prompt "$prompt")',
+    );
     return r;
   }
 
@@ -422,7 +647,10 @@ class TransferEngine {
   /// 在访达里选中导出的东西。用户刚写完一个文件，下一步一定是去找它。
   Future<TransferResult> reveal(String path) async {
     try {
-      await Process.run('open', ['-R', path]);
+      final result = await Process.run('open', ['-R', path]);
+      if (result.exitCode != 0) {
+        return TransferResult.fail('打不开访达：${result.stderr}');
+      }
       return TransferResult(ok: true, message: '已在访达中打开。', path: path);
     } catch (e) {
       return TransferResult.fail('打不开访达：${_clean(e)}');
@@ -454,15 +682,21 @@ class TransferEngine {
   }
 
   Future<List<TransferLink>> _readLinks() async {
-    final rows = await _query(
-      'select from_id, to_id, weight from memory_link where coalesce(approved, 1) = 1',
-    );
+    final rows = await _query('select * from memory_link');
     return [
       for (final row in rows)
         TransferLink(
           from: _text(row['from_id']),
           to: _text(row['to_id']),
           weight: _number(row['weight'], 0.5),
+          id: _text(row['id']),
+          relation: _text(row['relation']),
+          hits: _int(row['hits']),
+          lastFiredAt: _int(row['last_fired_at']),
+          decayedAt: _int(row['decayed_at']),
+          createdAt: _int(row['created_at']),
+          approved: _int(row['approved']),
+          surreal: _int(row['surreal']),
         ),
     ];
   }
@@ -480,17 +714,15 @@ class TransferEngine {
       // WAL 模式下 `-readonly` 需要能打开 `-wal` / `-shm`；这两个文件缺失
       // （刚被杀进程、或库是拷贝来的）时会报 CANTOPEN。这时退回 URI 只读，
       // 读主库里的内容——宁可少一条刚落盘的，也不该显示成「没有记忆」。
-      r = await Process.run(_sqlite, [
-        '-json',
-        'file:$dbPath?mode=ro',
-        sql,
-      ]);
+      r = await Process.run(_sqlite, ['-json', 'file:$dbPath?mode=ro', sql]);
     }
     if (r.exitCode != 0) {
       throw ProcessException(
         _sqlite,
         const [],
-        '${r.stderr}'.trim().isEmpty ? 'exit ${r.exitCode}' : '${r.stderr}'.trim(),
+        '${r.stderr}'.trim().isEmpty
+            ? 'exit ${r.exitCode}'
+            : '${r.stderr}'.trim(),
         r.exitCode,
       );
     }
@@ -506,23 +738,34 @@ class TransferEngine {
 
   /// 跑一段写库脚本。走 stdin 而不是命令行参数：SQL 里带换行与引号，
   /// 拼进 argv 迟早会在某条记忆上炸掉。
-  Future<void> _exec(String sql) async {
-    final p = await Process.start(_sqlite, [dbPath]);
+  Future<Map<String, dynamic>> _exec(String sql) async {
+    // CLI 默认出错继续执行，最终 COMMIT 会留下半批；-bail 让连接退出并回滚。
+    final p = await Process.start(_sqlite, ['-bail', '-json', dbPath]);
+    final output = p.stdout.transform(utf8.decoder).join();
+    final errors = p.stderr.transform(utf8.decoder).join();
     p.stdin.write(sql);
     await p.stdin.close();
     final code = await p.exitCode;
-    final err = await p.stderr.transform(utf8.decoder).join();
-    if (code != 0) {
-      throw ProcessException(_sqlite, const [], err.trim(), code);
-    }
+    final err = await errors;
+    final text = await output;
+    if (code != 0) throw ProcessException(_sqlite, const [], err.trim(), code);
+    return (jsonDecode(text) as List).single as Map<String, dynamic>;
   }
 
-  /// 一条 `insert or ignore` 的批。整段包在一个事务里，中途失败不会留下半批。
-  String _insertSql(List<TransferFact> facts) {
-    final b = StringBuffer('begin;\n');
+  /// 事实和关联同一事务；计数来自 SQLite changes()，不是尝试写入的条数。
+  String _insertSql(
+    List<TransferFact> facts,
+    List<TransferLink> links,
+    Map<String, String> remapped,
+  ) {
+    final b = StringBuffer(
+      'pragma foreign_keys=on;\nbegin immediate;\n'
+      'create temp table imported(facts integer, links integer);\n'
+      'insert into imported values(0, 0);\n',
+    );
     for (final f in facts) {
       b
-        ..write('insert or ignore into memory_fact (')
+        ..write('insert into memory_fact (')
         ..write(
           'id, kind, category, channel, text, summary, subject, salience, '
           'arousal, stability_hours, stability_mult, times_said, hits, '
@@ -552,9 +795,26 @@ class TransferEngine {
             f.evidence.isEmpty ? 'null' : _q(f.evidence),
           ].join(', '),
         )
-        ..write(');\n');
+        ..write(');\nupdate imported set facts = facts + changes();\n');
     }
-    b.write('commit;\n');
+    for (final link in links) {
+      final from = remapped[link.from] ?? link.from;
+      final to = remapped[link.to] ?? link.to;
+      final id = link.id.isEmpty
+          ? 'l-${_factId(jsonEncode([from, to, link.relation]))}'
+          : link.id;
+      // 相同 id 但不同端点/关系不能被静默丢弃。相同语义的已有边保持本机值。
+      b.writeln(
+        'insert into memory_link '
+        '(id, from_id, to_id, relation, weight, hits, last_fired_at, decayed_at, created_at, approved, surreal) '
+        'select ${[_q(id), _q(from), _q(to), _q(link.relation), _real(link.weight), link.hits, link.lastFiredAt, link.decayedAt, link.createdAt, link.approved, link.surreal].join(', ')} '
+        'where not exists (select 1 from memory_link where from_id=${_q(from)} and to_id=${_q(to)} and relation=${_q(link.relation)});',
+      );
+      b.writeln('update imported set links = links + changes();');
+    }
+    b.write(
+      'commit;\nselect facts, links, (select count(*) from memory_fact) as total from imported;\n',
+    );
     return b.toString();
   }
 
@@ -583,12 +843,17 @@ class TransferEngine {
     final archived = facts.where((f) => f.archived);
     for (final f in [...live, ...archived]) {
       b
-        ..writeln('## ${f.text}')
+        ..writeln('## ${f.text.replaceAll(RegExp(r'[\r\n]+'), ' ')}')
         ..writeln()
         ..writeln(
           '<!-- ondra:memory id=${f.id} category=${f.category} '
           'salience=${_real(f.salience)} '
           'created_at=${f.createdAt.millisecondsSinceEpoch}'
+          ' id_b64=${base64Encode(utf8.encode(f.id))}'
+          ' category_b64=${base64Encode(utf8.encode(f.category))}'
+          '${f.text.contains('\n') || f.text.contains('\r') ? ' text_b64=${base64Encode(utf8.encode(f.text))}' : ''}'
+          '${f.subject.isEmpty ? '' : ' subject_b64=${base64Encode(utf8.encode(f.subject))}'}'
+          '${f.evidence.isEmpty ? '' : ' evidence_b64=${base64Encode(utf8.encode(f.evidence))}'}'
           '${f.archived ? ' archived=1' : ''} -->',
         )
         ..writeln()
@@ -608,10 +873,16 @@ class TransferEngine {
       b
         ..writeln('## 关联')
         ..writeln()
+        ..writeln(
+          '<!-- ondra:links ${base64Encode(utf8.encode(jsonEncode({'links': links.map((l) => l.toJson()).toList()})))} -->',
+        )
+        ..writeln()
         ..writeln('| 从 | 到 | 权重 |')
         ..writeln('| --- | --- | --- |');
       for (final l in links) {
-        b.writeln('| `${l.from}` | `${l.to}` | ${l.weight.toStringAsFixed(2)} |');
+        b.writeln(
+          '| `${l.from}` | `${l.to}` | ${l.weight.toStringAsFixed(2)} |',
+        );
       }
       b.writeln();
     }
@@ -636,10 +907,7 @@ class TransferEngine {
             if (f.archived) 'archived': true,
           },
       ],
-      'links': [
-        for (final l in links)
-          {'from': l.from, 'to': l.to, 'weight': l.weight},
-      ],
+      'links': [for (final l in links) l.toJson()],
     };
     return const JsonEncoder.withIndent('  ').convert(body);
   }
@@ -669,9 +937,15 @@ class TransferEngine {
       final meta = _metaOf(body.toString());
       out.add(
         TransferFact(
-          id: meta['id'] ?? _factId(t),
-          category: meta['category'] ?? 'general',
-          text: t,
+          id: meta['id_b64'] == null
+              ? meta['id'] ?? _factId(t)
+              : utf8.decode(base64Decode(meta['id_b64']!)),
+          category: meta['category_b64'] == null
+              ? meta['category'] ?? 'general'
+              : utf8.decode(base64Decode(meta['category_b64']!)),
+          text: meta['text_b64'] == null
+              ? t
+              : utf8.decode(base64Decode(meta['text_b64']!)),
           salience: double.tryParse(meta['salience'] ?? '') ?? 50,
           createdAt: meta['created_at'] == null
               ? _now()
@@ -680,6 +954,12 @@ class TransferEngine {
                       _now().millisecondsSinceEpoch,
                 ),
           archived: meta['archived'] == '1',
+          subject: meta['subject_b64'] == null
+              ? ''
+              : utf8.decode(base64Decode(meta['subject_b64']!)),
+          evidence: meta['evidence_b64'] == null
+              ? ''
+              : utf8.decode(base64Decode(meta['evidence_b64']!)),
         ),
       );
       title = null;
@@ -710,9 +990,12 @@ class TransferEngine {
     }
     final out = <TransferFact>[];
     for (final item in raw) {
-      if (item is! Map) continue;
-      final text = _text(item['text']).trim();
-      if (text.isEmpty) continue;
+      if (item is! Map ||
+          item['text'] is! String ||
+          (item['text'] as String).trim().isEmpty) {
+        throw const FormatException('事实条目必须含非空 text，整份导入已取消');
+      }
+      final text = (item['text'] as String).trim();
       final created = _int(item['createdAt']);
       out.add(
         TransferFact(
@@ -732,6 +1015,48 @@ class TransferEngine {
       );
     }
     return out;
+  }
+
+  List<TransferLink> _linksFromJson(Object? decoded) {
+    if (decoded is! Map || decoded['links'] == null) return const [];
+    if (decoded['links'] is! List) throw const FormatException('links 必须是数组');
+    return [for (final row in decoded['links'] as List) _linkFromJson(row)];
+  }
+
+  TransferLink _linkFromJson(Object? row) {
+    if (row is! Map || _text(row['from']).isEmpty || _text(row['to']).isEmpty) {
+      throw const FormatException('关联缺少 from/to');
+    }
+    return TransferLink(
+      from: _text(row['from']),
+      to: _text(row['to']),
+      weight: _number(row['weight'], 0.5),
+      id: _text(row['id']),
+      relation: _text(row['relation']).isEmpty
+          ? 'related'
+          : _text(row['relation']),
+      hits: _int(row['hits']),
+      lastFiredAt: _int(row['lastFiredAt']),
+      decayedAt: _int(row['decayedAt']),
+      createdAt: _int(row['createdAt']),
+      approved: row['approved'] == null ? 1 : _int(row['approved']),
+      surreal: _int(row['surreal']),
+    );
+  }
+
+  List<TransferLink> _markdownLinks(String text) {
+    final encoded = RegExp(r'<!-- ondra:links ([A-Za-z0-9+/=]+) -->')
+        .firstMatch(text);
+    if (encoded != null) {
+      return _linksFromJson(jsonDecode(utf8.decode(base64Decode(encoded[1]!))));
+    }
+    return [
+      for (final m in RegExp(
+        r'^\| `([^`]+)` \| `([^`]+)` \| ([\d.eE+-]+) \|$',
+        multiLine: true,
+      ).allMatches(text))
+        TransferLink(from: m[1]!, to: m[2]!, weight: double.parse(m[3]!)),
+    ];
   }
 
   Map<String, String> _metaOf(String block) {
@@ -811,41 +1136,165 @@ class TransferEngine {
   String _personaConfig() {
     final file = File('$dataRoot/dsh/profiles/ondra/cordis.patch.yml');
     if (!file.existsSync()) return '';
-    final out = <String>[];
-    String? indent;
-    var taking = false;
-    for (final line in file.readAsLinesSync()) {
-      final isId = RegExp(r'^(\s*)-\s+id:').firstMatch(line);
-      if (isId != null) {
-        final lead = isId.group(1) ?? '';
-        final id = line.substring(line.indexOf('id:') + 3).trim();
-        if (id.startsWith('ondra-persona')) {
-          taking = true;
-          indent = lead;
-          out.add(line);
-          continue;
+    final parsed = _profileEntries(file.readAsStringSync());
+    return parsed.entries
+        .where((e) => e.id.startsWith('ondra-persona'))
+        .map(
+          (e) => parsed.lines
+              .sublist(e.start, e.end)
+              .map(
+                (line) => line.length >= parsed.indent
+                    ? line.substring(parsed.indent)
+                    : '',
+              )
+              .join('\n'),
+        )
+        .join('\n');
+  }
+
+  ({
+    List<String> lines,
+    int indent,
+    List<({String id, int start, int end})> entries,
+  })
+  _profileEntries(String source, {bool fragment = false}) {
+    final lines = source.replaceAll('\r\n', '\n').split('\n');
+    if (lines.any((l) => l.startsWith('\t'))) {
+      throw const FormatException('不支持制表符缩进的人设配置');
+    }
+    if (!fragment &&
+        lines
+                .where((l) => RegExp(r'^-\s+insert:\s*(?:#.*)?$').hasMatch(l))
+                .length !=
+            1) {
+      throw const FormatException('人设配置仅支持单个块式 insert 补丁，未修改装配层');
+    }
+    final starts = <({String id, int start, int indent})>[];
+    for (var i = 0; i < lines.length; i++) {
+      final m = RegExp(r'''^( *)-\s+id:\s*['"]?([\w@./-]+)['"]?\s*(?:#.*)?$''')
+          .firstMatch(lines[i]);
+      if (m != null) starts.add((id: m[2]!, start: i, indent: m[1]!.length));
+    }
+    final indent = fragment
+        ? 0
+        : (starts.isEmpty
+              ? 4
+              : starts.map((e) => e.indent).reduce((a, b) => a < b ? a : b));
+    if (starts.any(
+          (e) => e.indent != indent && e.id.startsWith('ondra-persona'),
+        ) ||
+        lines.any(
+          (l) =>
+              l.contains('# ondra-plugin-off:') && l.contains('ondra-persona'),
+        )) {
+      throw const FormatException('嵌套或停用的人设条目尚不支持安全迁移，未改写配置');
+    }
+    if (!fragment &&
+        lines.any((l) => l.startsWith('- ') && !l.startsWith('- insert:'))) {
+      throw const FormatException('含额外顶层补丁，无法安全合并人设配置');
+    }
+    final roots = starts.where((e) => e.indent == indent).toList();
+    final entries = <({String id, int start, int end})>[];
+    final ids = <String>{};
+    for (final root in roots) {
+      if (!ids.add(root.id)) throw FormatException('重复的人设/插件编号：${root.id}');
+      var end = root.start + 1;
+      while (end < lines.length) {
+        final line = lines[end];
+        if (line.trim().isNotEmpty &&
+            !line.trimLeft().startsWith('#') &&
+            line.length - line.trimLeft().length <= indent) {
+          break;
         }
-        if (taking && lead.length <= (indent?.length ?? 0)) {
-          taking = false;
+        end++;
+      }
+      entries.add((id: root.id, start: root.start, end: end));
+    }
+    if (fragment &&
+        (entries.isEmpty ||
+            entries.any((e) => !e.id.startsWith('ondra-persona')))) {
+      throw const FormatException('导入配置必须只包含人设条目');
+    }
+    if (fragment) {
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].trim().isNotEmpty &&
+            !lines[i].trimLeft().startsWith('#') &&
+            !entries.any((e) => i >= e.start && i < e.end)) {
+          throw const FormatException('人设配置含无法识别的顶层内容');
         }
       }
-      if (taking) out.add(line);
     }
-    return out.join('\n').trim();
+    return (lines: lines, indent: indent, entries: entries);
+  }
+
+  String _mergePersonaConfig(String current, String incoming) {
+    // 兼容旧导出的 trim()：第一行的缩进丢了，其余行还保留原缩进。
+    var lines = incoming.trim().split('\n');
+    if (lines.length > 1) {
+      final field = lines
+          .skip(1)
+          .where((l) => RegExp(r'^ +name:').hasMatch(l))
+          .firstOrNull;
+      final legacyIndent = field == null
+          ? 0
+          : field.length - field.trimLeft().length - 2;
+      if (legacyIndent > 0) {
+        lines = [
+          lines.first,
+          ...lines
+              .skip(1)
+              .map(
+                (l) =>
+                    l.length >= legacyIndent ? l.substring(legacyIndent) : '',
+              ),
+        ];
+      }
+    }
+    final imported = _profileEntries(lines.join('\n'), fragment: true);
+    final local = _profileEntries(current);
+    final replacements = <String, List<String>>{
+      for (final entry in imported.entries)
+        entry.id: imported.lines
+            .sublist(entry.start, entry.end)
+            .map((l) => l.isEmpty ? '' : '${' ' * local.indent}$l')
+            .toList(),
+    };
+    final result = <String>[];
+    var cursor = 0;
+    for (final entry in local.entries) {
+      result.addAll(local.lines.sublist(cursor, entry.start));
+      result.addAll(
+        replacements.remove(entry.id) ??
+            local.lines.sublist(entry.start, entry.end),
+      );
+      cursor = entry.end;
+    }
+    result.addAll(local.lines.sublist(cursor));
+    for (final block in replacements.values) {
+      result.addAll(block);
+    }
+    return '${result.join('\n').trimRight()}\n';
   }
 
   Future<String?> _osascript(String script) async {
-    try {
-      final r = await Process.run('osascript', ['-e', script]);
-      if (r.exitCode != 0) return null;
-      final path = '${r.stdout}'.trim();
-      return path.isEmpty ? null : path;
-    } catch (_) {
-      return null;
+    final r = await Process.run('osascript', ['-e', script]);
+    if (r.exitCode != 0) {
+      if ('${r.stderr}'.contains('(-128)')) return null; // 用户取消，不是操作失败。
+      throw ProcessException(
+        'osascript',
+        const [],
+        '${r.stderr}'.trim(),
+        r.exitCode,
+      );
     }
+    final path = '${r.stdout}'.trim();
+    return path.isEmpty ? null : path;
   }
 
   Future<void> _copyTree(Directory from, Directory to) async {
+    if (FileSystemEntity.isLinkSync(from.path)) {
+      throw const FileSystemException('不接受符号链接人设');
+    }
     await to.create(recursive: true);
     for (final e in from.listSync(recursive: true, followLinks: false)) {
       final rel = e.path.substring(from.path.length + 1);
@@ -855,6 +1304,8 @@ class TransferEngine {
         final target = File('${to.path}/$rel');
         await target.parent.create(recursive: true);
         await e.copy(target.path);
+      } else {
+        throw FileSystemException('人设包含符号链接或特殊文件', e.path);
       }
     }
   }
@@ -879,7 +1330,9 @@ class TransferEngine {
 }
 
 /// 页面与测试共用的那一个实例：默认读真实 `~/.ondra`。
-final TransferEngine transferEngine = TransferEngine();
+final TransferEngine transferEngine = TransferEngine(
+  dataIsOffline: () => dataMaintenance.offline,
+);
 
 /// 两条 32 位 FNV 变体并成 12 位十六进制。
 ///
@@ -909,8 +1362,8 @@ String _q(String v) => "'${v.replaceAll("'", "''")}'";
 
 /// STRICT 表要求类型精确：REAL 列写 `50` 会被拒，必须写成 `50.0`。
 String _real(double v) {
-  final s = v.toStringAsFixed(3);
-  return s;
+  if (!v.isFinite) throw const FormatException('记忆数值必须是有限数');
+  return v.toString();
 }
 
 String _text(Object? v) => v is String ? v : (v?.toString() ?? '');

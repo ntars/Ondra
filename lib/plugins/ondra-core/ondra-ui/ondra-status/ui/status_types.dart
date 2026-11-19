@@ -134,7 +134,7 @@ class StatusSnapshot {
   final List<MetricReading> metrics;
   final EmotionReading? emotion;
 
-  /// 网关（magpie）现在能不能连上。连不上时右栏也发不出话，这条要先看得见。
+  /// 对话客户端最近一次连接或请求的结果。
   final bool kernelOnline;
   final String kernelDetail;
 

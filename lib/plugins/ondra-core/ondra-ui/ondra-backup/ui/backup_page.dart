@@ -55,27 +55,74 @@ class _BackupPageState extends State<BackupPage> {
   }
 
   Future<void> _load() async {
-    final overview = await backupOverviewLoader();
-    if (!mounted) return;
-    setState(() => _overview = overview);
+    try {
+      final overview = await backupOverviewLoader();
+      if (mounted) setState(() => _overview = overview);
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _overview = BackupOverview.empty.copyWithNote('读取备份失败：$e'),
+        );
+      }
+    }
   }
 
   /// 所有动作都走这一个壳：先置忙、做完重新读一遍总览、把引擎的原文案显示出来。
-  Future<void> _run(Future<BackupOpResult> Function() action) async {
+  Future<void> _run(
+    Future<BackupOpResult> Function() action, {
+    Future<bool> Function()? confirm,
+  }) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _message = '';
     });
-    final result = await action();
-    final overview = await backupOverviewLoader();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _overview = overview;
-      _message = result.message;
-      _messageOk = result.ok;
-    });
+    try {
+      if (confirm != null && !await confirm()) return;
+      if (!mounted) return;
+      final result = await action();
+      if (!mounted) return;
+      setState(() {
+        _message = result.message;
+        _messageOk = result.ok;
+      });
+      final overview = await backupOverviewLoader();
+      if (mounted) setState(() => _overview = overview);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _message = '${_message.isEmpty ? '' : '$_message；'}操作或刷新失败：$e';
+          _messageOk = false;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool> _confirm(
+    BackupSnapshot snapshot, {
+    required bool deleting,
+  }) async {
+    return await OndraDialog.show<bool>(
+          context,
+          OndraDialog(
+            title: deleting ? '删除这份备份？' : '恢复这份备份？',
+            body:
+                '${backupWhen(snapshot.createdAt)} · ${snapshot.fileCount} 个文件。'
+                '${deleting ? '删除后不可撤销；不会删除当前数据。' : '将覆盖同名数据，快照外文件保留；恢复前会先存底。SQLite 恢复尚需维护模式，当前会拒绝。'}',
+            actions: [
+              const OndraDialogButton(label: '取消', value: false),
+              OndraDialogButton(
+                label: deleting ? '确认删除' : '确认恢复',
+                value: true,
+                filled: true,
+                danger: true,
+              ),
+            ],
+          ),
+        ) ==
+        true;
   }
 
   Future<void> _toggleAuto(bool value) async {
@@ -83,9 +130,10 @@ class _BackupPageState extends State<BackupPage> {
     if (overview == null) return;
     final next = overview.settings.copyWith(auto: value);
     // 先落盘再改界面：开关是「承诺」，不是「感觉」。写失败时界面不该先亮起来。
-    await backupSaveSettings(next);
-    if (!mounted) return;
-    setState(() => _overview = overview.copyWithSettings(next));
+    await _run(() async {
+      await backupSaveSettings(next);
+      return const BackupOpResult(ok: true, message: '备份设置已保存。');
+    });
   }
 
   Future<void> _cycleKeep() async {
@@ -93,10 +141,13 @@ class _BackupPageState extends State<BackupPage> {
     if (overview == null) return;
     const options = [12, 24, 48];
     final i = options.indexOf(overview.settings.keep);
-    final next = overview.settings.copyWith(keep: options[(i + 1) % options.length]);
-    await backupSaveSettings(next);
-    if (!mounted) return;
-    setState(() => _overview = overview.copyWithSettings(next));
+    final next = overview.settings.copyWith(
+      keep: options[(i + 1) % options.length],
+    );
+    await _run(() async {
+      await backupSaveSettings(next);
+      return const BackupOpResult(ok: true, message: '备份设置已保存。');
+    });
   }
 
   Future<void> _export(String id) async {
@@ -104,9 +155,13 @@ class _BackupPageState extends State<BackupPage> {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
-    final dir = await backupPickDirectory('选择要把这份备份导出到哪里');
-    if (dir == null) return;
-    await _run(() => backupExport(id, dir));
+    await _run(() async {
+      final dir = await backupPickDirectory('选择要把这份备份导出到哪里');
+      if (dir == null || !mounted) {
+        return const BackupOpResult.failure('已取消导出。');
+      }
+      return backupExport(id, dir);
+    });
   }
 
   Future<void> _import() async {
@@ -114,9 +169,13 @@ class _BackupPageState extends State<BackupPage> {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
-    final dir = await backupPickDirectory('选择一份导出的备份目录');
-    if (dir == null) return;
-    await _run(() => backupImport(dir));
+    await _run(() async {
+      final dir = await backupPickDirectory('选择一份导出的备份目录');
+      if (dir == null || !mounted) {
+        return const BackupOpResult.failure('已取消导入。');
+      }
+      return backupImport(dir);
+    });
   }
 
   void _openTimeline() => ShellScope.of(context).timelineOpen = true;
@@ -226,8 +285,8 @@ class _BackupPageState extends State<BackupPage> {
           ),
           const SizedBox(height: 10),
           Text(
-            '备份内容：人设与资料、对话存档、工作区缓存、插件与内核配置、偏好设置。'
-            '不含日志、依赖树与密钥——日志回滚没有意义，密钥不该被复制成多份。',
+            '备份内容：人设与资料、记忆库、真实会话存档、模型目录、网页白名单、头像与偏好。'
+            '不含插件代码、内核装配层与密钥。SQLite 使用一致性副本；恢复须接入暂停内核的维护流程，当前拒绝。',
             style: ondraText(10.5, color: s.ink25, height: 15 / 10.5),
           ),
         ],
@@ -256,9 +315,7 @@ class _BackupPageState extends State<BackupPage> {
               Text('还没有备份', style: ondraText(13, color: s.ink40)),
               const SizedBox(height: 4),
               Text(
-                overview.note.isEmpty
-                    ? '快照写在本机，随时可以回滚；空谷不会上传。'
-                    : overview.note,
+                overview.note.isEmpty ? '快照写在本机，随时可以回滚；空谷不会上传。' : overview.note,
                 textAlign: TextAlign.center,
                 style: ondraText(11, color: s.ink25, height: 16 / 11),
               ),
@@ -275,9 +332,15 @@ class _BackupPageState extends State<BackupPage> {
         _SnapshotRow(
           snapshot: overview.snapshots[i],
           busy: _busy,
-          onRestore: () => _run(() => backupRestore(overview.snapshots[i].id)),
+          onRestore: () => _run(
+            () => backupRestore(overview.snapshots[i].id),
+            confirm: () => _confirm(overview.snapshots[i], deleting: false),
+          ),
           onExport: () => _export(overview.snapshots[i].id),
-          onDelete: () => _run(() => backupDelete(overview.snapshots[i].id)),
+          onDelete: () => _run(
+            () => backupDelete(overview.snapshots[i].id),
+            confirm: () => _confirm(overview.snapshots[i], deleting: true),
+          ),
         ),
       );
     }
@@ -325,7 +388,9 @@ class _TimelineEntryState extends State<_TimelineEntry> {
             borderRadius: BorderRadius.circular(OndraRadius.xl),
             boxShadow: [
               BoxShadow(
-                color: TimelinePalette.glow.withValues(alpha: _hover ? 0.30 : 0.16),
+                color: TimelinePalette.glow.withValues(
+                  alpha: _hover ? 0.30 : 0.16,
+                ),
                 blurRadius: _hover ? 22 : 14,
                 offset: const Offset(0, 4),
               ),
@@ -392,7 +457,9 @@ class _TimelineEntryState extends State<_TimelineEntry> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: _hover ? 0.18 : 0.10),
                     borderRadius: BorderRadius.circular(OndraRadius.md),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.16),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -451,7 +518,9 @@ class _MiniWindow extends StatelessWidget {
             width: 178,
             height: 72,
             decoration: BoxDecoration(
-              color: front ? TimelinePalette.frontSurface : TimelinePalette.ghostSurface,
+              color: front
+                  ? TimelinePalette.frontSurface
+                  : TimelinePalette.ghostSurface,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: front
@@ -556,7 +625,9 @@ class _StoragePanel extends StatelessWidget {
     final stored = o?.storedBytes ?? 0;
     final source = o?.sourceBytes ?? 0;
     final saved = o?.savedBytes ?? 0;
-    final ratio = source <= 0 ? 0.0 : (stored / source).clamp(0.02, 1.0).toDouble();
+    final ratio = source <= 0
+        ? 0.0
+        : (stored / source).clamp(0.02, 1.0).toDouble();
 
     return OndraPanel(
       title: '存储占用',
@@ -722,7 +793,12 @@ class _SnapshotRowState extends State<_SnapshotRow> {
                     children: [
                       Text(
                         backupWhen(b.createdAt),
-                        style: ondraText(13, weight: 500, color: s.ink, height: 18 / 13),
+                        style: ondraText(
+                          13,
+                          weight: 500,
+                          color: s.ink,
+                          height: 18 / 13,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       Container(

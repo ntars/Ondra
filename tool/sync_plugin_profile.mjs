@@ -125,6 +125,9 @@ function collect(srcRoot) {
   // 绝对路径与依赖树，运行期一个字节都用不到。带上它们等于把本机目录结构
   // 写进 git 历史。
   walk(nm);
+  // Versioned persona archives are runtime data, not disposable documentation.
+  // Their embedded SKILL.md/references remain intact inside the .skill.zip.
+  walk(path.join(srcRoot, 'content', 'personas', 'bundled'));
   return files;
 }
 

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 import '../../../../../../app/home_dir.dart';
 import '../../../../../../app/keychain.dart';
 import 'model_types.dart';
+import 'runtime_model_config.dart';
 
 /// 模型基座的投影。规则与 DSH 的模型设置保持一致：
 ///
@@ -16,7 +17,16 @@ import 'model_types.dart';
 /// - 内置提供商不可删；删除自建提供商时连密钥一起清掉；
 /// - 默认模型若被删掉，回退到第一个可用模型。
 class ModelClient extends ChangeNotifier {
-  ModelClient() {
+  ModelClient({
+    String? storePath,
+    Future<String?> Function(String)? secretResolver,
+    Future<KeychainSecret> Function(String, String)? secretWriter,
+  // ignore: prefer_initializing_formals, 对外参数名保持 storePath，私有字段不能当命名参数
+  }) : _storePath = storePath,
+       _secretResolver =
+           secretResolver ?? ((id) => Keychain.read(_keyName(id))),
+       _secretWriter =
+           secretWriter ?? ((id, key) => Keychain.write(_keyName(id), key)) {
     _providers = [
       // 本机网关：Magpie（/Applications/magpie.app）监听 127.0.0.1:3425，
       // 一个端口转发多家模型（实测目录里 14 个，含 deepseek / glm / minimax / hy4）。
@@ -56,10 +66,7 @@ class ModelClient extends ChangeNotifier {
             id: 'deepseek-reasoner',
             contextWindow: '128K',
             maxTokens: '64K',
-            reasoning: [
-              OndraReasoningLevel.medium,
-              OndraReasoningLevel.high,
-            ],
+            reasoning: [OndraReasoningLevel.medium, OndraReasoningLevel.high],
           ),
         ],
       ),
@@ -80,10 +87,56 @@ class ModelClient extends ChangeNotifier {
   // **密钥不在文件里**——`keyConfigured` 只是从钥匙串回读出来的状态。
   // 文件里写密钥等于把「只存在本机」写成「以明文存在本机」。
 
-  static File get _storeFile {
-    final home = ondraUserHome;
-    return File('$home/.ondra/models.json');
+  final String? _storePath;
+  final Future<String?> Function(String) _secretResolver;
+  final Future<KeychainSecret> Function(String, String) _secretWriter;
+  final Map<String, int> _keyRevisions = {};
+  String? persistenceError;
+
+  /// UI 可监听这些状态，并用 applyPendingRuntime() 显式重连。
+  /// 忙碌时只标记待应用，不中断生成；主装配层在空闲后自动应用。
+  bool runtimePending = false;
+  bool runtimeApplying = false;
+  String? runtimeApplyError;
+  Future<void> Function()? runtimeReconnect;
+
+  Future<void> applyPendingRuntime() async => await runtimeReconnect?.call();
+
+  void reportRuntimeState({
+    required bool pending,
+    required bool applying,
+    String? error,
+  }) {
+    if (runtimePending == pending &&
+        runtimeApplying == applying &&
+        runtimeApplyError == error) {
+      return;
+    }
+    runtimePending = pending;
+    runtimeApplying = applying;
+    runtimeApplyError = error;
+    notifyListeners();
   }
+
+  RuntimeModelConfig currentRuntimeConfig() {
+    final p = byId(defaultProviderId);
+    final m = p?.models.where((m) => m.id == defaultModelId).firstOrNull;
+    if (p == null || m == null) throw StateError('请先选择有效的默认模型');
+    return RuntimeModelConfig.from(p, m);
+  }
+
+  /// 不含 secret；替换已配置密钥也增加 revision，不能只看 keyConfigured。
+  String get runtimeFingerprint {
+    final p = byId(defaultProviderId);
+    return jsonEncode({
+      'provider': p == null ? null : _providerToJson(p),
+      'model': defaultModelId,
+      'keyRevision': _keyRevisions[defaultProviderId] ?? 0,
+    });
+  }
+
+  File get _storeFile =>
+      File(_storePath ?? '$ondraUserHome/.ondra/models.json');
 
   /// 启动时读回上一次的模型基座。文件坏了就当没存过，回到内置默认。
   ///
@@ -122,7 +175,8 @@ class ModelClient extends ChangeNotifier {
   /// 支持不了钥匙串的机器永远得到 false——那是实情，不编一个 true。
   void _refreshKeyStates() {
     for (final p in _providers) {
-      if (p.category == ProviderCategory.local || p.category == ProviderCategory.gateway) {
+      if (p.category == ProviderCategory.local ||
+          p.category == ProviderCategory.gateway) {
         continue; // 本地与网关不校验密钥，状态恒为「不需要」。
       }
       unawaited(
@@ -137,18 +191,18 @@ class ModelClient extends ChangeNotifier {
 
   void _persist() {
     try {
+      _storeFile.parent.createSync(recursive: true);
       _storeFile.writeAsStringSync(
         const JsonEncoder.withIndent('  ').convert({
           'version': 1,
           'defaultProviderId': _defaultProviderId,
           'defaultModelId': _defaultModelId,
-          'providers': [
-            for (final p in _providers) _providerToJson(p),
-          ],
+          'providers': [for (final p in _providers) _providerToJson(p)],
         }),
       );
-    } catch (_) {
-      // 写盘失败不打断界面：模型改动还在内存里活着，下次改动会再试。
+      persistenceError = null;
+    } catch (error) {
+      persistenceError = '模型配置未保存：$error';
     }
   }
 
@@ -161,6 +215,7 @@ class ModelClient extends ChangeNotifier {
     'category': p.category.name,
     'baseUrl': p.baseUrl,
     'apiKeyEnv': p.apiKeyEnv,
+    'protocol': p.protocol,
     'builtIn': p.builtIn,
     'launchHint': p.launchHint,
     'models': [
@@ -173,7 +228,7 @@ class ModelClient extends ChangeNotifier {
           'inputs': m.inputs,
           'reasoning': [
             for (final r in m.reasoning)
-              {'label': r.label, 'apiValue': r.apiValue},
+              {'label': r.label, 'apiValue': r.apiValue, 'level': r.level},
           ],
         },
     ],
@@ -191,6 +246,7 @@ class ModelClient extends ChangeNotifier {
       category: category,
       baseUrl: '${item['baseUrl'] ?? ''}',
       apiKeyEnv: '${item['apiKeyEnv'] ?? ''}',
+      protocol: item['protocol'] as String?,
       builtIn: item['builtIn'] == true,
       launchHint: '${item['launchHint'] ?? ''}',
     );
@@ -214,6 +270,7 @@ class ModelClient extends ChangeNotifier {
               OndraReasoningLevel(
                 label: '${r['label'] ?? apiValue}',
                 apiValue: apiValue,
+                level: r['level'] as String?,
               ),
             );
           }
@@ -229,11 +286,12 @@ class ModelClient extends ChangeNotifier {
   /// UI 的「填写 / 更换」与自定义表单都走这一个入口；`keyConfigured` 由
   /// 写入结果驱动，不靠界面自己置位。
   Future<String?> writeProviderKey(String providerId, String key) async {
-    final r = await Keychain.write(_keyName(providerId), key);
+    final r = await _secretWriter(providerId, key);
     if (!r.ok) return r.message;
     final p = byId(providerId);
-    if (p != null && !p.keyConfigured) {
-      p.keyConfigured = true;
+    if (p != null) {
+      p.keyConfigured = key.isNotEmpty;
+      _keyRevisions[providerId] = (_keyRevisions[providerId] ?? 0) + 1;
       notifyListeners();
     }
     return null;
@@ -270,21 +328,17 @@ class ModelClient extends ChangeNotifier {
       for (final m in p.models) (p, m),
   ];
 
-  /// 这条提供商在**内核侧**的路由名；null 表示内核没有对应适配器。
-  ///
-  /// 内核的 `provider` 参数不是这里的 id，而是装配层注册的路由名。当前
-  /// profile 只声明了两条：`magpie`（pi-ai 手工路由，本机网关）与
-  /// `deepseek-official`（LlmDeepSeek fiber，官方 API）。把 UI 的 id 直接
-  /// 传过去，内核会报 `no adapter registered`——表现为「换了模型就连不上」，
-  /// 而且只有发消息那一刻才炸。
-  ///
-  /// 其余类别（免费/合作/自定义/本地）要等装配层把对应路由声明进去。
-  String? kernelRouteOf(OndraProvider p) => switch (p.category) {
-    ProviderCategory.gateway => 'magpie',
-    ProviderCategory.official =>
-      p.id == 'deepseek' ? 'deepseek-official' : p.id,
-    _ => null,
-  };
+  /// 所有兼容类别都使用应用独立路由；只有地址和模型有效才允许注册。
+  String? kernelRouteOf(OndraProvider p) {
+    for (final m in p.models) {
+      try {
+        return RuntimeModelConfig.from(p, m).route;
+      } on FormatException {
+        continue;
+      }
+    }
+    return null;
+  }
 
   bool isDefault(OndraProvider p, OndraModelEntry m) =>
       p.id == _defaultProviderId && m.id == _defaultModelId;
@@ -302,27 +356,73 @@ class ModelClient extends ChangeNotifier {
 
   static bool isValidProviderId(String id) => _idPattern.hasMatch(id);
 
-  static bool isValidCapacity(String text) =>
-      text.isEmpty || RegExp(r'^\d+(\.\d+)?[KkMm]?$').hasMatch(text);
+  static bool isValidCapacity(String text) {
+    if (text.isEmpty) return true;
+    try {
+      RuntimeModelConfig.capacity(text);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  static bool isValidBaseUrl(String value) {
+    final uri = Uri.tryParse(value.trim());
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty &&
+        !uri.hasQuery &&
+        !uri.hasFragment;
+  }
 
   /// 返回 null 表示通过；否则返回该显示的错误。
-  String? validateModel(OndraProvider p, OndraModelEntry m, {OndraModelEntry? self}) {
+  String? validateModel(
+    OndraProvider p,
+    OndraModelEntry m, {
+    OndraModelEntry? self,
+  }) {
     if (m.id.trim().isEmpty) return '模型 ID 不能为空';
-    final dup = p.models.where((e) => e.id == m.id && !identical(e, self ?? m)).isNotEmpty;
+    final dup = p.models
+        .where((e) => e.id == m.id && !identical(e, self ?? m))
+        .isNotEmpty;
     if (dup) return '模型 ID 不能重复';
-    if (!isValidCapacity(m.contextWindow)) return '上下文窗口必须是正数，例如 131072、256K 或 1M';
-    if (!isValidCapacity(m.maxTokens)) return '最大输出 token 数必须是正数，例如 8192、64K 或 1M';
+    if (!isValidCapacity(m.contextWindow)) {
+      return '上下文窗口必须是正数，例如 131072、256K 或 1M';
+    }
+    if (!isValidCapacity(m.maxTokens)) {
+      return '最大输出 token 数必须是正数，例如 8192、64K 或 1M';
+    }
+    try {
+      RuntimeModelConfig.validateModel(m);
+    } on FormatException catch (error) {
+      return error.message;
+    }
     return null;
   }
 
   // ── 提供商 ────────────────────────────────────────────────────────────────
 
-  String? addProvider(OndraProvider provider) {
+  String? validateProvider(OndraProvider provider) {
     if (!isValidProviderId(provider.id)) return '需以小写字母开头，之后可用小写字母、数字和短横线';
     if (byId(provider.id) != null) return '已有提供商使用了这个 ID';
+    if (provider.baseUrl.isNotEmpty && !isValidBaseUrl(provider.baseUrl)) {
+      return 'API 地址必须是有效的 HTTP(S) 地址，不能包含凭据、查询或片段';
+    }
+    for (final model in provider.models) {
+      final error = validateModel(provider, model);
+      if (error != null) return error;
+    }
+    return null;
+  }
+
+  String? addProvider(OndraProvider provider) {
+    final error = validateProvider(provider);
+    if (error != null) return error;
     // 只有「自定义 API」必须当场有地址：其余五类都有预设，地址可以稍后在编辑器里补
     // （合作方与免费服务的地址本来就要用户填）。
-    if (provider.category == ProviderCategory.custom && provider.baseUrl.trim().isEmpty) {
+    if (provider.category == ProviderCategory.custom &&
+        provider.baseUrl.trim().isEmpty) {
       return '自定义模型 API 需要填写 API 地址';
     }
     _providers = [..._providers, provider];
@@ -332,7 +432,8 @@ class ModelClient extends ChangeNotifier {
   }
 
   /// 从预设添加。返回错误文案，或 null 表示成功。
-  String? addPreset(OndraProviderPreset preset) => addProvider(preset.toProvider());
+  String? addPreset(OndraProviderPreset preset) =>
+      addProvider(preset.toProvider());
 
   /// 探测到的模型合进来：只补缺的，不动用户已经改过的条目。
   ///
@@ -354,28 +455,93 @@ class ModelClient extends ChangeNotifier {
     return added;
   }
 
-  bool removeProvider(String id) {
+  Future<String?> removeProvider(String id) async {
     final p = byId(id);
-    if (p == null || p.builtIn) return false;
+    if (p == null || p.builtIn) return '内置提供商不能删除';
+    if (p.keyConfigured || await Keychain.exists(_keyName(id))) {
+      if (!await Keychain.erase(_keyName(id))) return '密钥删除失败，已保留提供商';
+    }
     _providers = _providers.where((e) => e.id != id).toList();
-    // 删除提供商＝连密钥一起清（官方文案：会移除其配置和存储的 API 密钥）。
-    // 钥匙串删除是异步的，失败不影响提供商本身被移除——那条记录会在
-    // 「钥匙串访问」里残留，用户能自己看到并删掉。
-    unawaited(Keychain.erase(_keyName(id)));
     p.keyConfigured = false;
     _ensureDefault();
     notifyListeners();
-    return true;
+    return persistenceError;
+  }
+
+  Future<String?> readProviderKey(String id) async {
+    final p = byId(id);
+    return await readProviderSecret(id) ??
+        (p == null || p.apiKeyEnv.isEmpty
+            ? null
+            : Platform.environment[p.apiKeyEnv]);
+  }
+
+  Future<String?> readProviderSecret(String id) => _secretResolver(id);
+
+  String? updateProviderProtocol(String id, String protocol) {
+    if (!RuntimeModelConfig.protocols.contains(protocol)) return '不支持的 API 协议';
+    final p = byId(id);
+    if (p == null) return '提供商不存在';
+    p.protocol = protocol;
+    notifyListeners();
+    return persistenceError;
+  }
+
+  String? updateProviderAddress(String id, String value) {
+    if (!isValidBaseUrl(value)) return '请输入有效的 HTTP(S) API 地址';
+    final p = byId(id);
+    if (p == null) return '提供商不存在';
+    p.baseUrl = value.trim();
+    notifyListeners();
+    return persistenceError;
   }
 
   // ── 模型 ──────────────────────────────────────────────────────────────────
 
-  OndraModelEntry addModel(String providerId, {String id = ''}) {
-    final p = byId(providerId)!;
-    final m = OndraModelEntry(id: id);
+  String? addModel(String providerId, {required String id}) {
+    final p = byId(providerId);
+    if (p == null) return '提供商不存在';
+    final m = OndraModelEntry(id: id.trim());
+    final error = validateModel(p, m);
+    if (error != null) return error;
     p.models.add(m);
+    _ensureDefault();
     notifyListeners();
-    return m;
+    return persistenceError;
+  }
+
+  String? updateModel(
+    String providerId,
+    OndraModelEntry model, {
+    String? id,
+    String? name,
+    String? contextWindow,
+    String? maxTokens,
+    List<String>? inputs,
+    List<OndraReasoningLevel>? reasoning,
+  }) {
+    final p = byId(providerId);
+    if (p == null || !p.models.contains(model)) return '模型不存在';
+    final next = OndraModelEntry(
+      id: id?.trim() ?? model.id,
+      name: name ?? model.name,
+      contextWindow: contextWindow ?? model.contextWindow,
+      maxTokens: maxTokens ?? model.maxTokens,
+      inputs: inputs ?? model.inputs,
+      reasoning: reasoning ?? model.reasoning,
+    );
+    final error = validateModel(p, next, self: model);
+    if (error != null) return error;
+    if (isDefault(p, model)) _defaultModelId = next.id;
+    model
+      ..id = next.id
+      ..name = next.name
+      ..contextWindow = next.contextWindow
+      ..maxTokens = next.maxTokens
+      ..inputs = List.of(next.inputs)
+      ..reasoning = List.of(next.reasoning);
+    notifyListeners();
+    return persistenceError;
   }
 
   void removeModel(String providerId, OndraModelEntry model) {
@@ -402,12 +568,17 @@ class ModelClient extends ChangeNotifier {
   /// 无内核路由的提供商不能设为默认——否则换完模型内核直接连不上，
   /// 界面看着像「新会话」，实际一句都发不出去。
   String? setDefaultModel(OndraProvider provider, OndraModelEntry model) {
+    if (!identical(byId(provider.id), provider) ||
+        !provider.models.contains(model)) {
+      return '提供商或模型不存在';
+    }
+    try {
+      RuntimeModelConfig.from(provider, model);
+    } on FormatException catch (error) {
+      return error.message;
+    }
     if (_defaultProviderId == provider.id && _defaultModelId == model.id) {
       return null;
-    }
-    if (kernelRouteOf(provider) == null) {
-      return '${provider.name} 还没有内核路由（当前只装配了 magpie 网关与'
-          ' DeepSeek 官方），先不要设为默认';
     }
     _defaultProviderId = provider.id;
     _defaultModelId = model.id;
@@ -419,7 +590,9 @@ class ModelClient extends ChangeNotifier {
 
   void _ensureDefault() {
     final stillThere = _providers.any(
-      (p) => p.id == _defaultProviderId && p.models.any((m) => m.id == _defaultModelId),
+      (p) =>
+          p.id == _defaultProviderId &&
+          p.models.any((m) => m.id == _defaultModelId),
     );
     if (stillThere) return;
     final first = allModelEntries.isEmpty ? null : allModelEntries.first;

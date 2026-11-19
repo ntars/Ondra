@@ -2,804 +2,892 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'backup_model.dart';
 import '../../../../../app/home_dir.dart';
+import '../../../../../app/data_maintenance.dart';
+import '../../../../../app/sqlite_cli.dart';
+import 'backup_model.dart';
 
-/// 备份引擎：把 `~/.ondra` 里「值得带走的东西」按内容存进一个对象库，
-/// 每次备份只写一份清单。
-///
-/// 为什么不是「每次整目录复制一份」：一轮对话下来 `sessions/` 里可能几十个文件
-/// 一个字节都没变，整目录复制等于把同样的内容存十遍——十份备份占十倍空间，
-/// 用户会在第三次之后关掉这个功能。这里的做法是**内容寻址**：
-///
-/// ```text
-/// ~/.ondra/backups/
-///   objects/3d/3d9f...a1        ← 文件内容，同名同内容只存一次
-///   snapshots/20261117-210305/
-///     manifest.json             ← 文件清单：路径 → 指纹
-/// ```
-///
-/// 于是「第 10 次备份只多写了 3 个文件」这件事是可验证的，也是页面上
-/// 「去重节省」那个数字的来源。
-///
-/// 顺带说明一个**取舍**：`.credentials.yaml`（密钥）不进快照。备份目录本身
-/// 是 0700，但把密钥复制成 N 份、每份都可能被导出到别处，风险和收益不成比例；
-/// 恢复时也不会删它，所以密钥一直在原地。
+/// 内容寻址的本机数据快照。先完整预检和捕获字节，最后发布清单。
+/// 不包含内核装配层、插件代码、凭据；清单不能授予额外的文件写入权限。
 class BackupEngine {
-  BackupEngine({String? home, DateTime Function()? now})
+  BackupEngine({String? home, DateTime Function()? now, this.dataIsOffline})
     : home = home ?? '$ondraUserHome/.ondra',
       _now = now ?? DateTime.now;
 
-  /// `~/.ondra` 的绝对路径。测试里换成临时目录。
   final String home;
-
   final DateTime Function() _now;
 
+  /// 由共享维护独占流程提供：内核已停止、transport 已 await close，且禁止
+  /// 重连/发送。调用方必须持有 lease 直到 restore 完成；路径或连接状态不作凭据。
+  /// 未注入时（包括自定义 home）拒绝 SQLite 恢复。
+  final bool Function()? dataIsOffline;
   String get root => '$home/backups';
-  String get _snapshotsDir => '$root/snapshots';
-  String get _objectsDir => '$root/objects';
-  String get _settingsFile => '$root/settings.json';
-
-  /// 备份范围：整棵收的目录。
-  ///
-  /// `logs/` 与 `cache/`、`tmp/` 不收：它们要么是追加写的排障材料（一份日志
-  /// 回滚回去没有意义，还会把上小时的错误盖回来），要么是随时可重建的缓存。
-  /// `electron/` 是旧版应用残留，`workspace/` 是工作区指针，都不属于「我的数据」。
-  static const List<String> _trees = ['user', 'sessions', 'storages', 'profiles'];
-
-  /// 单个文件。
-  static const List<String> _singleFiles = ['prefs.json'];
-
-  /// 只收配置文件的树：`dsh/profiles/<name>/` 里 `node_modules` 有十几兆，
-  /// 收进去会让每份快照都多背一份依赖树，而它随时能重装。
-  static const String _configTree = 'dsh/profiles';
-
-  static const Set<String> _configFileNames = {
-    'cordis.yml',
-    'cordis.patch.yml',
-    'package.json',
-    'pnpm-workspace.yaml',
-    'pnpm-lock.yaml',
-  };
-
-  static const Set<String> _skipDirNames = {
-    'node_modules',
-    '.git',
-    '.venv',
-    '__pycache__',
-    '.cache',
-  };
-
-  /// 直接跳过的文件名。
-  ///
-  /// `.credentials.yaml` 是密钥（见类注释）；`.DS_Store` 是 Finder 的目录
-  /// 布局缓存，收进快照只会让「文件数」这个数字虚高。
-  static const Set<String> _skipFileNames = {'.credentials.yaml', '.DS_Store'};
-
-  /// 跳过这些后缀：运行时锁、写到一半的临时文件、本引擎自己的还原临时文件。
-  static const Set<String> _skipSuffixes = {
-    '.lock',
-    '.tmp',
-    '.part',
-    '.ondra-restore',
-  };
-
-  /// 串行队列：两次备份叠在一起跑会同时往对象库写同一个指纹，
-  /// 后写的把先写的覆盖掉，清单和对象就对不上了。
   Future<void> _queue = Future<void>.value();
 
   Future<T> _serial<T>(Future<T> Function() action) {
     final next = _queue.then((_) => action());
-    // 队列只关心「上一件事做完了没有」，不关心它成没成——失败的那次
-    // 不该把后面排队的一起卡死，所以这里把错误吞掉。
     _queue = next.then((_) {}, onError: (_) {});
     return next;
   }
 
-  // ── 读 ────────────────────────────────────────────────────────────────
+  Future<_Boundary> _repository() async {
+    final boundary = await _Boundary.open(home);
+    for (final rel in ['backups', 'backups/objects', 'backups/snapshots']) {
+      await boundary.check(rel, directory: true);
+    }
+    await boundary.check('backups/settings.json');
+    return boundary;
+  }
 
-  /// 页面一次加载需要的全部：所有快照 + 容量 + 设置 + 当前数据规模。
   Future<BackupOverview> load() async {
-    final snapshots = await _readAllManifests();
+    final boundary = await _repository();
+    final snapshots = await _readAllManifests(boundary);
     final settings = await readSettings();
-
     var stored = 0;
-    await for (final entity in _listObjects()) {
-      if (entity is! File) continue;
-      stored += await entity.length();
+    for (final file in await _objects(boundary)) {
+      stored += await file.length();
     }
-
-    var source = 0;
-    for (final s in snapshots) {
-      source += s.sourceBytes;
-    }
-
     var liveFiles = 0;
     var liveBytes = 0;
+    var note = '';
     try {
-      // 只统计大小，不算指纹：这一项要在一屏之内出来，读字节会让
-      // 页面打开时多等几百毫秒，而它只是个参考数字。
-      for (final f in await _scan(hashing: false)) {
-        liveFiles += 1;
-        liveBytes += f.size;
+      for (final file in await _scan(boundary, capture: false)) {
+        liveFiles++;
+        liveBytes += file.entry.size;
       }
-    } catch (_) {
-      // 统计不出来不影响已有快照的展示。
+    } catch (e) {
+      note = '当前数据读取失败：$e';
     }
-
-    final rootDir = Directory(root);
     return BackupOverview(
       snapshots: snapshots,
       storedBytes: stored,
-      sourceBytes: source,
+      sourceBytes: snapshots.fold(0, (sum, s) => sum + s.sourceBytes),
       liveFiles: liveFiles,
       liveBytes: liveBytes,
       rootPath: root,
       settings: settings,
-      note: rootDir.existsSync() ? '' : '备份目录还没有建立，第一次备份时自动创建。',
+      note: note,
     );
   }
 
   Future<BackupSettings> readSettings() async {
-    try {
-      final raw = await File(_settingsFile).readAsString();
-      return BackupSettings.fromJson(jsonDecode(raw));
-    } catch (_) {
-      return const BackupSettings();
-    }
+    final boundary = await _repository();
+    final file = File(await boundary.check('backups/settings.json'));
+    if (!await file.exists()) return const BackupSettings();
+    return BackupSettings.fromJson(jsonDecode(await file.readAsString()));
   }
 
   Future<void> writeSettings(BackupSettings settings) async {
-    await Directory(root).create(recursive: true);
-    await _writeAtomic(_settingsFile, const JsonEncoder.withIndent('  ').convert(settings.toJson()));
+    final boundary = await _repository();
+    await _writeAtomic(
+      boundary,
+      'backups/settings.json',
+      utf8.encode(jsonEncode(settings.toJson())),
+    );
   }
 
-  // ── 写 ────────────────────────────────────────────────────────────────
-
-  /// 建一份快照。
-  ///
-  /// 顺序是刻意的：**先扫、再写对象、最后写清单**。清单是「这份快照存在」的
-  /// 唯一凭据，它最后落盘就意味着——中途崩了，最多留下几个没人引用的对象
-  /// （下次 GC 收掉），不会留下一份指向半个目录的清单。
-  Future<BackupOpResult> create({BackupTrigger trigger = BackupTrigger.manual}) {
+  Future<BackupOpResult> create({
+    BackupTrigger trigger = BackupTrigger.manual,
+  }) {
     return _serial(() async {
       try {
-        final files = await _scan(hashing: true);
+        final boundary = await _repository();
+        final files = await _scan(boundary, capture: true);
         if (files.isEmpty) {
-          return const BackupOpResult(
-            ok: false,
-            message: '没有可备份的文件：数据目录还是空的。',
-          );
+          return const BackupOpResult.failure('没有可备份的文件：数据目录还是空的。');
         }
-
         final settings = await readSettings();
-        final now = _now();
-        final id = await _allocateId(now);
-
-        var newBytes = 0;
-        var newFiles = 0;
-        for (final f in files) {
-          final stored = await _storeObject(f, home);
-          if (stored) {
-            newBytes += f.size;
-            newFiles += 1;
-          }
-        }
-
-        final sourceBytes = files.fold<int>(0, (sum, f) => sum + f.size);
-        final manifest = <String, Object?>{
-          'version': 1,
-          'id': id,
-          'createdAt': now.toIso8601String(),
-          'trigger': trigger.code,
-          'totals': {
-            'files': files.length,
-            'sourceBytes': sourceBytes,
-            'newBytes': newBytes,
-            'newFiles': newFiles,
-          },
-          'files': [for (final f in files) f.toJson()],
-        };
-
-        await Directory('$_snapshotsDir/$id').create(recursive: true);
-        await _writeAtomic(
-          '$_snapshotsDir/$id/manifest.json',
-          jsonEncode(manifest),
-        );
-
-        // 自动备份记下这一笔，手动的不记：否则「每小时一次」会被手动备份
-        // 不断推后，永远等不到自动的那一次。
+        // 不让损坏的旧清单被 GC 当成「没有引用」。
+        await _readAllManifests(boundary);
+        final created = await _publish(boundary, files, trigger);
         if (trigger == BackupTrigger.auto) {
-          await writeSettings(settings.copyWith(lastAt: now));
+          await writeSettings(settings.copyWith(lastAt: created.createdAt));
         }
-
-        final pruned = await _prune(settings.keep);
-        final freed = await _collectGarbage();
-
-        final tail = [
-          if (newFiles < files.length)
-            '其中 ${files.length - newFiles} 个文件与之前的快照内容相同，没有重复存',
-          if (pruned.isNotEmpty) '清理最旧的 ${pruned.length} 份',
-          if (freed > 0) '回收 ${backupBytes(freed)}',
-        ];
+        await _prune(boundary, settings.keep);
+        await _collectGarbage(boundary);
         return BackupOpResult(
           ok: true,
-          snapshotId: id,
-          message: tail.isEmpty
-              ? '已备份 ${files.length} 个文件（${backupBytes(sourceBytes)}）。'
-              : '已备份 ${files.length} 个文件（${backupBytes(sourceBytes)}）；${tail.join('；')}。',
+          snapshotId: created.id,
+          message:
+              '已备份 ${files.length} 个文件（${backupBytes(created.sourceBytes)}）。',
         );
       } catch (e) {
-        return BackupOpResult(ok: false, message: '备份失败：$e');
+        return BackupOpResult.failure('备份失败：$e');
       }
     });
   }
 
-  /// 回到某一份快照。
-  ///
-  /// 动手之前**先给现在的状态存一份底**（`preRestore`）：恢复是覆盖写，
-  /// 用户按下那一刻想的是「回到昨天」，而不是「把今天盖掉且不可挽回」。
-  /// 这份底让他能在事后反悔，且它会带一个明确的「恢复前」标签。
-  ///
-  /// 只覆盖快照里有的文件；快照里没有、当前存在的文件**保留**。
-  /// 这不是偷懒：删除是不可逆的，而「快照里没有」既可能是当时没这个文件，
-  /// 也可能是它根本不在备份范围内（见 `_trees`）。分不清就不删。
   Future<BackupOpResult> restore(String id) {
     return _serial(() async {
-      final manifest = await _readManifest(id);
-      if (manifest == null) {
-        return const BackupOpResult(ok: false, message: '找不到这份快照的清单。');
-      }
-
+      var written = 0;
+      String? safetyId;
+      String? writing;
+      Directory? staging;
       try {
-        final safety = await _createInner(BackupTrigger.preRestore);
-        if (!safety.ok) {
-          // 存不了底就别动：恢复本身会改文件，没有退路不动手。
-          return BackupOpResult(
-            ok: false,
-            message: '恢复前存底失败，已中止：${safety.message}',
+        final boundary = await _repository();
+        final manifest = await _readManifest(boundary, id);
+        // 全部对象、目标/旁文件路径和 SQLite 副本先预检，再请求停机凭据。
+        // 预检只打开临时副本，不打开用户库，避免 SQLite 恢复日志或创建 SHM。
+        final files = await _preflightObjects(boundary, manifest);
+        final sqlitePaths = await _preflightRestoreTargets(boundary, files);
+        final sources = <String, String>{};
+        if (sqlitePaths.isNotEmpty) {
+          final cli = ondraSqliteCli;
+          if (cli == null) throw StateError('缺少 sqlite3，不能恢复 SQLite。');
+          staging = await Directory.systemTemp.createTemp(
+            'ondra-sqlite-restore-',
           );
-        }
-
-        var written = 0;
-        var bytes = 0;
-        var missing = 0;
-        for (final f in manifest.files) {
-          final object = File(_objectPath(f.hash));
-          if (!await object.exists()) {
-            missing += 1;
-            continue;
+          for (final file in files) {
+            if (!sqlitePaths.contains(file.entry.path)) continue;
+            final source = File('${staging.path}/${sources.length}.db');
+            await source.writeAsBytes(file.bytes, flush: true);
+            final check = await Process.run(cli, [
+              '-batch',
+              '-bail',
+              '-readonly',
+              source.path,
+              'PRAGMA integrity_check;',
+            ]);
+            if (check.exitCode != 0 || '${check.stdout}'.trim() != 'ok') {
+              throw StateError(
+                'SQLite 恢复副本完整性检查失败：${file.entry.path} '
+                '${check.stderr} ${check.stdout}',
+              );
+            }
+            sources[file.entry.path] = source.path;
           }
-          final target = File('$home/${f.path}');
-          await target.parent.create(recursive: true);
-          // 先写临时文件再改名：恢复中途断电时，目标文件要么是旧内容，
-          // 要么是新内容，不会是一半。
-          final tmp = File('${target.path}.ondra-restore');
-          await object.copy(tmp.path);
-          await tmp.rename(target.path);
-          written += 1;
-          bytes += f.size;
+          _requireDataOffline();
         }
-
-        final kept = await _countExtras(manifest);
-
-        final parts = <String>[
-          '已恢复 $written 个文件（${backupBytes(bytes)}）',
-          if (missing > 0) '$missing 个文件的对象已缺失，跳过',
-          if (kept > 0) '当前比这份快照多出的 $kept 个文件已保留，未删除',
-          '恢复前的状态已存为「${backupWhen(safety.stamp ?? _now())}」',
-        ];
+        final current = await _scan(boundary, capture: true);
+        if (sources.isNotEmpty) _requireDataOffline();
+        // 恢复前不能裁剪快照；尤其不能把正在恢复的那份删掉。
+        if (current.isNotEmpty) {
+          safetyId = (await _publish(
+            boundary,
+            current,
+            BackupTrigger.preRestore,
+          )).id;
+        }
+        await _preflightRestoreTargets(boundary, files);
+        for (final file in files) {
+          if (sources.isNotEmpty) _requireDataOffline();
+          writing = file.entry.path;
+          final source = sources[writing];
+          if (source != null) {
+            await _sqliteRestore(boundary, writing, source);
+          } else {
+            await _writeAtomic(boundary, writing, file.bytes);
+          }
+          written++;
+          writing = null;
+        }
         return BackupOpResult(
-          ok: written > 0,
-          snapshotId: safety.snapshotId,
-          message: '${parts.join('；')}。',
+          ok: true,
+          snapshotId: safetyId,
+          message:
+              '已恢复 $written 个文件；快照外文件保留。'
+              '${safetyId == null ? '恢复前数据为空。' : '恢复前状态已存底。'}',
         );
       } catch (e) {
-        return BackupOpResult(ok: false, message: '恢复失败：$e');
+        return BackupOpResult(
+          ok: false,
+          snapshotId: safetyId,
+          message:
+              '恢复失败：$e'
+              '${written == 0 ? '' : '；已写入 $written 个文件，发生部分恢复。'}'
+              '${writing == null ? '' : '；失败目标：$writing，请检查其状态。'}'
+              '${safetyId == null ? '' : '；可用恢复前快照 $safetyId 回滚。'}',
+        );
+      } finally {
+        try {
+          await staging?.delete(recursive: true);
+        } on FileSystemException {
+          // 临时副本清理失败不改变已完成恢复的结果。
+        }
       }
     });
   }
 
-  /// 删掉一份快照，并回收没有别处引用的对象。
   Future<BackupOpResult> delete(String id) {
     return _serial(() async {
-      final dir = Directory('$_snapshotsDir/$id');
-      if (!await dir.exists()) {
-        return const BackupOpResult(ok: false, message: '这份快照已经不在了。');
-      }
       try {
+        _validateId(id);
+        final boundary = await _repository();
+        final dir = Directory(
+          await boundary.check('backups/snapshots/$id', directory: true),
+        );
+        if (!await dir.exists()) {
+          return const BackupOpResult.failure('这份快照已经不在了。');
+        }
+        await _readAllManifests(boundary);
         await dir.delete(recursive: true);
-        final freed = await _collectGarbage();
+        final freed = await _collectGarbage(boundary);
         return BackupOpResult(
           ok: true,
-          message: freed > 0
-              ? '已删除这份快照，回收 ${backupBytes(freed)}。'
-              : '已删除这份快照；它的内容还被别的快照用着，没有回收空间。',
+          message: '已删除这份快照，回收 ${backupBytes(freed)}。',
         );
       } catch (e) {
-        return BackupOpResult(ok: false, message: '删除失败：$e');
+        return BackupOpResult.failure('删除失败：$e');
       }
     });
   }
 
-  /// 把一份快照导出成一个**自包含**的目录：里面是原始文件 + 一份清单，
-  /// 拷到 U 盘、发给另一台机器都能读。
-  Future<BackupOpResult> exportTo(String id, String targetDir) async {
-    final manifest = await _readManifest(id);
-    if (manifest == null) {
-      return const BackupOpResult(ok: false, message: '找不到这份快照的清单。');
-    }
-    try {
-      var bytes = 0;
-      var copied = 0;
-      for (final f in manifest.files) {
-        final object = File(_objectPath(f.hash));
-        if (!await object.exists()) continue;
-        final target = File('$targetDir/${f.path}');
-        await target.parent.create(recursive: true);
-        await object.copy(target.path);
-        copied += 1;
-        bytes += f.size;
+  Future<BackupOpResult> exportTo(String id, String targetDir) {
+    return _serial(() async {
+      try {
+        final boundary = await _repository();
+        final manifest = await _readManifest(boundary, id);
+        final files = await _preflightObjects(boundary, manifest);
+        final target = await _Boundary.open(targetDir);
+        if (_within(boundary.path, target.path) ||
+            _within(target.path, boundary.path)) {
+          throw StateError('导出目录不能与用户数据目录重叠');
+        }
+        await _checkTargets(target, files);
+        await target.check('ondra-snapshot.json');
+        // 所有对象都已在内存中验证；缺最后一个也不能先导出前面的文件。
+        for (final file in files) {
+          await _writeAtomic(target, file.entry.path, file.bytes);
+        }
+        await _writeAtomic(
+          target,
+          'ondra-snapshot.json',
+          utf8.encode(jsonEncode(_manifestJson(manifest))),
+        );
+        return BackupOpResult(
+          ok: true,
+          message: '已导出 ${files.length} 个文件到 $targetDir。',
+        );
+      } catch (e) {
+        return BackupOpResult.failure('导出失败：$e');
       }
-      await _writeAtomic(
-        '$targetDir/ondra-snapshot.json',
-        jsonEncode({
-          'version': 1,
-          'id': id,
-          'createdAt': manifest.createdAt.toIso8601String(),
-          'trigger': manifest.trigger.code,
-          'totals': {
-            'files': manifest.files.length,
-            'sourceBytes': manifest.sourceBytes,
-          },
-          'files': [for (final f in manifest.files) f.toJson()],
-        }),
-      );
-      return BackupOpResult(
-        ok: true,
-        message: '已导出 $copied 个文件（${backupBytes(bytes)}）到 $targetDir。',
-      );
-    } catch (e) {
-      return BackupOpResult(ok: false, message: '导出失败：$e');
-    }
+    });
   }
 
-  /// 从导出的目录导回来。文件内容重新算指纹——目录可能被人动过，
-  /// 清单里那一列此时只是参考，不能拿它当真。
   Future<BackupOpResult> importFrom(String sourceDir) {
     return _serial(() async {
-      final file = File('$sourceDir/ondra-snapshot.json');
-      if (!await file.exists()) {
-        return const BackupOpResult(
-          ok: false,
-          message: '这个目录里没有 ondra-snapshot.json，不是一份导出的备份。',
-        );
-      }
       try {
-        final raw = jsonDecode(await file.readAsString());
-        final list = raw is Map ? raw['files'] : null;
-        if (list is! List) {
-          return const BackupOpResult(ok: false, message: '清单格式不对，读不出文件列表。');
-        }
-
-        final entries = <BackupFileEntry>[];
-        var newBytes = 0;
-        var newFiles = 0;
-        for (final item in list) {
-          final parsed = BackupFileEntry.fromJson(item);
-          if (parsed == null) continue;
-          final src = File('$sourceDir/${parsed.path}');
-          if (!await src.exists()) continue;
-          final bytes = await src.readAsBytes();
-          final entry = BackupFileEntry(
-            path: parsed.path,
-            size: bytes.length,
-            hash: _fingerprint(bytes),
-            modified: parsed.modified,
-          );
-          entries.add(entry);
-          if (await _storeObject(entry, sourceDir)) {
-            newBytes += entry.size;
-            newFiles += 1;
-          }
-        }
-        if (entries.isEmpty) {
-          return const BackupOpResult(ok: false, message: '清单里的文件一个都没找到。');
-        }
-
-        final now = _now();
-        final id = await _allocateId(now);
-        final sourceBytes = entries.fold<int>(0, (sum, f) => sum + f.size);
-        await Directory('$_snapshotsDir/$id').create(recursive: true);
-        await _writeAtomic(
-          '$_snapshotsDir/$id/manifest.json',
-          jsonEncode({
-            'version': 1,
-            'id': id,
-            'createdAt': now.toIso8601String(),
-            'trigger': BackupTrigger.imported.code,
-            'totals': {
-              'files': entries.length,
-              'sourceBytes': sourceBytes,
-              'newBytes': newBytes,
-              'newFiles': newFiles,
-            },
-            'files': [for (final f in entries) f.toJson()],
-          }),
+        final source = await _Boundary.open(sourceDir);
+        final manifestFile = File(
+          await source.check('ondra-snapshot.json', required: true),
         );
+        final raw = jsonDecode(await manifestFile.readAsString());
+        final manifest = _parseManifest(raw);
+        final boundary = await _repository();
+        final files = <_Captured>[];
+        // 先检查全部路径，再读取全部字节；不能静默重算并接受已损坏的导出。
+        for (final entry in manifest.files) {
+          await source.check(entry.path, required: true);
+          await boundary.check(entry.path);
+        }
+        for (final entry in manifest.files) {
+          final bytes = await File(
+            await source.check(entry.path, required: true),
+          ).readAsBytes();
+          _verify(entry, bytes);
+          files.add(_Captured(entry, bytes));
+        }
+        final created = await _publish(boundary, files, BackupTrigger.imported);
         return BackupOpResult(
           ok: true,
-          snapshotId: id,
+          snapshotId: created.id,
           message:
-              '已导入 ${entries.length} 个文件（${backupBytes(sourceBytes)}）；'
-              '其中 $newFiles 个是新的，其余与已有快照重复。',
+              '已导入 ${files.length} 个文件（${backupBytes(created.sourceBytes)}）。',
         );
       } catch (e) {
-        return BackupOpResult(ok: false, message: '导入失败：$e');
+        return BackupOpResult.failure('导入失败：$e');
       }
     });
   }
 
-  /// 打开备份目录。桌面端才有 Finder。
   Future<BackupOpResult> reveal() async {
     try {
-      await Directory(root).create(recursive: true);
-      final r = await Process.run('open', [root]);
-      if (r.exitCode != 0) {
-        return BackupOpResult(ok: false, message: '打不开目录：${r.stderr}');
-      }
+      final boundary = await _repository();
+      final path = await boundary.check('backups', directory: true);
+      await Directory(path).create(recursive: true);
+      final result = await Process.run('open', [path]);
+      if (result.exitCode != 0) throw StateError('${result.stderr}');
       return BackupOpResult(ok: true, message: '已在访达中打开 $root。');
     } catch (e) {
-      return BackupOpResult(ok: false, message: '打不开目录：$e');
+      return BackupOpResult.failure('打不开目录：$e');
     }
   }
 
-  /// 让用户选一个目录。用系统自带的选目录面板，不自己造一个文件浏览器——
-  /// 「导出到哪」「从哪导入」是系统的活。
-  ///
-  /// 走 `osascript` 的 `choose folder`：这是 macOS 上唯一不需要引入原生代码
-  /// 就能唤起选目录面板的办法。用户取消时退出码非 0，如实返回 null。
   Future<String?> pickDirectory(String prompt) async {
     try {
-      final r = await Process.run('osascript', [
+      final result = await Process.run('osascript', [
         '-e',
-        'POSIX path of (choose folder with prompt "$prompt")',
+        'POSIX path of (choose folder with prompt ${jsonEncode(prompt)})',
       ]);
-      if (r.exitCode != 0) return null;
-      final path = (r.stdout as String).trim();
+      if (result.exitCode != 0) return null;
+      final path = (result.stdout as String).trim();
       return path.isEmpty ? null : path;
     } catch (_) {
       return null;
     }
   }
 
-  // ── 内部 ──────────────────────────────────────────────────────────────
-
-  /// 恢复流程里要「再存一份底」，但 [restore] 已经占着串行队列了，
-  /// 不能从里面再调 [create]（会自己等自己）。所以拆一个不加锁的版本。
-  Future<_Created> _createInner(BackupTrigger trigger) async {
-    final files = await _scan(hashing: true);
-    if (files.isEmpty) {
-      return const _Created(ok: false, message: '没有可备份的文件', tid: null, stamp: null);
-    }
-    var newBytes = 0;
-    var newFiles = 0;
-    for (final f in files) {
-      if (await _storeObject(f, home)) {
-        newBytes += f.size;
-        newFiles += 1;
+  Future<List<_Captured>> _scan(
+    _Boundary boundary, {
+    required bool capture,
+  }) async {
+    final paths = <String>[];
+    Future<void> walk(String rel) async {
+      final path = await boundary.check(rel, directory: true);
+      final dir = Directory(path);
+      if (!await dir.exists()) return;
+      // list/read/stat 的错误必须冒泡；不能把不可读误报成「不需要备份」。
+      await for (final entity in dir.list(followLinks: false)) {
+        final leaf = entity.uri.pathSegments.where((s) => s.isNotEmpty).last;
+        if (BackupPaths.excludedDirectories.contains(leaf.toLowerCase())) {
+          continue;
+        }
+        final next = '$rel/$leaf';
+        if (entity is Link) throw FileSystemException('数据资产不允许符号链接', next);
+        if (entity is Directory) {
+          await walk(next);
+        } else if (entity is File) {
+          if (_sqliteSidecars.any(leaf.endsWith)) {
+            final suffix = _sqliteSidecars.firstWhere(leaf.endsWith);
+            final main = next.substring(0, next.length - suffix.length);
+            final database = File(await boundary.check(main, required: true));
+            if (!BackupPaths.isAsset(main) ||
+                !await _hasSqliteHeader(database)) {
+              throw FileSystemException('孤立或未知的 SQLite 日志', next);
+            }
+            // WAL/SHM/journal 由在线备份 API 合并，不单独打包。
+            continue;
+          }
+          if (BackupPaths.isAsset(next)) paths.add(next);
+        } else {
+          throw FileSystemException('不支持的数据文件类型', next);
+        }
       }
     }
-    final settings = await readSettings();
-    final now = _now();
-    final id = await _allocateId(now);
-    final sourceBytes = files.fold<int>(0, (sum, f) => sum + f.size);
-    await Directory('$_snapshotsDir/$id').create(recursive: true);
-    await _writeAtomic(
-      '$_snapshotsDir/$id/manifest.json',
-      jsonEncode({
-        'version': 1,
-        'id': id,
-        'createdAt': now.toIso8601String(),
-        'trigger': trigger.code,
-        'totals': {
-          'files': files.length,
-          'sourceBytes': sourceBytes,
-          'newBytes': newBytes,
-          'newFiles': newFiles,
-        },
-        'files': [for (final f in files) f.toJson()],
-      }),
-    );
-    await _prune(settings.keep);
-    return _Created(ok: true, message: '', tid: id, stamp: now);
-  }
 
-  /// 扫一遍备份范围。[hashing] 为 false 时不算指纹，只取大小与时间。
-  Future<List<BackupFileEntry>> _scan({required bool hashing}) async {
-    final out = <BackupFileEntry>[];
-    for (final rel in _trees) {
-      await _walk('$home/$rel', rel, out, hashing: hashing);
+    for (final tree in BackupPaths.trees) {
+      await walk(tree);
     }
-    for (final rel in _singleFiles) {
-      final f = File('$home/$rel');
-      if (!await f.exists()) continue;
-      final entry = await _entryOf(f, rel, hashing: hashing);
-      if (entry != null) out.add(entry);
+    for (final path in BackupPaths.singleFiles) {
+      if (await File(await boundary.check(path)).exists()) paths.add(path);
     }
-    await _walk(
-      '$home/$_configTree',
-      _configTree,
-      out,
-      hashing: hashing,
-      onlyNames: _configFileNames,
-    );
-    out.sort((a, b) => a.path.compareTo(b.path));
+    paths.sort();
+    final out = <_Captured>[];
+    for (final path in paths) {
+      final file = File(await boundary.check(path, required: true));
+      final stat = await file.stat();
+      var bytes = const <int>[];
+      if (capture) {
+        if (await _hasSqliteHeader(file) || _sqliteName(path)) {
+          bytes = await _sqliteSnapshot(boundary, path);
+        } else {
+          bytes = await file.readAsBytes();
+          // 文件可能在探测头之后被替换；捕获的字节若是 SQLite 也不能 raw copy。
+          if (_isSqlite(bytes)) bytes = await _sqliteSnapshot(boundary, path);
+        }
+      }
+      out.add(
+        _Captured(
+          BackupFileEntry(
+            path: path,
+            size: capture ? bytes.length : stat.size,
+            hash: capture ? _fingerprint(bytes) : '',
+            modified: stat.modified.millisecondsSinceEpoch,
+          ),
+          bytes,
+        ),
+      );
+    }
+    if (capture && out.isNotEmpty) {
+      BackupPaths.parseFiles([for (final file in out) file.entry.toJson()]);
+    }
     return out;
   }
 
-  Future<void> _walk(
-    String absDir,
-    String relDir,
-    List<BackupFileEntry> out, {
-    required bool hashing,
-    Set<String>? onlyNames,
-  }) async {
-    final dir = Directory(absDir);
-    if (!await dir.exists()) return;
+  static const _sqliteSidecars = ['-wal', '-shm', '-journal'];
+  static bool _sqliteName(String path) =>
+      RegExp(r'\.(db|sqlite3?)$', caseSensitive: false).hasMatch(path);
+  static bool _isSqlite(List<int> bytes) =>
+      bytes.length >= 16 &&
+      ascii.decode(bytes.take(16).toList(), allowInvalid: true) ==
+          'SQLite format 3\x00';
 
-    List<FileSystemEntity> entities;
+  Future<bool> _hasSqliteHeader(File file) async {
+    final input = await file.open();
     try {
-      entities = await dir.list(followLinks: false).toList();
-    } catch (_) {
-      // 权限不足的目录跳过：一份备份不该因为某个目录读不了就整体失败。
-      return;
-    }
-
-    for (final entity in entities) {
-      final leaf = _leaf(entity.path);
-      if (entity is Link) continue;
-      if (entity is Directory) {
-        if (_skipDirNames.contains(leaf)) continue;
-        await _walk(
-          entity.path,
-          '$relDir/$leaf',
-          out,
-          hashing: hashing,
-          onlyNames: onlyNames,
-        );
-        continue;
-      }
-      if (entity is! File) continue;
-      if (_skipFileNames.contains(leaf)) continue;
-      if (_skipSuffixes.any((s) => leaf.endsWith(s))) continue;
-      if (onlyNames != null && !onlyNames.contains(leaf)) continue;
-      final entry = await _entryOf(entity, '$relDir/$leaf', hashing: hashing);
-      if (entry != null) out.add(entry);
+      return _isSqlite(await input.read(16));
+    } finally {
+      await input.close();
     }
   }
 
-  Future<BackupFileEntry?> _entryOf(
-    File file,
-    String rel, {
-    required bool hashing,
-  }) async {
+  Future<List<int>> _sqliteSnapshot(_Boundary boundary, String rel) async {
+    final cli = ondraSqliteCli;
+    if (cli == null) throw StateError('缺少 sqlite3，不能一致性备份 SQLite；未退回复制主库。');
+    final path = await boundary.check(rel, required: true);
+    for (final suffix in _sqliteSidecars) {
+      await boundary.check('$rel$suffix');
+    }
+    final staging = await Directory.systemTemp.createTemp(
+      'ondra-sqlite-backup-',
+    );
     try {
-      if (!hashing) {
-        final st = await file.stat();
-        return BackupFileEntry(
-          path: rel,
-          size: st.size,
-          hash: '',
-          modified: st.modified.millisecondsSinceEpoch,
-        );
+      final snapshot = File('${staging.path}/snapshot.db');
+      // .backup 调用 sqlite3_backup API，包含已提交但尚未 checkpoint 的 WAL。
+      // -readonly 禁止修改源库；不用 immutable，它会忽略活动 WAL。
+      final result = await Process.run(cli, [
+        '-batch',
+        '-bail',
+        '-readonly',
+        '-cmd',
+        '.timeout 5000',
+        path,
+        '.backup ${jsonEncode(snapshot.path)}',
+      ]);
+      if (result.exitCode != 0) {
+        throw StateError('SQLite 一致性备份失败：${result.stderr}');
       }
-      final bytes = await file.readAsBytes();
-      final st = await file.stat();
-      return BackupFileEntry(
-        path: rel,
-        size: bytes.length,
-        hash: _fingerprint(bytes),
-        modified: st.modified.millisecondsSinceEpoch,
-      );
-    } catch (_) {
-      return null;
+      // 副本可能继承 WAL 标志。仅在临时副本上切回 DELETE，导出的单文件
+      // 才能在没有 -wal/-shm、甚至只读介质上独立打开。
+      final check = await Process.run(cli, [
+        '-batch',
+        '-bail',
+        snapshot.path,
+        'PRAGMA journal_mode=DELETE; PRAGMA integrity_check;',
+      ]);
+      if (check.exitCode != 0 || '${check.stdout}'.trim() != 'delete\nok') {
+        throw StateError('SQLite 副本完整性检查失败：${check.stderr} ${check.stdout}');
+      }
+      return await snapshot.readAsBytes();
+    } finally {
+      await staging.delete(recursive: true);
     }
   }
 
-  /// 存一个对象。返回 true 表示这次真的写了新内容（没去重掉）。
-  Future<bool> _storeObject(BackupFileEntry entry, String sourceRoot) async {
-    final target = File(_objectPath(entry.hash));
-    if (await target.exists()) return false;
+  Future<Set<String>> _preflightRestoreTargets(
+    _Boundary boundary,
+    List<_Captured> files,
+  ) async {
+    await _checkTargets(boundary, files);
+    // 即使主文件不存在/不是 SQLite，也不允许旁文件是 symlink 或目录。
+    for (final file in files) {
+      for (final suffix in _sqliteSidecars) {
+        await boundary.check('${file.entry.path}$suffix');
+      }
+    }
+    final sqlitePaths = <String>{};
+    for (final file in files) {
+      final rel = file.entry.path;
+      final target = File(await boundary.check(rel));
+      var sqlite =
+          _isSqlite(file.bytes) ||
+          _sqliteName(rel) ||
+          (await target.exists() && await _hasSqliteHeader(target));
+      for (final suffix in _sqliteSidecars) {
+        if (await File(await boundary.check('$rel$suffix')).exists()) {
+          sqlite = true;
+        }
+      }
+      if (!sqlite) continue;
+      // 不允许用普通文件覆盖数据库并遗留会重放的旧日志。
+      if (!_isSqlite(file.bytes)) {
+        throw FormatException('SQLite 目标必须使用有效的 SQLite 副本恢复：$rel');
+      }
+      sqlitePaths.add(rel);
+    }
+    return sqlitePaths;
+  }
+
+  void _requireDataOffline() {
+    if (dataIsOffline?.call() != true) {
+      throw StateError('SQLite 恢复需要共享维护流程暂停内核并持有维护独占。');
+    }
+  }
+
+  Future<void> _sqliteRestore(
+    _Boundary boundary,
+    String rel,
+    String source,
+  ) async {
+    _requireDataOffline();
+    final cli = ondraSqliteCli;
+    if (cli == null) throw StateError('缺少 sqlite3，不能恢复 SQLite。');
+    final target = File(await boundary.check(rel));
+    for (final suffix in _sqliteSidecars) {
+      await boundary.check('$rel$suffix');
+    }
     await target.parent.create(recursive: true);
-    final src = File('$sourceRoot/${entry.path}');
-    if (!await src.exists()) return false;
-    // 先写 `.part` 再改名：对象库是「同指纹永远同内容」的，一个写了一半的
-    // 对象被后续快照当成「已经有了」，那份快照就永远缺这个文件的内容。
-    final part = File('${target.path}.part');
-    await src.copy(part.path);
-    await part.rename(target.path);
-    return true;
+    await boundary.check(rel);
+    for (final suffix in _sqliteSidecars) {
+      await boundary.check('$rel$suffix');
+    }
+    _requireDataOffline();
+    // .restore 调用 sqlite3_backup API，在目标库事务内恢复。让 SQLite 自己
+    // 协调 WAL/SHM/journal，不 rename 主库、不手工删除残留日志。异常占锁时报错，
+    // 上层保留存底及已完成数量；维护独占不是绕过数据库锁的理由。
+    final result = await Process.run(cli, [
+      '-batch',
+      '-bail',
+      '-cmd',
+      '.timeout 1000',
+      target.path,
+      '.restore ${jsonEncode(source)}',
+    ]);
+    if (result.exitCode != 0) {
+      throw StateError('SQLite 恢复失败：$rel ${result.stderr}');
+    }
   }
 
-  String _objectPath(String hash) {
-    // 前两位分片：容器目录里几千个文件挤在一层，`ls` 和 Finder 都会卡。
-    final shard = hash.length >= 2 ? hash.substring(0, 2) : '00';
-    return '$_objectsDir/$shard/$hash';
+  Future<void> _checkTargets(_Boundary boundary, List<_Captured> files) async {
+    final targets = <String>{};
+    for (final file in files) {
+      final path = await boundary.check(file.entry.path);
+      if (!targets.add(path.toLowerCase())) {
+        throw FormatException('目标路径重复：$path');
+      }
+    }
   }
 
-  Stream<FileSystemEntity> _listObjects() {
-    final dir = Directory(_objectsDir);
-    if (!dir.existsSync()) return const Stream<FileSystemEntity>.empty();
-    return dir.list(recursive: true, followLinks: false);
+  Future<List<_Captured>> _preflightObjects(
+    _Boundary boundary,
+    BackupSnapshot manifest,
+  ) async {
+    final files = <_Captured>[];
+    for (final entry in manifest.files) {
+      final object = File(
+        await boundary.check(_objectRel(entry.hash), required: true),
+      );
+      final bytes = await object.readAsBytes();
+      _verify(entry, bytes);
+      files.add(_Captured(entry, bytes));
+    }
+    return files;
   }
 
-  Future<List<BackupSnapshot>> _readAllManifests() async {
-    final dir = Directory(_snapshotsDir);
-    if (!await dir.exists()) return const [];
+  void _verify(BackupFileEntry entry, List<int> bytes) {
+    if (bytes.length != entry.size || _fingerprint(bytes) != entry.hash) {
+      throw FormatException('对象 hash/size 不匹配：${entry.path}');
+    }
+  }
+
+  String _objectRel(String hash) {
+    if (!RegExp(r'^[0-9a-f]{16}$').hasMatch(hash)) {
+      throw const FormatException('无效对象指纹');
+    }
+    return 'backups/objects/${hash.substring(0, 2)}/$hash';
+  }
+
+  Future<BackupSnapshot> _publish(
+    _Boundary boundary,
+    List<_Captured> files,
+    BackupTrigger trigger,
+  ) async {
+    BackupPaths.parseFiles([for (final file in files) file.entry.toJson()]);
+    final missing = <String>{};
+    final captured = <String, List<int>>{};
+    // 已有对象及本批次重复的指纹都必须验证，不能只凭同名就去重。
+    for (final file in files) {
+      _verify(file.entry, file.bytes);
+      final previous = captured[file.entry.hash];
+      if (previous != null && !_equalBytes(previous, file.bytes)) {
+        throw StateError('对象指纹碰撞');
+      }
+      captured[file.entry.hash] = file.bytes;
+      final rel = _objectRel(file.entry.hash);
+      final object = File(await boundary.check(rel));
+      if (await object.exists()) {
+        final existing = await object.readAsBytes();
+        _verify(file.entry, existing);
+        if (!_equalBytes(existing, file.bytes)) throw StateError('对象指纹碰撞');
+      } else {
+        missing.add(rel);
+      }
+    }
+    final now = _now();
+    final id = await _allocateId(boundary, now);
+    await boundary.check('backups/snapshots/$id/manifest.json');
+    var newBytes = 0;
+    var newFiles = 0;
+    for (final file in files) {
+      final rel = _objectRel(file.entry.hash);
+      if (missing.remove(rel)) {
+        // 捕获的同一份字节用于 hash 与存储，绝不第二次读取源文件。
+        await _writeAtomic(boundary, rel, file.bytes);
+        newBytes += file.bytes.length;
+        newFiles++;
+      }
+    }
+    final snapshot = BackupSnapshot(
+      id: id,
+      createdAt: now,
+      trigger: trigger,
+      files: [for (final file in files) file.entry],
+      sourceBytes: files.fold(0, (sum, file) => sum + file.entry.size),
+      newBytes: newBytes,
+      newFiles: newFiles,
+    );
+    await _writeAtomic(
+      boundary,
+      'backups/snapshots/$id/manifest.json',
+      utf8.encode(jsonEncode(_manifestJson(snapshot))),
+    );
+    return snapshot;
+  }
+
+  Map<String, Object?> _manifestJson(BackupSnapshot snapshot) => {
+    'version': 1,
+    'id': snapshot.id,
+    'createdAt': snapshot.createdAt.toIso8601String(),
+    'trigger': snapshot.trigger.code,
+    'totals': {
+      'files': snapshot.fileCount,
+      'sourceBytes': snapshot.sourceBytes,
+      'newBytes': snapshot.newBytes,
+      'newFiles': snapshot.newFiles,
+    },
+    'files': [for (final file in snapshot.files) file.toJson()],
+  };
+
+  BackupSnapshot _parseManifest(Object? raw, {String? expectedId}) {
+    if (raw is! Map || raw['version'] != 1) {
+      throw const FormatException('不支持的清单格式');
+    }
+    final id = raw['id'];
+    if (id is! String) throw const FormatException('缺少快照 id');
+    _validateId(id);
+    if (expectedId != null && id != expectedId) {
+      throw const FormatException('快照 id 与目录不符');
+    }
+    final files = BackupPaths.parseFiles(raw['files']);
+    final stamp = raw['createdAt'];
+    final created = stamp is String ? DateTime.tryParse(stamp) : null;
+    if (created == null) throw const FormatException('无效快照时间');
+    final bytes = files.fold<int>(0, (sum, file) => sum + file.size);
+    final totals = raw['totals'];
+    if (totals is! Map ||
+        totals['files'] != files.length ||
+        totals['sourceBytes'] != bytes) {
+      throw const FormatException('清单总量与文件列表不符');
+    }
+    return BackupSnapshot(
+      id: id,
+      createdAt: created,
+      trigger: BackupTrigger.fromCode(raw['trigger'] as String?),
+      files: files,
+      sourceBytes: bytes,
+      newBytes: totals['newBytes'] as int? ?? bytes,
+      newFiles: totals['newFiles'] as int? ?? files.length,
+    );
+  }
+
+  void _validateId(String id) {
+    if (!RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$').hasMatch(id)) {
+      throw const FormatException('不安全的快照 id');
+    }
+  }
+
+  Future<BackupSnapshot> _readManifest(_Boundary boundary, String id) async {
+    _validateId(id);
+    final file = File(
+      await boundary.check(
+        'backups/snapshots/$id/manifest.json',
+        required: true,
+      ),
+    );
+    return _parseManifest(
+      jsonDecode(await file.readAsString()),
+      expectedId: id,
+    );
+  }
+
+  Future<List<BackupSnapshot>> _readAllManifests(_Boundary boundary) async {
+    final dir = Directory(
+      await boundary.check('backups/snapshots', directory: true),
+    );
+    if (!await dir.exists()) return [];
     final out = <BackupSnapshot>[];
     await for (final entity in dir.list(followLinks: false)) {
-      if (entity is! Directory) continue;
-      final snapshot = await _readManifest(_leaf(entity.path));
-      if (snapshot != null) out.add(snapshot);
+      if (entity is! Directory) {
+        throw FileSystemException('快照目录中有异常条目', entity.path);
+      }
+      final id = entity.uri.pathSegments.where((s) => s.isNotEmpty).last;
+      out.add(await _readManifest(boundary, id));
     }
     out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return out;
   }
 
-  Future<BackupSnapshot?> _readManifest(String id) async {
-    final file = File('$_snapshotsDir/$id/manifest.json');
-    if (!await file.exists()) return null;
-    try {
-      final raw = jsonDecode(await file.readAsString());
-      if (raw is! Map) return null;
-      final files = <BackupFileEntry>[];
-      final list = raw['files'];
-      if (list is List) {
-        for (final item in list) {
-          final parsed = BackupFileEntry.fromJson(item);
-          if (parsed != null) files.add(parsed);
+  Future<List<File>> _objects(_Boundary boundary) async {
+    final dir = Directory(
+      await boundary.check('backups/objects', directory: true),
+    );
+    if (!await dir.exists()) return [];
+    final out = <File>[];
+    await for (final shard in dir.list(followLinks: false)) {
+      if (shard is! Directory) throw FileSystemException('无效对象分片', shard.path);
+      await for (final entity in shard.list(followLinks: false)) {
+        if (entity is! File) throw FileSystemException('无效对象文件', entity.path);
+        final name = entity.uri.pathSegments.last;
+        final expected = await boundary.check(_objectRel(name), required: true);
+        if (expected != entity.path) {
+          throw FileSystemException('对象分片不匹配', entity.path);
         }
+        out.add(entity);
       }
-      final totals = raw['totals'];
-      final map = totals is Map ? totals : const <String, Object?>{};
-      final sourceBytes =
-          (map['sourceBytes'] as num?)?.toInt() ??
-          files.fold<int>(0, (sum, f) => sum + f.size);
-      return BackupSnapshot(
-        id: raw['id'] as String? ?? id,
-        createdAt:
-            DateTime.tryParse(raw['createdAt'] as String? ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0),
-        trigger: BackupTrigger.fromCode(raw['trigger'] as String?),
-        files: files,
-        sourceBytes: sourceBytes,
-        newBytes: (map['newBytes'] as num?)?.toInt() ?? sourceBytes,
-        newFiles: (map['newFiles'] as num?)?.toInt() ?? files.length,
+    }
+    return out;
+  }
+
+  Future<void> _prune(_Boundary boundary, int keep) async {
+    final snapshots = await _readAllManifests(boundary);
+    for (final snapshot in snapshots.skip(keep.clamp(1, 10000))) {
+      final path = await boundary.check(
+        'backups/snapshots/${snapshot.id}',
+        directory: true,
+        required: true,
       );
-    } catch (_) {
-      // 坏清单跳过，不让一份坏文件把整页打成空。
-      return null;
+      await Directory(path).delete(recursive: true);
     }
   }
 
-  /// 超出保留份数的从最旧的删。返回被删掉的 id。
-  Future<List<String>> _prune(int keep) async {
-    final snapshots = await _readAllManifests();
-    if (snapshots.length <= keep) return const [];
-    final removed = <String>[];
-    for (final s in snapshots.skip(keep)) {
-      try {
-        await Directory('$_snapshotsDir/${s.id}').delete(recursive: true);
-        removed.add(s.id);
-      } catch (_) {}
-    }
-    return removed;
-  }
-
-  /// 回收没有任何快照引用的对象。返回释放的字节数。
-  Future<int> _collectGarbage() async {
-    final referenced = <String>{};
-    final snapshots = await _readAllManifests();
-    for (final s in snapshots) {
-      for (final f in s.files) {
-        if (f.hash.isNotEmpty) referenced.add(f.hash);
-      }
-    }
-
+  Future<int> _collectGarbage(_Boundary boundary) async {
+    final referenced = {
+      for (final snapshot in await _readAllManifests(boundary))
+        for (final file in snapshot.files) file.hash,
+    };
     var freed = 0;
-    final deadShards = <String>{};
-    await for (final entity in _listObjects()) {
-      if (entity is! File) continue;
-      final name = _leaf(entity.path);
-      // `.part` 是上次中途退出留下的半截对象，一并收掉。
-      if (name.endsWith('.part') || !referenced.contains(name)) {
-        try {
-          freed += await entity.length();
-          await entity.delete();
-          deadShards.add(entity.parent.path);
-        } catch (_) {}
+    for (final file in await _objects(boundary)) {
+      if (!referenced.contains(file.uri.pathSegments.last)) {
+        freed += await file.length();
+        await file.delete();
       }
-    }
-    // 清掉空的分片目录，否则 `objects/` 下会慢慢攒出一堆空壳。
-    for (final path in deadShards) {
-      try {
-        final dir = Directory(path);
-        if (await dir.list().isEmpty) await dir.delete();
-      } catch (_) {}
     }
     return freed;
   }
 
-  /// 统计「当前有、但这份快照里没有」的文件数。只统计不删除。
-  Future<int> _countExtras(BackupSnapshot snapshot) async {
-    final known = {for (final f in snapshot.files) f.path};
-    var extras = 0;
-    try {
-      for (final f in await _scan(hashing: false)) {
-        if (!known.contains(f.path)) extras += 1;
-      }
-    } catch (_) {}
-    return extras;
-  }
-
-  Future<String> _allocateId(DateTime at) async {
+  Future<String> _allocateId(_Boundary boundary, DateTime now) async {
+    String two(int value) => '$value'.padLeft(2, '0');
     final base =
-        '${at.year}'
-        '${_two(at.month)}'
-        '${_two(at.day)}-'
-        '${_two(at.hour)}'
-        '${_two(at.minute)}'
-        '${_two(at.second)}';
+        '${now.year}${two(now.month)}${two(now.day)}-'
+        '${two(now.hour)}${two(now.minute)}${two(now.second)}';
     var id = base;
     var n = 2;
-    // 同一秒里连按两次「立即备份」不该互相覆盖。
-    while (await Directory('$_snapshotsDir/$id').exists()) {
-      id = '$base-$n';
-      n += 1;
+    while (await Directory(
+      await boundary.check('backups/snapshots/$id', directory: true),
+    ).exists()) {
+      id = '$base-${n++}';
     }
     return id;
   }
 
-  Future<void> _writeAtomic(String path, String content) async {
-    final tmp = File('$path.tmp');
-    await tmp.parent.create(recursive: true);
-    await tmp.writeAsString(content, flush: true);
-    await tmp.rename(path);
+  Future<void> _writeAtomic(
+    _Boundary boundary,
+    String rel,
+    List<int> bytes,
+  ) async {
+    final target = File(await boundary.check(rel));
+    await target.parent.create(recursive: true);
+    await boundary.check(rel);
+    // 随机私有临时目录避免固定 .tmp/.part 名称被预先植入 symlink。
+    final staging = await target.parent.createTemp('.ondra-backup-');
+    try {
+      final file = File('${staging.path}/content');
+      await file.writeAsBytes(bytes, flush: true);
+      await boundary.check(rel);
+      await file.rename(target.path);
+    } finally {
+      await staging.delete(recursive: true);
+    }
   }
 }
 
-class _Created {
-  const _Created({
-    required this.ok,
-    required this.message,
-    required this.tid,
-    required this.stamp,
-  });
-
-  final bool ok;
-  final String message;
-  final String? tid;
-  final DateTime? stamp;
-
-  String? get snapshotId => tid;
+class _Captured {
+  const _Captured(this.entry, this.bytes);
+  final BackupFileEntry entry;
+  final List<int> bytes;
 }
 
-String _leaf(String path) {
-  final parts = path.split('/').where((s) => s.isNotEmpty).toList();
-  return parts.isEmpty ? path : parts.last;
+/// 以解析后的目录为边界，检查每个已存在的组件。为避免别名目标与代码目录
+/// 互相绕过白名单，边界内的 symlink（即使仍指向边界内）一律拒绝。
+/// Dart IO 没有 openat/O_NOFOLLOW；这不是抵御其他进程并发替换目录的沙箱。
+class _Boundary {
+  const _Boundary(this.path);
+  final String path;
+
+  static Future<_Boundary> open(String base) async {
+    final absolute = Directory(base).absolute;
+    final type = await FileSystemEntity.type(absolute.path, followLinks: false);
+    if (type == FileSystemEntityType.link) {
+      throw FileSystemException('根目录不能是符号链接', base);
+    }
+    if (type != FileSystemEntityType.notFound &&
+        type != FileSystemEntityType.directory) {
+      throw FileSystemException('根路径不是目录', base);
+    }
+    if (type == FileSystemEntityType.directory) {
+      return _Boundary(await absolute.resolveSymbolicLinks());
+    }
+    final parent = await open(absolute.parent.path);
+    final leaf = absolute.uri.pathSegments.where((s) => s.isNotEmpty).last;
+    if (!BackupPaths.isRelative(leaf)) {
+      throw FileSystemException('不安全的根目录名', base);
+    }
+    return _Boundary('${parent.path}${Platform.pathSeparator}$leaf');
+  }
+
+  Future<String> check(
+    String rel, {
+    bool directory = false,
+    bool required = false,
+  }) async {
+    if (!BackupPaths.isRelative(rel)) throw FormatException('不安全的相对路径：$rel');
+    var current = path;
+    final parts = rel.split('/');
+    for (var i = 0; i < parts.length; i++) {
+      current = '$current${Platform.pathSeparator}${parts[i]}';
+      final type = await FileSystemEntity.type(current, followLinks: false);
+      if (type == FileSystemEntityType.link) {
+        throw FileSystemException('路径中不允许符号链接', current);
+      }
+      if (type == FileSystemEntityType.notFound) {
+        if (required) throw FileSystemException('缺少文件或对象', current);
+        continue;
+      }
+      final isDir = i < parts.length - 1 || directory;
+      if (type !=
+          (isDir
+              ? FileSystemEntityType.directory
+              : FileSystemEntityType.file)) {
+        throw FileSystemException('路径类型冲突', current);
+      }
+      final resolved = await (isDir
+          ? Directory(current).resolveSymbolicLinks()
+          : File(current).resolveSymbolicLinks());
+      if (!_within(path, resolved)) {
+        throw FileSystemException('解析后的路径越界', current);
+      }
+    }
+    return current;
+  }
 }
 
-String _two(int v) => v < 10 ? '0$v' : '$v';
+bool _within(String root, String target) {
+  if (Platform.isWindows) {
+    root = root.toLowerCase();
+    target = target.toLowerCase();
+  }
+  return target == root || target.startsWith('$root${Platform.pathSeparator}');
+}
 
-/// 内容指纹：两条 32 位 FNV 变体并成 16 位十六进制。
-///
-/// 为什么自己写而不引 `crypto`：这里要回答的是「两份文件是不是同一份内容」，
-/// 不是「有没有被篡改」。SHA-256 每读一个字节要做几十次位运算，备份 500KB
-/// 文件树时纯属浪费；FNV 一轮就够，两条通道把碰撞空间拉到 2^64。
-///
-/// 每一步都 `& 0xFFFFFFFF`：Dart 的 int 在原生端是 64 位、在 web 上是 double，
-/// 只保留低 32 位能让两边算出同一个值（虽然引擎只跑在桌面端）。
+bool _equalBytes(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// v1 清单的双 FNV 指纹：用于完整性/去重，不是签名或可信来源证明。
 String _fingerprint(List<int> bytes) {
   var a = 0x811c9dc5;
   var b = 0x9e3779b9;
@@ -809,34 +897,24 @@ String _fingerprint(List<int> bytes) {
     b = ((b ^ (v + i)) * 0x85EBCA6B) & 0xFFFFFFFF;
     b ^= b >> 13;
   }
-  return _hex8(a) + _hex8(b);
+  String hex(int value) =>
+      (value & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
+  return hex(a) + hex(b);
 }
 
-String _hex8(int v) => (v & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
-
-/// 自动备份：应用在跑的时候每分钟查一次「到点没有」。
-///
-/// 为什么不做成系统级守护进程：空谷是随用随开的桌面伴体，它不在跑的时候
-/// 也没有新数据产生。开机自启 + 常驻调度会为了「数据没变也每小时存一份」
-/// 付一份始终在跑的代价，不划算。这里只在应用活着的时候工作，是诚实的边界。
+/// 自动备份只在应用运行时调度；页面与调度器共用同一个串行队列。
 class BackupScheduler {
-  /// [now] 可注入：调度判断用「现在 - 上次」比间隔，若时钟不能替换，
-  /// 测试就只能依赖运行时刻——白天跑过、晚上再跑就挂，那种测试不算测试。
   BackupScheduler(this.engine, {DateTime Function()? now})
     : _now = now ?? DateTime.now;
-
   final BackupEngine engine;
   final DateTime Function() _now;
-
   Timer? _timer;
   bool _busy = false;
-
   bool get running => _timer != null;
 
   void start() {
     if (_timer != null) return;
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => tick());
-    // 启动后先查一次：应用关了两小时再打开，不该非要等下一个整点。
     unawaited(tick());
   }
 
@@ -845,7 +923,6 @@ class BackupScheduler {
     _timer = null;
   }
 
-  /// 到点就备份。`_busy` 防止上一轮还没写完就叠下一轮。
   Future<void> tick() async {
     if (_busy) return;
     _busy = true;
@@ -853,18 +930,20 @@ class BackupScheduler {
       final settings = await engine.readSettings();
       if (!settings.auto) return;
       final last = settings.lastAt;
-      final interval = Duration(minutes: settings.intervalMinutes.clamp(1, 24 * 60));
+      final interval = Duration(
+        minutes: settings.intervalMinutes.clamp(1, 24 * 60),
+      );
       if (last != null && _now().difference(last) < interval) return;
       await engine.create(trigger: BackupTrigger.auto);
     } catch (_) {
-      // 自动备份失败不打扰用户：页面上「上次备份」的时间会自己显出异常，
-      // 弹一个提示只会让人以为数据出了问题。
+      // 不刷新成功时间；失败不会让后续调度永久卡住。
     } finally {
       _busy = false;
     }
   }
 }
 
-/// 全局一份：页面与启动期共用同一个串行队列。
-final BackupEngine backupEngine = BackupEngine();
+final BackupEngine backupEngine = BackupEngine(
+  dataIsOffline: () => dataMaintenance.offline,
+);
 final BackupScheduler backupScheduler = BackupScheduler(backupEngine);

@@ -6,7 +6,11 @@ import 'transfer_model.dart';
 /// 所以每个动作都如实说「这里做不到」，而不是假装成功——点完导出却什么都没写，
 /// 比直接说不支持更糟。
 class TransferEngine {
-  const TransferEngine();
+  const TransferEngine({
+    String? home,
+    DateTime Function()? now,
+    bool Function()? dataIsOffline,
+  });
 
   String get home => '';
   String get dataRoot => '';
@@ -14,8 +18,10 @@ class TransferEngine {
 
   Future<TransferSnapshot> load() async => TransferSnapshot.empty;
 
-  Future<TransferResult> exportMemory(String dir, TransferFormat format) async =>
-      const TransferResult.fail('浏览器预览不能写本机文件，请在桌面版导出。');
+  Future<TransferResult> exportMemory(
+    String dir,
+    TransferFormat format,
+  ) async => const TransferResult.fail('浏览器预览不能写本机文件，请在桌面版导出。');
 
   Future<TransferResult> exportBundle(String dir) async =>
       const TransferResult.fail('浏览器预览不能写本机文件，请在桌面版导出。');
@@ -28,7 +34,8 @@ class TransferEngine {
 
   Future<String?> pickDirectory(String prompt) async => null;
 
-  Future<String?> pickFile(String prompt, List<String> extensions) async => null;
+  Future<String?> pickFile(String prompt, List<String> extensions) async =>
+      null;
 
   Future<TransferResult> reveal(String path) async =>
       const TransferResult.fail('浏览器预览里没有访达。');

@@ -2,29 +2,22 @@
 ///
 /// 与 `maintenance_io.dart` 导出同名同形的类，页面只 import 这一行。
 class OndraMaintenance {
-  OndraMaintenance({String? home});
+  OndraMaintenance({String? home, bool Function()? dataIsOffline});
 
   final String home = '';
 
   Future<String?> pickDirectory(String prompt) async => null;
 
   Future<MaintenanceResult> exportAll(String targetDir) async =>
-      const MaintenanceResult(
-        ok: false,
-        message: '浏览器预览里没有文件系统，导出请在桌面端操作。',
-      );
+      const MaintenanceResult(ok: false, message: '浏览器预览里没有文件系统，导出请在桌面端操作。');
 
-  Future<MaintenanceResult> wipeAll() async => const MaintenanceResult(
-    ok: false,
-    message: '浏览器预览里没有本地数据，清空请在桌面端操作。',
-  );
+  Future<MaintenanceResult> wipeAll() async =>
+      const MaintenanceResult(ok: false, message: '浏览器预览里没有本地数据，清空请在桌面端操作。');
 
   DateTime? lastWipe() => null;
 
-  Future<MaintenanceResult> clearCache() async => const MaintenanceResult(
-    ok: false,
-    message: '浏览器预览里没有本地缓存。',
-  );
+  Future<MaintenanceResult> clearCache() async =>
+      const MaintenanceResult(ok: false, message: '浏览器预览里没有本地缓存。');
 
   Future<List<PermissionStatus>> permissions() async => const [
     PermissionStatus(

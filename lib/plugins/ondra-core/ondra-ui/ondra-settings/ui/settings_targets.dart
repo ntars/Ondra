@@ -52,14 +52,9 @@ class OndraSettingTarget {
 /// 不允许闭包。这张表在启动时建一次，之后只读，final 的代价可以忽略。
 final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   // ── 通用 ────────────────────────────────────────────────────────────────
-  // 「默认权限模式」直接对应隐私插件的审批档：这两件事本来就是一回事。
-  'general.permissions': [
-    const OndraSettingTarget(
-      section: 'privacy',
-      key: 'approval-mode',
-      map: _permissionMode,
-    ),
-  ],
+  // 权限控件的文件访问边界不等于 privacy 的出站审批档。保留键以便
+  // pushAll 报告阻塞，但绝不把 readOnly 写成仍可写文件的 supervised。
+  'general.permissions': [],
   // 「语言」是**界面语言**，落点是 `OndraI18n` 载入哪份语言包，不写 `settings.json`。
   //
   // 上一版把它映射到 `asr.language`——那是语音识别语言。改界面语言会顺带
@@ -95,7 +90,11 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
     const OndraSettingTarget(section: 'memory-dream', key: 'enable'),
   ],
   'dialog.replyLength': [
-    const OndraSettingTarget(section: 'dialogue', key: 'max-tokens', map: _replyTokens),
+    const OndraSettingTarget(
+      section: 'dialogue',
+      key: 'max-tokens',
+      map: _replyTokens,
+    ),
   ],
 
   // ── 记忆 ────────────────────────────────────────────────────────────────
@@ -150,7 +149,11 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
     ),
   ],
   'voice.asrLanguage': [
-    const OndraSettingTarget(section: 'asr', key: 'language', map: _asrLanguage),
+    const OndraSettingTarget(
+      section: 'asr',
+      key: 'language',
+      map: _asrLanguage,
+    ),
   ],
 
   // ── 隐私与安全 ──────────────────────────────────────────────────────────
@@ -191,7 +194,8 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
 /// 它们都不进 `settings.json`，但确实"拨了就生效"——如果不在这里算上，
 /// 界面会在一个真的能用的开关下面写「只影响界面」，把用户劝退。
 bool ondraSettingIsWired(String key) =>
-    ondraSettingTargets.containsKey(key) || _platformWiredKeys.contains(key);
+    (ondraSettingTargets[key]?.isNotEmpty ?? false) ||
+    _platformWiredKeys.contains(key);
 
 /// 落点在系统侧或界面自身的项。由 `SettingsClient._applyPlatformAction`
 /// 与各自的调用点执行，**不写 `settings.json`**。
@@ -213,6 +217,9 @@ const Set<String> _platformWiredKeys = {
   // 立刻看得见变化——不在这里算上，界面会在它们下面写「只影响界面」。
   'general.language',
   'general.fontSize',
+  'dialog.busySend',
+  'dialog.enterSend',
+  'logs.usageDetail',
 };
 
 /// 这一项的内核落点（可能为空，表示落点在系统侧或纯界面）。
@@ -230,64 +237,66 @@ List<OndraSettingTarget> ondraSettingTargetsOf(String key) =>
 /// settings_client 会绕成一个环。
 ///
 /// 返回成功写入的字段数与失败数，启动日志用它说明「接线通没通」。
-({int written, int failed}) ondraPushAllSettings(Object? Function(String key) read) {
+({int written, int failed}) ondraPushAllSettings(
+  Object? Function(String key) read,
+) {
   var written = 0;
   var failed = 0;
   for (final entry in ondraSettingTargets.entries) {
     final value = read(entry.key);
     if (value == null) continue;
-    for (final t in entry.value) {
-      final mapped = t.map == null ? value : t.map!(value);
-      if (mapped == null) continue;
-      final resolved = t.scale != null && mapped is num ? t.scale!(mapped) : mapped;
-      if (writeProfileConfigField(t.section, t.key, resolved)) {
-        written += 1;
-      } else {
-        failed += 1;
-      }
+    final result = ondraPushSettingResult(entry.key, value);
+    if (result.ok) {
+      written += entry.value.length;
+    } else {
+      failed += 1;
     }
   }
   return (written: written, failed: failed);
 }
 
-/// 写一项。
-bool ondraPushSetting(String uiKey, Object? value) {
+/// 写一项；true 仅表示保存，不表示运行中的内核已应用。
+bool ondraPushSetting(String uiKey, Object? value) =>
+    ondraPushSettingResult(uiKey, value).ok;
+
+({bool ok, bool changed, String? error}) ondraPushSettingResult(
+  String uiKey,
+  Object? value,
+) {
+  if (uiKey == 'general.permissions') {
+    return (
+      ok: false,
+      changed: false,
+      error: '未应用权限：当前内核没有对应的会话文件权限接口；出站审批档不等于只读或工作区边界，原权限保持不变',
+    );
+  }
   final targets = ondraSettingTargets[uiKey];
-  if (targets == null) return true; // 没有落点不算失败：它只影响界面。
-  var ok = true;
+  if (targets == null) {
+    return ondraSettingIsWired(uiKey)
+        ? (ok: true, changed: false, error: null)
+        : (ok: false, changed: false, error: '此设置尚无可执行落点，需要对应能力或通道插件');
+  }
+  var changed = false;
+  final errors = <String>[];
   for (final t in targets) {
     final mapped = t.map == null ? value : t.map!(value);
-    if (mapped == null) continue;
-    final final_ = t.scale != null && mapped is num ? t.scale!(mapped) : mapped;
-    if (!writeProfileConfigField(t.section, t.key, final_)) ok = false;
+    if (mapped == null || (t.scale != null && mapped is! num)) {
+      errors.add('${t.section}.${t.key} 不支持该取值');
+      continue;
+    }
+    final resolved = t.scale != null ? t.scale!(mapped as num) : mapped;
+    final result = writeProfileConfigFieldResult(t.section, t.key, resolved);
+    changed |= result.changed;
+    if (!result.ok) errors.add(result.error ?? '${t.section}.${t.key} 保存失败');
   }
-  return ok;
+  return (
+    ok: errors.isEmpty,
+    changed: changed,
+    error: errors.isEmpty ? null : errors.join('；'),
+  );
 }
 
 // ── 值映射 ────────────────────────────────────────────────────────────────
-
-/// 界面三档 → 隐私插件的审批模式。
-///
-/// 内核只有三档（`ondra-privacy/src/types.ts` 的 `APPROVAL_MODES`）：
-/// - `supervised` 每个高风险都问；
-/// - `auto` 低风险直过、高风险问；
-/// - `full` 免审批，但要求开沙箱写边界。
-///
-/// **取值必须落在这三个里**：`approvalModeOf()` 认不出来就 `report()` 一次
-/// 然后回退 `DEFAULT_CONFIG.approvalMode`（`auto`）。上一版写的是
-/// `strict` / `open`——两个都不可识别，于是「仅可查看」和「完全权限」
-/// 都静默变成 `auto`。这不是文案问题：用户以为自己收紧了审批，实际没有。
-///
-/// 三档对位：
-/// - 仅可查看 = 每一步都要问（`supervised`）；
-/// - 工作区内修改 = 内核的默认档（`auto`）；
-/// - 完全权限 = 免审批（`full`）。
-Object? _permissionMode(Object? v) => switch (v) {
-  'readOnly' => 'supervised',
-  'workspace' => 'auto',
-  'fullAccess' => 'full',
-  _ => null,
-};
 
 /// 语音识别语言：内核用 BCP-47 风格的短码，界面用 zh / yue / en。
 Object? _asrLanguage(Object? v) => switch (v) {
@@ -313,7 +322,6 @@ Object? _retentionDays(Object? v) => switch (v) {
   '3650d' => 3650,
   _ => null,
 };
-
 
 /// 音色三档 → tts 的预设 id。
 ///

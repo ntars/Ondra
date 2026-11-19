@@ -14,10 +14,14 @@ class OndraPersona {
     required this.triggers,
     required this.assetDir,
     required this.builtIn,
-  });
+    String? slug,
+  }) : slug = slug ?? id;
 
-  /// 稳定 id，等于包的 slug（目录名）。
+  /// 内核 meta.js resolveId 的结果，可能不同于磁盘目录名。
   final String id;
+
+  /// 原目录名；导出/删除必须使用它而不是内核 id。
+  final String slug;
 
   /// 界面显示名，取 `meta.json` 的 `name`（哦鲸鲸）。
   final String name;
@@ -57,17 +61,38 @@ class OndraPersona {
 
 /// 从 `meta.json` + `SKILL.md` 解析人设包。
 ///
-/// 容错优先：缺字段用兜底值，缺 SKILL.md 就让 tagline 为空——一个字段不对
-/// 不该让整个包加载失败，否则用户只会看到「导入失败」而不知道错在哪。
-/// 真正硬性的是 `slug`：没有它，包在磁盘上就没有地址。
+/// 元数据、稳定标识与非空 SKILL.md 都是入口约束；资产包与用户包同样校验。
 OndraPersona parsePersona({
   required Map<String, dynamic> meta,
   required String skillMarkdown,
   required String assetDir,
   required bool builtIn,
+  String? storageSlug,
 }) {
-  final slug = (meta['slug'] as String?)?.trim();
-  final id = (slug == null || slug.isEmpty) ? _basename(assetDir) : slug;
+  if (meta.isEmpty || skillMarkdown.trim().isEmpty) {
+    throw const FormatException('meta.json 与 SKILL.md 必须非空。');
+  }
+  for (final key in ['slug', 'name', 'display_name', 'version']) {
+    if (meta[key] != null && meta[key] is! String) {
+      throw FormatException('meta.$key 应为字符串。');
+    }
+  }
+  final declaredSlug = (meta['slug'] as String?)?.trim();
+  if (declaredSlug != null &&
+      declaredSlug.isNotEmpty &&
+      !isSafePersonaSlug(declaredSlug)) {
+    throw const FormatException('meta.slug 不是安全目录名。');
+  }
+  final slug =
+      storageSlug ??
+      ((declaredSlug?.isNotEmpty ?? false)
+          ? declaredSlug!
+          : _basename(assetDir));
+  if (!isSafePersonaSlug(slug)) {
+    throw const FormatException('人设目录名不合法。');
+  }
+  final id = resolvePersonaId(meta, slug);
+  if (id == null) throw const FormatException('算不出合法的内核人设 ID。');
   final profile = meta['profile'];
   final personality = <String>[];
   if (profile is Map && profile['personality'] is List) {
@@ -76,7 +101,10 @@ OndraPersona parsePersona({
     }
   }
   final triggers = <String>[];
-  for (final t in (meta['trigger_words'] as List?) ?? const []) {
+  for (final t
+      in meta['trigger_words'] is List
+          ? meta['trigger_words'] as List
+          : const []) {
     if (t is String && t.trim().isNotEmpty) triggers.add(t.trim());
   }
   final name = (meta['name'] as String?)?.trim();
@@ -84,6 +112,7 @@ OndraPersona parsePersona({
 
   return OndraPersona(
     id: id,
+    slug: slug,
     name: (name == null || name.isEmpty) ? id : name,
     displayName: (display == null || display.isEmpty) ? (name ?? id) : display,
     version: (meta['version'] as String?)?.trim() ?? '-',
@@ -105,6 +134,28 @@ String _taglineOf(String md) {
   // 去掉 **加粗** 与行尾的引用符号，tagline 要当纯文本显示。
   line = line.replaceAll('**', '').replaceAll(RegExp(r'\s*>$'), '').trim();
   return line;
+}
+
+/// 保留历史目录名（含大写、点），但拒绝隐藏目录、穿越与过长名字。
+bool isSafePersonaSlug(String slug) =>
+    RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$').hasMatch(slug) &&
+    !slug.contains('..') &&
+    !slug.endsWith('.');
+
+/// 与内核 loader/lib/meta.js resolveId / toIdCandidate 保持一致。
+String? resolvePersonaId(Map<String, dynamic> meta, String archiveStem) {
+  var fallback = archiveStem
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9_-]+'), '-')
+      .replaceAll(RegExp(r'-{2,}'), '-')
+      .replaceAll(RegExp(r'^[-_]+|[-_]+$'), '');
+  if (fallback.length > 64) fallback = fallback.substring(0, 64);
+  for (final candidate in [meta['slug'], meta['name'], fallback]) {
+    if (candidate is! String) continue;
+    final id = candidate.trim().toLowerCase();
+    if (RegExp(r'^[a-z][a-z0-9_-]{1,63}$').hasMatch(id)) return id;
+  }
+  return null;
 }
 
 String _basename(String path) {

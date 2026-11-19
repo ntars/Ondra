@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-backup/ui/backup_actions.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-backup/ui/backup_model.dart';
+import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/chat_client.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-status/ui/status_source_io.dart';
 
 /// 状态面板读数的真目录测试。
@@ -33,6 +34,21 @@ void main() {
     expect(snap.sources.every((s) => s.count == 0), isTrue);
   });
 
+  test('接入状态来自对话连接，不依赖特定网关或记忆库是否存在', () async {
+    chatClient.useTransport(_ConnectedTransport());
+    addTearDown(() {
+      chatClient.stop();
+      chatClient.useTransport(const UnavailableTransport());
+    });
+    await chatClient.connect();
+    var snap = await loadStatus(home: tmp.path);
+    expect(snap.kernelOnline, isTrue);
+    expect(snap.kernelDetail, '对话内核已连接');
+    chatClient.stop();
+    snap = await loadStatus(home: tmp.path);
+    expect(snap.kernelOnline, isFalse);
+  });
+
   test('读得出记忆、今日活跃与沉淀率', () async {
     await _seedDb('${tmp.path}/.ondra/user/ondra.db', now: now);
     final snap = await loadStatus(now: () => now, home: tmp.path);
@@ -48,13 +64,13 @@ void main() {
 
   test('会话与插件条目按目录真数', () async {
     await _seedDb('${tmp.path}/.ondra/user/ondra.db', now: now);
-    final session = Directory(
-      '${tmp.path}/.ondra/dsh/sessions/proj/s1',
-    );
+    final session = Directory('${tmp.path}/.ondra/dsh/sessions/proj/s1');
     await session.create(recursive: true);
     await File('${session.path}/session.v4.jsonl').writeAsString('{}\n');
 
-    final patch = File('${tmp.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml');
+    final patch = File(
+      '${tmp.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml',
+    );
     await patch.parent.create(recursive: true);
     await patch.writeAsString('''
 plugins:
@@ -130,6 +146,26 @@ values ('main', '{"valence":-0.4,"arousal":0.7}', '["有点低落"]', '{}', 'cal
     expect(snap.emotion!.arousal, closeTo(0.7, 0.001));
     expect(snap.emotion!.label, '有点低落');
   });
+}
+
+class _ConnectedTransport implements DshTransport {
+  @override
+  Future<void> connect() async {}
+
+  @override
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) => const Stream.empty();
+
+  @override
+  void stop() {}
+
+  @override
+  void resetSession() {}
+
+  @override
+  Stream<StepUsage> get usage => const Stream.empty();
 }
 
 Future<void> _seedDb(String dbPath, {required DateTime now}) async {

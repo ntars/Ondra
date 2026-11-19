@@ -1,50 +1,82 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
-import '../../../../../../app/prefs.dart';
+import '../../ui/profile_config.dart';
 import 'persona_model.dart';
 import 'persona_store.dart';
 
-/// 人设视图：Cordis 运行时里 `ondra-persona` 插件输出的一份投影。
-///
-/// **插件体系只有一套：Cordis。** 人设的加载、热切换、导入导出是 Cordis 插件
-/// 的职责，Flutter 这边**不实现插件、也不定义插件契约**，只做客户端：
-///
-/// - 运行时接通后：调 RPC（`ondra.persona.list / switch / reload / import / export`），
-///   把返回值转成 [OndraPersona]；
-/// - 运行时未接通（当前）：从随包资产读**同一份** `meta.json` + `SKILL.md`，
-///   保证首屏有名字可显示。这条兜底路径不是插件，只是「还没有后端时的本地读」，
-///   接上运行时后整段删掉即可，界面代码不用动。
-///
-/// 界面只依赖本类的 [active] / [packs] 与 [notifyListeners]。
+typedef PersonaConfigWriter = FutureOr<bool> Function(
+  String section,
+  String key,
+  Object? value,
+);
+typedef PersonaConfigReader = String? Function(String section, String key);
+
+/// 包投影与持久化选择，不声称 RPC 热切换成功。
+/// [active] 是下次启动的选择；[pendingRestart] 表示尚未确认内核重启。
 class PersonaClient extends ChangeNotifier {
-  PersonaClient({this.indexPath = 'assets/personas/index.json'});
+  PersonaClient({
+    this.indexPath = 'assets/personas/index.json',
+    String? home,
+    PersonaStore? store,
+    AssetBundle? bundle,
+    PersonaConfigWriter? configWriter,
+    PersonaConfigReader? configReader,
+  }) : _bundle = bundle ?? rootBundle,
+       _readConfig =
+           configReader ??
+           (home != null || store != null ? _noRead : readProfileConfigField),
+       _writeConfig =
+           configWriter ??
+           (home != null || store != null ? _noWrite : writeProfileConfigField),
+       _store =
+           store ??
+           PersonaStore(
+             home: home,
+             userSubdir: _configuredUserSubdir(
+               configReader ??
+                   (home != null ? _noRead : readProfileConfigField),
+             ),
+           );
 
-  /// 包清单的路径。抽出来是为了测试能指向 fixture。
+  // 注入包 home/store 时，默认禁止读写真实 profile/prefs；测试可再注入 writer。
+  static String _configuredUserSubdir(PersonaConfigReader reader) {
+    // profile 同时接受旧 camelCase 与段字段 kebab-case，空值遵循 loader 默认。
+    final value =
+        (reader('persona-loader', 'user-subdir') ??
+                reader('persona-loader', 'userSubdir'))
+            ?.trim();
+    return value == null || value.isEmpty ? 'personas' : value;
+  }
+
+  static String? _noRead(String section, String key) => null;
+  static bool _noWrite(String section, String key, Object? value) => false;
+
   final String indexPath;
-
-  /// 用户目录（`~/.ondra/personas`）的读取与装载入口。
-  final PersonaStore _store = PersonaStore();
-
+  final PersonaStore _store;
+  final AssetBundle _bundle;
+  final PersonaConfigWriter _writeConfig;
+  final PersonaConfigReader _readConfig;
   List<OndraPersona> _packs = const [];
   String? _activeId;
   bool _loading = false;
+  Future<void>? _loadFuture;
+  bool _selecting = false;
+  bool _pendingRestart = false;
   String? _error;
-
-  /// 「当前是谁」要跨启动记住：用户在设置里选了鲸鲸，下次开应用不该回到默认。
-  /// 存在 prefs.json 里，键与人设插件同名前缀。
-  static const String _activePrefKey = 'persona.activeId';
+  PersonaSelectionResult? _selectionStatus;
 
   List<OndraPersona> get packs => _packs;
   bool get loading => _loading;
+  bool get selecting => _selecting;
+  String? get error => _error ?? selectionError;
+  bool get pendingRestart => _pendingRestart;
+  PersonaSelectionResult? get selectionStatus => _selectionStatus;
+  String? get selectionError => _selectionStatus?.error;
 
-  /// 加载失败的原因（例如资产没打进包），界面据此显示提示而不是空名字。
-  String? get error => _error;
-
-  /// 当前人设。未加载完成或加载失败时返回 [OndraPersona.unknown]，
-  /// 保证界面永远有东西可显示。
   OndraPersona get active {
     for (final p in _packs) {
       if (p.id == _activeId) return p;
@@ -54,20 +86,25 @@ class PersonaClient extends ChangeNotifier {
 
   String get displayName => active.name;
 
-  /// 首次加载：读清单 → 逐个读包。失败不清空现场，只记 [error]。
-  Future<void> load() async {
-    if (_loading) return;
+  Future<void> load() =>
+      _loadFuture ??= Future<void>.microtask(_load)
+          .whenComplete(() => _loadFuture = null);
+
+  Future<void> _load() async {
     _loading = true;
     _error = null;
     notifyListeners();
     try {
       final packs = await _readAll();
-      _packs = packs;
-      // 保留用户选过的那个；没选过就落到清单里的 default，再不行取第一个。
-      final wanted = _activeId ?? _rememberedActive() ?? await _defaultId();
-      _activeId = packs.any((p) => p.id == wanted)
-          ? wanted
-          : (packs.isEmpty ? null : packs.first.id);
+      final remembered =
+          _readConfig('persona-loader', 'active-persona') ??
+          _readConfig('persona-loader', 'activePersona');
+      final wanted = _activeId ?? remembered;
+      _packs = List.unmodifiable(packs);
+      _activeId =
+          _idFor(packs, wanted) ??
+          await _defaultId(packs) ??
+          (packs.isEmpty ? null : packs.first.id);
     } catch (e) {
       _error = '$e';
     } finally {
@@ -76,168 +113,201 @@ class PersonaClient extends ChangeNotifier {
     }
   }
 
-  /// 热重载：重读磁盘/资产上的同一批包，保持当前选择。
-  ///
-  /// 与 [load] 分开是为了语义清楚——编辑了包里的 SKILL.md，按重载就能看到，
-  /// 不需要重启应用，也不需要重新选人设。
+  /// 只重读本地投影，不代表运行中的内核已经重载包。
   Future<void> reload() => load();
 
-  /// 热切换：切到另一个包。返回 false 表示这个 id 不在清单里。
-  ///
-  /// 选择写进 prefs：重启后回到用户选的那个，而不是清单默认。
-  /// 内核侧的提示词段由装配层灌入，界面切换改变的是「空谷在界面上是谁」；
-  /// 提示词层的切换要等内核 RPC（`ondra.persona.switch`）接上，见类注释。
-  Future<bool> switchTo(String id) async {
-    if (!_packs.any((p) => p.id == id)) return false;
-    if (_activeId == id) return true;
-    _activeId = id;
-    await _rememberActive(id);
+  /// 写真实 persona-loader.active-persona。成功也仅表示待重启，非热切换。
+  /// 保存失败时保留原选择，不写一份成功的 prefs 来掩盖内核失败。
+  Future<PersonaSelectionResult> switchTo(String id) async {
+    if (_selecting) return _selectionFailure('另一个人设选择正在保存。');
+    final matches = _packs.where((p) => p.id == id);
+    if (matches.isEmpty) return _selectionFailure('没有这个人设包。');
+    final target = matches.first;
+    _selecting = true;
     notifyListeners();
-    return true;
+    try {
+      if (!target.builtIn) {
+        final synced = await _store.ensureKernelPack(target.slug);
+        if (!synced.ok) return _selectionFailure(synced.message);
+        if (synced.id != id) return _selectionFailure('包的内核 ID 已改变，请重新加载后选择。');
+      }
+      if (!await _writeConfig('persona-loader', 'active-persona', id)) {
+        return _selectionFailure('人设选择未保存：无法写入内核 profile 配置。');
+      }
+      _activeId = id;
+      _pendingRestart = true;
+      _selectionStatus = const PersonaSelectionResult(
+        ok: true,
+        pendingRestart: true,
+        message: '人设选择已保存，重启内核后生效。',
+      );
+      return _selectionStatus!;
+    } catch (e) {
+      return _selectionFailure('人设选择未保存：$e');
+    } finally {
+      _selecting = false;
+      notifyListeners();
+    }
   }
 
-  /// 回到默认人设（清单里的 `default`）。
-  ///
-  /// 「重置」只动**当前是谁**，不动包本身：内置包不能删，用户导的包也都在。
-  Future<bool> resetToDefault() async {
-    final id = await _defaultId();
-    if (id == null) return switchTo(_packs.isEmpty ? '' : _packs.first.id);
-    return switchTo(id);
+  PersonaSelectionResult _selectionFailure(String message) {
+    final result = PersonaSelectionResult(ok: false, message: message);
+    _selectionStatus = result;
+    notifyListeners();
+    return result;
   }
 
-  /// 导入一个包。桌面端真解压落到 `~/.ondra/personas/<slug>/`，成功后自动切过去。
-  ///
-  /// 校验与落盘全部在 [PersonaStore] 里：后缀、PK 头、meta.json、slug 合法性，
-  /// 逐关都在那一层判。这里只负责「装完重读清单并切过去」——
-  /// 界面层不认识文件系统，也就不需要 import `dart:io`（浏览器版本要能编过）。
+  Future<PersonaSelectionResult> resetToDefault() async {
+    final id = await _defaultId(_packs);
+    return switchTo(id ?? (_packs.isEmpty ? '' : _packs.first.id));
+  }
+
   Future<PersonaIoResult> importPack({required String archivePath}) async {
-    final builtIn = {
-      for (final p in _packs)
-        if (p.builtIn) p.id,
+    // 必须先知道资产 ID，不能因尚未 load 就让用户 ZIP 覆盖内置包。
+    await load();
+    if (_error != null) return PersonaIoResult(ok: false, message: _error!);
+    final protected = {
+      for (final p in _packs.where((p) => p.builtIn)) ...[p.slug, p.id],
     };
     final result = await _store.install(
       archivePath: archivePath,
-      builtInSlugs: builtIn,
+      builtInSlugs: protected,
     );
     if (!result.ok) return PersonaIoResult(ok: false, message: result.message);
-
-    // 装好了就重读清单并切过去：用户导一个包，意图一定是「用这一个」。
     await load();
-    final slug = result.slug;
-    if (slug != null) await switchTo(slug);
-    return PersonaIoResult(ok: true, message: result.message);
+    if (_error != null) {
+      return PersonaIoResult(ok: false, message: '包已安装，但清单加载失败：$_error');
+    }
+    final selected = await switchTo(result.id ?? '');
+    return PersonaIoResult(
+      ok: selected.ok,
+      pendingRestart: selected.pendingRestart,
+      message: '${result.message}\n${selected.message}',
+    );
   }
 
-  /// 导出当前人设成 zip。桌面端真打包，浏览器预览如实拒绝。
-  Future<PersonaIoResult> exportActive({required String targetZip}) async {
-    final p = active;
-    if (p.builtIn) {
-      // 内置包在资产里，没有可打包的目录；用 store 的路径会落空。
-      return const PersonaIoResult(
-        ok: false,
-        message: '内置包随应用分发，不需要导出；导出只针对你自己装的包。',
-      );
+  Future<PersonaIoResult> exportActive({required String targetZip}) =>
+      exportPack(active.id, targetZip: targetZip);
+
+  Future<PersonaIoResult> exportPack(
+    String id, {
+    required String targetZip,
+  }) async {
+    final matches = _packs.where((p) => p.id == id);
+    if (matches.isEmpty) {
+      return const PersonaIoResult(ok: false, message: '没有这个人设包。');
     }
-    final r = await _store.export(p.id, targetZip: targetZip);
+    final p = matches.first;
+    if (p.builtIn) {
+      return const PersonaIoResult(ok: false, message: '内置包随应用分发；导出只针对你自己装的包。');
+    }
+    final r = await _store.export(p.slug, targetZip: targetZip);
     return PersonaIoResult(ok: r.ok, message: r.message);
   }
 
-  /// 删一个用户装的包。删的如果是当前人设，自动回到默认。
   Future<PersonaIoResult> remove(String id) async {
-    OndraPersona? target;
-    for (final p in _packs) {
-      if (p.id == id) target = p;
-    }
-    if (target == null) {
+    final matches = _packs.where((p) => p.id == id);
+    if (matches.isEmpty) {
       return const PersonaIoResult(ok: false, message: '没有这个人设包。');
     }
+    final target = matches.first;
     if (target.builtIn) {
       return const PersonaIoResult(ok: false, message: '内置包不能删除。');
     }
-    final r = await _store.remove(id, builtIn: false);
+    if (_activeId == id) {
+      final others = _packs.where((p) => p.id != id).toList();
+      if (others.isEmpty) {
+        return const PersonaIoResult(ok: false, message: '没有可替代的人设，不能删除当前包。');
+      }
+      final fallback = await _defaultId(others) ?? others.first.id;
+      final saved = await switchTo(fallback);
+      if (!saved.ok) {
+        return PersonaIoResult(ok: false, message: '未删除：${saved.message}');
+      }
+    }
+    final r = await _store.remove(target.slug, builtIn: false);
     if (!r.ok) return PersonaIoResult(ok: false, message: r.message);
-    if (_activeId == id) await _rememberActive(null);
+    _pendingRestart = true;
     await load();
-    return PersonaIoResult(ok: true, message: r.message);
+    return PersonaIoResult(ok: true, pendingRestart: true, message: r.message);
   }
 
-  /// 读全部包：先随包资产，再用户目录。
-  ///
-  /// 顺序就是优先级——同 slug 时**资产里那份先出现**，用户装的那份同名包
-  /// 在装配阶段已经被 `PersonaStore.install` 拦住了（内置包不许覆盖），
-  /// 所以这里不需要去重逻辑。
   Future<List<OndraPersona>> _readAll() async {
-    final indexRaw = await rootBundle.loadString(indexPath);
-    final index = jsonDecode(indexRaw) as Map<String, dynamic>;
-    final slugs = <String>[];
-    for (final s in (index['packs'] as List?) ?? const []) {
-      if (s is String && s.trim().isNotEmpty) slugs.add(s.trim());
-    }
-    final builtIn = <String>{
-      for (final s in (index['builtIn'] as List?) ?? const [])
-        if (s is String) s,
-    };
+    final index =
+        jsonDecode(await _bundle.loadString(indexPath)) as Map<String, dynamic>;
+    final slugs = (index['packs'] as List).cast<String>();
+    final builtIn = ((index['builtIn'] as List?) ?? const [])
+        .cast<String>()
+        .toSet();
     final out = <OndraPersona>[];
+    final known = <String>{};
     for (final slug in slugs) {
+      if (!isSafePersonaSlug(slug)) {
+        throw const FormatException('资产清单 slug 不合法。');
+      }
       final dir = 'assets/personas/$slug';
-      final meta = jsonDecode(await rootBundle.loadString('$dir/meta.json'))
-          as Map<String, dynamic>;
-      // SKILL.md 缺失不该让整包失败：tagline 留空即可。
-      var skill = '';
-      try {
-        skill = await rootBundle.loadString('$dir/SKILL.md');
-      } catch (_) {}
-      out.add(
-        parsePersona(
-          meta: meta,
-          skillMarkdown: skill,
-          assetDir: dir,
-          builtIn: builtIn.contains(slug),
-        ),
+      final meta = jsonDecode(
+        await _bundle.loadString('$dir/meta.json'),
+      ) as Map<String, dynamic>;
+      final skill = await _bundle.loadString('$dir/SKILL.md');
+      final p = parsePersona(
+        meta: meta,
+        skillMarkdown: skill,
+        assetDir: dir,
+        builtIn: builtIn.contains(slug),
+        storageSlug: slug,
       );
+      if (!known.add(p.id)) throw FormatException('内置人设 ID 重复：${p.id}');
+      out.add(p);
     }
-    // 用户装的包接在后面。读不动的那一份跳过，不因为一个坏包让整屏空掉。
-    final known = {for (final p in out) p.id};
     for (final slug in _store.installedSlugs()) {
-      if (known.contains(slug)) continue;
       final p = _store.readInstalled(slug);
-      if (p != null) out.add(p);
+      if (p != null && known.add(p.id)) out.add(p);
     }
     return out;
   }
 
-  /// 读回「上次选的是谁」。读不到返回 null，交给默认值兜底。
-  String? _rememberedActive() {
-    final raw = readPref(_activePrefKey);
-    return raw.isEmpty ? null : raw;
+  static String? _idFor(List<OndraPersona> packs, String? wanted) {
+    for (final p in packs) {
+      if (p.id == wanted || p.slug == wanted) return p.id;
+    }
+    return null;
   }
 
-  Future<void> _rememberActive(String? id) async {
-    writePref(_activePrefKey, id ?? '');
-  }
-
-  Future<String?> _defaultId() async {
+  Future<String?> _defaultId(List<OndraPersona> packs) async {
     try {
-      final raw = await rootBundle.loadString(indexPath);
-      final index = jsonDecode(raw) as Map<String, dynamic>;
-      return (index['default'] as String?)?.trim();
+      final index = jsonDecode(
+        await _bundle.loadString(indexPath),
+      ) as Map<String, dynamic>;
+      return _idFor(packs, index['default'] as String?);
     } catch (_) {
       return null;
     }
   }
 }
 
-/// 导入/导出结果。带原因，界面直接显示，不猜。
-class PersonaIoResult {
-  const PersonaIoResult({required this.ok, required this.message});
-
+class PersonaSelectionResult {
+  const PersonaSelectionResult({
+    required this.ok,
+    required this.message,
+    this.pendingRestart = false,
+  });
   final bool ok;
+  final bool pendingRestart;
   final String message;
+  String? get error => ok ? null : message;
 }
 
-/// 全局客户端。骨架期只有一个进程、一份人设，单例够用；
-/// 接上 Cordis 运行时后它内部换成 RPC 通道，调用点不变。
-final PersonaClient personaClient = PersonaClient();
+class PersonaIoResult {
+  const PersonaIoResult({
+    required this.ok,
+    required this.message,
+    this.pendingRestart = false,
+  });
+  final bool ok;
+  final String message;
+  final bool pendingRestart;
+}
 
-/// 当前人设名，界面最常用的一个值。
+final PersonaClient personaClient = PersonaClient();
 String get ondraPersonaName => personaClient.displayName;

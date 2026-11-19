@@ -91,7 +91,9 @@ void main() {
     await first;
 
     expect(client.queued, isEmpty);
-    final users = client.messages.where((m) => m.role == ChatRole.user).toList();
+    final users = client.messages
+        .where((m) => m.role == ChatRole.user)
+        .toList();
     expect(users.map((m) => m.text), ['第一句', '第二句']);
     expect(client.busy, isFalse);
   });
@@ -114,7 +116,9 @@ void main() {
     gate.complete();
     await first;
 
-    final users = client.messages.where((m) => m.role == ChatRole.user).toList();
+    final users = client.messages
+        .where((m) => m.role == ChatRole.user)
+        .toList();
     expect(users.map((m) => m.text), ['第一句', '第二句']);
     expect(client.queued, isEmpty);
     // 被作废那轮的流式气泡不能挂在界面上。
@@ -138,6 +142,97 @@ void main() {
 
     gate.complete();
     await first;
+  });
+
+  test('仅图片也可发送，发送后立即清理本条附件', () async {
+    final gate = Completer<void>();
+    final transport = _GatedTransport(gate);
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    client.attach(const ChatAttachment(path: '/tmp/one.png', name: 'one.png'));
+    final sending = client.send('');
+    expect(client.attachments, isEmpty);
+    expect(client.messages.first.text, contains('one.png'));
+    gate.complete();
+    await sending;
+    expect(transport.sent.single.attachments.single.name, 'one.png');
+  });
+
+  test('队列保留各条附件，上一轮结束不清掉后来添加的草稿', () async {
+    final gate = Completer<void>();
+    final transport = _GatedTransport(gate);
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    client.attach(
+      const ChatAttachment(path: '/tmp/first.png', name: 'first.png'),
+    );
+    final first = client.send('第一句');
+    client.attach(
+      const ChatAttachment(path: '/tmp/second.png', name: 'second.png'),
+    );
+    await client.send('第二句');
+    client.attach(
+      const ChatAttachment(path: '/tmp/draft.png', name: 'draft.png'),
+    );
+    gate.complete();
+    await first;
+    expect(transport.sent.map((item) => item.attachments.single.name), [
+      'first.png',
+      'second.png',
+    ]);
+    expect(client.attachments.single.name, 'draft.png');
+  });
+
+  test('停止立即撤掉流式气泡，新建会话清理附件', () async {
+    final gate = Completer<void>();
+    final client = ChatClient(transport: _GatedTransport(gate));
+    addTearDown(client.dispose);
+    final sending = client.send('第一句');
+    client.stop();
+    expect(client.messages.any((message) => message.streaming), isFalse);
+    client.attach(
+      const ChatAttachment(path: '/tmp/draft.png', name: 'draft.png'),
+    );
+    await client.newConversation();
+    expect(client.attachments, isEmpty);
+    expect(client.messages, isEmpty);
+    gate.complete();
+    await sending;
+    expect(client.messages, isEmpty);
+  });
+
+  test('构造时传入的传输层也接收用量', () async {
+    final transport = _UsageTransport();
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    addTearDown(transport.steps.close);
+    transport.steps.add(
+      const StepUsage(
+        tokens: TokenUsage(inputTokens: 5, outputTokens: 3),
+        elapsed: Duration(seconds: 1),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(client.usage.totalTokens, 8);
+    expect(client.usage.tps, 3);
+  });
+
+  test('旧连接完成不能覆盖新连接的失败原因', () async {
+    final gate = Completer<void>();
+    final client = ChatClient(transport: _ConnectingTransport(gate));
+    addTearDown(client.dispose);
+    final old = client.connect();
+    client.useTransport(const UnavailableTransport());
+    await client.connect();
+    final reason = client.offlineReason;
+    gate.complete();
+    await old;
+    expect(client.offlineReason, reason);
+    expect(reason, isNotNull);
+  });
+
+  test('Windows 附件路径提取文件名', () {
+    expect(ChatAttachment.fromPath(r'C:\Pictures\photo.png').name, 'photo.png');
   });
 
   test('通知开关：关掉就不发，提示音单独控制', () async {
@@ -197,7 +292,10 @@ class _LongTransport implements DshTransport {
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
     yield '这是一段很长的回答，' * 12;
   }
 
@@ -217,7 +315,10 @@ class _FailingTransport implements DshTransport {
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
     throw Exception('连接断了');
   }
 
@@ -242,13 +343,18 @@ class _GatedTransport implements DshTransport {
   final Completer<void> gate;
   final bool stallFirst;
   int _round = 0;
+  final List<({String text, List<ChatAttachment> attachments})> sent = [];
 
   @override
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
     final round = _round++;
+    sent.add((text: text, attachments: attachments));
     if (!stallFirst || round == 0) await gate.future;
     yield '$text 的回答';
   }
@@ -263,12 +369,31 @@ class _GatedTransport implements DshTransport {
   Stream<StepUsage> get usage => const Stream.empty();
 }
 
+class _UsageTransport extends _EchoTransport {
+  final steps = StreamController<StepUsage>.broadcast();
+
+  @override
+  Stream<StepUsage> get usage => steps.stream;
+}
+
+class _ConnectingTransport extends _EchoTransport {
+  _ConnectingTransport(this.gate);
+
+  final Completer<void> gate;
+
+  @override
+  Future<void> connect() => gate.future;
+}
+
 class _EchoTransport implements DshTransport {
   @override
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
     yield '在的';
     yield '在的';
   }

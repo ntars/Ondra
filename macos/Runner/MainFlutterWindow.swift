@@ -85,7 +85,9 @@ class MainFlutterWindow: NSWindow {
 
     // 内嵌浏览器：用系统 WebKit 的平台视图，不引第三方插件（也就没有 CocoaPods）。
     let registrar = controller.registrar(forPlugin: "ondra-browser")
-    registrar.register(OndraBrowserFactory(), withId: "ondra/webview")
+    registrar.register(
+      OndraBrowserFactory(messenger: registrar.messenger), withId: "ondra/webview"
+    )
 
     applyChrome()
 
@@ -453,26 +455,106 @@ class MainFlutterWindow: NSWindow {
 /// 需要 CocoaPods 或 SPM；本机这两条路都不通（见 README「构建与分发」）。
 /// WKWebView 是系统框架，直接挂平台视图就行，零依赖。
 final class OndraBrowserFactory: NSObject, FlutterPlatformViewFactory {
+  private let messenger: FlutterBinaryMessenger
+
+  init(messenger: FlutterBinaryMessenger) {
+    self.messenger = messenger
+    super.init()
+  }
+
   func createArgsCodec() -> (FlutterMessageCodec & NSObjectProtocol)? {
     FlutterStandardMessageCodec.sharedInstance()
   }
 
   func create(withViewIdentifier viewId: Int64, arguments args: Any?) -> NSView {
-    OndraBrowserView(frame: .zero, args: args)
+    OndraBrowserView(frame: .zero, viewId: viewId, args: args, messenger: messenger)
   }
 }
 
-final class OndraBrowserView: NSView, WKNavigationDelegate {
-  private let webView = WKWebView(frame: .zero)
+/// 与 BrowserClient 对齐：精确 origin，不做后缀匹配，不隐含子域或 HTTPS 降级。
+private struct OndraBrowserOrigin: Equatable {
+  let scheme: String
+  let host: String
+  let port: Int
 
-  init(frame: NSRect, args: Any?) {
+  init?(_ text: String) {
+    guard text.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+          text.rangeOfCharacter(from: .controlCharacters) == nil,
+          !text.contains("\\"),
+          let parts = URLComponents(string: text),
+          let scheme = parts.scheme?.lowercased(),
+          scheme == "http" || scheme == "https",
+          parts.user == nil, parts.password == nil,
+          let host = parts.host?.lowercased(), !host.isEmpty,
+          parts.percentEncodedHost?.contains("%") != true,
+          parts.url != nil else { return nil }
+    let port = parts.port ?? (scheme == "https" ? 443 : 80)
+    guard (1...65535).contains(port) else { return nil }
+    if host.hasPrefix("[") && host.hasSuffix("]") {
+      // URLComponents 已校验 IPv6 结构，不允许 zone ID / 编码 host。
+      guard host.range(of: "^\\[[0-9a-f:]+\\]$", options: .regularExpression) != nil
+      else { return nil }
+    } else {
+      let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+      guard host.count <= 253, labels.allSatisfy({ label in
+        String(label).range(
+          of: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", options: .regularExpression
+        ) != nil
+      }) else { return nil }
+      if host.range(of: "^[0-9.]+$", options: .regularExpression) != nil {
+        guard labels.count == 4, labels.allSatisfy({ label in
+          guard let value = Int(label) else { return false }
+          return value <= 255 && (label.count == 1 || !label.hasPrefix("0"))
+        }) else { return nil }
+      }
+    }
+    self.scheme = scheme
+    self.host = host
+    self.port = port
+  }
+}
+
+final class OndraBrowserView: NSView, WKNavigationDelegate, WKUIDelegate {
+  // 保留 WebKit 默认的 HTTPS、证书、cookie 和凭据处理，不实现信任绕过。
+  private let webView = WKWebView(frame: .zero)
+  private let channel: FlutterMethodChannel
+  private let allowedOrigins: [OndraBrowserOrigin]
+  private let initialURL: URL?
+  private var started = false
+  private var stopped = false
+  private var requiresHTTPS = false
+
+  init(frame: NSRect, viewId: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
+    let dict = args as? [String: Any] ?? [:]
+    let sites = dict["allowedSites"] as? [String] ?? []
+    allowedOrigins = sites.compactMap { OndraBrowserOrigin($0) }
+    initialURL = (dict["url"] as? String).flatMap { URL(string: $0) }
+    channel = FlutterMethodChannel(name: "ondra/webview/\(viewId)", binaryMessenger: messenger)
     super.init(frame: frame)
+    requiresHTTPS = initialURL?.scheme?.lowercased() == "https"
     webView.navigationDelegate = self
+    webView.uiDelegate = self
     webView.autoresizingMask = [.width, .height]
     addSubview(webView)
-    if let dict = args as? [String: Any], let text = dict["url"] as? String,
-       let url = URL(string: text) {
-      webView.load(URLRequest(url: url))
+    channel.setMethodCallHandler { [weak self] call, reply in
+      guard let self else { reply(nil); return }
+      switch call.method {
+      case "start":
+        // Dart 已安装错误接收器后才进行首次请求。
+        if !self.started && !self.stopped {
+          self.started = true
+          if self.permit(self.initialURL), let url = self.initialURL {
+            self.webView.load(URLRequest(url: url))
+          }
+        }
+        reply(nil)
+      case "stop":
+        self.stopped = true
+        self.webView.stopLoading()
+        reply(nil)
+      default:
+        reply(FlutterMethodNotImplemented)
+      }
     }
   }
 
@@ -480,21 +562,115 @@ final class OndraBrowserView: NSView, WKNavigationDelegate {
     fatalError("init(coder:) 未实现")
   }
 
+  deinit {
+    channel.setMethodCallHandler(nil)
+  }
+
   override func layout() {
     super.layout()
     webView.frame = bounds
   }
 
-  /// 页面里 target=_blank 的链接：留在同一个视图里打开，不弹新窗。
+  /// 不回传完整 URL，避免把 URL 里的潜在密钥或凭据显示到错误栏。
+  private func reject(_ reason: String) {
+    channel.invokeMethod("navigationRejected", arguments: ["reason": reason])
+  }
+
+  private func permit(_ url: URL?, source: URL? = nil) -> Bool {
+    guard !stopped else { return false }
+    guard let url, let origin = OndraBrowserOrigin(url.absoluteString) else {
+      reject("已阻止导航：只允许合法且不含凭据的 http(s) 地址。")
+      return false
+    }
+    if origin.scheme == "http" && (requiresHTTPS || source?.scheme?.lowercased() == "https") {
+      reject("已阻止导航：不允许从 HTTPS 降级到 HTTP。")
+      return false
+    }
+    guard allowedOrigins.contains(origin) else {
+      reject("已阻止导航：目标的协议、主机或端口不在白名单里。")
+      return false
+    }
+    return true
+  }
+
+  /// 包括主框架、子框架、脚本导航和新窗口；不能仅校验初始 URL。
+  func webView(
+    _ webView: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
+    guard permit(navigationAction.request.url, source: navigationAction.sourceFrame.request.url)
+    else { decisionHandler(.cancel); return }
+    if navigationAction.targetFrame?.isMainFrame == true,
+       navigationAction.request.url?.scheme?.lowercased() == "https" {
+      requiresHTTPS = true
+    }
+    decisionHandler(.allow)
+  }
+
+  /// WebKit 的服务端重定向及最终响应也分别检查，不信任首地址的白名单结论。
+  func webView(
+    _ webView: WKWebView,
+    didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!
+  ) {
+    guard permit(webView.url) else { webView.stopLoading(); return }
+    if webView.url?.scheme?.lowercased() == "https" { requiresHTTPS = true }
+  }
+
+  func webView(
+    _ webView: WKWebView,
+    decidePolicyFor navigationResponse: WKNavigationResponse,
+    decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+  ) {
+    guard permit(navigationResponse.response.url) else { decisionHandler(.cancel); return }
+    guard navigationResponse.canShowMIMEType else {
+      reject("已阻止导航：内嵌浏览器不支持此内容或下载。")
+      decisionHandler(.cancel)
+      return
+    }
+    if navigationResponse.isForMainFrame,
+       navigationResponse.response.url?.scheme?.lowercased() == "https" {
+      requiresHTTPS = true
+    }
+    decisionHandler(.allow)
+  }
+
+  /// target=_blank / window.open：WKUIDelegate 明确接入，合法请求留在同一视图。
   func webView(
     _ webView: WKWebView,
     createWebViewWith configuration: WKWebViewConfiguration,
     for navigationAction: WKNavigationAction,
     windowFeatures: WKWindowFeatures
   ) -> WKWebView? {
-    if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
-      webView.load(URLRequest(url: url))
+    guard permit(navigationAction.request.url, source: navigationAction.sourceFrame.request.url)
+    else { return nil }
+    if navigationAction.targetFrame == nil {
+      webView.load(navigationAction.request)
     }
     return nil
+  }
+
+  private func reportLoadError(_ error: Error) {
+    let nativeError = error as NSError
+    // 策略拒绝已发送原因，不让随后到达的 cancelled 错误覆盖它。
+    guard !stopped,
+          !(nativeError.domain == NSURLErrorDomain && nativeError.code == NSURLErrorCancelled),
+          !(nativeError.domain == "WebKitErrorDomain" && nativeError.code == 102)
+    else { return }
+    channel.invokeMethod("loadFailed", arguments: [
+      "reason": "页面加载失败，请检查网络或站点证书（\(nativeError.code)）。"
+    ])
+  }
+
+  func webView(
+    _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error
+  ) {
+    reportLoadError(error)
+  }
+
+  func webView(
+    _ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error
+  ) {
+    reportLoadError(error)
   }
 }

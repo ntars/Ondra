@@ -9,21 +9,44 @@ import 'probe_stub.dart' show LocalProbeResult;
 /// llama-server / Ollama / LM Studio / LiteLLM 都实现了这个路由，所以一个探测
 /// 覆盖整个「本地部署 + 本地网关」两类。**只读，不改状态**：连不上就是连不上，
 /// 不重试、不猜端口。
-Future<LocalProbeResult> probeOpenAiEndpoint(String baseUrl) async {
+Future<LocalProbeResult> probeOpenAiEndpoint(
+  String baseUrl, {
+  String? apiKey,
+  String protocol = 'openai-completions',
+}) async {
   final base = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
   if (base.isEmpty) {
     return const LocalProbeResult(error: '先填地址');
   }
   final uri = Uri.tryParse('$base/models');
-  if (uri == null || !uri.hasScheme) {
+  if (uri == null ||
+      !['http', 'https'].contains(uri.scheme) ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment) {
     return const LocalProbeResult(error: '地址不合法，需要 http:// 或 https:// 开头');
   }
 
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
   try {
-    final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
+    final request = await client
+        .getUrl(uri)
+        .timeout(const Duration(seconds: 3));
+    request.followRedirects = false;
+    if (protocol == 'anthropic-messages') {
+      request.headers.set('anthropic-version', '2023-06-01');
+      if (apiKey != null && apiKey.isNotEmpty) {
+        request.headers.set('x-api-key', apiKey);
+      }
+    } else if (apiKey != null && apiKey.isNotEmpty) {
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $apiKey');
+    }
     final response = await request.close().timeout(const Duration(seconds: 5));
-    final body = await response.transform(utf8.decoder).join();
+    final body = await response
+        .transform(utf8.decoder)
+        .join()
+        .timeout(const Duration(seconds: 5));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return LocalProbeResult(error: 'HTTP ${response.statusCode}');
     }

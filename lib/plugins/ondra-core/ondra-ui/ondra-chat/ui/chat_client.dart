@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
+import '../../../../../app/data_maintenance.dart';
 import '../../ondra-settings/ui/settings_client.dart';
 import '../../ondra-settings/ui/notify.dart';
 
@@ -16,7 +17,9 @@ import '../../ondra-settings/ui/notify.dart';
 /// 两种都由后续的 `ondra-dsh` 插件提供实现，右栏不需要知道是哪种。
 class ChatClient extends ChangeNotifier {
   ChatClient({DshTransport? transport})
-    : _transport = transport ?? const UnavailableTransport();
+    : _transport = transport ?? const UnavailableTransport() {
+    _usageSub = _transport.usage.listen(_ingestUsage);
+  }
 
   DshTransport _transport;
 
@@ -26,8 +29,13 @@ class ChatClient extends ChangeNotifier {
   /// 轮次编号：每发一轮 +1。用来认出「我这一轮是不是已经被插话作废了」。
   /// 见 [_sendNow] 的说明。
   int _generation = 0;
+  int _connectionGeneration = 0;
 
   String? _offlineReason;
+  bool _connected = false;
+  bool get connected => _connected;
+  bool get maintenance => dataMaintenance.locked;
+
   ChatUsage _usage = const ChatUsage();
   StreamSubscription<StepUsage>? _usageSub;
 
@@ -41,10 +49,10 @@ class ChatClient extends ChangeNotifier {
   List<ChatAttachment> get attachments => List.unmodifiable(_attachments);
 
   /// 正在生成时用户又发来的话。`queue` 策略下攒在这里，这一轮结束后依次发出。
-  final List<String> _queued = [];
+  final List<({String text, List<ChatAttachment> attachments})> _queued = [];
 
-  /// 排队中的句子（界面可以据此显示「还有 N 句在等」）。
-  List<String> get queued => List.unmodifiable(_queued);
+  List<String> get queued =>
+      List.unmodifiable(_queued.map((item) => item.text));
 
   /// 繁忙时的发送策略：`queue`（排队）或 `steer`（插话）。
   ///
@@ -92,6 +100,8 @@ class ChatClient extends ChangeNotifier {
 
   /// 换传输层（装配时调用）。接上内核后调用方只需传一个实现进来。
   void useTransport(DshTransport transport) {
+    if (identical(_transport, transport)) return;
+    stop();
     _usageSub?.cancel();
     _transport = transport;
     // 用量与文本走两条流：文本是「这一轮说了什么」，用量是「内核记了多少账」。
@@ -105,7 +115,8 @@ class ChatClient extends ChangeNotifier {
   void _ingestUsage(StepUsage step) {
     final tokens = step.tokens;
     final prompt = tokens.promptTokens;
-    final seconds = step.elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final seconds =
+        step.elapsed.inMicroseconds / Duration.microsecondsPerSecond;
     _usage = ChatUsage(
       tps: seconds > 0 && tokens.outputTokens > 0
           ? tokens.outputTokens / seconds
@@ -124,11 +135,17 @@ class ChatClient extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> connect() async {
+  Future<void> connect({bool duringMaintenance = false}) async {
+    if (dataMaintenance.locked && !duringMaintenance) return;
+    final generation = ++_connectionGeneration;
     try {
       await _transport.connect();
+      if (generation != _connectionGeneration) return;
+      _connected = true;
       _offlineReason = null;
     } catch (e) {
+      if (generation != _connectionGeneration) return;
+      _connected = false;
       _offlineReason = '$e';
     }
     notifyListeners();
@@ -145,35 +162,34 @@ class ChatClient extends ChangeNotifier {
   /// 而「排队」这件事必须在客户端做——内核的发送通道一次只接一轮，
   /// 它不知道用户在这一轮里又敲了几句。
   Future<void> send(String text) async {
+    if (dataMaintenance.locked) {
+      _offlineReason = '数据维护期间暂停发送，完成后可重试；输入与附件未清除。';
+      notifyListeners();
+      return;
+    }
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && _attachments.isEmpty) return;
+    final attachments = List<ChatAttachment>.of(_attachments);
+    _attachments.clear();
 
     if (_busy) {
       if (busyPolicy == 'steer') {
-        // 插话：把当前这轮停掉，然后立刻发。停掉之后 _busy 会被
-        // 当前那轮的 finally 复位，这里直接往下走即可。
         stop();
       } else {
-        _queued.add(trimmed);
+        _queued.add((text: trimmed, attachments: attachments));
         notifyListeners();
         return;
       }
     }
 
-    final attachments = List<ChatAttachment>.of(_attachments);
-    await _sendNow(trimmed, attachments: attachments);
-    // 附件随这一条一起发出去：发完就撤掉，不然下一句会莫名其妙地
-    // 又带上同一张图。清理放在发送之后（失败也清——失败原因里会说明）。
-    if (_attachments.isNotEmpty) clearAttachments();
-    // 这一轮结束后把排队的话接着发出去。用 while 而不是 if：
-    // 排队期间用户可能又敲了两句，一次只发一句会把后面的丢掉。
-    //
-    // 每轮都重新判断「现在还是不是该发」：这一轮里用户可能已经按了停止
-    // （stop 会清空队列），也可能又用 steer 插了新句子（队列同样被清）。
-    while (_queued.isNotEmpty) {
+    var pending = _sendNow(trimmed, attachments: attachments);
+    var generation = _generation;
+    await pending;
+    while (generation == _generation && _queued.isNotEmpty) {
       final next = _queued.removeAt(0);
-      notifyListeners();
-      await _sendNow(next);
+      pending = _sendNow(next.text, attachments: next.attachments);
+      generation = _generation;
+      await pending;
     }
   }
 
@@ -187,7 +203,10 @@ class ChatClient extends ChangeNotifier {
   /// 所以每一轮给自己领一个号，只有「当前号」才有资格改 [_busy]。
   /// 谁先把号丢掉，谁的收尾就一概不认——包括错误提示，否则旧轮被插话
   /// 打断时报的错会盖在新一轮的回答上。
-  Future<void> _sendNow(String trimmed, {List<ChatAttachment> attachments = const []}) async {
+  Future<void> _sendNow(
+    String trimmed, {
+    List<ChatAttachment> attachments = const [],
+  }) async {
     final gen = ++_generation;
     bool stale() => gen != _generation;
 
@@ -200,7 +219,11 @@ class ChatClient extends ChangeNotifier {
     } else {
       _messages.add(ChatMessage(role: ChatRole.user, text: trimmed));
     }
-    final reply = ChatMessage(role: ChatRole.assistant, text: '', streaming: true);
+    final reply = ChatMessage(
+      role: ChatRole.assistant,
+      text: '',
+      streaming: true,
+    );
     _messages.add(reply);
     _busy = true;
     notifyListeners();
@@ -208,13 +231,18 @@ class ChatClient extends ChangeNotifier {
     // 这一轮是不是正常收尾。被作废 / 抛错时为 false，收尾时要把气泡撤掉。
     var answered = false;
     try {
-      await for (final chunk in _transport.send(trimmed, attachments: attachments)) {
+      await for (final chunk in _transport.send(
+        trimmed,
+        attachments: attachments,
+      )) {
         if (stale()) return;
         reply.text += chunk;
         notifyListeners();
       }
       if (stale()) return;
       reply.streaming = false;
+      _connected = true;
+      _offlineReason = null;
       answered = true;
       if (reply.text.isEmpty) {
         _messages.remove(reply);
@@ -237,6 +265,8 @@ class ChatClient extends ChangeNotifier {
       if (stale()) return;
       _messages.remove(reply);
       answered = false;
+      _connected = false;
+      _offlineReason = '$e';
       _messages.add(ChatMessage(role: ChatRole.system, text: '$e'));
       // 出错也要说：用户可能已经切走了，回来只看到一条红色的系统消息
       // 而不知道是几分钟前就发生了。
@@ -270,24 +300,23 @@ class ChatClient extends ChangeNotifier {
     return '${flat.substring(0, 60)}…';
   }
 
-  /// 中止当前这一轮，并清掉排队。
   void stop() {
-    // 先让传输层停：内核那边这一轮要真的结束，不然它还在往里推 token，
-    // 而界面已经不再接了。
-    _transport.stop();
-    // 领一个新号，让正在跑的那一轮变成「旧轮」：它的收尾不再有资格改
-    // [_busy]，否则用户点了停止之后，界面会在下一个微任务里又变回「生成中」。
     _generation += 1;
+    _connectionGeneration += 1;
+    _transport.stop();
+    _connected = false;
     _busy = false;
-    // 停止 = 这一轮不再继续，排队的话也跟着作废：把它们留在队列里，
-    // 用户下一次点发送时会突然连发好几条他没在等的话。
     _queued.clear();
+    _messages.removeWhere((message) => message.streaming);
     notifyListeners();
   }
 
   @override
   void dispose() {
+    _generation += 1;
+    _connectionGeneration += 1;
     _usageSub?.cancel();
+    _transport.stop();
     super.dispose();
   }
 
@@ -310,6 +339,8 @@ class ChatClient extends ChangeNotifier {
     // 正在生成时先停：留着一条永远不结束的 streaming 消息，
     // 界面会一直显示「正在输入」，而内核那边这一轮已经没人接了。
     if (_busy) stop();
+    _queued.clear();
+    _attachments.clear();
     _messages.clear();
     _usage = const ChatUsage();
     notifyListeners();
@@ -337,8 +368,12 @@ class ChatAttachment {
   final String name;
 
   factory ChatAttachment.fromPath(String path) {
-    final i = path.lastIndexOf('/');
-    return ChatAttachment(path: path, name: i < 0 ? path : path.substring(i + 1));
+    final normalized = path.replaceAll(r'\', '/');
+    final i = normalized.lastIndexOf('/');
+    return ChatAttachment(
+      path: path,
+      name: i < 0 ? normalized : normalized.substring(i + 1),
+    );
   }
 
   /// 发送时的 MIME 类型；认不出的扩展名返回 null。
@@ -359,11 +394,7 @@ class ChatAttachment {
 
 /// 一条消息。[streaming] 为真时界面显示一个正在生成的占位。
 class ChatMessage {
-  ChatMessage({
-    required this.role,
-    required this.text,
-    this.streaming = false,
-  });
+  ChatMessage({required this.role, required this.text, this.streaming = false});
 
   final ChatRole role;
   String text;
@@ -379,7 +410,10 @@ abstract class DshTransport {
 
   /// 发一句话。附件是这一条消息要带的图片（本机路径与文件名），
   /// 传输层负责把它读成内核认的 contentBlocks；不支持附件的实现忽略它。
-  Stream<String> send(String text, {List<ChatAttachment> attachments = const []});
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  });
 
   /// 丢掉当前会话，下一次 [send] 用新会话。内核按 sessionId 建会话，
   /// 「新建对话」就是换一个 id——不需要新进程。
@@ -468,7 +502,10 @@ class UnavailableTransport implements DshTransport {
   }
 
   @override
-  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
     throw StateError(reason);
   }
 

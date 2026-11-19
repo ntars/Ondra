@@ -62,14 +62,15 @@ Future<void> main() async {
   // connect 失败不算启动失败——应用照常起，右栏会显示具体原因。
   // 桌面端这个构造不是 const（要持有进程与订阅），Web 端的空实现才是；
   // 条件导出让两边同名，所以这里不能用 const。
-  chatClient.useTransport(_transportForCurrentModel());
+  final runtimeBinding = ModelRuntimeBinding(
+    models: modelClient,
+    chat: chatClient,
+  );
   // 首帧不等内核：连接慢或失败都不该让窗口空着。
-  await chatClient.connect().timeout(
+  await runtimeBinding.start().timeout(
     const Duration(seconds: 8),
     onTimeout: () {},
   );
-
-  _followModelChoice();
 
   runApp(const OndraApp());
 
@@ -78,42 +79,97 @@ Future<void> main() async {
   backupScheduler.start();
 }
 
-/// 按「设置 → 模型基座」里选中的那一档建传输层。
-///
-/// `provider` 与 `model` 是在 initialize 时交给内核的**选路参数**：
-/// 前者是**内核路由名**（`magpie`、`deepseek-official`……），不是 UI 的
-/// 提供商 id——两者由 [ModelClient.kernelRouteOf] 翻译，没有路由的类别在
-/// 「设为默认」那一步就被拦下。后者是那家目录里的模型名。
-/// 默认走本机网关 magpie，不填密钥、不联外网就能说话。
-StdioDshTransport _transportForCurrentModel() {
-  final p = modelClient.byId(modelClient.defaultProviderId);
-  return StdioDshTransport(
-    provider: p == null
-        ? modelClient.defaultProviderId
-        : (modelClient.kernelRouteOf(p) ?? modelClient.defaultProviderId),
-    modelId: modelClient.defaultModelId,
-  );
-}
-
-/// 换模型要重起内核：`provider` / `model` 只在 initialize 那一刻生效，
-/// 中途改一个正在跑的进程没有接口。所以这里监听默认模型，
-/// 一变就停掉旧进程、按新路由重连——界面会经历一次「离线 → 在线」，
-/// 那是对的，不是抖动。
-void _followModelChoice() {
-  var route = _currentRoute();
-  modelClient.addListener(() {
-    final next = _currentRoute();
-    if (next == route) return;
-    route = next;
-    chatClient.stop();
-    chatClient.useTransport(_transportForCurrentModel());
-    unawaited(
-      chatClient.connect().timeout(const Duration(seconds: 8), onTimeout: () {}),
-    );
+/// 模型配置/密钥的变更统一串行应用。保存时不杀正在生成的聊天：
+/// pending 状态立即可见，队列清空后重连；UI 也可调用 applyPendingRuntime。
+class ModelRuntimeBinding {
+  ModelRuntimeBinding({
+    required this.models,
+    required this.chat,
+    this._createTransport,
   });
-}
 
-String _currentRoute() => '${modelClient.defaultProviderId}/${modelClient.defaultModelId}';
+
+  final ModelClient models;
+  final ChatClient chat;
+  final StdioDshTransport Function(Future<void>?)? _createTransport;
+  StdioDshTransport? _transport;
+  String? _lastAttempt;
+  bool _applying = false;
+  bool _disposed = false;
+
+  Future<void> start() {
+    models.addListener(_changed);
+    chat.addListener(_changed);
+    models.runtimeReconnect = reconnect;
+    return reconnect();
+  }
+
+  void _changed() {
+    if (_disposed || _applying || _lastAttempt == models.runtimeFingerprint) {
+      return;
+    }
+    models.reportRuntimeState(pending: true, applying: false);
+    // 不在 ChatClient 的 onDone 通知栈里切 transport；排队的下一轮优先完成。
+    scheduleMicrotask(() {
+      if (!_disposed &&
+          !_applying &&
+          !chat.busy &&
+          chat.queued.isEmpty &&
+          _lastAttempt != models.runtimeFingerprint) {
+        unawaited(reconnect());
+      }
+    });
+  }
+
+  Future<void> reconnect() async {
+    if (_disposed || _applying) return;
+    if (chat.busy || chat.queued.isNotEmpty) {
+      _lastAttempt = null; // 显式重连（包括外部钥匙串更新）也可排到空闲后。
+      models.reportRuntimeState(pending: true, applying: false);
+      return;
+    }
+    _applying = true;
+    _lastAttempt = models.runtimeFingerprint;
+    models.reportRuntimeState(pending: true, applying: true);
+    try {
+      final previousClosed = _transport?.close();
+      final next =
+          _createTransport?.call(previousClosed) ??
+          StdioDshTransport(
+            modelConfig: models.currentRuntimeConfig,
+            secretResolver: models.readProviderSecret,
+            previousClosed: previousClosed,
+            resumeSessionId: _transport?.sessionId,
+          );
+      _transport = next;
+      // 先同步换到带 barrier 的传输，重连期间新发送也只能等旧进程退出。
+      chat.useTransport(next);
+      await chat.connect();
+      models.reportRuntimeState(
+        pending: !chat.connected || _lastAttempt != models.runtimeFingerprint,
+        applying: false,
+        error: chat.offlineReason,
+      );
+    } catch (error) {
+      models.reportRuntimeState(
+        pending: true,
+        applying: false,
+        error: '$error',
+      );
+    } finally {
+      _applying = false;
+      _changed();
+    }
+  }
+
+  Future<void> dispose() async {
+    _disposed = true;
+    models.removeListener(_changed);
+    chat.removeListener(_changed);
+    models.runtimeReconnect = null;
+    await _transport?.close();
+  }
+}
 
 /// 记一次崩溃。
 ///

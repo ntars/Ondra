@@ -34,7 +34,13 @@ void main() {
       markTestSkipped('未找到 $binary（npm i -g @deepseek-ai/dsh）');
     }
 
-    final transport = StdioDshTransport(binary: binary);
+    // magpie 路由的 apiKeyEnv 只要求「非空」（patch 注释里的占位约定）；
+    // pi-ai 在 prompt 时解析凭据，环境里没有就报 MISSING_CREDENTIAL。
+    // 这里给占位值，同时守住「告警/缺凭据不许冒充错误」的判定。
+    final transport = StdioDshTransport(
+      binary: binary,
+      environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
+    );
     await transport.connect();
     expect(transport.lastError, isNull, reason: 'initialize 应当成功');
 
@@ -55,7 +61,12 @@ void main() {
     if (!await dshAvailable()) {
       markTestSkipped('未找到 $binary');
     }
-    final client = ChatClient(transport: StdioDshTransport(binary: binary));
+    final client = ChatClient(
+      transport: StdioDshTransport(
+        binary: binary,
+        environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
+      ),
+    );
     await client.connect();
     expect(client.offlineReason, isNull);
     client.stop();
@@ -74,7 +85,10 @@ void main() {
       markTestSkipped('magpie 未在 127.0.0.1:3425 监听（/Applications/magpie.app）');
     }
 
-    final transport = StdioDshTransport(binary: binary);
+    final transport = StdioDshTransport(
+      binary: binary,
+      environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
+    );
     final usages = <StepUsage>[];
     final sub = transport.usage.listen(usages.add);
     await transport.connect();

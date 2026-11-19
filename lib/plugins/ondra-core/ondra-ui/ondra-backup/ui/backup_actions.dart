@@ -5,14 +5,13 @@
 /// 这与记忆星图、日志页是同一套做法——**取数在页面外面**，页面只管画。
 library;
 
+import '../../../../../app/data_maintenance.dart';
 import 'backup_engine.dart';
 import 'backup_model.dart';
 
 typedef BackupOverviewLoader = Future<BackupOverview> Function();
 
-typedef BackupCreate = Future<BackupOpResult> Function({
-  BackupTrigger trigger,
-});
+typedef BackupCreate = Future<BackupOpResult> Function({BackupTrigger trigger});
 
 typedef BackupById = Future<BackupOpResult> Function(String id);
 
@@ -28,7 +27,8 @@ typedef BackupDirPicker = Future<String?> Function(String prompt);
 
 BackupOverviewLoader backupOverviewLoader = backupEngine.load;
 BackupCreate backupCreate = backupEngine.create;
-BackupById backupRestore = backupEngine.restore;
+BackupById backupRestore = (id) =>
+    dataMaintenance.run(() => backupEngine.restore(id), refresh: true);
 BackupById backupDelete = backupEngine.delete;
 BackupExport backupExport = backupEngine.exportTo;
 BackupImport backupImport = backupEngine.importFrom;

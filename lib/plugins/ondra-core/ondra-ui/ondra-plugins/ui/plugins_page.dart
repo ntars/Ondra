@@ -22,7 +22,9 @@ import '../../../../../design/tokens.dart';
 /// 空的分类也照样列出来：它回答「装进来的插件会落在哪」，藏起来反而让人以为
 /// 只有这些。开关只对可关闭的分类出现——关掉框架或内核等于关掉应用本身。
 class PluginsPage extends StatelessWidget {
-  const PluginsPage({super.key});
+  const PluginsPage({super.key, this.client});
+
+  final PluginsClient? client;
 
   static const List<_Group> _groups = [
     _Group('framework', '应用核心', 'cordis/'),
@@ -36,32 +38,33 @@ class PluginsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
 
+    final plugins = client ?? pluginsClient;
     return AnimatedBuilder(
-      animation: pluginsClient,
+      animation: plugins,
       builder: (context, _) {
-        final entries = pluginsClient.entries;
+        final entries = plugins.entries;
 
         return OndraPage(
           title: '插件扩展',
           subtitle: entries.isEmpty
               ? '清单未加载'
-              : '${entries.length} 项 · ${_readyCount(entries)} 项已加载',
+              : '${entries.length} 项 · ${plugins.enabledCount} 项配置启用',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (pluginsClient.error != null)
+              if (plugins.error != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
                   child: Text(
-                    '清单读取失败：${pluginsClient.error}',
+                    plugins.error!,
                     style: ondraText(11, color: s.ink40, height: 16 / 11),
                   ),
-                )
-              else if (pluginsClient.notice != null)
+                ),
+              if (plugins.notice != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
                   child: Text(
-                    pluginsClient.notice!,
+                    plugins.notice!,
                     style: ondraText(11, color: s.ink40, height: 16 / 11),
                   ),
                 ),
@@ -71,15 +74,15 @@ class PluginsPage extends StatelessWidget {
                   group: _groups[g],
                   count: entries.where((e) => e.group == _groups[g].key).length,
                 ),
-                ..._rowsOf(s, entries, _groups[g].key),
+                ..._rowsOf(s, entries, _groups[g].key, plugins),
               ],
               const SizedBox(height: 22),
               Text(
-                '插件跑在 Cordis 运行时里，权限逐项授予；框架与内核不接受关闭，'
-                '关掉它们等于关掉应用本身。\n'
-                '「扩展插件」一栏来自本机的装配层（~/.ondra/dsh/profiles/ondra），'
-                '关掉一个会把它从装配层里注释出去，下次连接内核时生效——'
-                '正在跑的进程不会重读配置，这一点没法假装。',
+                '这里显示随包清单与本机装配配置，不代表运行时已加载。'
+                '身份、路径、持久化存储、人设与运行时等基础项受保护；'
+                '仍被已启用插件依赖的条目会拒绝关闭。\n'
+                '开关只修改本机 profile 的完整条目，下次重启内核后生效。'
+                '不会自动重启或中断对话；请等待当前回复完成后再重启应用。',
                 style: ondraText(11, color: s.ink30, height: 16 / 11),
               ),
             ],
@@ -89,7 +92,12 @@ class PluginsPage extends StatelessWidget {
     );
   }
 
-  List<Widget> _rowsOf(OndraSkin s, List<OndraPluginInfo> entries, String key) {
+  List<Widget> _rowsOf(
+    OndraSkin s,
+    List<OndraPluginInfo> entries,
+    String key,
+    PluginsClient plugins,
+  ) {
     final items = entries.where((e) => e.group == key).toList();
     if (items.isEmpty) {
       return [
@@ -107,7 +115,9 @@ class PluginsPage extends StatelessWidget {
         if (i > 0) _InsetHairline(color: s.lineFaint),
         _PluginRow(
           entry: items[i],
-          onChanged: (v) => pluginsClient.toggle(items[i].id, v),
+          onChanged: plugins.saving
+              ? null
+              : (v) => plugins.toggle(items[i].id, v),
         ),
       ],
     ];
@@ -162,10 +172,6 @@ class _GroupHeader extends StatelessWidget {
   }
 }
 
-/// 已加载 = 清单里标了 enabled 的项。
-int _readyCount(List<OndraPluginInfo> entries) =>
-    entries.where((e) => e.enabled).length;
-
 /// 让出图标宽度的发丝线：8 内距 + 30 图标 + 12 间距。
 class _InsetHairline extends StatelessWidget {
   const _InsetHairline({required this.color});
@@ -218,7 +224,7 @@ class _PluginRow extends StatefulWidget {
   const _PluginRow({required this.entry, required this.onChanged});
 
   final OndraPluginInfo entry;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   State<_PluginRow> createState() => _PluginRowState();
@@ -288,9 +294,14 @@ class _PluginRowState extends State<_PluginRow> {
             if (e.switchable)
               OndraSwitch(value: e.enabled, onChanged: widget.onChanged)
             else
-              Text(
-                e.enabled ? '随包加载' : '未加载',
-                style: ondraText(11, color: s.ink30, height: 18 / 11),
+              Tooltip(
+                message: e.blockedReason ?? '随包清单项，没有独立的装配开关',
+                child: Text(
+                  e.profileBacked
+                      ? (e.enabled ? '已启用 · 受保护' : '已禁用 · 受保护')
+                      : '随包声明',
+                  style: ondraText(11, color: s.ink30, height: 18 / 11),
+                ),
               ),
           ],
         ),

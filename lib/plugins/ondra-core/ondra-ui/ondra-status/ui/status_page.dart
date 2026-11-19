@@ -5,6 +5,7 @@ import '../../../../../design/skin.dart';
 import '../../../../../design/tokens.dart';
 import 'status_source.dart';
 import 'status_types.dart';
+import '../../ondra-chat/ui/chat_client.dart';
 
 /// 状态面板：空谷的数字生命监测。
 ///
@@ -52,7 +53,12 @@ class _StatusPageState extends State<StatusPage> {
       tone: OndraPageTone.canvas,
       title: '状态面板',
       subtitle: '空谷的数字生命监测',
-      actions: [StatusLivePill(online: snap?.kernelOnline ?? false)],
+      actions: [
+        AnimatedBuilder(
+          animation: chatClient,
+          builder: (context, _) => StatusLivePill(online: chatClient.connected),
+        ),
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -129,8 +135,8 @@ class _StatusPageState extends State<StatusPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            '读数来自本机：记忆库、会话目录、三份日志与备份目录，'
-            '以及 127.0.0.1:3425 能不能连上。读不到的地方会写明原因，不会凑数。',
+            '读数来自本机记忆库、会话目录、日志与备份；'
+            '接入状态跟随右栏对话内核，与所选模型提供商无关。',
             style: ondraText(10.5, color: s.ink25, height: 15 / 10.5),
           ),
         ],
@@ -145,10 +151,7 @@ StatusSnapshotLoader statusSnapshotLoader = loadStatus;
 
 typedef StatusSnapshotLoader = Future<StatusSnapshot> Function();
 
-/// 表头的接入状态。
-///
-/// 这一个是**真的**在报状态：网关连得上才亮，连不上就灰着并写「未接入」。
-/// 右栏能不能说话完全取决于它，所以它必须和事实一致。
+/// 表头接入状态与对话客户端保持一致。
 class StatusLivePill extends StatelessWidget {
   const StatusLivePill({super.key, required this.online});
 
@@ -168,10 +171,7 @@ class StatusLivePill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          OndraStatusDot(
-            color: online ? OndraColor.accent : s.ink25,
-            size: 6,
-          ),
+          OndraStatusDot(color: online ? OndraColor.accent : s.ink25, size: 6),
           const SizedBox(width: 6),
           Text(
             online ? '已接入' : '未接入',
@@ -210,7 +210,11 @@ class _Overview extends StatelessWidget {
           _Num(value: snap == null ? '—' : '${snap.facts}', label: '条记忆'),
           _Num(value: snap == null ? '—' : '${snap.sessions}', label: '份对话'),
           _Num(value: snap == null ? '—' : '${snap.backupCount}', label: '份备份'),
-          _Num(value: snap == null ? '—' : '${snap.plugins}', label: '个插件', last: true),
+          _Num(
+            value: snap == null ? '—' : '${snap.plugins}',
+            label: '个插件',
+            last: true,
+          ),
         ],
       ),
     );
@@ -235,11 +239,18 @@ class _Num extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: ondraText(19, weight: 500, color: s.ink, height: 24 / 19)
-                .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+            style: ondraText(
+              19,
+              weight: 500,
+              color: s.ink,
+              height: 24 / 19,
+            ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
           ),
           const SizedBox(height: 2),
-          Text(label, style: ondraText(10.5, color: s.ink30, height: 14 / 10.5)),
+          Text(
+            label,
+            style: ondraText(10.5, color: s.ink30, height: 14 / 10.5),
+          ),
         ],
       ),
     );
@@ -271,7 +282,12 @@ class _MetricRow extends StatelessWidget {
             children: [
               Text(
                 reading.label,
-                style: ondraText(14, weight: 500, color: s.ink, height: 20 / 14),
+                style: ondraText(
+                  14,
+                  weight: 500,
+                  color: s.ink,
+                  height: 20 / 14,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -284,9 +300,11 @@ class _MetricRow extends StatelessWidget {
               ),
               Text(
                 reading.value ?? '—',
-                style: ondraText(13, color: s.ink60, height: 16 / 13).copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+                style: ondraText(
+                  13,
+                  color: s.ink60,
+                  height: 16 / 13,
+                ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
               ),
             ],
           ),
@@ -443,9 +461,7 @@ class _Axis extends StatelessWidget {
                       final left = showCenter
                           ? (center < end ? center : end)
                           : 0.0;
-                      final width = showCenter
-                          ? (end - center).abs()
-                          : end;
+                      final width = showCenter ? (end - center).abs() : end;
                       return Stack(
                         children: [
                           Positioned.fill(child: ColoredBox(color: s.ink20)),
@@ -482,8 +498,11 @@ class _Axis extends StatelessWidget {
               child: Text(
                 value,
                 textAlign: TextAlign.right,
-                style: ondraText(11, color: s.ink45, height: 16 / 11)
-                    .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                style: ondraText(
+                  11,
+                  color: s.ink45,
+                  height: 16 / 11,
+                ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
               ),
             ),
           ],
@@ -493,9 +512,15 @@ class _Axis extends StatelessWidget {
           padding: const EdgeInsets.only(left: 38, right: 34),
           child: Row(
             children: [
-              Text(left, style: ondraText(10, color: s.ink25, height: 13 / 10)),
+              Text(
+                left,
+                style: ondraText(10, color: s.ink25, height: 13 / 10),
+              ),
               const Spacer(),
-              Text(right, style: ondraText(10, color: s.ink25, height: 13 / 10)),
+              Text(
+                right,
+                style: ondraText(10, color: s.ink25, height: 13 / 10),
+              ),
             ],
           ),
         ),
@@ -539,7 +564,12 @@ class _IssueRow extends StatelessWidget {
                   children: [
                     Text(
                       issue.scope,
-                      style: ondraText(12.5, weight: 500, color: s.ink, height: 17 / 12.5),
+                      style: ondraText(
+                        12.5,
+                        weight: 500,
+                        color: s.ink,
+                        height: 17 / 12.5,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -654,7 +684,10 @@ class _Pending extends StatelessWidget {
     final s = OndraSkin.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Text(label, style: ondraText(12, color: s.ink30, height: 16 / 12)),
+      child: Text(
+        label,
+        style: ondraText(12, color: s.ink30, height: 16 / 12),
+      ),
     );
   }
 }

@@ -34,22 +34,45 @@ class PlatformActions {
   /// 那比测试失败糟糕得多。
   static PlatformActionsProbe? probe;
 
+  /// 仅测试：临时文件 + 假进程结果，不能用真实 launchd 验证测试。
+  static String? debugLaunchAgentPathOverride;
+  static Future<ProcessResult> Function(String, List<String>)?
+  debugProcessRunner;
+
+  static Future<ProcessResult> _processRun(String exe, List<String> args) =>
+      debugProcessRunner?.call(exe, args) ?? Process.run(exe, args);
+
   static String get _plistPath {
+    if (debugLaunchAgentPathOverride != null) {
+      return debugLaunchAgentPathOverride!;
+    }
     final home = Platform.environment['HOME'] ?? '';
     return '$home/Library/LaunchAgents/$_label.plist';
   }
 
-  static bool get canAutoLaunch => probe?.canAutoLaunch ?? (Platform.isMacOS || Platform.isLinux);
+  /// 仅测试能力分支，不调用真实系统命令。
+  static String? debugOperatingSystemOverride;
+  static bool get _isMacOS =>
+      (debugOperatingSystemOverride ?? Platform.operatingSystem) == 'macos';
 
-  static bool get canPreventSleep => probe?.canPreventSleep ?? (Platform.isMacOS || Platform.isLinux);
+  // Linux 没有实现 XDG autostart / inhibitor，不能谎报支持并执行 macOS 命令。
+  static bool get canAutoLaunch =>
+      probe?.canAutoLaunch ??
+      (_isMacOS &&
+          (Platform.environment['HOME'] ?? '').startsWith('/') &&
+          (debugProcessRunner != null || File('/bin/launchctl').existsSync()));
+
+  static bool get canPreventSleep =>
+      probe?.canPreventSleep ??
+      (_isMacOS && File('/usr/bin/caffeinate').existsSync());
 
   /// 当前应用的绝对路径。写进 plist 的 `ProgramArguments` 要能在登录时
   /// 被 `launchd` 直接执行，相对路径在登录阶段没有意义（工作目录不确定）。
   static String get _executable => Platform.resolvedExecutable;
 
   static Future<bool?> autoLaunchEnabled() async {
-    if (probe != null) return probe!.autoLaunchEnabled();
     if (!canAutoLaunch) return null;
+    if (probe != null) return probe!.autoLaunchEnabled();
     try {
       return File(_plistPath).existsSync();
     } catch (_) {
@@ -57,25 +80,51 @@ class PlatformActions {
     }
   }
 
-  static Future<bool> setAutoLaunch(bool enabled) async {
-    if (probe != null) return probe!.setAutoLaunch(enabled);
+  static Future<bool> _launchQueue = Future.value(true);
+
+  static Future<bool> setAutoLaunch(bool enabled) {
+    final result = _launchQueue.then((_) => _setAutoLaunch(enabled));
+    _launchQueue = result.then((ok) => ok, onError: (Object _) => false);
+    return result;
+  }
+
+  static Future<bool> _setAutoLaunch(bool enabled) async {
     if (!canAutoLaunch) return false;
+    if (probe != null) return probe!.setAutoLaunch(enabled);
     try {
       final file = File(_plistPath);
       if (!enabled) {
-        // 先 unload 再删：顺序反了的话 launchd 会继续记着这一条，
-        // 直到下次登录才忘掉，用户会以为「关掉了但还在自启」。
-        await _run('/bin/launchctl', ['unload', _plistPath]);
+        // list 成功表示仍注册着；unload 的非零退出不能当作成功吞掉。
+        final listed = await _processRun('/bin/launchctl', ['list', _label]);
+        if (listed.exitCode == 0) {
+          if (!file.existsSync() ||
+              !await _run('/bin/launchctl', ['unload', file.path])) {
+            return false;
+          }
+        } else if (file.existsSync()) {
+          // 查不到但文件仍在时，尝试卸载；失败保持文件，让调用方知道未完成。
+          if (!await _run('/bin/launchctl', ['unload', file.path])) {
+            return false;
+          }
+        }
         if (file.existsSync()) file.deleteSync();
         return true;
       }
-      final dir = Directory(file.parent.path);
-      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final original = file.existsSync() ? file.readAsStringSync() : null;
+      file.parent.createSync(recursive: true);
+      if (original == _plist() &&
+          await _run('/bin/launchctl', ['list', _label])) {
+        return true;
+      }
       file.writeAsStringSync(_plist(), flush: true);
-      // load 失败不回滚：文件已经写好了，下次登录依然会生效。
-      // 这一句只是让「现在就生效」，失败也不影响最终结果。
-      await _run('/bin/launchctl', ['load', _plistPath]);
-      return true;
+      if (await _run('/bin/launchctl', ['load', file.path])) return true;
+      // 恢复原文件；不能以「也许下次登录会好」冒充本次执行成功。
+      if (original == null) {
+        file.deleteSync();
+      } else {
+        file.writeAsStringSync(original, flush: true);
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -86,7 +135,8 @@ class PlatformActions {
   /// `RunAtLoad` 是「登录时启动」，`KeepAlive=false` 是「别崩溃后无限重拉」——
   /// 后者若为 true，用户在应用里主动退出也会被立刻拉起来，那不是自启动，
   /// 是耍流氓。
-  static String _plist() => '''
+  static String _plist() =>
+      '''
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -95,7 +145,7 @@ class PlatformActions {
   <string>$_label</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$_executable</string>
+    <string>${_xml(_executable)}</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
@@ -108,42 +158,54 @@ class PlatformActions {
   /// 正在跑的 `caffeinate`。null 表示当前没有阻止睡眠。
   static Process? _caffeinate;
 
-  static Future<bool> beginPreventSleep() async {
-    if (probe != null) return probe!.beginPreventSleep();
+  static Future<void> _sleepQueue = Future.value();
+
+  static Future<T> _sleepAction<T>(Future<T> Function() action) {
+    final next = _sleepQueue.then((_) => action());
+    _sleepQueue = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  static Future<bool> beginPreventSleep() => _sleepAction(() async {
     if (!canPreventSleep) return false;
-    // 已经在阻止就不重复起：两个 caffeinate 会各自持有一份断言，
-    // 之后只 end 一次就解除不干净。
+    if (probe != null) return probe!.beginPreventSleep();
     if (_caffeinate != null) return true;
     try {
-      _caffeinate = await Process.start('/usr/bin/caffeinate', ['-i']);
-      // 子进程退出（被系统杀、被用户 kill）时把句柄清掉，
-      // 否则下次 begin 会以为「还阻止着」而直接返回 true。
-      _caffeinate!.exitCode.then((_) => _caffeinate = null);
+      final process = await Process.start('/usr/bin/caffeinate', ['-i']);
+      _caffeinate = process;
+      process.exitCode.then((_) {
+        // 旧进程的退出通知不能清掉新进程的句柄。
+        if (identical(_caffeinate, process)) _caffeinate = null;
+      });
       return true;
     } catch (_) {
-      _caffeinate = null;
       return false;
     }
-  }
+  });
 
-  static Future<void> endPreventSleep() async {
+  /// void 契约不变，但失败会抛给调用方，不能假装断言已经解除。
+  static Future<void> endPreventSleep() => _sleepAction(() async {
+    if (!canPreventSleep) throw UnsupportedError('当前平台不支持阻止睡眠');
     if (probe != null) return probe!.endPreventSleep();
-    final p = _caffeinate;
-    _caffeinate = null;
-    if (p == null) return;
-    try {
-      p.kill();
-    } catch (_) {
-      // 进程可能已经自己退出了，这里没有别的补救动作。
-    }
-  }
+    final process = _caffeinate;
+    if (process == null) return;
+    process.kill();
+    await process.exitCode.timeout(const Duration(seconds: 3));
+    if (identical(_caffeinate, process)) _caffeinate = null;
+  });
 
-  /// 起一个子进程并等它结束，失败不抛。
-  static Future<void> _run(String exe, List<String> args) async {
+  static String _xml(String value) => value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+
+  static Future<bool> _run(String exe, List<String> args) async {
     try {
-      await Process.run(exe, args);
+      return (await _processRun(exe, args)).exitCode == 0;
     } catch (_) {
-      // launchctl 在某些沙箱里不可用；调用方已经按「文件写到了就算成功」处理。
+      return false;
     }
   }
 }

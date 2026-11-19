@@ -20,7 +20,18 @@ import 'dart:io';
 class Notifier {
   const Notifier._();
 
-  static bool get supported => Platform.isMacOS || Platform.isLinux;
+  /// 仅测试能力分支；Linux 尚无 notify-send 实现，不能执行 osascript。
+  static String? debugOperatingSystemOverride;
+  static bool get supported =>
+      probe != null ||
+      ((debugOperatingSystemOverride ?? Platform.operatingSystem) == 'macos' &&
+          (debugProcessRunner != null ||
+              File('/usr/bin/osascript').existsSync()));
+
+  /// 保留 show 的 void 契约；需要执行结果的调用者可 await tryShow。
+  static String? lastError;
+  static Future<ProcessResult> Function(String, List<String>)?
+  debugProcessRunner;
 
   /// 测试桩：整层替换掉，避免测试真的弹系统通知。
   ///
@@ -37,21 +48,42 @@ class Notifier {
     required String body,
     bool sound = true,
   }) async {
-    if (probe != null) {
-      await probe!.show(title: title, body: body, sound: sound);
-      return;
+    await tryShow(title: title, body: body, sound: sound);
+  }
+
+  /// true 表示系统命令已接受请求，不保证用户没有用勿扰/通知权限隐藏横幅。
+  static Future<bool> tryShow({
+    required String title,
+    required String body,
+    bool sound = true,
+  }) async {
+    lastError = null;
+    if (!supported) {
+      lastError = '当前平台不支持系统通知';
+      return false;
     }
-    if (!supported) return;
-    final soundPart = sound ? ' sound name "Glass"' : '';
     try {
-      await Process.run('/usr/bin/osascript', [
+      if (probe != null) {
+        await probe!.show(title: title, body: body, sound: sound);
+        return true;
+      }
+      final soundPart = sound ? ' sound name "Glass"' : '';
+      final args = [
         '-e',
         'display notification ${_lit(body)} '
             'with title ${_lit(title)}$soundPart',
-      ]);
-    } catch (_) {
-      // 通知发不出去不该让调用方失败：它是「顺便说一句」，
-      // 不是业务流程的一环。
+      ];
+      final result =
+          await (debugProcessRunner?.call('/usr/bin/osascript', args) ??
+              Process.run('/usr/bin/osascript', args));
+      if (result.exitCode != 0) {
+        lastError = '系统通知请求失败（${result.exitCode}）：${result.stderr}';
+        return false;
+      }
+      return true;
+    } catch (e) {
+      lastError = '系统通知请求失败：$e';
+      return false;
     }
   }
 

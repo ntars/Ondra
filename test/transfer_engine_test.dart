@@ -18,6 +18,9 @@ void main() {
   late TransferEngine engine;
 
   final fixedNow = DateTime(2026, 11, 17, 21, 30);
+  final originalOverview = backupOverviewLoader;
+  final originalCreate = backupCreate;
+  final originalExport = backupExport;
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('ondra-transfer-test-');
@@ -25,11 +28,18 @@ void main() {
     // 备份引擎默认指向真实的 HOME。测试里换成空实现，绝不碰用户的备份目录。
     backupOverviewLoader = () async => BackupOverview.empty;
     backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async =>
-        const BackupOpResult(ok: false, message: '测试环境不做备份');
+        const BackupOpResult(
+          ok: true,
+          message: '隔离测试的备份保护',
+          snapshotId: 'fresh',
+        );
     await _seedDb('${tmp.path}/.ondra/user/ondra.db');
   });
 
   tearDown(() async {
+    backupOverviewLoader = originalOverview;
+    backupCreate = originalCreate;
+    backupExport = originalExport;
     if (await tmp.exists()) await tmp.delete(recursive: true);
   });
 
@@ -77,6 +87,15 @@ void main() {
     expect(after.facts, 3);
     // 归档标记要跟着走：导回来的不能悄悄变成"在用的记忆"。
     expect(after.archivedFacts, 1);
+    expect(after.links, 1);
+    final again = await otherEngine.exportMemory(
+      other.path,
+      TransferFormat.json,
+    );
+    final beforeJson = jsonDecode(await File(r.path!).readAsString()) as Map;
+    final afterJson = jsonDecode(await File(again.path!).readAsString()) as Map;
+    expect(afterJson['facts'], beforeJson['facts']);
+    expect(afterJson['links'], beforeJson['links']);
   });
 
   test('同一份文件导两次：第二次全部跳过，不长出两套记忆', () async {
@@ -112,9 +131,8 @@ void main() {
   });
 
   test('人设与偏好导出成目录：偏好文件在里面', () async {
-    await File(
-      '${tmp.path}/.ondra/prefs.json',
-    ).writeAsString('{"themeMode":"dark"}');
+    await File('${tmp.path}/.ondra/prefs.json')
+        .writeAsString('{"themeMode":"dark"}');
     final out = await Directory('${tmp.path}/out').create();
 
     final r = await engine.exportBundle(out.path);
@@ -125,6 +143,315 @@ void main() {
     final prefs = File('${dir.path}/偏好.json');
     expect(prefs.existsSync(), isTrue);
     expect(await prefs.readAsString(), contains('dark'));
+  });
+
+  test('Markdown 往返保留证据、归档和关联', () async {
+    final exported = await engine.exportMemory(
+      tmp.path,
+      TransferFormat.markdown,
+    );
+    final other = TransferEngine(home: '${tmp.path}/markdown');
+    await _seedDb(other.dbPath, withRows: false);
+    final result = await other.importPath(exported.path!);
+    expect(result.ok, isTrue, reason: result.message);
+    final json = await other.exportMemory(tmp.path, TransferFormat.json);
+    final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
+    expect((data['facts'] as List).first['evidence'], contains('我叫小林'));
+    expect((await other.load()).links, 1);
+    expect((await other.load()).archivedFacts, 1);
+  });
+
+  test('同 id 不同正文拒绝整批且不谎报成功', () async {
+    final input = File('${tmp.path}/conflict.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {'id': 'new', 'text': '新增'},
+            {'id': 'm-a8f1fdb5c240', 'text': '冲突'},
+          ],
+        }),
+      );
+    final result = await engine.importPath(input.path);
+    expect(result.ok, isFalse);
+    expect(result.message, contains('冲突'));
+    expect(result.count, 0);
+    expect((await engine.load()).facts, 3);
+  });
+
+  test('备份失败阻断记忆和偏好写入', () async {
+    backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async =>
+        const BackupOpResult(ok: false, message: '磁盘已满');
+    final input = File('${tmp.path}/incoming.md')..writeAsStringSync('## 不应写入');
+    expect((await engine.importPath(input.path)).ok, isFalse);
+    expect((await engine.load()).facts, 3);
+    final prefs = File('${tmp.path}/prefs.json')
+      ..writeAsStringSync('{"language":"en"}');
+    expect((await engine.importPath(prefs.path)).ok, isFalse);
+    expect(File('${engine.dataRoot}/prefs.json').existsSync(), isFalse);
+  });
+
+  test('SQL 中途失败由 bail 回滚，不能提交前半批', () async {
+    await _sql(
+      engine.dbPath,
+      "create trigger reject_second before insert on memory_fact when new.id='bad' begin select raise(ABORT, 'test rejection'); end;",
+    );
+    final file = File('${tmp.path}/batch.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {'id': 'good', 'text': '先写'},
+            {'id': 'bad', 'text': '随后出错'},
+            {'id': 'last', 'text': '最后'},
+          ],
+        }),
+      );
+    final result = await engine.importPath(file.path);
+    expect(result.ok, isFalse);
+    expect((await engine.load()).facts, 3);
+  });
+
+  test('实际写入数来自 SQLite，trigger ignore 不算成功写入', () async {
+    await _sql(
+      engine.dbPath,
+      "create trigger ignore_import before insert on memory_fact when new.id='ignored' begin select raise(IGNORE); end;",
+    );
+    final file = File('${tmp.path}/ignored.json')
+      ..writeAsStringSync('[{"id":"ignored","text":"不会落库"}]');
+    final result = await engine.importPath(file.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(result.count, 0);
+    expect((await engine.load()).facts, 3);
+  });
+
+  test('关联冲突导致同批事实一起回滚', () async {
+    final file = File('${tmp.path}/link-conflict.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {'id': 'new', 'text': '新的事实'},
+          ],
+          'links': [
+            {'id': 'l-1', 'from': 'new', 'to': 'm-a8f1fdb5c240', 'weight': 0.7},
+          ],
+        }),
+      );
+    final result = await engine.importPath(file.path);
+    expect(result.ok, isFalse);
+    expect((await engine.load()).facts, 3);
+    expect((await engine.load()).links, 1);
+  });
+
+  test('文本去重后关联端点映射到已有编号', () async {
+    final file = File('${tmp.path}/links.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {'id': 'alias', 'text': '用户名叫小林。'},
+            {'id': 'new', 'text': '新事实'},
+          ],
+          'links': [
+            {'from': 'alias', 'to': 'new', 'weight': 0.6},
+          ],
+        }),
+      );
+    final result = await engine.importPath(file.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(result.count, 1);
+    expect(result.skipped, 1);
+    final rows = await _sql(
+      engine.dbPath,
+      "select from_id from memory_link where to_id='new';",
+    );
+    expect(rows.trim(), 'm-a8f1fdb5c240');
+    final second = await engine.importPath(file.path);
+    expect(second.count, 0);
+    expect((await engine.load()).links, 2);
+  });
+
+  test('单独语言或 settings 偏好文件可识别并按键合并', () async {
+    File('${engine.dataRoot}/prefs.json')
+        .writeAsStringSync('{"persona.nickname":"保留","themeMode":"light"}');
+    final file = File('${tmp.path}/prefs.json')
+      ..writeAsStringSync('{"language":"en","settings.general.fontSize":14}');
+    final result = await engine.importPath(file.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(
+      jsonDecode(File('${engine.dataRoot}/prefs.json').readAsStringSync()),
+      {
+        'persona.nickname': '保留',
+        'themeMode': 'light',
+        'language': 'en',
+        'settings.general.fontSize': '14',
+      },
+    );
+  });
+
+  test('人设包、头像、配置和偏好完整往返且保留其他插件', () async {
+    final pack = Directory('${engine.dataRoot}/personas/test')
+      ..createSync(recursive: true);
+    File('${pack.path}/SKILL.md').writeAsStringSync('persona');
+    File('${engine.dataRoot}/avatar.png').writeAsBytesSync([1, 2, 3]);
+    File('${engine.dataRoot}/prefs.json')
+        .writeAsStringSync('{"language":"en"}');
+    final config = File(
+      '${engine.dataRoot}/dsh/profiles/ondra/cordis.patch.yml',
+    );
+    config.parent.createSync(recursive: true);
+    config.writeAsStringSync(
+      '- insert:\n    - id: ondra-persona-core\n      name: persona-core\n      config:\n        greeting: hello\n    - id: other\n      name: source-other\n',
+    );
+    final bundle = await engine.exportBundle(tmp.path);
+    expect(bundle.ok, isTrue, reason: bundle.message);
+    final other = TransferEngine(home: '${tmp.path}/bundle-target');
+    final local = File('${other.dataRoot}/dsh/profiles/ondra/cordis.patch.yml');
+    local.parent.createSync(recursive: true);
+    local.writeAsStringSync(
+      '- insert:\n    - id: ondra-persona-core\n      name: old\n    - id: keep\n      name: keep-me\n',
+    );
+    final oldPack = Directory('${other.dataRoot}/personas/test')
+      ..createSync(recursive: true);
+    File('${oldPack.path}/stale.txt').writeAsStringSync('old');
+    File('${other.dataRoot}/prefs.json')
+        .writeAsStringSync('{"themeMode":"dark"}');
+    final imported = await other.importPath(bundle.path!);
+    expect(imported.ok, isTrue, reason: imported.message);
+    expect(imported.count, 4);
+    expect(File('${other.dataRoot}/avatar.png').readAsBytesSync(), [1, 2, 3]);
+    expect(File('${oldPack.path}/SKILL.md').readAsStringSync(), 'persona');
+    expect(File('${oldPack.path}/stale.txt').existsSync(), isFalse);
+    expect(local.readAsStringSync(), contains('greeting: hello'));
+    expect(local.readAsStringSync(), contains('name: keep-me'));
+    expect(local.readAsStringSync(), isNot(contains('source-other')));
+    expect(
+      jsonDecode(File('${other.dataRoot}/prefs.json').readAsStringSync()),
+      {'themeMode': 'dark', 'language': 'en'},
+    );
+  });
+
+  test('非法人设配置不留下已写入的偏好或头像', () async {
+    final bundle = Directory('${tmp.path}/invalid-bundle')..createSync();
+    File('${bundle.path}/偏好.json').writeAsStringSync('{"language":"en"}');
+    File('${bundle.path}/人设配置.yml')
+        .writeAsStringSync('- id: unrelated\n  name: nope\n');
+    File('${engine.dataRoot}/prefs.json')
+        .writeAsStringSync('{"themeMode":"dark"}');
+    final result = await engine.importPath(bundle.path);
+    expect(result.ok, isFalse);
+    expect(
+      File('${engine.dataRoot}/prefs.json').readAsStringSync(),
+      '{"themeMode":"dark"}',
+    );
+  });
+
+  test('多文件提交中途失败恢复已经替换的偏好', () async {
+    final bundle = Directory('${tmp.path}/rollback-bundle')..createSync();
+    File('${bundle.path}/偏好.json').writeAsStringSync('{"language":"en"}');
+    final pack = Directory('${bundle.path}/personas/test')
+      ..createSync(recursive: true);
+    File('${pack.path}/SKILL.md').writeAsStringSync('persona');
+    File('${engine.dataRoot}/prefs.json')
+        .writeAsStringSync('{"themeMode":"dark"}');
+    backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async {
+      File('${engine.dataRoot}/personas').writeAsStringSync('blocked parent');
+      return const BackupOpResult(ok: true, message: 'backed up');
+    };
+    final result = await engine.importPath(bundle.path);
+    expect(result.ok, isFalse);
+    expect(
+      File('${engine.dataRoot}/prefs.json').readAsStringSync(),
+      '{"themeMode":"dark"}',
+    );
+    expect(
+      File('${engine.dataRoot}/personas').readAsStringSync(),
+      'blocked parent',
+    );
+  });
+
+  test('活动数据保护拒绝人设覆盖且不调用备份', () async {
+    var called = false;
+    backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async {
+      called = true;
+      return const BackupOpResult(ok: true, message: 'unexpected');
+    };
+    final bundle = Directory('${tmp.path}/active-bundle')..createSync();
+    File('${bundle.path}/偏好.json').writeAsStringSync('{"language":"en"}');
+    final active = TransferEngine(home: tmp.path, dataIsOffline: () => false);
+    expect((await active.importPath(bundle.path)).ok, isFalse);
+    expect(called, isFalse);
+    expect(File('${engine.dataRoot}/prefs.json').existsSync(), isFalse);
+  });
+
+  test('在线偏好合并保留备份期间新写入的字段', () async {
+    backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async {
+      File('${engine.dataRoot}/prefs.json')
+          .writeAsStringSync('{"themeMode":"dark","onboardingDone":"1"}');
+      return const BackupOpResult(ok: true, message: 'backed up');
+    };
+    final file = File('${tmp.path}/online-prefs.json')
+      ..writeAsStringSync('{"language":"en"}');
+    final active = TransferEngine(home: tmp.path, dataIsOffline: () => false);
+    final result = await active.importPath(file.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(
+      jsonDecode(File('${engine.dataRoot}/prefs.json').readAsStringSync()),
+      {'themeMode': 'dark', 'onboardingDone': '1', 'language': 'en'},
+    );
+  });
+
+  test('高精度数值、多行正文和含空格类别可以往返', () async {
+    await _sql(
+      engine.dbPath,
+      "update memory_fact set text='第一行' || char(10) || '第二行', category='a b', salience=12.3456789 where id='m-a8f1fdb5c240';",
+    );
+    final exported = await engine.exportMemory(
+      tmp.path,
+      TransferFormat.markdown,
+    );
+    final other = TransferEngine(home: '${tmp.path}/multiline');
+    await _seedDb(other.dbPath, withRows: false);
+    final imported = await other.importPath(exported.path!);
+    expect(imported.ok, isTrue, reason: imported.message);
+    final rows = jsonDecode(
+      await _sql(
+        other.dbPath,
+        "select json_object('text', text, 'category', category, 'salience', salience) from memory_fact where id='m-a8f1fdb5c240';",
+      ),
+    );
+    expect(rows, {
+      'text': '第一行\n第二行',
+      'category': 'a b',
+      'salience': 12.3456789,
+    });
+  });
+
+  test('不合法事实不允许静默跳过后导入半份', () async {
+    final file = File('${tmp.path}/invalid-facts.json')
+      ..writeAsStringSync('[{"id":"new","text":"有效"},{"id":"invalid"}]');
+    expect((await engine.importPath(file.path)).ok, isFalse);
+    expect((await engine.load()).facts, 3);
+  });
+
+  test('全部导出每次创建当前快照且使用返回编号', () async {
+    final exported = <String>[];
+    var creates = 0;
+    backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async =>
+        BackupOpResult(
+          ok: true,
+          message: 'created',
+          snapshotId: 'current-${++creates}',
+        );
+    backupOverviewLoader = () async => throw StateError('不应靠列表猜编号');
+    backupExport = (id, dir) async {
+      exported.add(id);
+      return const BackupOpResult(ok: true, message: 'exported');
+    };
+    expect((await engine.exportArchive(tmp.path)).ok, isTrue);
+    expect((await engine.exportArchive(tmp.path)).ok, isTrue);
+    expect(exported, ['current-1', 'current-2']);
+    backupCreate = ({BackupTrigger trigger = BackupTrigger.manual}) async =>
+        const BackupOpResult(ok: false, message: 'no space');
+    expect((await engine.exportArchive(tmp.path)).ok, isFalse);
+    expect(exported.length, 2);
   });
 
   test('什么都没有时不硬导一份空文件', () async {
@@ -147,6 +474,12 @@ void main() {
 ///
 /// 不抄完整的 `ondra.db`（25 张表）：这里要验的是「导入导出能不能对上」，
 /// 多建二十张空表只会让失败时的排查变难。
+Future<String> _sql(String path, String sql) async {
+  final result = await Process.run('/usr/bin/sqlite3', ['-bail', path, sql]);
+  if (result.exitCode != 0) throw StateError('${result.stderr}');
+  return result.stdout as String;
+}
+
 Future<void> _seedDb(String dbPath, {bool withRows = true}) async {
   await Directory(File(dbPath).parent.path).create(recursive: true);
 

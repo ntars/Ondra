@@ -70,7 +70,7 @@ class TransferSnapshot {
   /// 会话文件数。
   final int sessions;
 
-  /// 可携带的人设包数量（`~/.ondra/user/personas/` 下的目录）。
+  /// 可携带的人设包数量（`~/.ondra/personas/` 下的目录）。
   final int personaPacks;
 
   /// 已归档的事实条数。归档的也导出——它们仍是用户的东西，只是不在星图上画。
@@ -166,9 +166,39 @@ class TransferLink {
     required this.from,
     required this.to,
     required this.weight,
+    this.id = '',
+    this.relation = 'related',
+    this.hits = 0,
+    this.lastFiredAt = 0,
+    this.decayedAt = 0,
+    this.createdAt = 0,
+    this.approved = 1,
+    this.surreal = 0,
   });
 
   final String from;
   final String to;
   final double weight;
+  final String id;
+  final String relation;
+  final int hits;
+  final int lastFiredAt;
+  final int decayedAt;
+  final int createdAt;
+  final int approved;
+  final int surreal;
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'from': from,
+    'to': to,
+    'weight': weight,
+    'relation': relation,
+    'hits': hits,
+    'lastFiredAt': lastFiredAt,
+    'decayedAt': decayedAt,
+    'createdAt': createdAt,
+    'approved': approved,
+    'surreal': surreal,
+  };
 }

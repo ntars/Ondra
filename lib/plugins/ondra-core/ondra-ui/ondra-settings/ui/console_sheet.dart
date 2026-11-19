@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../../app/data_root.dart';
+import '../../../../../app/data_maintenance.dart';
 import '../../../../../app/desktop_picker.dart';
 import '../../../../../app/i18n.dart';
 import '../../../../../app/keychain.dart';
@@ -9,6 +10,7 @@ import '../../../../../app/prefs.dart';
 import '../../../../../app/update_check.dart';
 import '../../../../../app/version.dart';
 import '../../../../../design/avatar.dart';
+import '../../../../../design/form_factor.dart';
 import '../../../../../design/brand.dart';
 import '../../../../../design/dialog.dart';
 import '../ondra-models/ui/model_client.dart';
@@ -197,21 +199,94 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     // 设置值统一由 ondra-settings 的投影提供：任一开关 / 选项变化都要重建，
     // 所以整页包一层 AnimatedBuilder，而不是让每个控件自己管状态。
     return AnimatedBuilder(
-      animation: settingsClient,
+      animation: Listenable.merge([settingsClient, modelClient, personaClient]),
       builder: (context, _) {
-        switch (_pane) {
-          case _Pane.general:
-            return _general(s);
-          case _Pane.model:
-            return _model(s);
-          case _Pane.channels:
-            return _channels(s);
-          case _Pane.persona:
-            return _persona(s);
-          case _Pane.about:
-            return _about(s);
-        }
+        final pane = switch (_pane) {
+          _Pane.general => _general(s),
+          _Pane.model => _model(s),
+          _Pane.channels => _channels(s),
+          _Pane.persona => _persona(s),
+          _Pane.about => _about(s),
+        };
+        return _stack([
+          if (settingsClient.applicationErrors.isNotEmpty)
+            _Section(
+              children: [
+                _Row(
+                  title: '${settingsClient.applicationErrors.length} 项设置尚未应用',
+                  desc: '查看逐项原因；保存失败不会显示为已经生效',
+                  action: _LinkText(label: '详情', onTap: _showSettingErrors),
+                  showDivider: false,
+                ),
+              ],
+            ),
+          if (settingsClient.restartRequired ||
+              modelClient.runtimePending ||
+              personaClient.pendingRestart)
+            _Section(
+              children: [
+                _Row(
+                  title: modelClient.runtimeApplying ? '正在连接内核…' : '有配置待内核重载',
+                  desc:
+                      modelClient.runtimeApplyError ?? '重连会保留已存数据；正在生成时等待本轮结束',
+                  descMaxLines: 2,
+                  action: _LinkText(label: '应用', onTap: _applyRuntime),
+                  showDivider: false,
+                ),
+              ],
+            ),
+          pane,
+        ]);
       },
+    );
+  }
+
+  Future<void> _showSettingErrors() async {
+    final retry = await OndraDialog.show<bool>(
+      context,
+      OndraDialog(
+        title: '未应用的设置',
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 250),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              [
+                for (final entry in settingsClient.applicationErrors.entries)
+                  '${ondraSettingSpec(entry.key).label}：${entry.value}',
+              ].join('\n\n'),
+            ),
+          ),
+        ),
+        actions: const [
+          OndraDialogButton(label: '关闭', value: false),
+          OndraDialogButton(label: '重试应用', value: true, filled: true),
+        ],
+      ),
+    );
+    if (retry == true) {
+      final ok = await settingsClient.applyPending();
+      if (mounted) {
+        OndraToast.show(
+          context,
+          ok ? '已重新保存；内核配置需重连后生效。' : '仍有设置未应用，请查看详情。',
+          ok: ok,
+        );
+      }
+    }
+  }
+
+  Future<void> _applyRuntime() async {
+    if (modelClient.runtimeReconnect == null) {
+      OndraToast.show(context, '当前环境没有可重连的本机内核。', ok: false);
+      return;
+    }
+    await modelClient.applyPendingRuntime();
+    if (!mounted) return;
+    final error = modelClient.runtimeApplyError;
+    OndraToast.show(
+      context,
+      error ?? (modelClient.runtimePending ? '已等待当前对话完成后应用。' : '内核已重新连接。'),
+      ok: error == null,
     );
   }
 
@@ -352,6 +427,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             chevron: true,
             onTap: () {
               // 先关设置再露面：面板顶替中栏那一页，设置盖在上面会打架。
+              final shell = ShellScope.of(context);
+              if (ondraIsMobile) shell.mobilePageOpen = true;
               widget.onClose();
               browserClient.showList();
             },
@@ -392,11 +469,14 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           });
           return null;
         },
-        onManual: () => setState(() => _addingCategory = ProviderCategory.custom),
+        onManual: () =>
+            setState(() => _addingCategory = ProviderCategory.custom),
       );
     }
 
-    final editing = _editingProvider == null ? null : modelClient.byId(_editingProvider!);
+    final editing = _editingProvider == null
+        ? null
+        : modelClient.byId(_editingProvider!);
     if (editing != null) {
       return _ProviderEditor(
         // 换提供商要重建编辑页：输入框里的文字属于某一条提供商，
@@ -427,7 +507,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
               showDivider: false,
             ),
           for (final c in used) ...[
-            _GroupLabel(label: c.label, meta: '${modelClient.byCategory(c).length} 个'),
+            _GroupLabel(
+              label: c.label,
+              meta: '${modelClient.byCategory(c).length} 个',
+            ),
             for (var i = 0; i < modelClient.byCategory(c).length; i++)
               _Row(
                 title: modelClient.byCategory(c)[i].name,
@@ -463,7 +546,9 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
                   ? entries[i].$1.name
                   : '${entries[i].$1.name} · 上下文 ${entries[i].$2.contextWindow}',
               action: _SmallPill(
-                label: modelClient.isDefault(entries[i].$1, entries[i].$2) ? '当前' : '设为默认',
+                label: modelClient.isDefault(entries[i].$1, entries[i].$2)
+                    ? '当前'
+                    : '设为默认',
                 onTap: () {
                   final err = modelClient.setDefaultModel(
                     entries[i].$1,
@@ -499,7 +584,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
 
   /// 第一步：选「模型从哪来」。
   Widget _categoryPicker(OndraSkin s) => _stack([
-    _BackRow(label: '添加模型提供商', onTap: () => setState(() => _choosingCategory = false)),
+    _BackRow(
+      label: '添加模型提供商',
+      onTap: () => setState(() => _choosingCategory = false),
+    ),
     _Section(
       title: '模型从哪来',
       children: [
@@ -553,7 +641,12 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: ondraText(14, weight: 500, color: s.ink, height: 18 / 14),
+                      style: ondraText(
+                        14,
+                        weight: 500,
+                        color: s.ink,
+                        height: 18 / 14,
+                      ),
                     ),
                   ),
                 ),
@@ -592,6 +685,32 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
                 );
               },
             ),
+            for (final pack in personaClient.packs)
+              _Row(
+                title: pack.name,
+                desc: pack.builtIn ? '随包人设' : '已安装人设',
+                value: pack.id == personaClient.active.id ? '当前' : null,
+                action: pack.id == personaClient.active.id
+                    ? null
+                    : _LinkText(
+                        label: '使用',
+                        onTap: () async {
+                          final result = await personaClient.switchTo(pack.id);
+                          if (!mounted) return;
+                          OndraToast.show(
+                            context,
+                            result.message,
+                            ok: result.ok,
+                          );
+                        },
+                      ),
+              ),
+            if (!personaClient.active.builtIn) ...[
+              _Row(title: '导出当前人设', chevron: true, onTap: _exportPersona),
+              _Row(title: '删除当前人设', chevron: true, onTap: _removePersona),
+            ],
+            if (personaClient.error != null)
+              _Row(title: '人设操作未完成', desc: personaClient.error),
             _Row(
               title: '导入人设包',
               desc: '支持 .skill / .zip 文件，校验与落盘由 ondra-persona 完成',
@@ -649,11 +768,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           children: [
             // 不给选择器：数据根目录由内核写死，改这里不会搬家。
             // 显示真实路径，用户至少知道东西在哪、能自己去备份。
-            _Row(
-              title: '数据位置',
-              desc: '记忆、会话与配置都写在这里',
-              value: ondraDataRoot,
-            ),
+            _Row(title: '数据位置', desc: '记忆、会话与配置都写在这里', value: ondraDataRoot),
             _Row(
               title: '导出全部数据',
               desc: '记忆、会话、人设与配置打包；明文，自己挑存放位置',
@@ -707,13 +822,19 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           title: 'AppID',
           desc: '在 QQ 开放平台创建机器人后取得 · 本项需要通道插件：接上前只记录填写内容',
           value: _qqAppId.isEmpty ? '未填写' : _qqAppId,
-          action: _LinkText(label: '填写', onTap: () => _editQqCredential(qqAppIdKey)),
+          action: _LinkText(
+            label: '填写',
+            onTap: () => _editQqCredential(qqAppIdKey),
+          ),
         ),
         _Row(
           title: '密钥',
           desc: '只存在本机钥匙串，不上传 · 接上通道插件后才会被读取',
           value: _qqSecretSet ? '已保存' : '未填写',
-          action: _LinkText(label: '填写', onTap: () => _editQqCredential(qqSecretKey)),
+          action: _LinkText(
+            label: '填写',
+            onTap: () => _editQqCredential(qqSecretKey),
+          ),
           showDivider: false,
         ),
       ],
@@ -738,7 +859,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _Row(
           title: '空谷 Ondra',
           desc: '$ondraVersion · $ondraStage',
-          action: _SmallPill(label: _checkingUpdate ? '检查中…' : '检查更新', onTap: _checkUpdates),
+          action: _SmallPill(
+            label: _checkingUpdate ? '检查中…' : '检查更新',
+            onTap: _checkUpdates,
+          ),
         ),
         _specRow('about.channel'),
         AnimatedBuilder(
@@ -828,11 +952,14 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     ),
     Align(
       alignment: Alignment.centerRight,
-      child: _PrimaryPill(label: '提交反馈', onTap: _submitFeedback),
+      child: _PrimaryPill(
+        label: _savingFeedback ? '保存中…' : '保存反馈',
+        onTap: _submitFeedback,
+      ),
     ),
     const SizedBox(height: 4),
     Text(
-      '反馈里会带上版本号与最近的系统日志；对话内容不会随反馈上传。',
+      '只保存到本机，不会自动上传或发送。日志仅尽力脱敏；描述和附件未自动脱敏，分享前请检查。',
       style: ondraText(11, color: s.ink30, height: 16 / 11),
     ),
   ]);
@@ -866,6 +993,43 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     OndraToast.show(context, r.message, ok: r.ok);
   }
 
+  Future<void> _exportPersona() async {
+    if (!DesktopPicker.supported) {
+      OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
+      return;
+    }
+    final path = await DesktopPicker.saveFile(
+      prompt: '导出当前人设',
+      defaultName: '${personaClient.active.id}.skill.zip',
+    );
+    if (path == null) return;
+    final result = await personaClient.exportActive(targetZip: path);
+    if (mounted) OndraToast.show(context, result.message, ok: result.ok);
+  }
+
+  Future<void> _removePersona() async {
+    final pack = personaClient.active;
+    final confirmed = await OndraDialog.show<bool>(
+      context,
+      OndraDialog(
+        title: '删除人设包？',
+        body: '将删除「${pack.name}」并切回默认人设，记忆与对话会保留。',
+        actions: const [
+          OndraDialogButton(label: '取消', value: false),
+          OndraDialogButton(
+            label: '删除',
+            value: true,
+            danger: true,
+            filled: true,
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final result = await personaClient.remove(pack.id);
+    if (mounted) OndraToast.show(context, result.message, ok: result.ok);
+  }
+
   /// 改称呼：一个输入框、一句话说明。
   Future<void> _editNickname() async {
     final controller = TextEditingController(text: _nickname);
@@ -886,7 +1050,20 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
 
   // ── 数据：导出与清空 ────────────────────────────────────────────────────
 
-  final OndraMaintenance _maintenance = OndraMaintenance();
+  final OndraMaintenance _maintenance = OndraMaintenance(
+    dataIsOffline: () => dataMaintenance.offline,
+  );
+
+  Future<MaintenanceResult> _runMaintenance(
+    Future<MaintenanceResult> Function() action, {
+    bool refresh = false,
+  }) async {
+    try {
+      return await dataMaintenance.run(action, refresh: refresh);
+    } catch (error) {
+      return MaintenanceResult(ok: false, message: '数据维护未完成：$error');
+    }
+  }
 
   /// 导出全部数据：挑目录 → 复制成 `ondra-export/` → 报文件数与体积。
   Future<void> _exportAll() async {
@@ -896,7 +1073,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     }
     final dir = await _maintenance.pickDirectory('选择导出位置');
     if (dir == null) return;
-    final r = await _maintenance.exportAll(dir);
+    final r = await _runMaintenance(() => _maintenance.exportAll(dir));
     if (!mounted) return;
     OndraToast.show(context, r.message, ok: r.ok);
   }
@@ -908,7 +1085,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       context,
       const OndraDialog(
         title: '清空全部数据？',
-        body: '会删掉记忆、会话与设备缓存，以及设置里的全部偏好。'
+        body:
+            '会删掉记忆、会话与设备缓存，以及设置里的全部偏好。'
             '插件装配表与你导入的人设包会保留——删掉它们应用就起不来了。\n\n'
             '这一步不可恢复，也没有回收站。想留一份就先「导出全部数据」。',
         actions: [
@@ -923,12 +1101,13 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       ),
     );
     if (confirmed != true) return;
-    final r = await _maintenance.wipeAll();
+    final r = await _runMaintenance(() async {
+      final result = await _maintenance.wipeAll();
+      if (result.ok) await settingsClient.resetAll();
+      return result;
+    }, refresh: true);
     if (!mounted) return;
     if (r.ok) {
-      // 偏好文件被删了，内存里那份也要跟着回默认值，
-      // 否则界面还显示着刚被删掉的开关位置。
-      settingsClient.resetAll();
       setState(() {
         _attachments.clear();
         _feedbackBody = '';
@@ -951,15 +1130,34 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     );
     if (!mounted) return;
     setState(() => _checkingUpdate = false);
-    // 有新版本时把链接也说出来：用户要的是「去哪拿」，不是「有更新」三个字。
-    final text = r.status == UpdateStatus.available && r.url != null
-        ? '${r.message} 下载页：${r.url}'
-        : r.message;
-    OndraToast.show(context, text, ok: r.status != UpdateStatus.failed);
+    final url = r.url;
+    if (r.status != UpdateStatus.available || url == null) {
+      OndraToast.show(context, r.message, ok: r.status != UpdateStatus.failed);
+      return;
+    }
+    final action = await OndraDialog.show<String>(
+      context,
+      OndraDialog(
+        title: '发现新版本',
+        body: '${r.message}\n\n$url\n\n仅打开官方发行页，不会自动下载或安装。',
+        actions: const [
+          OndraDialogButton(label: '稍后', value: 'later'),
+          OndraDialogButton(label: '复制链接', value: 'copy'),
+          OndraDialogButton(label: '打开发行页', filled: true, value: 'open'),
+        ],
+      ),
+    );
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: url));
+      if (mounted) OndraToast.show(context, '发行页链接已复制。', ok: true);
+    } else if (action == 'open') {
+      final opened = await UpdateChecker.openRelease(url);
+      if (mounted) OndraToast.show(context, opened.message, ok: opened.ok);
+    }
   }
 
   Future<void> _clearCache() async {
-    final r = await _maintenance.clearCache();
+    final r = await _runMaintenance(_maintenance.clearCache);
     if (!mounted) return;
     OndraToast.show(context, r.message, ok: r.ok);
   }
@@ -971,7 +1169,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       context,
       OndraDialog(
         title: '系统权限',
-        body: '「未知」是如实的：系统不提供这两项的查询接口，'
+        body:
+            '「未知」是如实的：系统不提供这两项的查询接口，'
             '只能等它第一次弹窗时由你决定。',
         width: 440,
         content: Column(
@@ -981,9 +1180,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
               _permissionRow(list[i], last: i == list.length - 1),
           ],
         ),
-        actions: const [
-          OndraDialogButton(label: '知道了', filled: true),
-        ],
+        actions: const [OndraDialogButton(label: '知道了', filled: true)],
       ),
     );
   }
@@ -1009,14 +1206,28 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(p.name, style: ondraText(12.5, color: s.ink80, height: 18 / 12.5)),
+                Text(
+                  p.name,
+                  style: ondraText(12.5, color: s.ink80, height: 18 / 12.5),
+                ),
                 const SizedBox(height: 1),
-                Text(p.detail, style: ondraText(11, color: s.ink40, height: 15 / 11)),
+                Text(
+                  p.detail,
+                  style: ondraText(11, color: s.ink40, height: 15 / 11),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          Text(label, style: ondraText(11.5, weight: 500, color: color, height: 18 / 11.5)),
+          Text(
+            label,
+            style: ondraText(
+              11.5,
+              weight: 500,
+              color: color,
+              height: 18 / 11.5,
+            ),
+          ),
         ],
       ),
     );
@@ -1027,6 +1238,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   final FeedbackStore _feedback = FeedbackStore();
 
   String? _feedbackKind;
+  bool _savingFeedback = false;
   String _feedbackBody = '';
   final List<String> _attachments = [];
 
@@ -1042,9 +1254,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
               _kindOption(k, selected: k == _feedbackKind),
           ],
         ),
-        actions: const [
-          OndraDialogButton(label: '取消'),
-        ],
+        actions: const [OndraDialogButton(label: '取消')],
       ),
     );
     if (chosen == null) return;
@@ -1098,8 +1308,12 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   }
 
   Future<void> _pickAttachments() async {
+    if (!DesktopPicker.supported) {
+      OndraToast.show(context, '当前环境不支持选择附件。', ok: false);
+      return;
+    }
     final picked = await _feedback.pickAttachments();
-    if (picked.isEmpty) return;
+    if (!mounted || picked.isEmpty) return;
     setState(() {
       _attachments
         ..clear()
@@ -1107,11 +1321,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     });
   }
 
-  /// 提交反馈：落盘 + 附日志尾巴 + 打开邮件草稿。
-  ///
-  /// 三件事都做了才算「提交成功」。任何一步失败都如实说，
-  /// 不因为另外两步成功就报一个「已提交」。
   Future<void> _submitFeedback() async {
+    if (_savingFeedback) return;
     final kind = _feedbackKind;
     if (kind == null) {
       OndraToast.show(context, '先选一个问题类型。', ok: false);
@@ -1121,55 +1332,53 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       OndraToast.show(context, '描述至少写 10 个字，否则看不出是什么问题。', ok: false);
       return;
     }
-    final r = await _feedback.write(
-      kind: kind,
-      body: _feedbackBody,
-      version: '$ondraVersion+$ondraBuild',
-      attachmentPaths: _attachments,
-      // 反馈写的是**本机**的 markdown 文件，附上日志尾部是为了让用户能
-      // 把原因一起发出去；内容在写入前统一脱敏（见 FeedbackStore._redact），
-      // 出不出本机由用户自己决定。
-      attachLog: true,
-    );
-    if (!mounted) return;
-    if (!r.ok) {
-      OndraToast.show(context, r.message, ok: false);
-      return;
-    }
-    // 落盘成功后再问「要不要发邮件」：发不发是用户的决定，
-    // 但不能让用户以为这一步替他发了。
-    final send = await OndraDialog.show<bool>(
-      context,
-      OndraDialog(
-        title: '已存到本机',
-        body: '${r.message}\n\n要现在用系统邮件客户端写一封吗？'
-            '草稿会填好类型、描述与版本号，收件人与是否发送由你决定。',
-        actions: const [
-          OndraDialogButton(label: '先不发', value: false),
-          OndraDialogButton(
-            label: '打开草稿',
-            filled: true,
-            value: true,
-          ),
-        ],
-      ),
-    );
-    if (send == true) {
-      final m = await _feedback.compose(
+    setState(() => _savingFeedback = true);
+    final body = _feedbackBody;
+    try {
+      final r = await _feedback.write(
         kind: kind,
-        body: _feedbackBody,
+        body: body,
         version: '$ondraVersion+$ondraBuild',
+        attachmentPaths: List.of(_attachments),
+        attachLog: true,
       );
-      if (mounted) OndraToast.show(context, m.message, ok: m.ok);
+      if (!mounted) return;
+      if (!r.ok) {
+        OndraToast.show(context, r.message, ok: false);
+        return;
+      }
+      final open = await OndraDialog.show<bool>(
+        context,
+        OndraDialog(
+          title: '已存到本机',
+          body:
+              '${r.message}\n\n可生成包含报告、日志和附件副本的邮件草稿。'
+              '客户端可能只预览 .eml 或不保留附件；请核对，必要时从报告目录手动附加。'
+              '收件人与是否发送由你决定，应用不会发送。',
+          actions: const [
+            OndraDialogButton(label: '只保存报告', value: false),
+            OndraDialogButton(label: '生成并打开草稿', filled: true, value: true),
+          ],
+        ),
+      );
+      if (open == true) {
+        final draft = await _feedback.compose(
+          kind: kind,
+          body: body,
+          version: '$ondraVersion+$ondraBuild',
+          reportPath: r.path,
+          openDraft: true,
+        );
+        if (mounted) OndraToast.show(context, draft.message, ok: draft.ok);
+      }
+    } finally {
+      if (mounted) setState(() => _savingFeedback = false);
     }
   }
 
   String _attachmentNames() {
     // 只显示文件名：完整路径太长，一行放不下，而用户认得的是文件名。
-    final names = [
-      for (final p in _attachments)
-        p.split('/').last,
-    ];
+    final names = [for (final p in _attachments) p.split('/').last];
     return names.join('、');
   }
 
@@ -1232,7 +1441,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             ? (_qqSecretSet ? '已保存；重新输入可覆盖，留空则不修改' : '在 QQ 开放平台 → 开发设置里取得')
             : '机器人资料页上的 AppID',
         controller: controller,
-        maxLength: 64,
+        obscure: isSecret,
+        maxLength: 4096,
       ),
     );
     final text = value?.trim();
@@ -1272,23 +1482,23 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           s,
           '代码',
           'Apache-2.0（内核）+ MIT（外壳）。可商用、可闭源、可修改，无传染性。'
-          '再分发须保留仓库根 NOTICE 中的归属声明。',
+              '再分发须保留仓库根 NOTICE 中的归属声明。',
         ),
         const SizedBox(height: 10),
         _licenseItem(
           s,
           '字体 · MiSans',
           '界面字体为 MiSans，版权归小米科技有限责任公司，'
-          '依《MiSans 字体知识产权许可协议》免费商用。'
-          '字体文件不随源码分发；未附带字体时应用自动使用系统中文字体，'
-          '功能不受影响。',
+              '依《MiSans 字体知识产权许可协议》免费商用。'
+              '字体文件不随源码分发；未附带字体时应用自动使用系统中文字体，'
+              '功能不受影响。',
         ),
         const SizedBox(height: 10),
         _licenseItem(
           s,
           '第三方组件',
           'cordis（MIT）、Lucide 图标（ISC）、Flutter SDK（BSD-3-Clause）。'
-          '逐项披露见仓库根 NOTICE。本项目不含 GPL / LGPL / AGPL / MPL 组件。',
+              '逐项披露见仓库根 NOTICE。本项目不含 GPL / LGPL / AGPL / MPL 组件。',
         ),
       ],
     ),
@@ -1299,10 +1509,12 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     children: [
       Text(title, style: ondraText(11.5, weight: 600, color: s.ink60)),
       const SizedBox(height: 3),
-      Text(body, style: ondraText(11, color: s.ink40, height: 17 / 11)),
+      Text(
+        body,
+        style: ondraText(11, color: s.ink40, height: 17 / 11),
+      ),
     ],
   );
-
 
   Widget _stack(List<Widget> children) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1788,10 +2000,7 @@ class _Row extends StatelessWidget {
             Flexible(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 240),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: action!,
-                ),
+                child: Align(alignment: Alignment.centerRight, child: action!),
               ),
             ),
           ],
@@ -1840,11 +2049,19 @@ class _BackRow extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 label,
-                style: ondraText(12, weight: 500, color: s.ink60, height: 18 / 12),
+                style: ondraText(
+                  12,
+                  weight: 500,
+                  color: s.ink60,
+                  height: 18 / 12,
+                ),
               ),
               if (meta != null) ...[
                 const SizedBox(width: 8),
-                Text(meta!, style: ondraText(10, color: s.ink25, height: 18 / 10)),
+                Text(
+                  meta!,
+                  style: ondraText(10, color: s.ink25, height: 18 / 10),
+                ),
               ],
             ],
           ),
@@ -1891,7 +2108,11 @@ class _Stepper extends StatelessWidget {
 }
 
 class _StepKey extends StatefulWidget {
-  const _StepKey({required this.glyph, required this.onTap, required this.label});
+  const _StepKey({
+    required this.glyph,
+    required this.onTap,
+    required this.label,
+  });
 
   final String glyph;
   final VoidCallback onTap;
@@ -1945,7 +2166,12 @@ class _LinkText extends StatelessWidget {
         onTap: onTap,
         child: Text(
           label,
-          style: ondraText(13, weight: 500, color: OndraColor.accent, height: 18 / 13),
+          style: ondraText(
+            13,
+            weight: 500,
+            color: OndraColor.accent,
+            height: 18 / 13,
+          ),
         ),
       ),
     );
@@ -1974,7 +2200,12 @@ class _SmallPill extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: ondraText(13, weight: 500, color: OndraColor.ink, height: 16 / 13),
+          style: ondraText(
+            13,
+            weight: 500,
+            color: OndraColor.ink,
+            height: 16 / 13,
+          ),
         ),
       ),
     );
@@ -1999,7 +2230,12 @@ class _PrimaryPill extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: ondraText(13, weight: 500, color: Colors.white, height: 16 / 13),
+          style: ondraText(
+            13,
+            weight: 500,
+            color: Colors.white,
+            height: 16 / 13,
+          ),
         ),
       ),
     );
@@ -2092,10 +2328,19 @@ class _GroupLabel extends StatelessWidget {
         children: [
           Text(
             label,
-            style: ondraText(10, weight: 600, color: s.ink40, height: 14 / 10, spacing: 0.3),
+            style: ondraText(
+              10,
+              weight: 600,
+              color: s.ink40,
+              height: 14 / 10,
+              spacing: 0.3,
+            ),
           ),
           const Spacer(),
-          Text(meta, style: ondraText(10, color: s.ink25, height: 14 / 10)),
+          Text(
+            meta,
+            style: ondraText(10, color: s.ink25, height: 14 / 10),
+          ),
         ],
       ),
     );
@@ -2145,10 +2390,8 @@ class _PresetPickerState extends State<_PresetPicker> {
     ProviderCategory.official => '官方接口按 token 计费；密钥只存本机钥匙串。',
     ProviderCategory.partner =>
       '这一类由 ondra-beichen-api 插件提供；换合作方改插件的目录，界面与基座都不动。',
-    ProviderCategory.free =>
-      'our-free-model 基于官方目录精简：模型 id 与官方一致，额度与限速以它为准。',
-    ProviderCategory.local =>
-      '本地服务不需要密钥；添加后点「检测连接」，模型目录从端点读回来。',
+    ProviderCategory.free => 'our-free-model 基于官方目录精简：模型 id 与官方一致，额度与限速以它为准。',
+    ProviderCategory.local => '本地服务不需要密钥；添加后点「检测连接」，模型目录从端点读回来。',
     ProviderCategory.gateway => '网关自己管多家模型与密钥；空谷只认一个地址。',
     ProviderCategory.custom => '',
   };
@@ -2208,7 +2451,10 @@ class _PresetPickerState extends State<_PresetPicker> {
           ),
         if (_note.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(_note, style: ondraText(11, color: s.ink30, height: 16 / 11)),
+          Text(
+            _note,
+            style: ondraText(11, color: s.ink30, height: 16 / 11),
+          ),
         ],
       ],
     );
@@ -2262,7 +2508,7 @@ class _CustomProviderFormState extends State<_CustomProviderForm> {
       baseUrl: _baseUrl.text.trim(),
       models: [OndraModelEntry(id: modelText)],
     );
-    final err = modelClient.addProvider(provider);
+    final err = modelClient.validateProvider(provider);
     if (err != null) {
       setState(() => _error = err);
       return;
@@ -2276,7 +2522,13 @@ class _CustomProviderFormState extends State<_CustomProviderForm> {
         return;
       }
     }
+    provider.keyConfigured = key.isNotEmpty;
+    final saveError = modelClient.addProvider(provider);
     if (!mounted) return;
+    if (saveError != null) {
+      setState(() => _error = saveError);
+      return;
+    }
     widget.onDone();
   }
 
@@ -2299,21 +2551,37 @@ class _CustomProviderFormState extends State<_CustomProviderForm> {
         _Section(
           title: '接入',
           children: [
-            _InputRow(controller: _baseUrl, title: 'API 地址', hint: 'https://… 或 http://127.0.0.1:8080/v1'),
-            _InputRow(controller: _key, title: 'API 密钥', hint: '本地部署可留空', obscure: true),
+            _InputRow(
+              controller: _baseUrl,
+              title: 'API 地址',
+              hint: 'https://… 或 http://127.0.0.1:8080/v1',
+            ),
+            _InputRow(
+              controller: _key,
+              title: 'API 密钥',
+              hint: '本地部署可留空',
+              obscure: true,
+            ),
           ],
         ),
         const SizedBox(height: 20),
         _Section(
           title: '模型目录',
           children: [
-            _InputRow(controller: _modelId, title: '模型 ID', hint: '如 gpt-4o、qwen2.5:7b'),
+            _InputRow(
+              controller: _modelId,
+              title: '模型 ID',
+              hint: '如 gpt-4o、qwen2.5:7b',
+            ),
           ],
         ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 4),
-            child: Text(_error!, style: ondraText(11, color: OndraColor.danger, height: 16 / 11)),
+            child: Text(
+              _error!,
+              style: ondraText(11, color: OndraColor.danger, height: 16 / 11),
+            ),
           ),
         Align(
           alignment: Alignment.centerRight,
@@ -2331,7 +2599,11 @@ class _CustomProviderFormState extends State<_CustomProviderForm> {
 
 /// 已有提供商的编辑态：接入、连接检测、模型目录（含进阶字段）、删除。
 class _ProviderEditor extends StatefulWidget {
-  const _ProviderEditor({super.key, required this.provider, required this.onBack});
+  const _ProviderEditor({
+    super.key,
+    required this.provider,
+    required this.onBack,
+  });
 
   final OndraProvider provider;
   final VoidCallback onBack;
@@ -2347,11 +2619,23 @@ class _ProviderEditorState extends State<_ProviderEditor> {
     if (uri == null || uri.port == 0) return 8080;
     return uri.port;
   }
+
   final Set<OndraModelEntry> _expanded = {};
   String? _error;
   bool _probing = false;
   String? _probeMessage;
   bool _probeOk = false;
+
+  Future<void> _addModel() async {
+    final controller = TextEditingController();
+    final id = await OndraDialog.show<String>(
+      context,
+      _TextPromptDialog(title: '添加模型', hint: '模型 ID', controller: controller),
+    );
+    controller.dispose();
+    if (id == null || !mounted) return;
+    setState(() => _error = modelClient.addModel(widget.provider.id, id: id));
+  }
 
   /// 填写 / 更换 API 密钥：收进钥匙串，状态由写入结果驱动。
   ///
@@ -2365,7 +2649,8 @@ class _ProviderEditorState extends State<_ProviderEditor> {
         title: 'API 密钥',
         hint: '只写进系统钥匙串，不在任何文件里出现',
         controller: controller,
-        maxLength: 200,
+        obscure: true,
+        maxLength: 4096,
       ),
     );
     controller.dispose();
@@ -2393,10 +2678,18 @@ class _ProviderEditorState extends State<_ProviderEditor> {
       _probing = true;
       _probeMessage = null;
     });
-    final result = await probeOpenAiEndpoint(widget.provider.baseUrl);
+    final key = await modelClient.readProviderKey(widget.provider.id);
+    final result = await probeOpenAiEndpoint(
+      widget.provider.baseUrl,
+      apiKey: key,
+      protocol: widget.provider.protocol,
+    );
     if (!mounted) return;
     if (result.ok) {
-      final added = modelClient.mergeDiscoveredModels(widget.provider.id, result.models);
+      final added = modelClient.mergeDiscoveredModels(
+        widget.provider.id,
+        result.models,
+      );
       setState(() {
         _probing = false;
         _probeOk = true;
@@ -2431,12 +2724,16 @@ class _ProviderEditorState extends State<_ProviderEditor> {
               title: 'API 地址',
               hint: '留空使用默认地址',
               value: p.baseUrl,
-              onChanged: (v) => setState(() => p.baseUrl = v),
+              onChanged: (v) => setState(
+                () => _error = modelClient.updateProviderAddress(p.id, v),
+              ),
             ),
             if (!isLocal)
               _Row(
                 title: 'API 密钥',
-                desc: p.apiKeyEnv.isEmpty ? '只写不读，保存后不再显示' : '环境变量回退：${p.apiKeyEnv}',
+                desc: p.apiKeyEnv.isEmpty
+                    ? '只写不读，保存后不再显示'
+                    : '环境变量回退：${p.apiKeyEnv}',
                 value: p.keyConfigured ? '已配置' : '未配置',
                 action: _LinkText(
                   label: p.keyConfigured ? '更换' : '填写',
@@ -2462,9 +2759,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
               title: _probing ? '正在检测…' : '检测连接',
               desc: '请求 {地址}/models，把端点里的模型读回来',
               descVars: {'地址': p.baseUrl},
-              action: _probing
-                  ? null
-                  : _SmallPill(label: '检测', onTap: _probe),
+              action: _probing ? null : _SmallPill(label: '检测', onTap: _probe),
               showDivider: _probeMessage != null,
             ),
             if (_probeMessage != null)
@@ -2507,7 +2802,9 @@ class _ProviderEditorState extends State<_ProviderEditor> {
           const SizedBox(height: 20),
           LlamaPanel(
             port: _portOf(p.baseUrl),
-            onEndpointReady: (url) => setState(() => p.baseUrl = url),
+            onEndpointReady: (url) => setState(
+              () => _error = modelClient.updateProviderAddress(p.id, url),
+            ),
           ),
         ],
         const SizedBox(height: 20),
@@ -2523,7 +2820,8 @@ class _ProviderEditorState extends State<_ProviderEditor> {
             for (final m in p.models) ...[
               _Row(
                 title: m.id,
-                desc: '${m.name.isEmpty ? '未设显示名' : m.name} · ${m.inputs.join(' / ')}',
+                desc:
+                    '${m.name.isEmpty ? '未设显示名' : m.name} · ${m.inputs.join(' / ')}',
                 value: m.contextWindow.isEmpty ? '默认容量' : m.contextWindow,
                 action: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2531,7 +2829,9 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                     _LinkText(
                       label: _expanded.contains(m) ? '收起' : '进阶',
                       onTap: () => setState(() {
-                        _expanded.contains(m) ? _expanded.remove(m) : _expanded.add(m);
+                        _expanded.contains(m)
+                            ? _expanded.remove(m)
+                            : _expanded.add(m);
                       }),
                     ),
                     const SizedBox(width: 10),
@@ -2549,22 +2849,49 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _InputRow(
+                        title: '模型 ID',
+                        hint: '端点模型标识',
+                        value: m.id,
+                        onChanged: (v) => setState(
+                          () =>
+                              _error = modelClient.updateModel(p.id, m, id: v),
+                        ),
+                      ),
+                      _InputRow(
                         title: '显示名',
                         hint: '留空用模型 ID',
                         value: m.name,
-                        onChanged: (v) => setState(() => m.name = v),
+                        onChanged: (v) => setState(
+                          () => _error = modelClient.updateModel(
+                            p.id,
+                            m,
+                            name: v,
+                          ),
+                        ),
                       ),
                       _InputRow(
                         title: '上下文窗口',
                         hint: '128K / 1M',
                         value: m.contextWindow,
-                        onChanged: (v) => setState(() => m.contextWindow = v),
+                        onChanged: (v) => setState(
+                          () => _error = modelClient.updateModel(
+                            p.id,
+                            m,
+                            contextWindow: v,
+                          ),
+                        ),
                       ),
                       _InputRow(
                         title: '最大输出',
                         hint: '8K / 64K',
                         value: m.maxTokens,
-                        onChanged: (v) => setState(() => m.maxTokens = v),
+                        onChanged: (v) => setState(
+                          () => _error = modelClient.updateModel(
+                            p.id,
+                            m,
+                            maxTokens: v,
+                          ),
+                        ),
                       ),
                       _Row(
                         title: '输入类型',
@@ -2572,7 +2899,11 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                           value: m.acceptsImage ? 1 : 0,
                           items: const ['文本', '文本 + 图片'],
                           onChanged: (i) => setState(() {
-                            m.inputs = i == 1 ? ['text', 'image'] : ['text'];
+                            _error = modelClient.updateModel(
+                              p.id,
+                              m,
+                              inputs: i == 1 ? ['text', 'image'] : ['text'],
+                            );
                           }),
                         ),
                       ),
@@ -2580,14 +2911,23 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                         title: '推理档位',
                         desc: '每档写入请求的推理强度字段',
                         action: _PillSegmented(
-                          value: m.reasoning.length > 1 ? 2 : (m.reasoning.isEmpty ? 0 : 1),
+                          value: m.reasoning.length > 1
+                              ? 2
+                              : (m.reasoning.isEmpty ? 0 : 1),
                           items: const ['关闭', '中', '中+高'],
                           onChanged: (i) => setState(() {
-                            m.reasoning = switch (i) {
-                              0 => [],
-                              1 => [OndraReasoningLevel.medium],
-                              _ => [OndraReasoningLevel.medium, OndraReasoningLevel.high],
-                            };
+                            _error = modelClient.updateModel(
+                              p.id,
+                              m,
+                              reasoning: switch (i) {
+                                0 => [],
+                                1 => [OndraReasoningLevel.medium],
+                                _ => [
+                                  OndraReasoningLevel.medium,
+                                  OndraReasoningLevel.high,
+                                ],
+                              },
+                            );
                           }),
                         ),
                         showDivider: false,
@@ -2599,10 +2939,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
             _Row(
               title: '添加模型',
               desc: '模型 ID 不能为空、不能重复',
-              action: _LinkText(
-                label: '添加',
-                onTap: () => setState(() => modelClient.addModel(p.id)),
-              ),
+              action: _LinkText(label: '添加', onTap: _addModel),
               showDivider: false,
             ),
           ],
@@ -2610,7 +2947,10 @@ class _ProviderEditorState extends State<_ProviderEditor> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 4),
-            child: Text(_error!, style: ondraText(11, color: OndraColor.danger, height: 16 / 11)),
+            child: Text(
+              _error!,
+              style: ondraText(11, color: OndraColor.danger, height: 16 / 11),
+            ),
           ),
         if (!p.builtIn) ...[
           const SizedBox(height: 20),
@@ -2619,9 +2959,14 @@ class _ProviderEditorState extends State<_ProviderEditor> {
               _Row(
                 title: '删除提供商',
                 desc: '会移除其配置和存储的 API 密钥',
-                onTap: () {
-                  modelClient.removeProvider(p.id);
-                  widget.onBack();
+                onTap: () async {
+                  final error = await modelClient.removeProvider(p.id);
+                  if (!mounted) return;
+                  if (error != null) {
+                    setState(() => _error = error);
+                  } else {
+                    widget.onBack();
+                  }
                 },
                 showDivider: false,
               ),
@@ -2641,9 +2986,10 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                 final preset = presetsOf(p.category)
                     .where((e) => e.baseUrl == p.baseUrl)
                     .firstOrNull;
-                final List<OndraModelEntry> catalog = (preset?.models ?? const [])
-                    .map((m) => m.toEntry())
-                    .toList();
+                final List<OndraModelEntry> catalog =
+                    (preset?.models ?? const [])
+                        .map((m) => m.toEntry())
+                        .toList();
                 modelClient.restoreCatalog(p.id, catalog);
               }),
               showDivider: false,
@@ -2652,7 +2998,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
         ),
         const SizedBox(height: 4),
         Text(
-          '改动即时写入 ~/.ondra/models.json；密钥写进系统钥匙串，文件里不出现。',
+          modelClient.persistenceError ?? '有效改动即时保存；密钥写进系统钥匙串，文件里不出现。',
           style: ondraText(11, color: s.ink30, height: 16 / 11),
         ),
       ],
@@ -2706,7 +3052,10 @@ class _InputRowState extends State<_InputRow> {
         children: [
           SizedBox(
             width: 84,
-            child: Text(widget.title, style: ondraText(13, color: s.ink80, height: 30 / 13)),
+            child: Text(
+              widget.title,
+              style: ondraText(13, color: s.ink80, height: 30 / 13),
+            ),
           ),
           Expanded(
             child: TextField(
@@ -2746,6 +3095,7 @@ class _TextPromptDialog extends StatefulWidget {
     this.maxLength = 200,
     this.minLines = 1,
     this.maxLines = 1,
+    this.obscure = false,
   });
 
   final String title;
@@ -2754,6 +3104,7 @@ class _TextPromptDialog extends StatefulWidget {
   final int maxLength;
   final int minLines;
   final int maxLines;
+  final bool obscure;
 
   @override
   State<_TextPromptDialog> createState() => _TextPromptDialogState();
@@ -2796,6 +3147,7 @@ class _TextPromptDialogState extends State<_TextPromptDialog> {
           autofocus: true,
           minLines: widget.minLines,
           maxLines: widget.maxLines,
+          obscureText: widget.obscure,
           cursorColor: OndraColor.accent,
           style: ondraText(13, color: s.ink, height: 20 / 13),
           decoration: InputDecoration(
@@ -2898,11 +3250,11 @@ class _AvatarEditorState extends State<_AvatarEditor> {
               children: [
                 _AvatarLink(label: '更换头像', onTap: _pick),
                 if (avatarStore.isCustom) ...[
-                  Text('  ·  ', style: ondraText(11, color: s.ink25, height: 1)),
-                  _AvatarLink(
-                    label: '恢复默认',
-                    onTap: () => avatarStore.reset(),
+                  Text(
+                    '  ·  ',
+                    style: ondraText(11, color: s.ink25, height: 1),
                   ),
+                  _AvatarLink(label: '恢复默认', onTap: () => avatarStore.reset()),
                 ],
               ],
             ),

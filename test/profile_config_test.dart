@@ -42,13 +42,21 @@ void main() {
 
   test('条目没有 config 块时插入一个，缩进与相邻条目一致', () {
     write(sample);
-    expect(writeProfileConfigField('privacy', 'approval-mode', 'supervised'), isTrue);
+    expect(
+      writeProfileConfigField('privacy', 'approval-mode', 'supervised'),
+      isTrue,
+    );
 
     final text = read();
-    expect(text, contains('    - id: ondra-privacy\n'
+    expect(
+      text,
+      contains(
+        '    - id: ondra-privacy\n'
         '      name: \'@ondra/cordis-plugin-ondra-privacy\'\n'
         '      config:\n'
-        '        approval-mode: supervised\n'));
+        '        approval-mode: supervised\n',
+      ),
+    );
     // 注释与别的条目一个字节不动。
     expect(text, contains('# ── L2 ──'));
     expect(text, contains('    - id: ondra-tts'));
@@ -104,6 +112,120 @@ void main() {
         rate: 0.25  # 原速偏快一点
 ''');
     expect(readProfileConfigField('tts', 'rate'), '0.25');
+  });
+
+  test('仅遍历 insert/group；managed route 的嵌套 JSON 与伪 id 原样保留', () {
+    const route = '''
+    - id: model-route
+      name: route
+      config: {"models": [{"id": "ondra-tts", "config": {"preset": "manual"}}]}
+    - id: nested-data
+      name: data
+      config:
+        items:
+          - id: ondra-tts
+            config:
+              preset: manual
+''';
+    write('''
+- insert:
+$route    - id: group
+      group: true
+      config:
+        - id: ondra-tts
+          name: tts
+          config:
+            preset: soft
+''');
+    expect(writeProfileConfigField('tts', 'preset', 'lively'), isTrue);
+    expect(read(), contains(route));
+    expect(read(), contains('            preset: lively'));
+  });
+
+  test('JSON config 仅改目标 token，不覆盖手工字段或嵌套对象', () {
+    const config =
+        '{"preset": "soft", "manual": {"preset":"keep", "text":"a, } b"}, "rate":0.25}';
+    write(
+      '- insert:\n    - id: ondra-tts\n      name: tts\n      config: $config\n',
+    );
+    expect(writeProfileConfigField('tts', 'preset', 'lively'), isTrue);
+    expect(read(), contains(config.replaceFirst('"soft"', '"lively"')));
+    expect(writeProfileConfigField('tts', 'enable', false), isTrue);
+    expect(readProfileConfigField('tts', 'enable'), 'false');
+    expect(writeProfileConfigField('tts', 'rate', null), isTrue);
+    expect(readProfileConfigField('tts', 'rate'), isNull);
+    expect(read(), contains('"manual": {"preset":"keep", "text":"a, } b"}'));
+  });
+
+  test('引用/嵌套/重复字段不被破坏，失败报告原因', () {
+    for (final config in [
+      '        preset: &voice soft\n',
+      '        preset:\n          manual: soft\n',
+      '        preset: soft\n        preset: lively\n',
+    ]) {
+      write(
+        '- insert:\n    - id: ondra-tts\n      name: tts\n      config:\n$config',
+      );
+      final before = read();
+      final result = writeProfileConfigFieldResult(
+        'tts',
+        'preset',
+        'broadcast',
+      );
+      expect(result.ok, isFalse);
+      expect(result.error, isNotEmpty);
+      expect(read(), before);
+    }
+  });
+
+  test('空行/行尾注释/CRLF 不截断 config 或丢失手工内容', () {
+    const text =
+        '- insert:\r\n'
+        '    - id: "ondra-tts" # id\r\n'
+        '      name: tts\r\n'
+        '      config: # keep\r\n'
+        '        preset: soft  # voice\r\n'
+        '\r\n'
+        '        manual: 42\r\n'
+        '    - id: other\r\n'
+        '      name: other';
+    write(text);
+    expect(writeProfileConfigField('tts', 'preset', 'lively'), isTrue);
+    expect(read(), text.replaceFirst('preset: soft', 'preset: lively'));
+    expect(writeProfileConfigField('tts', 'rate', 0.1), isTrue);
+    expect(readProfileConfigField('tts', 'manual'), '42');
+  });
+
+  test('禁用条目/禁用组/只读 profile 拒绝写入而不偷偷启用', () {
+    for (final source in [
+      '- insert:\n    - id: ondra-tts\n      name: tts\n      disabled: true\n',
+      '- insert:\n# ondra-plugin-off:     - id: ondra-tts\n# ondra-plugin-off:       name: tts\n',
+      '- insert:\n    # - id: ondra-tts\n    #   name: tts\n',
+      '- insert:\n    - id: group\n      group: true\n      disabled: true\n      config:\n        - id: ondra-tts\n          name: tts\n',
+    ]) {
+      write(source);
+      final result = writeProfileConfigFieldResult('tts', 'enable', true);
+      expect(result.ok, isFalse);
+      expect(result.error, contains('禁用'));
+      expect(read(), source);
+    }
+    write(sample);
+    expect(Process.runSync('chmod', ['444', patch.path]).exitCode, 0);
+    final result = writeProfileConfigFieldResult('tts', 'preset', 'lively');
+    expect(result.ok, isFalse);
+    expect(result.error, contains('只读'));
+    expect(read(), sample);
+    Process.runSync('chmod', ['600', patch.path]);
+  });
+
+  test('真实 profile 快照可以逐项配置，保留其余结构', () {
+    // fixture 只读，所有修改只发生在临时目录。
+    final fixture = File(
+      '${Directory.current.path}/plugin-profile/cordis.patch.yml',
+    );
+    write(fixture.readAsStringSync());
+    expect(writeProfileConfigFieldResult('tts', 'preset', 'lively').ok, isTrue);
+    expect(readProfileConfigField('tts', 'preset'), 'lively');
   });
 
   test('第一次修改留一份 .bak，后来的修改不覆盖它', () {
