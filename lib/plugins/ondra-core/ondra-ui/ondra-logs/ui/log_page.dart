@@ -23,9 +23,11 @@ LogEntriesLoader logEntriesLoader = loadLogEntries;
 /// 480 宽的内容区放不下「时间 + 级别 + 来源 + 正文」四列，所以时间压成
 /// 52 宽的窄列、级别收成标题前的一个点、来源做成标题旁的小标签。
 class LogPage extends StatefulWidget {
-  const LogPage({super.key, required this.kind});
+  const LogPage({super.key, required this.kind, this.loader, this.settings});
 
   final LogKind kind;
+  final LogEntriesLoader? loader;
+  final SettingsClient? settings;
 
   @override
   State<LogPage> createState() => _LogPageState();
@@ -42,25 +44,78 @@ class _LogPageState extends State<LogPage> {
   /// 加载完成前不下「没有日志」的结论：那会让一个 200ms 的读取
   /// 看起来像「这里什么都没有」。
   bool _loaded = false;
+  bool _loading = false;
+  String? _error;
+  int _generation = 0;
+  late String _density;
+
+  SettingsClient get _settings => widget.settings ?? settingsClient;
 
   @override
   void initState() {
     super.initState();
+    _density = _settings.choice('logs.usageDetail');
+    _settings.addListener(_settingsChanged);
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant LogPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldSettings = oldWidget.settings ?? settingsClient;
+    if (oldSettings != _settings) {
+      oldSettings.removeListener(_settingsChanged);
+      _settings.addListener(_settingsChanged);
+    }
+    final density = _settings.choice('logs.usageDetail');
+    if (oldWidget.kind != widget.kind ||
+        oldWidget.loader != widget.loader ||
+        density != _density) {
+      _density = density;
+      _all = const [];
+      _loaded = false;
+      _load();
+    }
+  }
+
+  void _settingsChanged() {
+    final density = _settings.choice('logs.usageDetail');
+    if (density == _density) return;
+    _density = density;
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_settingsChanged);
+    _generation++;
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    // 「性能与用量」的分段真的决定读多少：简洁档 60 行、详细档 200 行。
-    // 之前这个开关只写 prefs 没人消费，切了档页面纹丝不动。
-    final maxLines = settingsClient.choice('logs.usageDetail') == 'compact'
-        ? 60
-        : 200;
-    final entries = await logEntriesLoader(widget.kind, maxLines: maxLines);
-    if (!mounted) return;
+    final generation = ++_generation;
     setState(() {
-      _all = entries;
-      _loaded = true;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final entries = await (widget.loader ?? logEntriesLoader)(
+        widget.kind,
+        maxLines: _density == 'compact' ? 60 : 200,
+      );
+      if (!mounted || generation != _generation) return;
+      setState(() => _all = entries);
+    } catch (e) {
+      if (!mounted || generation != _generation) return;
+      setState(() => _error = '读取日志失败：$e');
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() {
+          _loaded = true;
+          _loading = false;
+        });
+      }
+    }
   }
 
   List<LogEntry> get _entries {
@@ -76,6 +131,7 @@ class _LogPageState extends State<LogPage> {
     return OndraPage(
       title: widget.kind.title,
       subtitle: widget.kind.subtitle,
+      actions: [TextButton(onPressed: _load, child: const Text('刷新'))],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -97,7 +153,11 @@ class _LogPageState extends State<LogPage> {
             ],
           ),
           const SizedBox(height: 14),
-          if (entries.isEmpty)
+          if (_loading && _loaded)
+            Text('正在刷新…', style: ondraText(12, color: s.ink40)),
+          if (_error != null)
+            Text(_error!, style: ondraText(12, color: OndraColor.danger)),
+          if (entries.isEmpty && _error == null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Column(
@@ -107,7 +167,10 @@ class _LogPageState extends State<LogPage> {
                     style: ondraText(13, color: s.ink40),
                   ),
                   const SizedBox(height: 4),
-                  Text(widget.kind.emptyHint, style: ondraText(11, color: s.ink25)),
+                  Text(
+                    widget.kind.emptyHint,
+                    style: ondraText(11, color: s.ink25),
+                  ),
                 ],
               ),
             )
@@ -119,7 +182,7 @@ class _LogPageState extends State<LogPage> {
           const SizedBox(height: 18),
           // 性能与用量放日志页底部：它决定的是「日志里显示多少」，属于这一页
           // 的显示密度，不是全局偏好——按官方应用的口径，默认「详细」。
-          const _UsageBar(),
+          _UsageBar(settings: _settings),
         ],
       ),
     );
@@ -166,8 +229,11 @@ class _LogRowState extends State<_LogRow> {
                 maxLines: 1,
                 softWrap: false,
                 // 等宽数字：时间列不抖，扫读时才顺。
-                style: ondraText(11, color: s.ink40, height: 18 / 11)
-                    .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                style: ondraText(
+                  11,
+                  color: s.ink40,
+                  height: 18 / 11,
+                ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
               ),
             ),
             const SizedBox(width: 8),
@@ -209,6 +275,31 @@ class _LogRowState extends State<_LogRow> {
                       style: ondraText(12, color: s.ink60, height: 17 / 12),
                     ),
                   ],
+                  TextButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('日志全文'),
+                        content: SizedBox(
+                          width: 560,
+                          child: SingleChildScrollView(
+                            child: SelectableText(
+                              '${e.time} · ${e.level.label}'
+                              '${e.tag == null ? '' : ' · ${e.tag}'}\n\n'
+                              '${e.title}${e.detail.isEmpty ? '' : '\n${e.detail}'}',
+                            ),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('关闭'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    child: const Text('查看全文'),
+                  ),
                 ],
               ),
             ),
@@ -235,23 +326,28 @@ class _Tag extends StatelessWidget {
         color: s.fill,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: ondraText(11, color: s.ink45, height: 18 / 11)),
+      child: Text(
+        label,
+        style: ondraText(11, color: s.ink45, height: 18 / 11),
+      ),
     );
   }
 }
 
 /// 日志页底部的「性能与用量」条：左侧说明，右侧两档分段。
 class _UsageBar extends StatelessWidget {
-  const _UsageBar();
+  const _UsageBar({required this.settings});
+
+  final SettingsClient settings;
 
   @override
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
     final spec = ondraSettingSpec('logs.usageDetail');
     return AnimatedBuilder(
-      animation: settingsClient,
+      animation: settings,
       builder: (context, _) {
-        final current = settingsClient.choice('logs.usageDetail');
+        final current = settings.choice('logs.usageDetail');
         final index = spec.options.indexWhere((o) => o.value == current);
         return Padding(
           padding: const EdgeInsets.only(top: 10),
@@ -263,7 +359,12 @@ class _UsageBar extends StatelessWidget {
                   children: [
                     Text(
                       spec.label,
-                      style: ondraText(12, weight: 500, color: s.ink80, height: 16 / 12),
+                      style: ondraText(
+                        12,
+                        weight: 500,
+                        color: s.ink80,
+                        height: 16 / 12,
+                      ),
                     ),
                     const SizedBox(height: 1),
                     Text(
@@ -279,7 +380,8 @@ class _UsageBar extends StatelessWidget {
               _UsageSegmented(
                 value: index < 0 ? 1 : index,
                 items: [for (final o in spec.options) o.label],
-                onChanged: (i) => settingsClient.set('logs.usageDetail', spec.options[i].value),
+                onChanged: (i) =>
+                    settings.set('logs.usageDetail', spec.options[i].value),
               ),
             ],
           ),

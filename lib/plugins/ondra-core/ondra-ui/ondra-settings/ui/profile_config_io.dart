@@ -1,264 +1,484 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../../../../../app/home_dir.dart';
 
-/// 内核配置的**真实落点**：profile 装配层 `cordis.patch.yml` 的条目 `config` 块。
-///
-/// ## 为什么不是 `settings.json`
-///
-/// 2026-11-19 对着内核源码核过：发行版里没有任何模块读
-/// `$DSH_HOME/settings.json`（grep 全树只命中无关的 pi-ai 工具）。
-/// 内核的配置真源是 **profile patch**：装配时按条目的 `config` 传给
-/// `apply(ctx, config)`，插件再用 `schema.resolve(section, {user: config})`
-/// 做四层合并。所以「设置页拨了一个开关」要真的生效，就得改这里。
-///
-/// ## 生效时机
-///
-/// 内核在**进程启动**时读装配层（没有文件 watcher）。写完的改动在
-/// 下一次内核重启后生效——「换默认模型」本来就会重启子进程，其余项要等
-/// 下一次启动。
-///
-/// ## 为什么是行级编辑而不是 YAML 库
-///
-/// 装配层是内核唯一入口，且里面全是人写的注释（「为什么这个插件必须排在
-/// 前面」这类）。过一遍 YAML 库再序列化会把注释全部丢掉。行级编辑只动
-/// 目标那几行，别的一个字节都不碰。
-///
-/// ## 安全网
-///
-/// - 改之前留一份 `.bak`（与插件开关同一个约定），改坏了有回头路；
-/// - 先写临时文件再 rename（原子写），中途被杀不会留下半个文件；
-/// - 找不到条目就返回 false，**不新建条目**——猜错 id 插一个条目会让装配
-///   层多出一个指向不存在插件的行，那是启动级的故障。
+/// 只沿 patch.insert / group.config 遍历插件。普通 config（包括 managed
+/// model route 的嵌套 JSON）是不透明的数据，绝不把里面的 id/config 当插件。
 String? readProfileConfigField(String section, String key) {
-  final file = _patchFile();
-  if (!file.existsSync()) return null;
-  final List<String> lines;
   try {
-    lines = file.readAsLinesSync();
+    final document = _Document(_patchFile().readAsStringSync());
+    final entry = document.entry(section);
+    final config = entry.fields['config'];
+    if (config == null) return null;
+    if (_value(config.value).startsWith('{')) {
+      final data = jsonDecode(_value(config.value)) as Map;
+      final value = data[key];
+      return value == null ? null : '$value';
+    }
+    final fields = document.configFields(entry, config);
+    final field = fields[key];
+    return field == null ? null : _scalar(field.value);
   } catch (_) {
     return null;
   }
-  final block = _entryBlock(lines, section);
-  if (block == null) return null;
-  final config = _configBlock(lines, block);
-  if (config == null) return null;
-  final found = _findField(lines, config, key);
-  if (found == null) return null;
-  return _scalarOf(lines[found.valueLine]);
 }
 
-/// 写一个字段。返回是否真的落盘。
-///
-/// [value] 为 null 表示删除该字段（整段空了就把 `config:` 行也去掉）。
-bool writeProfileConfigField(String section, String key, Object? value) {
-  final file = _patchFile();
-  if (!file.existsSync()) return false;
-  final List<String> lines;
+/// 兼容旧调用点；需要错误原因与待重启状态时用详细结果。
+bool writeProfileConfigField(String section, String key, Object? value) =>
+    writeProfileConfigFieldResult(section, key, value).ok;
+
+/// ok 只表示配置已落盘，不表示运行中的内核已采用它。
+({bool ok, bool changed, String? error}) writeProfileConfigFieldResult(
+  String section,
+  String key,
+  Object? value,
+) {
+  File? temporary;
   try {
-    lines = file.readAsLinesSync();
-  } catch (_) {
-    return false;
-  }
-  final block = _entryBlock(lines, section);
-  if (block == null) return false;
-
-  final next = List<String>.from(lines);
-  final config = _configBlock(next, block);
-  final fieldIndent = config == null ? '${block.itemIndent}  ' : config.fieldIndent;
-
-  if (config == null) {
-    if (value == null) return true; // 没有 config 块，删一个不存在的字段＝已经是对的。
-    // 在条目块末尾（下一个同级/更浅缩进之前）插入 config 块。
-    final insertAt = block.end;
-    next.insertAll(insertAt, [
-      '${block.itemIndent}config:',
-      '$fieldIndent$key: ${_encode(value)}',
-    ]);
-  } else {
-    final found = _findField(next, config, key);
-    if (value == null) {
-      if (found == null) return true;
-      next.removeAt(found.valueLine);
-      // 删完如果是空的（config 下没有别的字段），连 config: 行一起删。
-      final stillHasField = _findAnyField(next, config);
-      if (!stillHasField) next.removeAt(config.headerLine);
-    } else if (found == null) {
-      next.insert(config.end, '$fieldIndent$key: ${_encode(value)}');
-    } else {
-      next[found.valueLine] = '$fieldIndent$key: ${_encode(value)}';
+    if (!RegExp(r'^[a-z][a-z0-9-]*$').hasMatch(key)) {
+      throw const FormatException('配置字段名无效');
+    }
+    final file = _patchFile();
+    if (!file.existsSync()) throw const FormatException('profile 尚未初始化或不存在');
+    if (FileSystemEntity.isLinkSync(file.path)) {
+      throw const FormatException('profile 是符号链接，拒绝替换');
+    }
+    // rename 能绕过只读文件的 mode；必须在替换前显式尊重它。
+    if (file.statSync().mode & 0x92 == 0 ||
+        file.parent.statSync().mode & 0x92 == 0) {
+      throw const FormatException('profile 或所在目录只读');
+    }
+    final before = file.readAsStringSync();
+    final document = _Document(before);
+    final entry = document.entry(section);
+    if (entry.disabled) throw FormatException('条目 ondra-$section 已禁用（或所属组已禁用）');
+    document.write(entry, key, value);
+    final after = document.render();
+    if (after == before) return (ok: true, changed: false, error: null);
+    // 同步区间内也检查外部编辑；不覆盖另一位编辑者已经写入的版本。
+    if (file.readAsStringSync() != before) {
+      throw const FormatException('profile 已被其他操作修改，请重试');
+    }
+    final backup = File('${file.path}.bak');
+    if (!backup.existsSync()) file.copySync(backup.path);
+    // 从原文件复制，保留原有权限，不把私有配置变成全局可读。
+    temporary = File(
+      '${file.path}.settings-$pid-${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
+    file.copySync(temporary.path);
+    temporary.writeAsStringSync(after, flush: true);
+    if (file.readAsStringSync() != before) {
+      throw const FormatException('profile 已被其他操作修改，请重试');
+    }
+    temporary.renameSync(file.path);
+    return (ok: true, changed: true, error: null);
+  } catch (e) {
+    return (ok: false, changed: false, error: '配置未保存：$e');
+  } finally {
+    try {
+      if (temporary != null && temporary.existsSync()) temporary.deleteSync();
+    } catch (_) {
+      // 清理失败不能覆盖原来的可读错误结果。
     }
   }
-
-  return _commit(file, next);
 }
 
-// ── 定位 ────────────────────────────────────────────────────────────────────
+const _off = '# ondra-plugin-off: ';
+int _indent(String text) => text.length - text.trimLeft().length;
+bool _empty(String text) =>
+    text.trim().isEmpty || text.trimLeft().startsWith('#');
+String _value(String text) =>
+    text.trimLeft().startsWith('#') ? '' : text.trim();
+Never _reject(String message) => throw FormatException('装配层无法安全编辑：$message');
 
-/// 一个条目块：[start, end) 是行号范围，[itemIndent] 是 `- id:` 前的缩进。
-class _Block {
-  const _Block({required this.start, required this.end, required this.itemIndent});
-  final int start;
-  final int end;
-  final String itemIndent;
+String _scalar(String text) {
+  final value = text.trim();
+  final quoted = RegExp(r'''^('(?:[^']|'')*'|"(?:[^"\\]|\\.)*")\s*(?:#.*)?$''')
+      .firstMatch(value);
+  if (quoted != null) {
+    final token = quoted[1]!;
+    return token.startsWith("'")
+        ? token.substring(1, token.length - 1).replaceAll("''", "'")
+        : jsonDecode(token) as String;
+  }
+  return value.split(RegExp(r'\s+#')).first.trim();
 }
 
-class _ConfigBlock {
-  const _ConfigBlock({
-    required this.headerLine,
-    required this.end,
-    required this.fieldIndent,
-  });
-
-  /// `config:` 那一行。
-  final int headerLine;
-
-  /// 块结束（不含）。
-  final int end;
-
-  /// 字段行的缩进（`config:` 缩进 + 2 空格，按文件里实际的写法）。
-  final String fieldIndent;
+class _Line {
+  _Line(this.text, this.eol);
+  String text;
+  final String eol;
+  String get logical =>
+      text.startsWith(_off) ? text.substring(_off.length) : text;
 }
 
 class _Field {
-  const _Field({required this.valueLine});
-  final int valueLine;
+  _Field(this.line, this.end, this.value);
+  final int line;
+  int end;
+  final String value;
 }
 
-/// 找 `- id: ondra-<section>` 条目。section 是内核段 id（如 `privacy`），
-/// 条目 id 是 `ondra-<section>`——两条侧的命名约定见 LAYOUT.md。
-_Block? _entryBlock(List<String> lines, String section) {
-  final wanted = 'ondra-$section';
-  final idPattern = RegExp(r'^(\s*)-\s+id:\s*(\S+)\s*$');
-  for (var i = 0; i < lines.length; i++) {
-    final m = idPattern.firstMatch(lines[i]);
-    if (m == null) continue;
-    if (m.group(2) != wanted) continue;
-    final indent = m.group(1) ?? '';
-    // 块到下一个缩进 <= 条目缩进的非空行为止。
-    var end = i + 1;
-    while (end < lines.length) {
-      final line = lines[end];
-      if (line.trim().isEmpty) {
-        end++;
+class _Entry {
+  _Entry(
+    this.id,
+    this.start,
+    this.end,
+    this.indent,
+    this.fields,
+    this.disabled,
+  );
+  final String id;
+  final int start;
+  final int end;
+  final int indent;
+  final Map<String, _Field> fields;
+  final bool disabled;
+}
+
+class _Document {
+  _Document(String source) {
+    for (final m in RegExp(r'([^\r\n]*)(\r\n|\n|\r|$)').allMatches(source)) {
+      if (m[0]!.isNotEmpty) lines.add(_Line(m[1]!, m[2]!));
+    }
+    logical = lines.map((line) => line.logical).toList();
+    // 旧版注释开关只在结构树内被识别，普通 config 的内容永远不递归。
+    for (var i = 0; i < logical.length; i++) {
+      final m = RegExp(r'^( *)# - id:').firstMatch(logical[i]);
+      if (m == null) continue;
+      final base = m[1]!;
+      logical[i] = '$base${logical[i].substring(base.length + 2)}';
+      commented.add(i);
+      for (var j = i + 1; j < logical.length; j++) {
+        if (logical[j].startsWith('$base#   ')) {
+          logical[j] = '$base${logical[j].substring(base.length + 2)}';
+        } else if (!_empty(logical[j]) && _indent(logical[j]) <= base.length) {
+          break;
+        }
+      }
+    }
+    _sequence(0, lines.length, 0, (start, end) {
+      final fields = _fields(start, end, 2, firstSequence: true);
+      if (fields.keys.any(
+        (key) => !{'insert', 'before', 'after'}.contains(key),
+      )) {
+        _reject('存在覆盖补丁，无法确定最终配置');
+      }
+      final insert = fields['insert'];
+      if (insert == null) _reject('只支持 insert 补丁');
+      if (_value(insert.value) == '[]') return;
+      if (_value(insert.value).isNotEmpty) _reject('insert 必须是块式列表');
+      final child = _first(insert.line + 1, insert.end);
+      if (child != null) {
+        _entries(child, insert.end, _indent(logical[child]), false);
+      }
+    });
+  }
+
+  final lines = <_Line>[];
+  late final List<String> logical;
+  final commented = <int>{};
+  final entries = <String, _Entry>{};
+  String get eol => lines
+      .map((l) => l.eol)
+      .firstWhere((s) => s.isNotEmpty, orElse: () => '\n');
+  String render() => lines.map((l) => '${l.text}${l.eol}').join();
+
+  int? _first(int start, int end) {
+    for (var i = start; i < end; i++) {
+      if (!_empty(logical[i])) return i;
+    }
+    return null;
+  }
+
+  void _sequence(
+    int start,
+    int end,
+    int indent,
+    void Function(int, int) visit,
+  ) {
+    var i = _first(start, end);
+    while (i != null) {
+      if (_indent(logical[i]) != indent ||
+          !logical[i].substring(indent).startsWith('- ')) {
+        _reject('第 ${i + 1} 行不是预期层级的列表');
+      }
+      var next = i + 1;
+      while (next < end &&
+          (_empty(logical[next]) || _indent(logical[next]) > indent)) {
+        next++;
+      }
+      var ownedEnd = next;
+      while (ownedEnd > i + 1 && _empty(logical[ownedEnd - 1])) {
+        ownedEnd--;
+      }
+      visit(i, ownedEnd);
+      i = _first(next, end);
+    }
+  }
+
+  Map<String, _Field> _fields(
+    int start,
+    int end,
+    int indent, {
+    bool firstSequence = false,
+  }) {
+    final fields = <String, _Field>{};
+    _Field? previous;
+    for (var i = start; i < end; i++) {
+      var text = logical[i];
+      if (_empty(text)) continue;
+      if (i == start && firstSequence) {
+        text = text.substring(indent);
+      } else {
+        if (_indent(text) > indent) continue;
+        if (_indent(text) != indent) _reject('第 ${i + 1} 行缩进无效');
+        text = text.substring(indent);
+      }
+      final m = RegExp(r'^([a-zA-Z][\w-]*):(?:\s+(.*))?$').firstMatch(text);
+      if (m == null) _reject('第 ${i + 1} 行字段格式不受支持');
+      if (fields.containsKey(m[1])) _reject('重复字段 ${m[1]}');
+      previous?.end = i;
+      fields[m[1]!] = previous = _Field(i, end, m[2] ?? '');
+    }
+    return fields;
+  }
+
+  void _entries(int start, int end, int indent, bool parentDisabled) {
+    if (indent < 2) _reject('条目缩进无效');
+    _sequence(start, end, indent, (start, end) {
+      final fields = _fields(start, end, indent + 2, firstSequence: true);
+      final idField = fields['id'];
+      if (idField == null) _reject('条目缺少 id');
+      final id = _scalar(idField.value);
+      if (entries.containsKey(id)) _reject('重复条目 $id');
+      final group = _scalar(fields['group']?.value ?? '') == 'true';
+      if (!group && fields['name'] == null) _reject('$id 缺少包名');
+      final disabled =
+          parentDisabled ||
+          lines[start].text.startsWith(_off) ||
+          commented.contains(start) ||
+          (fields['disabled'] != null &&
+              _scalar(fields['disabled']!.value) != 'false');
+      entries[id] = _Entry(id, start, end, indent, fields, disabled);
+      if (group) {
+        final config = fields['config'];
+        if (config == null || _value(config.value) == '[]') return;
+        if (_value(config.value).isNotEmpty) _reject('group.config 必须是块式列表');
+        final child = _first(config.line + 1, config.end);
+        if (child != null) {
+          _entries(child, config.end, _indent(logical[child]), disabled);
+        }
+      }
+    });
+  }
+
+  _Entry entry(String section) =>
+      entries['ondra-$section'] ??
+      (throw FormatException('缺少条目 ondra-$section（可能被手动注释）'));
+
+  Map<String, _Field> configFields(_Entry entry, _Field config) {
+    if (_value(config.value).isNotEmpty) {
+      _reject('${entry.id}.config 不是块式映射或 JSON 对象');
+    }
+    final first = _first(config.line + 1, config.end);
+    if (first == null) return {};
+    final indent = _indent(logical[first]);
+    if (indent <= entry.indent + 2) _reject('config 缩进无效');
+    return _fields(first, config.end, indent);
+  }
+
+  void _insert(int index, List<String> text) {
+    if (index > 0 && lines[index - 1].eol.isEmpty) {
+      lines[index - 1] = _Line(lines[index - 1].text, eol);
+    }
+    lines.insertAll(index, text.map((s) => _Line(s, eol)));
+  }
+
+  void write(_Entry entry, String key, Object? value) {
+    if (_scalar(entry.fields['group']?.value ?? '') == 'true') {
+      _reject('目标是插件组');
+    }
+    final config = entry.fields['config'];
+    final propertyIndent = ' ' * (entry.indent + 2);
+    if (config == null) {
+      if (value != null) {
+        _insert(entry.end, [
+          '$propertyIndent'
+              'config:',
+          '$propertyIndent  $key: ${_encode(value)}',
+        ]);
+      }
+      return;
+    }
+    if (_value(config.value).startsWith('{')) {
+      final old = lines[config.line];
+      final start = old.text.indexOf('{', old.text.indexOf(':') + 1);
+      final end = old.text.lastIndexOf('}') + 1;
+      // JSON 顶层 token 范围替换；未被管理的键/嵌套结构保持逐字节不变。
+      final edited = _editJson(_value(config.value), key, value);
+      lines[config.line] = _Line(
+        old.text.replaceRange(start, end, edited),
+        old.eol,
+      );
+      return;
+    }
+    final fields = configFields(entry, config);
+    final field = fields[key];
+    if (field != null) {
+      // 不能将人的嵌套结构/锚点覆盖成一个标量。
+      final token = _value(field.value);
+      if (token.isEmpty ||
+          RegExp(r'^[\[\]{&*!|>]').hasMatch(token) ||
+          _first(field.line + 1, field.end) != null) {
+        _reject('$key 不是可替换的单行标量');
+      }
+      if (value == null) {
+        lines.removeAt(field.line);
+        if (fields.length == 1) lines.removeAt(config.line);
+      } else if (_scalar(field.value) != '$value') {
+        final old = lines[field.line];
+        final comment = _inlineComment(field.value);
+        final indent = ' ' * _indent(old.text);
+        lines[field.line] = _Line(
+          '$indent$key: ${_encode(value)}$comment',
+          old.eol,
+        );
+      }
+    } else if (value != null) {
+      final indent = fields.isEmpty
+          ? entry.indent + 4
+          : _indent(logical[fields.values.first.line]);
+      _insert(config.end, ['${' ' * indent}$key: ${_encode(value)}']);
+    }
+  }
+}
+
+String _inlineComment(String value) {
+  var quote = '';
+  for (var i = 0; i < value.length; i++) {
+    final c = value[i];
+    if (quote.isNotEmpty) {
+      if (c == '\\' && quote == '"') {
+        i++;
         continue;
       }
-      final leading = line.length - line.trimLeft().length;
-      if (leading <= indent.length) break;
-      end++;
-    }
-    return _Block(start: i, end: end, itemIndent: '$indent  ');
-  }
-  return null;
-}
-
-/// 条目块里的 `config:` 行。
-_ConfigBlock? _configBlock(List<String> lines, _Block block) {
-  final pattern = RegExp(r'^(\s*)config:\s*$');
-  for (var i = block.start + 1; i < block.end; i++) {
-    final m = pattern.firstMatch(lines[i]);
-    if (m == null) continue;
-    final headerIndent = m.group(1) ?? '';
-    var end = i + 1;
-    while (end < block.end) {
-      final line = lines[end];
-      if (line.trim().isEmpty) break;
-      final leading = line.length - line.trimLeft().length;
-      if (leading <= headerIndent.length) break;
-      end++;
-    }
-    return _ConfigBlock(
-      headerLine: i,
-      end: end,
-      fieldIndent: '$headerIndent  ',
-    );
-  }
-  return null;
-}
-
-/// 在一个块里找 `key:` 行（只认顶层字段，不认嵌套）。
-_Field? _findField(List<String> lines, _ConfigBlock config, String key) {
-  final pattern = RegExp('^(\\s*)${RegExp.escape(key)}:');
-  for (var i = config.headerLine + 1; i < config.end; i++) {
-    final line = lines[i];
-    final m = pattern.firstMatch(line);
-    if (m == null) continue;
-    // 只认字段缩进这一层：更深的缩进属于上一字段的嵌套值。
-    if (m.group(1) != config.fieldIndent) continue;
-    return _Field(valueLine: i);
-  }
-  return null;
-}
-
-bool _findAnyField(List<String> lines, _ConfigBlock config) {
-  for (var i = config.headerLine + 1; i < config.end; i++) {
-    final line = lines[i];
-    if (line.trim().isEmpty) continue;
-    final leading = line.length - line.trimLeft().length;
-    if (leading < config.fieldIndent.length) continue;
-    if (line.trimLeft().startsWith('- ')) continue;
-    return true;
-  }
-  return false;
-}
-
-/// 从 `    key: value` 里取 value（去引号）。
-///
-/// 顺序很重要：**先认引号整体**，再去行尾注释。反过来的话，值本身含
-/// ` #`（`'a: b # c'`）会被截成 `'a: b`——引号缺一半，值就废了。
-String? _scalarOf(String line) {
-  final idx = line.indexOf(':');
-  if (idx < 0) return null;
-  final v = line.substring(idx + 1).trim();
-  if (v.isEmpty) return null;
-  if (v.length >= 2) {
-    if (v.startsWith("'") && v.endsWith("'")) {
-      return v.substring(1, v.length - 1).replaceAll("''", "'");
-    }
-    if (v.startsWith('"') && v.endsWith('"')) {
-      return v.substring(1, v.length - 1);
+      if (c == quote) quote = '';
+    } else if (c == '"' || c == "'") {
+      quote = c;
+    } else if (c == '#' && i > 0 && value[i - 1].trim().isEmpty) {
+      return '  ${value.substring(i)}';
     }
   }
-  // 行尾注释（` 0.25  # 说明`）不算值。
-  final hash = v.indexOf(' #');
-  return hash > 0 ? v.substring(0, hash).trim() : v;
+  return '';
 }
 
-// ── 序列化与落盘 ────────────────────────────────────────────────────────────
-
-/// 把 Dart 值写成 YAML 标量。字符串只在必要时加单引号。
 String _encode(Object value) {
   if (value is bool || value is num) return '$value';
   final text = '$value';
-  if (text.isEmpty) return "''";
-  final needsQuote = RegExp(r'''[:#\[\]{}&*!|>'"%@`,]''').hasMatch(text) ||
-      text.trim() != text ||
-      RegExp(r'^(true|false|null|~|\d)').hasMatch(text);
-  if (!needsQuote) return text;
+  if (RegExp(r'^[a-zA-Z][a-zA-Z0-9_-]*$').hasMatch(text) &&
+      !{
+        'true',
+        'false',
+        'null',
+        'yes',
+        'no',
+        'on',
+        'off',
+      }.contains(text.toLowerCase())) {
+    return text;
+  }
+  if (text.contains('\n') || text.contains('\r')) return jsonEncode(text);
   return "'${text.replaceAll("'", "''")}'";
 }
 
-bool _commit(File file, List<String> next) {
-  try {
-    // 第一次改之前留一份原样：装配层是内核唯一入口，改坏了要有回头路。
-    final backup = File('${file.path}.bak');
-    if (!backup.existsSync()) file.copySync(backup.path);
-    final tmp = File('${file.path}.tmp');
-    tmp.writeAsStringSync('${next.join('\n')}\n');
-    tmp.renameSync(file.path);
-    return true;
-  } catch (_) {
-    return false;
+String _editJson(String source, String key, Object? value) {
+  final decoded = jsonDecode(source);
+  if (decoded is! Map<String, dynamic>) _reject('config 不是 JSON 对象');
+  // jsonDecode 验证语法，扫描器只负责记录顶层 token 边界（不重序列化其他字段）。
+  final fields = <({String key, int start, int valueStart, int end})>[];
+  var i = 1;
+  void whitespace() {
+    while (i < source.length && source[i].trim().isEmpty) {
+      i++;
+    }
   }
+
+  int stringEnd(int start) {
+    var j = start + 1;
+    while (j < source.length) {
+      if (source[j] == '\\') {
+        j += 2;
+        continue;
+      }
+      if (source[j++] == '"') return j;
+    }
+    _reject('JSON 字符串未闭合');
+  }
+
+  whitespace();
+  while (source[i] != '}') {
+    final start = i;
+    final endKey = stringEnd(i);
+    final name = jsonDecode(source.substring(i, endKey)) as String;
+    if (fields.any((f) => f.key == name)) _reject('重复 JSON 字段 $name');
+    i = endKey;
+    whitespace();
+    i++;
+    whitespace();
+    final valueStart = i;
+    var depth = 0;
+    while (i < source.length) {
+      final c = source[i];
+      if (c == '"') {
+        i = stringEnd(i);
+        continue;
+      }
+      if (depth == 0 && (c == ',' || c == '}')) break;
+      if (c == '{' || c == '[') depth++;
+      if (c == '}' || c == ']') depth--;
+      i++;
+    }
+    var end = i;
+    while (source[end - 1].trim().isEmpty) {
+      end--;
+    }
+    fields.add((key: name, start: start, valueStart: valueStart, end: end));
+    if (source[i] == ',') {
+      i++;
+      whitespace();
+    } else {
+      break;
+    }
+  }
+  final index = fields.indexWhere((f) => f.key == key);
+  if (index < 0) {
+    if (value == null) return source;
+    return source.replaceRange(
+      i,
+      i,
+      '${fields.isEmpty ? '' : ', '}${jsonEncode(key)}: ${jsonEncode(value)}',
+    );
+  }
+  final field = fields[index];
+  if (value != null) {
+    if (decoded[key] is Map || decoded[key] is List) _reject('$key 是手工嵌套字段');
+    if (decoded[key] == value) return source;
+    return source.replaceRange(field.valueStart, field.end, jsonEncode(value));
+  }
+  if (fields.length == 1) {
+    return source.replaceRange(field.start, field.end, '');
+  }
+  if (index + 1 < fields.length) {
+    return source.replaceRange(field.start, fields[index + 1].start, '');
+  }
+  return source.replaceRange(fields[index - 1].end, field.end, '');
 }
 
-/// **仅测试用**：把装配层指到临时文件，免得测试改到真机上的 profile。
-/// 生产代码永不赋值。
+/// 仅测试用：所有写测试必须指向临时目录。
 String? debugProfileConfigFileOverride;
-
-File _patchFile() {
-  final override = debugProfileConfigFileOverride;
-  if (override != null) return File(override);
-  final home = ondraUserHome;
-  return File('$home/.ondra/dsh/profiles/ondra/cordis.patch.yml');
-}
+File _patchFile() => File(
+  debugProfileConfigFileOverride ??
+      '$ondraUserHome/.ondra/dsh/profiles/ondra/cordis.patch.yml',
+);

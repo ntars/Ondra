@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../../../design/dialog.dart';
 import '../../../../../../design/glyph.dart';
 import '../../../../../../design/motion.dart';
 import '../../../../../../design/tokens.dart';
@@ -59,12 +60,21 @@ class _TimelineStageState extends State<TimelineStage> {
   }
 
   Future<void> _load() async {
-    final overview = await backupOverviewLoader();
-    if (!mounted) return;
-    setState(() {
-      _overview = overview;
-      _index = _index.clamp(0, overview.snapshots.length);
-    });
+    try {
+      final overview = await backupOverviewLoader();
+      if (!mounted) return;
+      setState(() {
+        _overview = overview;
+        _index = _index.clamp(0, overview.snapshots.length);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _overview = BackupOverview.empty;
+        _message = '读取备份失败：$e';
+        _messageOk = false;
+      });
+    }
   }
 
   List<BackupSnapshot?> get _entries {
@@ -79,6 +89,7 @@ class _TimelineStageState extends State<TimelineStage> {
   }
 
   void _go(int delta) {
+    if (_busy) return;
     final max = (_entries.length - 1).clamp(0, 1 << 30);
     final next = (_index + delta).clamp(0, max);
     if (next == _index) return;
@@ -102,38 +113,67 @@ class _TimelineStageState extends State<TimelineStage> {
       });
       return;
     }
-    setState(() {
-      _busy = true;
-      _message = '';
-    });
-    final result = await backupRestore(target.id);
-    final fresh = await backupOverviewLoader();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _overview = fresh;
-      _index = 0;
-      _message = result.message;
-      _messageOk = result.ok;
-    });
+    await _run(
+      () => backupRestore(target.id),
+      confirm: () async =>
+          await OndraDialog.show<bool>(
+            context,
+            OndraDialog(
+              title: '恢复这份备份？',
+              body:
+                  '${backupWhen(target.createdAt)} · ${target.fileCount} 个文件。'
+                  '将覆盖同名数据，快照外文件保留；恢复前会先存底。'
+                  'SQLite 恢复尚需维护模式，当前会拒绝。',
+              actions: const [
+                OndraDialogButton(label: '取消', value: false),
+                OndraDialogButton(
+                  label: '确认恢复',
+                  value: true,
+                  filled: true,
+                  danger: true,
+                ),
+              ],
+            ),
+          ) ==
+          true,
+    );
   }
 
-  Future<void> _backupNow() async {
+  Future<void> _backupNow() => _run(() => backupCreate());
+
+  Future<void> _run(
+    Future<BackupOpResult> Function() action, {
+    Future<bool> Function()? confirm,
+  }) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _message = '';
     });
-    final result = await backupCreate();
-    final fresh = await backupOverviewLoader();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _overview = fresh;
-      _index = 0;
-      _message = result.message;
-      _messageOk = result.ok;
-    });
+    try {
+      if (confirm != null && !await confirm()) return;
+      if (!mounted) return;
+      final result = await action();
+      if (!mounted) return;
+      setState(() {
+        _message = result.message;
+        _messageOk = result.ok;
+      });
+      final fresh = await backupOverviewLoader();
+      if (!mounted) return;
+      setState(() {
+        _overview = fresh;
+        _index = result.ok ? 0 : _index.clamp(0, fresh.snapshots.length);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _message = '${_message.isEmpty ? '' : '$_message；'}操作或刷新失败：$e';
+        _messageOk = false;
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -201,7 +241,9 @@ class _TimelineStageState extends State<TimelineStage> {
                       child: TimelineRail(
                         entries: entries,
                         selected: _index,
-                        onSelect: (i) => setState(() => _index = i),
+                        onSelect: (i) {
+                          if (!_busy) setState(() => _index = i);
+                        },
                       ),
                     ),
                   ],
@@ -240,12 +282,21 @@ class _TimelineStageState extends State<TimelineStage> {
             children: [
               Text(
                 '时间线',
-                style: ondraText(14, weight: 500, color: TimelinePalette.ink, height: 19 / 14),
+                style: ondraText(
+                  14,
+                  weight: 500,
+                  color: TimelinePalette.ink,
+                  height: 19 / 14,
+                ),
               ),
               const SizedBox(height: 1),
               Text(
                 subtitle,
-                style: ondraText(10.5, color: TimelinePalette.inkDim, height: 14 / 10.5),
+                style: ondraText(
+                  10.5,
+                  color: TimelinePalette.inkDim,
+                  height: 14 / 10.5,
+                ),
               ),
             ],
           ),
@@ -375,7 +426,9 @@ class _TimelineStageState extends State<TimelineStage> {
                       maxLines: 2,
                       style: ondraText(
                         11.5,
-                        color: _messageOk ? TimelinePalette.inkSoft : OndraColor.warning,
+                        color: _messageOk
+                            ? TimelinePalette.inkSoft
+                            : OndraColor.warning,
                         height: 16 / 11.5,
                       ),
                     ),
@@ -390,21 +443,27 @@ class _TimelineStageState extends State<TimelineStage> {
                   hint,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: ondraText(11, color: TimelinePalette.inkDim, height: 16 / 11),
+                  style: ondraText(
+                    11,
+                    color: TimelinePalette.inkDim,
+                    height: 16 / 11,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 '↑↓ 或滚轮切换 · ⏎ 恢复 · esc 退出',
-                style: ondraText(10, color: TimelinePalette.inkFaint, height: 14 / 10),
+                style: ondraText(
+                  10,
+                  color: TimelinePalette.inkFaint,
+                  height: 14 / 10,
+                ),
               ),
               const SizedBox(width: 16),
               _TextAction(label: '退出', onTap: widget.onClose),
               const SizedBox(width: 8),
               _PrimaryAction(
-                label: _busy
-                    ? '正在恢复…'
-                    : (canRestore ? '恢复此备份' : '选一份过去的备份'),
+                label: _busy ? '正在恢复…' : (canRestore ? '恢复此备份' : '选一份过去的备份'),
                 onTap: canRestore ? () => unawaited(_restore()) : null,
               ),
             ],
@@ -521,7 +580,9 @@ class _TextActionState extends State<_TextAction> {
             style: ondraText(
               12,
               weight: 500,
-              color: enabled ? TimelinePalette.inkSoft : TimelinePalette.inkFaint,
+              color: enabled
+                  ? TimelinePalette.inkSoft
+                  : TimelinePalette.inkFaint,
               height: 16 / 12,
             ),
           ),
@@ -581,7 +642,9 @@ class _PrimaryActionState extends State<_PrimaryAction> {
             style: ondraText(
               12,
               weight: 600,
-              color: enabled ? const Color(0xFF0B101B) : TimelinePalette.inkFaint,
+              color: enabled
+                  ? const Color(0xFF0B101B)
+                  : TimelinePalette.inkFaint,
               height: 16 / 12,
             ),
           ),

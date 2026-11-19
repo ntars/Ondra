@@ -2,11 +2,7 @@ import 'dart:convert';
 
 import '../chat_client.dart' show TokenUsage;
 
-/// DSH SDK 的线格式：**按换行分帧的 JSON-RPC 2.0**。
-///
-/// 上游 `dsh-sdk-protocol` 的口径：带 `id` + `method` 是请求，只有 `id` 是响应，
-/// 只有 `method` 是通知；格式错误的行直接忽略。这里只做编解码，不碰 IO——
-/// 编解码可以单测，进程与流不行。
+/// DSH SDK 按换行分帧的 JSON-RPC 2.0 编解码。
 class RpcFrame {
   const RpcFrame({this.id, this.method, this.params, this.result, this.error});
 
@@ -30,6 +26,7 @@ class RpcFrame {
       return null; // 坏行忽略：一行坏不该拖垮整条流
     }
     if (json is! Map<String, dynamic>) return null;
+    if (json.containsKey('method') && json['method'] is! String) return null;
     Map<String, dynamic>? asMap(Object? v) =>
         v is Map<String, dynamic> ? v : null;
     return RpcFrame(
@@ -41,7 +38,11 @@ class RpcFrame {
     );
   }
 
-  static String encodeRequest(int id, String method, [Map<String, dynamic>? params]) {
+  static String encodeRequest(
+    int id,
+    String method, [
+    Map<String, dynamic>? params,
+  ]) {
     return jsonEncode({
       'jsonrpc': '2.0',
       'id': id,
@@ -59,8 +60,14 @@ String? textOfSessionEvent(Map<String, dynamic> payload) {
   final event = payload['event'];
   if (event is! Map) return null;
   final type = event['type'];
-  if (type is! String) return null;
-  if (!type.contains('assistant') && !type.contains('text')) return null;
+  if (!const {
+    'assistant/message',
+    'assistant/delta',
+    'assistant/text',
+    'text/delta',
+  }.contains(type)) {
+    return null;
+  }
 
   final direct = event['text'];
   if (direct is String && direct.isNotEmpty) return direct;
@@ -74,10 +81,7 @@ String? textOfSessionEvent(Map<String, dynamic> payload) {
     if (joined != null) return joined;
   }
 
-  // 真机形态（dsh 0.2.2-rc.3）：正文在 `event.data.message.content` 里。
-  // 内核**没有文本增量事件**——一步结束时给一条 `assistant/message`，
-  // 整段正文就在里面。所以界面看到的是「一步一段」，不是逐字流；
-  // 这是协议就这么给，不是这里偷懒少解析了一层。
+  // 真实 SDK 正文位于 event.data.message.content，只读取 text 块。
   final data = event['data'];
   if (data is Map) {
     final message = data['message'];
@@ -114,6 +118,23 @@ bool isTurnEnd(Map<String, dynamic> payload) {
   return event is Map && event['type'] == 'turn/end';
 }
 
+/// 只从 turn/end 的 error reason 提取失败，不把错误或推理当作正文。
+String? errorOfSessionEvent(Map<String, dynamic> payload) {
+  if (!isTurnEnd(payload)) return null;
+  final event = payload['event'] as Map;
+  final data = event['data'];
+  if (data is! Map) return null;
+  final reason = data['reason'];
+  if (reason is! Map || reason['kind'] != 'error') return null;
+  final error = reason['error'];
+  final message = error is Map ? error['message'] : null;
+  final code = error is Map ? error['code'] : null;
+  final description = message is String && message.trim().isNotEmpty
+      ? message
+      : '内核生成失败';
+  return '$description${code is String || code is num ? '（$code）' : ''}';
+}
+
 /// `session.event` 里的事件类型，取不到返回 null。
 String? sessionEventType(Map<String, dynamic> payload) {
   final event = payload['event'];
@@ -133,7 +154,9 @@ DateTime? _asTime(Object? raw) {
   if (raw is String) return DateTime.tryParse(raw);
   if (raw is int) {
     // 10 位是秒、13 位是毫秒，两种都见过，按量级判断而不是猜。
-    return DateTime.fromMillisecondsSinceEpoch(raw > 100000000000 ? raw : raw * 1000);
+    return DateTime.fromMillisecondsSinceEpoch(
+      raw > 100000000000 ? raw : raw * 1000,
+    );
   }
   return null;
 }
@@ -147,13 +170,20 @@ TokenUsage? usageOfSessionEvent(Map<String, dynamic> payload) {
   final event = payload['event'];
   if (event is! Map) return null;
   Map? usage;
-  // 三种嵌套都可能：事件本身、包一层 data、以及挂在 message 上。
+  // 兼容事件、data、message 与真实 SDK 的 data.message 四种层级。
   if (event['usage'] is Map) {
     usage = event['usage'] as Map;
   } else if (event['data'] is Map && (event['data'] as Map)['usage'] is Map) {
     usage = (event['data'] as Map)['usage'] as Map;
-  } else if (event['message'] is Map && (event['message'] as Map)['usage'] is Map) {
+  } else if (event['message'] is Map &&
+      (event['message'] as Map)['usage'] is Map) {
     usage = (event['message'] as Map)['usage'] as Map;
+  } else {
+    final data = event['data'];
+    final message = data is Map ? data['message'] : null;
+    if (message is Map && message['usage'] is Map) {
+      usage = message['usage'] as Map;
+    }
   }
   if (usage == null) return null;
 

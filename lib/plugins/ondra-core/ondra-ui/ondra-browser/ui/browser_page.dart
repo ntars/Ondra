@@ -12,7 +12,7 @@ import 'web_view.dart';
 ///
 /// 这一页不给地址栏随便跳转：先加白名单，再从列表里进。理由很实际——
 /// 内嵌浏览器一旦能自由跳转，「读网页」类能力就绕过了一道门；
-/// 而白名单就是那道门，只在一个地方写。
+/// 白名单同时交给原生逐次校验，防止重定向或新窗口绕过。
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, this.onClose});
 
@@ -62,7 +62,11 @@ class _BrowserPageState extends State<BrowserPage> {
               ),
               if (widget.onClose != null) ...[
                 const SizedBox(width: 8),
-                OndraSmallButton(label: '关闭', filled: false, onTap: widget.onClose!),
+                OndraSmallButton(
+                  label: '关闭',
+                  filled: false,
+                  onTap: widget.onClose!,
+                ),
               ],
             ],
             child: Column(
@@ -72,16 +76,16 @@ class _BrowserPageState extends State<BrowserPage> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      _Link(
-                        label: '‹ 返回白名单',
-                        onTap: browserClient.backToList,
-                      ),
-                      const Spacer(),
-                      Text(
-                        active,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: ondraText(11, color: s.ink30, height: 16 / 11),
+                      _Link(label: '‹ 返回白名单', onTap: browserClient.backToList),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          active,
+                          textAlign: TextAlign.end,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: ondraText(11, color: s.ink30, height: 16 / 11),
+                        ),
                       ),
                     ],
                   ),
@@ -92,6 +96,9 @@ class _BrowserPageState extends State<BrowserPage> {
                     child: OndraWebView(
                       key: ValueKey('$active#$_reloadTick'),
                       url: active,
+                      allowedSites: [
+                        for (final site in browserClient.sites) site.url,
+                      ],
                     ),
                   ),
                 ),
@@ -105,11 +112,23 @@ class _BrowserPageState extends State<BrowserPage> {
           subtitle: '只打开白名单里的站点',
           actions: [
             if (widget.onClose != null)
-              OndraSmallButton(label: '关闭', filled: false, onTap: widget.onClose!),
+              OndraSmallButton(
+                label: '关闭',
+                filled: false,
+                onTap: widget.onClose!,
+              ),
           ],
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (!embeddedBrowserAvailable)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    '当前平台没有内嵌浏览器（仅支持 macOS），仍可管理白名单。',
+                    style: ondraText(12, color: s.ink40, height: 18 / 12),
+                  ),
+                ),
               // 加白名单：一个输入框 + 一个按钮，不弹窗。
               Container(
                 padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
@@ -130,9 +149,15 @@ class _BrowserPageState extends State<BrowserPage> {
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
                           hintText: 'https://example.com',
-                          hintStyle: ondraText(12, color: s.ink25, height: 18 / 12),
+                          hintStyle: ondraText(
+                            12,
+                            color: s.ink25,
+                            height: 18 / 12,
+                          ),
                         ),
                       ),
                     ),
@@ -141,12 +166,16 @@ class _BrowserPageState extends State<BrowserPage> {
                   ],
                 ),
               ),
-              if (_error != null)
+              if (_error != null || browserClient.error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6, left: 4),
                   child: Text(
-                    _error!,
-                    style: ondraText(11, color: OndraColor.danger, height: 16 / 11),
+                    _error ?? browserClient.error!,
+                    style: ondraText(
+                      11,
+                      color: OndraColor.danger,
+                      height: 16 / 11,
+                    ),
                   ),
                 ),
               const SizedBox(height: 16),
@@ -186,8 +215,9 @@ class _BrowserPageState extends State<BrowserPage> {
                 ],
               const SizedBox(height: 20),
               Text(
-                '页面在应用内用系统 WebKit 渲染；不注入脚本、不读取页面内容。'
-                '后续「读网页」的能力也走这份白名单。',
+                '只允许清单中精确的协议、主机和端口，不隐含子域；其他站点需分别添加。'
+                '重定向和新窗口同样受限，不允许 HTTPS 降级或 URL 内嵌凭据。'
+                'macOS 使用系统 WebKit 渲染，不注入脚本、不读取页面内容。',
                 style: ondraText(11, color: s.ink30, height: 16 / 11),
               ),
             ],
@@ -247,7 +277,12 @@ class _SiteRowState extends State<_SiteRow> {
                       widget.site.host,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: ondraText(13, weight: 500, color: s.ink, height: 18 / 13),
+                      style: ondraText(
+                        13,
+                        weight: 500,
+                        color: s.ink,
+                        height: 18 / 13,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -260,7 +295,10 @@ class _SiteRowState extends State<_SiteRow> {
                 ),
               ),
               const SizedBox(width: 8),
-              _Link(label: '移除', onTap: () => browserClient.remove(widget.site)),
+              _Link(
+                label: '移除',
+                onTap: () => browserClient.remove(widget.site),
+              ),
             ],
           ),
         ),

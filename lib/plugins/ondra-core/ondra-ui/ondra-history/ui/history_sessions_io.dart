@@ -6,14 +6,17 @@ import '../../../../../app/home_dir.dart';
 
 /// 会话库根目录。与 `stdio_transport_io.dart` 里的 `DSH_HOME` 同一个约定：
 /// 内核把会话写这儿，应用只读不写。
-Directory? _sessionsRoot() {
-  final home = ondraUserHome;
-  final dir = Directory('$home/.ondra/dsh/sessions');
+Directory? _sessionsRoot(String? dshHome) {
+  final home =
+      dshHome ??
+      Platform.environment['ONDRA_DSH_HOME'] ??
+      '$ondraUserHome/.ondra/dsh';
+  final dir = Directory('$home/sessions');
   return dir.existsSync() ? dir : null;
 }
 
-Future<List<SessionSummary>> readSessions() async {
-  final root = _sessionsRoot();
+Future<List<SessionSummary>> readSessions({String? dshHome}) async {
+  final root = _sessionsRoot(dshHome);
   if (root == null) return const [];
 
   final out = <SessionSummary>[];
@@ -34,26 +37,18 @@ Future<List<SessionSummary>> readSessions() async {
 /// 读一份会话文件：标题取第一句用户消息，条数数用户消息，
 /// 时间取文件最后写入时刻（会话是追加写，mtime 就是最后活动时间）。
 Future<SessionSummary?> _readOne(File file) async {
-  var id = file.parent.uri.pathSegments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+  var id = file.parent.uri.pathSegments.lastWhere(
+    (s) => s.isNotEmpty,
+    orElse: () => '',
+  );
   var cwd = '';
   var title = '';
   var messages = 0;
   DateTime? lastEvent;
+  final reader = _MessageReader();
 
   try {
-    await for (final line in file
-        .openRead()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())) {
-      if (line.isEmpty) continue;
-      final Object? json;
-      try {
-        json = jsonDecode(line);
-      } catch (_) {
-        continue; // 半截行（进程被杀时会有）直接跳过
-      }
-      if (json is! Map) continue;
-
+    await for (final json in _readEvents(file)) {
       if (json['type'] == 'session') {
         final rawId = json['id'];
         if (rawId is String && rawId.isNotEmpty) id = rawId;
@@ -67,10 +62,11 @@ Future<SessionSummary?> _readOne(File file) async {
         lastEvent = time;
       }
 
-      final text = _userTextOf(json);
-      if (text == null) continue;
-      messages++;
-      if (title.isEmpty) title = _tidy(text);
+      for (final entry in reader.entriesOf(json)) {
+        if (entry.role != 'user') continue;
+        messages++;
+        if (title.isEmpty) title = _tidy(entry.text);
+      }
     }
   } catch (_) {
     return null;
@@ -82,42 +78,98 @@ Future<SessionSummary?> _readOne(File file) async {
     id: id,
     title: title.isEmpty ? '空白会话' : title,
     messages: messages,
-    updatedAt: (lastEvent != null && lastEvent.isAfter(mtime)) ? lastEvent : mtime,
+    updatedAt: (lastEvent != null && lastEvent.isAfter(mtime))
+        ? lastEvent
+        : mtime,
     cwd: cwd,
   );
 }
 
-/// `agent/inbox/spliced` 里的用户消息：`data.inserted[].role == 'user'`。
-/// 兼容两种摆法——有的版本把文本放在 `content[].text`，有的直接给字符串。
-String? _userTextOf(Map json) {
-  final data = json['data'];
-  if (data is! Map) return null;
-  final inserted = data['inserted'];
-  if (inserted is! List) return null;
-  for (final item in inserted) {
-    if (item is! Map) continue;
-    if (item['role'] != 'user') continue;
-    final content = item['content'];
-    if (content is String) return content;
-    if (content is List) {
-      final buf = StringBuffer();
-      for (final part in content) {
-        if (part is Map && part['type'] == 'text' && part['text'] is String) {
-          buf.write(part['text']);
-        }
+/// 一行坏数据不影响后续事件；摘要与详情使用同一套容错规则。
+Stream<Map> _readEvents(File file) async* {
+  await for (final line
+      in file
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+    if (line.trim().isEmpty) continue;
+    final Object? json;
+    try {
+      json = jsonDecode(line);
+    } on FormatException {
+      continue; // 半截行（进程被杀时会有）直接跳过。
+    }
+    if (json is Map) yield json;
+  }
+}
+
+/// DSH v4 的 inbox 与 user/message 会记录同一个用户消息，靠稳定 id 去重。
+/// 不按正文去重：用户或助手在不同轮次说了同一句话，仍然是不同消息。
+class _MessageReader {
+  final _seenIds = <(String, String)>{};
+  final _seenEvents = <(String, int)>{};
+
+  Iterable<HistoryEntry> entriesOf(Map event) sync* {
+    final type = event['type'];
+    if (type != 'agent/inbox/spliced' &&
+        type != 'assistant/message' &&
+        type != 'user/message') {
+      return;
+    }
+    final data = event['data'];
+    if (data is! Map) return;
+    final seq = event['seq'];
+    if (seq is int && !_seenEvents.add((type as String, seq))) return;
+
+    if (type == 'agent/inbox/spliced') {
+      final inserted = data['inserted'];
+      if (inserted is! List) return;
+      for (final message in inserted) {
+        if (message is! Map || message['role'] != 'user') continue;
+        final entry = _entryOf(message, 'user');
+        if (entry != null) yield entry;
       }
-      if (buf.isNotEmpty) return buf.toString();
+    } else {
+      // v4 的 user/message 直接以 data 作为消息；兼容包在 message 里的写法。
+      final message = type == 'user/message'
+          ? (data['message'] ?? data)
+          : data['message'];
+      if (message is! Map) return;
+      final entry = _entryOf(
+        message,
+        type == 'user/message' ? 'user' : 'assistant',
+      );
+      if (entry != null) yield entry;
     }
   }
-  return null;
+
+  HistoryEntry? _entryOf(Map message, String role) {
+    if (message['role'] != null && message['role'] != role) return null;
+    final source = message['source'];
+    // 内核也会以 user 角色注入运行时上下文、压缩摘要等，不是用户说的话。
+    if (role == 'user' && source is Map && source['kind'] != 'user') {
+      return null;
+    }
+    final text = _contentTextOf(message['content']);
+    if (text.trim().isEmpty) return null;
+    final id = message['id'];
+    if (id is String && id.isNotEmpty && !_seenIds.add((role, id))) {
+      return null;
+    }
+    return HistoryEntry(role: role, text: text);
+  }
 }
 
 /// 毫秒整数（新版）或 ISO 串（旧版）都认。
 DateTime? _timeOf(Object? raw) {
   if (raw is int) {
-    return DateTime.fromMillisecondsSinceEpoch(
-      raw < 100000000000 ? raw * 1000 : raw,
-    );
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(
+        raw < 100000000000 ? raw * 1000 : raw,
+      );
+    } on ArgumentError {
+      return null;
+    }
   }
   if (raw is String) return DateTime.tryParse(raw);
   return null;
@@ -130,41 +182,22 @@ String _tidy(String text) {
   return '${oneLine.substring(0, 59)}…';
 }
 
-/// 读一份会话的完整对话（user / assistant 的正文，按时间顺序）。
+/// 读一份会话的完整对话（user / assistant 的正文，保留日志追加顺序）。
 ///
-/// 会话是追加写的 jsonl：每一行是一条事件，用户与助手的正文都在
-/// `data.inserted[]` 里。工具调用、系统事件没有正文，直接跳过——
-/// 历史页要的是「当时说了什么」，不是内核的事件流水。
-Future<List<HistoryEntry>> readSessionMessages(String sessionId) async {
-  final file = await _findSessionFile(sessionId);
+/// 用户从 inbox / user/message 读取，助手从 assistant/message 读取。
+/// 工具、系统、增量和尝试事件不进历史，避免泄露内部内容或重复正文。
+Future<List<HistoryEntry>> readSessionMessages(
+  String sessionId, {
+  String? dshHome,
+}) async {
+  final file = await _findSessionFile(sessionId, dshHome: dshHome);
   if (file == null) return const [];
 
   final out = <HistoryEntry>[];
+  final reader = _MessageReader();
   try {
-    await for (final line in file
-        .openRead()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())) {
-      if (line.isEmpty) continue;
-      final Object? json;
-      try {
-        json = jsonDecode(line);
-      } catch (_) {
-        continue;
-      }
-      if (json is! Map) continue;
-      final data = json['data'];
-      if (data is! Map) continue;
-      final inserted = data['inserted'];
-      if (inserted is! List) continue;
-      for (final item in inserted) {
-        if (item is! Map) continue;
-        final role = item['role'];
-        if (role != 'user' && role != 'assistant') continue;
-        final text = _contentTextOf(item['content']);
-        if (text.isEmpty) continue;
-        out.add(HistoryEntry(role: role as String, text: text));
-      }
+    await for (final json in _readEvents(file)) {
+      out.addAll(reader.entriesOf(json));
     }
   } catch (_) {
     return out; // 半截文件就给已读到的部分，不整页报错。
@@ -189,8 +222,8 @@ String _contentTextOf(Object? content) {
 
 /// 按 id 找会话文件。逐层扫目录与 [readSessions] 同一个口径；
 /// 找不到返回 null，调用方显示空态。
-Future<File?> _findSessionFile(String sessionId) async {
-  final root = _sessionsRoot();
+Future<File?> _findSessionFile(String sessionId, {String? dshHome}) async {
+  final root = _sessionsRoot(dshHome);
   if (root == null) return null;
   for (final project in root.listSync()) {
     if (project is! Directory) continue;
@@ -219,7 +252,9 @@ Future<File?> _findSessionFile(String sessionId) async {
         } catch (_) {
           continue;
         }
-        if (json is Map && json['type'] == 'session' && json['id'] == sessionId) {
+        if (json is Map &&
+            json['type'] == 'session' &&
+            json['id'] == sessionId) {
           return file;
         }
       } catch (_) {

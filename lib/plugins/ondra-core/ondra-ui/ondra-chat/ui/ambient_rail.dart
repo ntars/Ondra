@@ -87,8 +87,10 @@ class _RailBody extends StatelessWidget {
         // 这里**不按 focusAmount 插值**，而是按真实宽度算：宽度过 720 才产生
         // 留白，于是「栏变宽」和「文字开始居中」是同一件事的两个侧面，
         // 中途任何一帧都对得上。按进度插值会在 280 宽时就凭空多出内距。
-        final inset = ((width - OndraAmbientRail._fillReadWidth) / 2)
-            .clamp(0.0, 1e6);
+        final inset = ((width - OndraAmbientRail._fillReadWidth) / 2).clamp(
+          0.0,
+          1e6,
+        );
 
         return Container(
           decoration: BoxDecoration(
@@ -478,22 +480,18 @@ class _RailMenuLayer extends StatelessWidget {
                   // 两套取值，`--cds-shadow-popover` 的浅 12%/8% 与深
                   // 65%/45% 两档）。
                   border: Border.all(
-                    color: skin.dark
-                        ? const Color(0x1AFFFFFF)
-                        : skin.lineCard,
+                    color: skin.dark ? const Color(0x1AFFFFFF) : skin.lineCard,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF0F172A).withValues(
-                        alpha: skin.dark ? 0.65 : 0.12,
-                      ),
+                      color: const Color(0xFF0F172A)
+                          .withValues(alpha: skin.dark ? 0.65 : 0.12),
                       blurRadius: skin.dark ? 28 : 24,
                       offset: const Offset(0, 8),
                     ),
                     BoxShadow(
-                      color: const Color(0xFF0F172A).withValues(
-                        alpha: skin.dark ? 0.45 : 0.08,
-                      ),
+                      color: const Color(0xFF0F172A)
+                          .withValues(alpha: skin.dark ? 0.45 : 0.08),
                       blurRadius: skin.dark ? 8 : 6,
                       offset: const Offset(0, 2),
                     ),
@@ -661,7 +659,11 @@ class _Bubble extends StatelessWidget {
                 child: Text(
                   message.text,
                   // 1.5 行高是参考应用 `.xu-user-content` 的原值。
-                  style: ondraText(16 * _scale, color: s.bubbleInk, height: 1.5),
+                  style: ondraText(
+                    16 * _scale,
+                    color: s.bubbleInk,
+                    height: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -826,6 +828,7 @@ class _RailComposerState extends State<_RailComposer> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
   bool _hasText = false;
+  bool _busy = chatClient.busy;
 
   @override
   void initState() {
@@ -833,10 +836,7 @@ class _RailComposerState extends State<_RailComposer> {
     // 发送键的可用性取决于附件（只带图也能发），所以要跟着 chatClient 刷新；
     // 不监听的话，挂上附件后那颗键还是灰的，用户只能先打一个字。
     chatClient.addListener(_onChatChanged);
-    _controller.addListener(() {
-      final has = _controller.text.trim().isNotEmpty;
-      if (has != _hasText) setState(() => _hasText = has);
-    });
+    _controller.addListener(_onChatChanged);
     // 设置里的「回车发送」改了要立刻反映到输入框：这项只在按键那一刻判定，
     // 不需要重建整棵树，但要让 setState 触发一次以更新 textInputAction。
     settingsClient.addListener(_onSettingsChanged);
@@ -846,13 +846,17 @@ class _RailComposerState extends State<_RailComposer> {
     if (!mounted) return;
     final canSend =
         _controller.text.trim().isNotEmpty || chatClient.attachments.isNotEmpty;
-    if (canSend != _hasText) setState(() => _hasText = canSend);
+    if (canSend != _hasText || _busy != chatClient.busy) {
+      setState(() {
+        _hasText = canSend;
+        _busy = chatClient.busy;
+      });
+    }
   }
 
   void _onSettingsChanged() {
     if (!mounted) return;
-    final want = settingsClient.boolean('dialog.enterSend');
-    if (want != _enterSend) setState(() {});
+    setState(() {});
   }
 
   /// 「回车发送」。关掉后回车换行、⌘ Enter 才发送。
@@ -874,6 +878,10 @@ class _RailComposerState extends State<_RailComposer> {
     // 生成期间不拦：交给 chatClient 按「繁忙时的发送行为」处理
     // （排队 / 插话）。这里再拦一次，那两个设置就永远轮不到生效。
     if (text.isEmpty && !hasAttachments) return;
+    if (chatClient.maintenance) {
+      widget.onSend(text);
+      return;
+    }
     _controller.clear();
     widget.onSend(text);
     // 附件的清理在 chatClient.send 里做：随消息一起发出，发完就撤——
@@ -901,10 +909,7 @@ class _RailComposerState extends State<_RailComposer> {
       chatClient.attach(a);
     }
     if (rejected > 0 && mounted) {
-      OndraToast.show(
-        context,
-        '只支持图片附件，$rejected 个文件没有加入',
-      );
+      OndraToast.show(context, '只支持图片附件，$rejected 个文件没有加入');
     }
   }
 
@@ -944,10 +949,7 @@ class _RailComposerState extends State<_RailComposer> {
               if (n == 0) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: _QueueStrip(
-                  count: n,
-                  onClear: chatClient.clearQueue,
-                ),
+                child: _QueueStrip(count: n, onClear: chatClient.clearQueue),
               );
             },
           ),
@@ -959,82 +961,90 @@ class _RailComposerState extends State<_RailComposer> {
 
   Widget _composerBox(OndraSkin s) {
     return Container(
-        // 70 高：与「一行文字 + 一颗 32 的按钮」等身。
-        //
-        // 上一版是 140 高的卡片（上行多行输入、下行附件与发送），占掉了右栏
-        // 将近三分之一——三栏并置时它比对话本身还显眼。改成横排之后，输入框
-        // 回到「一条输入栏」的本分，多行时自己长高（maxLines 3），不预占空位。
-        constraints: const BoxConstraints(minHeight: 70),
-        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-        decoration: BoxDecoration(
-          // 参考应用在 copilot 这一态下不画边框：白卡浮在 `#f4f7fa` 上已经够清楚，
-          // 再描一条线会让它显得又薄又硬。
-          color: s.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          // 按钮跟文字中线对齐：单行时三者同一水平线，换到两行也不会把按钮顶到角上。
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: CallbackShortcuts(
-                // 「回车发送」关掉时，回车只换行；发送交给 ⌘ Enter。
-                // 两种模式都保留 ⌘ Enter 作为发送键——它是 macOS 上的肌肉记忆，
-                // 关掉回车发送的人往往正是想用这个组合。
-                bindings: <ShortcutActivator, VoidCallback>{
-                  const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                      _submit,
-                },
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focus,
-                  minLines: 1,
-                  maxLines: 3,
-                  cursorColor: OndraColor.accent,
-                  // 15/22：比旧版 16/24 小一档，因为这一栏现在更矮，
-                  // 16 的字在一行 70 的盒子里会显得顶天立地。
-                  style: ondraText(15, color: s.ink, height: 22 / 15),
-                  // 回车键的语义由设置决定：
-                  //  - 回车发送（默认）：textInputAction 为 send，软键盘上是「发送」，
-                  //    按下即发；换行改用 ⇧ Enter / ⌥ Enter。
-                  //  - 关掉：textInputAction 为 newline，回车就是换行，发送只能 ⌘ Enter。
-                  textInputAction: _enterSend
-                      ? TextInputAction.send
-                      : TextInputAction.newline,
-                  onSubmitted: _enterSend ? (_) => _submit() : null,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                    hintText: widget.hint,
-                    hintMaxLines: 1,
-                    hintStyle: ondraText(15, color: s.hintInk, height: 22 / 15),
-                  ),
+      // 70 高：与「一行文字 + 一颗 32 的按钮」等身。
+      //
+      // 上一版是 140 高的卡片（上行多行输入、下行附件与发送），占掉了右栏
+      // 将近三分之一——三栏并置时它比对话本身还显眼。改成横排之后，输入框
+      // 回到「一条输入栏」的本分，多行时自己长高（maxLines 3），不预占空位。
+      constraints: const BoxConstraints(minHeight: 70),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        // 参考应用在 copilot 这一态下不画边框：白卡浮在 `#f4f7fa` 上已经够清楚，
+        // 再描一条线会让它显得又薄又硬。
+        color: s.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        // 按钮跟文字中线对齐：单行时三者同一水平线，换到两行也不会把按钮顶到角上。
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: CallbackShortcuts(
+              // 「回车发送」关掉时，回车只换行；发送交给 ⌘ Enter。
+              // 两种模式都保留 ⌘ Enter 作为发送键——它是 macOS 上的肌肉记忆，
+              // 关掉回车发送的人往往正是想用这个组合。
+              bindings: <ShortcutActivator, VoidCallback>{
+                const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                    _submit,
+              },
+              child: TextField(
+                controller: _controller,
+                focusNode: _focus,
+                minLines: 1,
+                maxLines: 3,
+                cursorColor: OndraColor.accent,
+                // 15/22：比旧版 16/24 小一档，因为这一栏现在更矮，
+                // 16 的字在一行 70 的盒子里会显得顶天立地。
+                style: ondraText(15, color: s.ink, height: 22 / 15),
+                // 回车键的语义由设置决定：
+                //  - 回车发送（默认）：textInputAction 为 send，软键盘上是「发送」，
+                //    按下即发；换行改用 ⇧ Enter / ⌥ Enter。
+                //  - 关掉：textInputAction 为 newline，回车就是换行，发送只能 ⌘ Enter。
+                textInputAction: _enterSend
+                    ? TextInputAction.send
+                    : TextInputAction.newline,
+                onSubmitted: _enterSend ? (_) => _submit() : null,
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  hintText: widget.hint,
+                  hintMaxLines: 1,
+                  hintStyle: ondraText(15, color: s.hintInk, height: 22 / 15),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            _InputIconButton(
-              glyph: Glyphs.plus,
-              tooltip: '上传文件',
-              onTap: _pickAttachments,
-            ),
+          ),
+          const SizedBox(width: 8),
+          _InputIconButton(
+            glyph: Glyphs.plus,
+            tooltip: '上传文件',
+            onTap: _pickAttachments,
+          ),
+          if (_busy) ...[
             const SizedBox(width: 6),
-            _SendButton(
-              // 生成期间也能按：这正是「繁忙时的发送行为」两项设置生效的地方——
-              // 排队与插话都发生在 busy 的那一刻。上一版这里写了
-              // `&& !chatClient.busy`，那颗键在生成时一直是灰的，
-              // 于是那两个选项无论怎么设都没有机会被触发。
-              // 有文字或有附件都允许发送：只带图不打字是一条完整的消息。
-              // 附件状态在这里实时反映——这个 build 由输入区监听 chatClient
-              // 触发，见下面 _submit 的说明。
-              enabled: _hasText || chatClient.attachments.isNotEmpty,
-              onTap: _submit,
+            _InputIconButton(
+              glyph: Glyphs.close,
+              tooltip: '停止生成',
+              onTap: chatClient.stop,
             ),
           ],
-        ),
+          const SizedBox(width: 6),
+          _SendButton(
+            // 生成期间也能按：这正是「繁忙时的发送行为」两项设置生效的地方——
+            // 排队与插话都发生在 busy 的那一刻。上一版这里写了
+            // `&& !chatClient.busy`，那颗键在生成时一直是灰的，
+            // 于是那两个选项无论怎么设都没有机会被触发。
+            // 有文字或有附件都允许发送：只带图不打字是一条完整的消息。
+            // 附件状态在这里实时反映——这个 build 由输入区监听 chatClient
+            // 触发，见下面 _submit 的说明。
+            enabled: _hasText || chatClient.attachments.isNotEmpty,
+            onTap: _submit,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1204,32 +1214,33 @@ class _SendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
-    return OndraPressable(
-      onTap: enabled ? onTap : null,
-      radius: OndraRadius.pill,
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: enabled ? OndraColor.sendBlue : s.fill,
-          shape: BoxShape.circle,
-          // 投影只在能按的时候出现：它是「这颗键此刻可以按」的信号，
-          // 不是装饰——空输入时它还亮着，就等于一直在骗用户点。
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: OndraColor.sendBlue.withValues(alpha: 0.28),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
-        ),
-        child: Glyph(
-          Glyphs.arrowUp,
-          size: 17,
-          color: enabled ? Colors.white : s.ink25,
+    return Tooltip(
+      message: '发送',
+      child: OndraPressable(
+        onTap: enabled ? onTap : null,
+        radius: OndraRadius.pill,
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: enabled ? OndraColor.sendBlue : s.fill,
+            shape: BoxShape.circle,
+            boxShadow: enabled
+                ? [
+                    BoxShadow(
+                      color: OndraColor.sendBlue.withValues(alpha: 0.28),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Glyph(
+            Glyphs.arrowUp,
+            size: 17,
+            color: enabled ? Colors.white : s.ink25,
+          ),
         ),
       ),
     );
@@ -1288,7 +1299,11 @@ class _UsageDock extends StatelessWidget {
                         children: [
                           const _CylinderGlyph(),
                           const SizedBox(width: 5),
-                          _Stat(value: total, unit: roomy ? ' token' : '', skin: s),
+                          _Stat(
+                            value: total,
+                            unit: roomy ? ' token' : '',
+                            skin: s,
+                          ),
                           Text(
                             roomy ? ' · 缓存命中 ' : ' · 命中 ',
                             maxLines: 1,
@@ -1362,8 +1377,10 @@ class _CylinderGlyph extends StatelessWidget {
   const _CylinderGlyph();
 
   @override
-  Widget build(BuildContext context) =>
-      CustomPaint(size: const Size(9, 10), painter: _CylinderPainter(OndraSkin.of(context)));
+  Widget build(BuildContext context) => CustomPaint(
+    size: const Size(9, 10),
+    painter: _CylinderPainter(OndraSkin.of(context)),
+  );
 }
 
 class _CylinderPainter extends CustomPainter {
@@ -1382,14 +1399,25 @@ class _CylinderPainter extends CustomPainter {
     final rx = w / 2 - 0.5;
     const ry = 2.0;
     // 上口、下口、两道侧壁：三段线拼成一个柱体，不需要填充面。
-    canvas.drawOval(Rect.fromCenter(center: Offset(w / 2, ry), width: rx * 2, height: ry * 2), paint);
-    canvas.drawOval(Rect.fromCenter(center: Offset(w / 2, h - ry), width: rx * 2, height: ry * 2), paint);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(w / 2, ry), width: rx * 2, height: ry * 2),
+      paint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(w / 2, h - ry),
+        width: rx * 2,
+        height: ry * 2,
+      ),
+      paint,
+    );
     canvas.drawLine(const Offset(0.5, ry), Offset(0.5, h - ry), paint);
     canvas.drawLine(Offset(w - 0.5, ry), Offset(w - 0.5, h - ry), paint);
   }
 
   @override
-  bool shouldRepaint(covariant _CylinderPainter old) => old.skin.ink30 != skin.ink30;
+  bool shouldRepaint(covariant _CylinderPainter old) =>
+      old.skin.ink30 != skin.ink30;
 }
 
 /// 上下文占用环：12px，轨道 12% 墨，已用部分强调色。
@@ -1483,4 +1511,5 @@ String _formatTokens(int n) {
   return '${_trimZero(v.toStringAsFixed(1))}亿';
 }
 
-String _trimZero(String s) => s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+String _trimZero(String s) =>
+    s.endsWith('.0') ? s.substring(0, s.length - 2) : s;

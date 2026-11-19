@@ -1,12 +1,8 @@
 import 'profile_plugins_stub.dart'
-    if (dart.library.io) 'profile_plugins_io.dart' as impl;
+    if (dart.library.io) 'profile_plugins_io.dart'
+    as impl;
 
-/// profile 装配层里的一条真实插件记录。
-///
-/// 来源是 `$HOME/.ondra/dsh/profiles/ondra/cordis.patch.yml` 的 `insert` 列表：
-/// 一行 `- id: <id>` 配一行 `name: '<包名>'`。包名再回 `node_modules` 里
-/// 读 `package.json` 补版本与简介——**这三样都是内核实际加载的东西**，
-/// 不是随包清单里写的愿望。
+/// 装配层声明，不是运行时加载状态。版本与简介来自本机 package.json。
 class ProfilePluginEntry {
   const ProfilePluginEntry({
     required this.id,
@@ -14,37 +10,79 @@ class ProfilePluginEntry {
     required this.version,
     required this.desc,
     required this.enabled,
+    this.blockedReason,
   });
 
-  /// 装配层里的插件 id（包名去掉 `@ondra/cordis-plugin-` 前缀）。
   final String id;
-
-  /// npm 包名，如 `@ondra/cordis-plugin-ondra-absence`。
   final String package;
-
-  /// 取自该包的 `package.json`；读不到时为 `-`，不猜。
   final String version;
-
-  /// 该包的 `description`，可能是一整段；界面负责截。
   final String desc;
-
-  /// 装配层里是否未被注释。关掉的插件会留一条 `# - id:` 注释行，
-  /// 所以随时能再打开，而不是从文件里消失。
   final bool enabled;
+
+  /// 必要基础依赖、插件组或不能安全编辑的条目不给开关。
+  final String? blockedReason;
 }
 
-/// 读装配层：返回 profile 里装了哪些插件、哪些被关着。
-///
-/// 读不到（没装 profile、文件被删）返回空列表，不报错——那说明这台机器上
-/// 内核还没装配过，界面显示空态才是真话。
-Future<List<ProfilePluginEntry>> readProfilePlugins() => impl.readProfilePlugins();
+/// 既按 id 也按包名保护，避免更换装配 id 后绕过保护。
+String? profilePluginProtection(String id, String package) {
+  const foundations = {
+    'cordis',
+    'dsh-base',
+    'ondra-identity',
+    'ondra-path-layout',
+    'ondra-store',
+    'ondra-storage',
+    'ondra-store-sqlite',
+    'ondra-store-json',
+    'ondra-memory-core',
+    'ondra-persona',
+    'ondra-runtime',
+    'ondra-process-host',
+    'ondra-boot-settle',
+    'ondra-config-schema',
+    'ondra-privacy',
+    'ondra-llm-gateway',
+    'ondra-dialogue',
+    'ondra-dialogue-protocol',
+  };
+  final packageId = package.startsWith('@ondra/cordis-plugin-')
+      ? package.substring('@ondra/cordis-plugin-'.length)
+      : package;
+  bool necessary(String value) =>
+      foundations.contains(value) ||
+      value.startsWith('ondra-persona-') ||
+      value.startsWith('ondra-runtime-') ||
+      value.startsWith('dsh-runtime') ||
+      value == '@deepseek-ai/dsh' ||
+      value.startsWith('@deepseek-ai/dsh-') ||
+      value.startsWith('@cordisjs/');
+  if (necessary(id) || necessary(packageId)) return '必要基础依赖，不允许在此启停';
+  // 真正的 profile 默认关闭此后端：启用会抢占 sqlite，导致记忆只留在内存。
+  if (id == 'ondra-store-memory' || packageId == 'ondra-store-memory') {
+    return '内存后端会与持久化存储冲突，不允许在此启用';
+  }
+  return null;
+}
 
-/// 打开或关掉一条插件：改的是装配层里那两行的注释状态。
-///
-/// 返回 `false` 表示没找到这一条、或写盘失败。**不假装成功**：
-/// 界面拿到 false 会把开关拨回去。
-///
-/// 为什么要等到「下次连接内核」：装配层在主进程启动时读一次，
-/// 正在跑的进程不会重新读 YAML。
-Future<bool> setProfilePluginEnabled(String id, bool enabled) =>
-    impl.setProfilePluginEnabled(id, enabled);
+class ProfilePluginWriteResult {
+  const ProfilePluginWriteResult.success() : error = null;
+  const ProfilePluginWriteResult.failure(this.error);
+
+  final String? error;
+  bool get ok => error == null;
+}
+
+/// 未安装 profile 返回空；读取失败或不支持的结构抛错，由 UI 如实呈现。
+Future<List<ProfilePluginEntry>> readProfilePlugins() =>
+    impl.readProfilePlugins();
+
+/// 完整条目块的可逆启停；保存前重新校验基础项与显式 inject 依赖。
+/// 不重启内核：调用者须说明下次重启生效，不得中断进行中的对话。
+Future<ProfilePluginWriteResult> updateProfilePluginEnabled(
+  String id,
+  bool enabled,
+) => impl.updateProfilePluginEnabled(id, enabled);
+
+/// 保留已有布尔接口；界面使用上面的详细结果显示拒绝/写盘失败原因。
+Future<bool> setProfilePluginEnabled(String id, bool enabled) async =>
+    (await updateProfilePluginEnabled(id, enabled)).ok;

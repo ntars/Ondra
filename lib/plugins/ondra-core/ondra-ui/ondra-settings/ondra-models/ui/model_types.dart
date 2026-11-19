@@ -14,8 +14,11 @@ class OndraProvider {
     this.keyConfigured = false,
     this.builtIn = false,
     this.launchHint = '',
+    String? protocol,
     List<OndraModelEntry>? models,
-  }) : models = models ?? [];
+  // ignore: prefer_initializing_formals -- const 构造不能用私有 initializing formal
+  }) : _protocol = protocol,
+       models = models ?? [];
 
   /// 这个提供商是从哪一类来源加进来的。列表按它分组，编辑器按它决定要不要
   /// 显示「检测连接 / 启动命令」这些块。
@@ -50,10 +53,15 @@ class OndraProvider {
     _ => protocol,
   };
 
-  /// 协议不进 provider 本身（上游由路由决定），这里保留一个只读派生，
-  /// 让界面能显示「这张卡说的是哪种协议」，而不伪造一个可编辑字段。
+  String? _protocol;
+
+  /// 旧存档没有协议字段时兼容原预设；新配置可显式指定 Responses / Messages。
   String get protocol =>
-      baseUrl.contains('anthropic') ? 'anthropic-messages' : 'openai-completions';
+      _protocol ??
+      (id == 'anthropic' || Uri.tryParse(baseUrl)?.host == 'api.anthropic.com'
+          ? 'anthropic-messages'
+          : 'openai-completions');
+  set protocol(String value) => _protocol = value;
 }
 
 /// 模型目录里的一条，字段与上游 `models[]` 一致。
@@ -65,8 +73,8 @@ class OndraModelEntry {
     this.maxTokens = '',
     List<String>? inputs,
     List<OndraReasoningLevel>? reasoning,
-  })  : inputs = inputs ?? ['text'],
-        reasoning = reasoning ?? [];
+  }) : inputs = inputs ?? ['text'],
+       reasoning = reasoning ?? [];
 
   /// 模型 ID，如 `deepseek-chat`。
   String id;
@@ -92,10 +100,27 @@ class OndraModelEntry {
 
 /// 一个推理档位。上游允许自定义档位名与 API 参数值（如 OpenAI 的 reasoning_effort）。
 class OndraReasoningLevel {
-  const OndraReasoningLevel({required this.label, required this.apiValue});
+  const OndraReasoningLevel({
+    required this.label,
+    required this.apiValue,
+    String? level,
+  // ignore: prefer_initializing_formals -- 同上，const 构造的限制
+  }) : _level = level;
 
   final String label;
   final String apiValue;
+  final String? _level;
+
+  /// SDK 的标准档位与线上参数值分开，允许 high 映射到服务端自定义值。
+  String get level =>
+      _level ??
+      switch (label) {
+        '关闭思考' => 'off',
+        '低' => 'low',
+        '中' => 'medium',
+        '高' => 'high',
+        _ => apiValue.isEmpty ? 'off' : apiValue,
+      };
 
   static const off = OndraReasoningLevel(label: '关闭思考', apiValue: '');
   static const low = OndraReasoningLevel(label: '低', apiValue: 'low');

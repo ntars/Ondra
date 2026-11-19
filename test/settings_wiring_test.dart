@@ -27,7 +27,8 @@ void main() {
         expect(
           t.key,
           matches(RegExp(r'^[a-z][a-z0-9-]*$')),
-          reason: '${entry.key} 的字段名 ${t.key} 不是 kebab：'
+          reason:
+              '${entry.key} 的字段名 ${t.key} 不是 kebab：'
               'camel 会让内核安静地用默认值，两边都不报错',
         );
       }
@@ -36,12 +37,15 @@ void main() {
 
   test('每个有落点的键都必须是已声明的设置项', () {
     for (final key in ondraSettingTargets.keys) {
-      expect(() => ondraSettingSpec(key), returnsNormally,
-          reason: '$key 在映射表里，但 settings_spec 里没有声明');
+      expect(
+        () => ondraSettingSpec(key),
+        returnsNormally,
+        reason: '$key 在映射表里，但 settings_spec 里没有声明',
+      );
     }
   });
 
-  test('值映射：三档权限 / 音色 / 回复长度都能落到合法值', () {
+  test('值映射：音色 / 回复长度都能落到合法值', () {
     // 直接对着映射后的结果断言，不经过文件。
     Map<String, Object?> push(Map<String, Object?> ui) {
       final out = <String, Object?>{};
@@ -51,48 +55,29 @@ void main() {
         for (final t in targets) {
           final mapped = t.map == null ? entry.value : t.map!(entry.value);
           if (mapped == null) continue;
-          out['${t.section}.${t.key}'] =
-              t.scale != null && mapped is num ? t.scale!(mapped) : mapped;
+          out['${t.section}.${t.key}'] = t.scale != null && mapped is num
+              ? t.scale!(mapped)
+              : mapped;
         }
       }
       return out;
     }
 
-    // 内核 `ondra-privacy/src/types.ts` 的 `APPROVAL_MODES`：
-    // `supervised` / `auto` / `full`。取值不在这三个里时，`approvalModeOf()`
-    // 返回 undefined，`completeConfig` 报一次 `report()` 然后回退默认 `auto`。
-    // 上一版写成 `strict` / `open`——两个都不可识别，「仅可查看」与
-    // 「完全权限」都静默落回 `auto`，也就是「用户以为收紧了，实际没有」。
-    expect(push({'general.permissions': 'readOnly'}),
-        {'privacy.approval-mode': 'supervised'});
-    expect(push({'general.permissions': 'workspace'}),
-        {'privacy.approval-mode': 'auto'});
-    expect(push({'general.permissions': 'fullAccess'}),
-        {'privacy.approval-mode': 'full'});
-
     expect(push({'dialog.replyLength': '2'}), {'dialogue.max-tokens': 8192});
     expect(push({'voice.timbre': 'warm'}), {'tts.preset': 'soft'});
   });
 
-  test('三档权限只映射到内核真有的三个审批模式', () {
-    const approvalModes = {'supervised', 'auto', 'full'};
+  test('权限的文件访问边界不能用合法但不同义的出站审批档冒充', () {
+    expect(ondraSettingIsWired('general.permissions'), isFalse);
     for (final option in ondraSettingSpec('general.permissions').options) {
-      final t = ondraSettingTargets['general.permissions']!.first;
-      final mapped = t.map!(option.value);
-      expect(mapped, isNotNull, reason: '权限档 ${option.value} 没有映射');
-      expect(
-        approvalModes,
-        contains(mapped),
-        reason: '权限档 ${option.value} 映射成了 $mapped，'
-            '它不是内核的审批模式，内核会静默回落到 auto',
+      final result = ondraPushSettingResult(
+        'general.permissions',
+        option.value,
       );
+      expect(result.ok, isFalse);
+      expect(result.changed, isFalse);
+      expect(result.error, contains('文件权限'));
     }
-    // 三档必须落到三个不同值，否则有一档是假的。
-    final mapped = {
-      for (final o in ondraSettingSpec('general.permissions').options)
-        o.value: ondraSettingTargets['general.permissions']!.first.map!(o.value),
-    };
-    expect(mapped.values.toSet().length, 3, reason: '三档权限必须落到三个不同模式');
   });
 
   test('没有落点的项如实报告：isWired 为 false', () {
@@ -131,7 +116,8 @@ void main() {
         expect(
           presetIds,
           contains(mapped),
-          reason: '音色 ${option.value} 映射成了 $mapped，'
+          reason:
+              '音色 ${option.value} 映射成了 $mapped，'
               '它不是内核的预设 id，内核会静默回落到 soft',
         );
       }
@@ -225,7 +211,6 @@ void main() {
     }
   });
 
-
   test('DshSettings 的文件形状能往返（历史形状，内核不读它）', () {
     // `DshSettings` 写 `$DSH_HOME/settings.json`。2026-11-19 对着内核源码
     // 核过：**发行版没有任何模块读这份文件**——它只是历史形状，留着是为了
@@ -245,7 +230,10 @@ void main() {
 
     // 写两项：一个数值、一个字符串。
     expect(DshSettings.writeField('tts', 'rate', 0.25), isTrue);
-    expect(DshSettings.writeField('privacy', 'approval-mode', 'strict'), isTrue);
+    expect(
+      DshSettings.writeField('privacy', 'approval-mode', 'strict'),
+      isTrue,
+    );
 
     // 读回来要一致。
     expect(DshSettings.section('tts'), {'rate': 0.25});
@@ -253,7 +241,9 @@ void main() {
 
     // 落盘的字面形状必须是 {user: {段: {kebab 字段}}}——
     // 内核按这个形状找段，少一层 `user` 或段名写成驼峰都会静默失效。
-    final raw = jsonDecode(File('${tmp.path}/settings.json').readAsStringSync());
+    final raw = jsonDecode(
+      File('${tmp.path}/settings.json').readAsStringSync(),
+    );
     expect(raw, isA<Map<String, dynamic>>());
     final user = (raw as Map<String, dynamic>)['user'];
     expect(user, isA<Map<String, dynamic>>());
@@ -299,17 +289,168 @@ void main() {
     // 这台机器上；而这张表的用途恰恰是「内核不在也能提前发现写错位置」。
     // 内核升级导致字段改名时，这条会失败——那正是要它失败的时候。
     const sections = <String, Set<String>>{
-      'privacy': {'enable', 'approval-mode', 'strict-hosts', 'scan-secrets', 'consent-ttl-ms', 'verbose'},
-      'asr': {'enable', 'provider', 'binary', 'model-path', 'language', 'threads', 'ffmpeg-path', 'timeout-ms', 'cloud-base-url', 'cloud-model', 'credential-ref', 'allow-cloud-fallback', 'cloud-without-privacy', 'max-audio-bytes', 'max-chars', 'quiet', 'verbose'},
-      'vision': {'enable', 'provider', 'base-url', 'model', 'credential-ref', 'detail', 'timeout-ms', 'max-image-bytes', 'max-output-chars', 'video-frames', 'ffmpeg-path', 'cloud-without-privacy', 'verbose'},
-      'tts': {'enable', 'provider', 'preset', 'voice', 'rate', 'volume', 'max-chars', 'gsv-endpoint', 'gsv-ref-audio', 'gsv-prompt-text', 'gsv-text-lang', 'edge-bin', 'say-voice', 'say-wpm', 'timeout-ms', 'playback', 'cache-files', 'verbose'},
-      'dialogue': {'enable', 'max-turns', 'max-history-chars', 'temperature', 'max-tokens', 'include-persona', 'include-worldbook', 'min-tail-confidence', 'max-conversations', 'verbose'},
-      'memory-core': {'important-salience', 'long-term-base-hours', 'channel-anchor-days', 'floor-weight', 'archive-normal-days', 'archive-important-days', 'resurface-days', 'default-channel', 'max-text-chars', 'max-summary-chars', 'max-select-rows', 'score-on-write'},
-      'memory-extract': {'enable', 'allow-group', 'max-facts', 'max-text-chars', 'max-summary-chars', 'min-quote-chars', 'require-tool-for-digits', 'temperature', 'max-tokens', 'max-input-chars'},
-      'memory-recall': {'enable', 'fuse', 'rrf-k', 'bm25-k1', 'bm25-b', 'bm25-half', 'rare-idf', 'rare-min-docs', 'graph-seeds', 'graph-min-weight', 'include-archived', 'index-ttl-ms', 'page-size', 'max-scan-rows', 'external-limit', 'vector-branch', 'recognition-branch'},
-      'memory-decay': {'enable', 'clear-above', 'faded-above', 'max-review-batch', 'max-scan-rows', 'max-init-per-scan', 'max-interval-days', 'auto-scan', 'scan-interval-minutes'},
-      'memory-dream': {'enable', 'mode', 'max-items', 'max-candidates', 'dream-salience', 'min-quote-chars', 'max-text-chars'},
-      'proactive-gate': {'enable', 'daily-quota', 'quiet-start', 'quiet-end', 'anti-ban-quiet-start', 'anti-ban-quiet-end', 'idle-minutes', 'per-minute', 'per-hour', 'per-day', 'max-len', 'hard-max-len', 'group-cooldown-ms', 'private-cooldown-ms', 'dedupe-minutes', 'dedupe-min-len', 'jitter-ms', 'circuit-hits', 'circuit-minutes', 'block-words', 'verbose'},
+      'privacy': {
+        'enable',
+        'approval-mode',
+        'strict-hosts',
+        'scan-secrets',
+        'consent-ttl-ms',
+        'verbose',
+      },
+      'asr': {
+        'enable',
+        'provider',
+        'binary',
+        'model-path',
+        'language',
+        'threads',
+        'ffmpeg-path',
+        'timeout-ms',
+        'cloud-base-url',
+        'cloud-model',
+        'credential-ref',
+        'allow-cloud-fallback',
+        'cloud-without-privacy',
+        'max-audio-bytes',
+        'max-chars',
+        'quiet',
+        'verbose',
+      },
+      'vision': {
+        'enable',
+        'provider',
+        'base-url',
+        'model',
+        'credential-ref',
+        'detail',
+        'timeout-ms',
+        'max-image-bytes',
+        'max-output-chars',
+        'video-frames',
+        'ffmpeg-path',
+        'cloud-without-privacy',
+        'verbose',
+      },
+      'tts': {
+        'enable',
+        'provider',
+        'preset',
+        'voice',
+        'rate',
+        'volume',
+        'max-chars',
+        'gsv-endpoint',
+        'gsv-ref-audio',
+        'gsv-prompt-text',
+        'gsv-text-lang',
+        'edge-bin',
+        'say-voice',
+        'say-wpm',
+        'timeout-ms',
+        'playback',
+        'cache-files',
+        'verbose',
+      },
+      'dialogue': {
+        'enable',
+        'max-turns',
+        'max-history-chars',
+        'temperature',
+        'max-tokens',
+        'include-persona',
+        'include-worldbook',
+        'min-tail-confidence',
+        'max-conversations',
+        'verbose',
+      },
+      'memory-core': {
+        'important-salience',
+        'long-term-base-hours',
+        'channel-anchor-days',
+        'floor-weight',
+        'archive-normal-days',
+        'archive-important-days',
+        'resurface-days',
+        'default-channel',
+        'max-text-chars',
+        'max-summary-chars',
+        'max-select-rows',
+        'score-on-write',
+      },
+      'memory-extract': {
+        'enable',
+        'allow-group',
+        'max-facts',
+        'max-text-chars',
+        'max-summary-chars',
+        'min-quote-chars',
+        'require-tool-for-digits',
+        'temperature',
+        'max-tokens',
+        'max-input-chars',
+      },
+      'memory-recall': {
+        'enable',
+        'fuse',
+        'rrf-k',
+        'bm25-k1',
+        'bm25-b',
+        'bm25-half',
+        'rare-idf',
+        'rare-min-docs',
+        'graph-seeds',
+        'graph-min-weight',
+        'include-archived',
+        'index-ttl-ms',
+        'page-size',
+        'max-scan-rows',
+        'external-limit',
+        'vector-branch',
+        'recognition-branch',
+      },
+      'memory-decay': {
+        'enable',
+        'clear-above',
+        'faded-above',
+        'max-review-batch',
+        'max-scan-rows',
+        'max-init-per-scan',
+        'max-interval-days',
+        'auto-scan',
+        'scan-interval-minutes',
+      },
+      'memory-dream': {
+        'enable',
+        'mode',
+        'max-items',
+        'max-candidates',
+        'dream-salience',
+        'min-quote-chars',
+        'max-text-chars',
+      },
+      'proactive-gate': {
+        'enable',
+        'daily-quota',
+        'quiet-start',
+        'quiet-end',
+        'anti-ban-quiet-start',
+        'anti-ban-quiet-end',
+        'idle-minutes',
+        'per-minute',
+        'per-hour',
+        'per-day',
+        'max-len',
+        'hard-max-len',
+        'group-cooldown-ms',
+        'private-cooldown-ms',
+        'dedupe-minutes',
+        'dedupe-min-len',
+        'jitter-ms',
+        'circuit-hits',
+        'circuit-minutes',
+        'block-words',
+        'verbose',
+      },
     };
 
     for (final entry in ondraSettingTargets.entries) {
@@ -318,13 +459,15 @@ void main() {
         expect(
           fields,
           isNotNull,
-          reason: '${entry.key} 写到了段 `${t.section}`，'
+          reason:
+              '${entry.key} 写到了段 `${t.section}`，'
               '但内核没有这个 CONFIG_SECTION_ID',
         );
         expect(
           fields,
           contains(t.key),
-          reason: '${entry.key} 写的是 ${t.section}.${t.key}，'
+          reason:
+              '${entry.key} 写的是 ${t.section}.${t.key}，'
               '但内核的 KEY_PAIRS 里没有这个 kebab 字段——'
               '写进去不会报错，只是永远读不到',
         );

@@ -38,60 +38,83 @@ class _TransferPageState extends State<TransferPage> {
   }
 
   Future<void> _load() async {
-    final snapshot = await transferLoader();
-    if (!mounted) return;
-    setState(() => _snapshot = snapshot);
+    try {
+      final snapshot = await transferLoader();
+      if (mounted) setState(() => _snapshot = snapshot);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _message = '读取失败：$e';
+          _messageOk = false;
+        });
+      }
+    }
   }
 
   /// 所有动作都走这一个壳：置忙 → 执行 → 重读统计 → 把引擎的原话显示出来。
-  Future<void> _run(Future<TransferResult> Function() action) async {
+  Future<void> _run(Future<TransferResult?> Function() action) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _message = '';
       _lastPath = null;
     });
-    final result = await action();
-    final snapshot = await transferLoader();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _snapshot = snapshot;
-      _message = result.message;
-      _messageOk = result.ok;
-      _lastPath = result.path;
-    });
+    try {
+      final result = await action();
+      if (result == null || !mounted) return;
+      setState(() {
+        _message = result.message;
+        _messageOk = result.ok;
+        _lastPath = result.path;
+      });
+      try {
+        final snapshot = await transferLoader();
+        if (mounted) setState(() => _snapshot = snapshot);
+      } catch (e) {
+        // 动作成功但刷新失败时保留产出路径，不能让用户误以为文件没写出。
+        if (mounted) {
+          setState(() {
+            _message += '\n统计刷新失败：$e';
+            _messageOk = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _message = '操作失败：$e';
+          _messageOk = false;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  Future<void> _exportMemories(TransferFormat format) async {
+  Future<void> _exportMemories(TransferFormat format) => _run(() async {
     final dir = await transferPickDirectory('选择要把记忆导出到哪里');
-    if (dir == null) return;
-    await _run(() => transferExportMemory(dir, format));
-  }
+    return dir == null ? null : await transferExportMemory(dir, format);
+  });
 
-  Future<void> _exportBundle() async {
+  Future<void> _exportBundle() => _run(() async {
     final dir = await transferPickDirectory('选择要把人设与偏好导出到哪里');
-    if (dir == null) return;
-    await _run(() => transferExportBundle(dir));
-  }
+    return dir == null ? null : await transferExportBundle(dir);
+  });
 
-  Future<void> _exportArchive() async {
+  Future<void> _exportArchive() => _run(() async {
     final dir = await transferPickDirectory('选择要把全部数据导出到哪里');
-    if (dir == null) return;
-    await _run(() => transferExportArchive(dir));
-  }
+    return dir == null ? null : await transferExportArchive(dir);
+  });
 
-  Future<void> _importFile(List<String> extensions) async {
+  Future<void> _importFile(List<String> extensions) => _run(() async {
     final path = await transferPickFile('选择要导入的文件', extensions);
-    if (path == null) return;
-    await _run(() => transferImport(path));
-  }
+    return path == null ? null : await transferImport(path);
+  });
 
-  Future<void> _importDir() async {
+  Future<void> _importDir() => _run(() async {
     final path = await transferPickDirectory('选择要导入的人设包目录');
-    if (path == null) return;
-    await _run(() => transferImport(path));
-  }
+    return path == null ? null : await transferImport(path);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +136,10 @@ class _TransferPageState extends State<TransferPage> {
               path: _lastPath,
               onReveal: _lastPath == null
                   ? null
-                  : () => transferReveal(_lastPath!),
+                  : () {
+                      final path = _lastPath!;
+                      _run(() => transferReveal(path));
+                    },
             ),
           ],
           const SizedBox(height: 18),
@@ -123,9 +149,7 @@ class _TransferPageState extends State<TransferPage> {
               children: [
                 OndraSettingRow(
                   title: '记忆文件',
-                  desc: snap == null
-                      ? '读取中…'
-                      : '同一条记忆不会长出两份；写库前会自动存一份备份',
+                  desc: snap == null ? '读取中…' : '同一条记忆不会长出两份；写库前会自动存一份备份',
                   value: 'JSON / MD',
                   chevron: true,
                   disabled: _busy,
@@ -160,9 +184,7 @@ class _TransferPageState extends State<TransferPage> {
               children: [
                 OndraSettingRow(
                   title: '记忆明文',
-                  desc: snap == null
-                      ? '读取中…'
-                      : '一条一段，带时间与类别；用任何编辑器都能读',
+                  desc: snap == null ? '读取中…' : '一条一段，带时间与类别；用任何编辑器都能读',
                   value: snap == null ? '' : '${snap.facts} 条',
                   chevron: true,
                   disabled: _busy,
@@ -185,7 +207,7 @@ class _TransferPageState extends State<TransferPage> {
                       : snap.personaPacks == 0
                       ? '人设还是内置那份，只有偏好会被带走'
                       : '含 ${snap.personaPacks} 个人设包与全部偏好',
-                  value: '.ondra',
+                  value: '目录',
                   chevron: true,
                   disabled: _busy,
                   onTap: _exportBundle,
@@ -193,7 +215,7 @@ class _TransferPageState extends State<TransferPage> {
                 ),
                 OndraSettingRow(
                   title: '全部数据',
-                  desc: '对话、记忆、插件配置与人设，打成一份自包含目录',
+                  desc: '当前对话、记忆、偏好与人设；不含内核装配层和密钥',
                   value: snap == null ? '' : '${snap.snapshotCount} 份备份',
                   chevron: true,
                   disabled: _busy,
@@ -245,7 +267,12 @@ class _Inventory extends StatelessWidget {
             children: [
               Text(
                 '本机现在有',
-                style: ondraText(11, weight: 600, color: s.ink40, height: 14 / 11),
+                style: ondraText(
+                  11,
+                  weight: 600,
+                  color: s.ink40,
+                  height: 14 / 11,
+                ),
               ),
               const Spacer(),
               if (busy)
@@ -260,7 +287,10 @@ class _Inventory extends StatelessWidget {
             children: [
               _Num(value: snap == null ? '—' : '${snap.facts}', label: '条记忆'),
               _Num(value: snap == null ? '—' : '${snap.raws}', label: '条原文'),
-              _Num(value: snap == null ? '—' : '${snap.sessions}', label: '份对话'),
+              _Num(
+                value: snap == null ? '—' : '${snap.sessions}',
+                label: '份对话',
+              ),
               _Num(
                 value: snap == null ? '—' : snap.dataText,
                 label: '本机数据',
@@ -307,7 +337,10 @@ class _Num extends StatelessWidget {
             ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
           ),
           const SizedBox(height: 2),
-          Text(label, style: ondraText(10.5, color: s.ink30, height: 14 / 10.5)),
+          Text(
+            label,
+            style: ondraText(10.5, color: s.ink30, height: 14 / 10.5),
+          ),
         ],
       ),
     );
@@ -347,10 +380,7 @@ class _ResultStrip extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              OndraStatusDot(
-                color: ok ? OndraColor.accent : s.ink45,
-                size: 6,
-              ),
+              OndraStatusDot(color: ok ? OndraColor.accent : s.ink45, size: 6),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

@@ -1,43 +1,45 @@
 import 'dart:convert';
-
-import '../../../../../app/home_dir.dart';
 import 'dart:io';
 
+import '../../../../../app/home_dir.dart';
 
-/// 白名单存取：`~/.ondra/browser-sites.json`。
-///
-/// 独立文件而不是 prefs.json：白名单是数组结构，prefs 只放标量。
-/// 文件坏了当作「没有自定义项」，调用方回落到出厂那一条。
-List<Map<String, String>> loadBrowserSites() {
+/// null 表示文件不存在；空数组表示用户清空了白名单。
+/// 损坏或不可读的文件按空表处理，不能意外恢复默认权限。
+/// file 是文件存储测试接缝，测试不得使用真实用户目录。
+List<Map<String, String>>? loadBrowserSites({File? file}) {
   try {
-    final f = _storeFile;
-    if (!f.existsSync()) return const [];
+    final f = file ?? _storeFile;
+    if (!f.existsSync()) return null;
     final raw = jsonDecode(f.readAsStringSync());
     if (raw is! List) return const [];
-    final out = <Map<String, String>>[];
-    for (final item in raw) {
-      if (item is! Map) continue;
-      final url = '${item['url'] ?? ''}';
-      if (url.isEmpty) continue;
-      out.add({'url': url, 'note': '${item['note'] ?? ''}'});
-    }
-    return out;
+    return [
+      for (final item in raw)
+        if (item is Map && item['url'] is String)
+          {'url': item['url'] as String, 'note': '${item['note'] ?? ''}'},
+    ];
   } catch (_) {
     return const [];
   }
 }
 
-void saveBrowserSites(List<Map<String, String>> sites) {
+void saveBrowserSites(List<Map<String, String>> sites, {File? file}) {
+  final f = file ?? _storeFile;
+  f.parent.createSync(recursive: true);
+  final temporary = f.parent.createTempSync('.browser-sites-');
   try {
-    _storeFile.writeAsStringSync(
+    final pending = File('${temporary.path}/sites.json');
+    pending.writeAsStringSync(
       const JsonEncoder.withIndent('  ').convert(sites),
+      flush: true,
     );
-  } catch (_) {
-    // 写盘失败不打断界面：改动还在内存里，下次改动会再试。
+    pending.renameSync(f.path);
+  } finally {
+    try {
+      temporary.deleteSync(recursive: true);
+    } on FileSystemException {
+      // 临时目录清理失败不能把已提交的规则误报成保存失败。
+    }
   }
 }
 
-File get _storeFile {
-  final home = ondraUserHome;
-  return File('$home/.ondra/browser-sites.json');
-}
+File get _storeFile => File('$ondraUserHome/.ondra/browser-sites.json');

@@ -5,6 +5,7 @@
 /// 日志页是同一套做法——**取数在页面外面**，页面只管画。
 library;
 
+import '../../../../../app/data_maintenance.dart';
 import 'transfer_engine.dart';
 import 'transfer_model.dart';
 
@@ -27,10 +28,19 @@ typedef TransferPickFile =
 typedef TransferReveal = Future<TransferResult> Function(String path);
 
 TransferLoader transferLoader = transferEngine.load;
-TransferExportMemory transferExportMemory = transferEngine.exportMemory;
-TransferExportBundle transferExportBundle = transferEngine.exportBundle;
-TransferExportArchive transferExportArchive = transferEngine.exportArchive;
-TransferImport transferImport = transferEngine.importPath;
+TransferExportMemory transferExportMemory = (dir, format) => dataMaintenance.run(
+  () => transferEngine.exportMemory(dir, format),
+);
+TransferExportBundle transferExportBundle = (dir) => dataMaintenance.run(
+  () => transferEngine.exportBundle(dir),
+);
+TransferExportArchive transferExportArchive = (dir) => dataMaintenance.run(
+  () => transferEngine.exportArchive(dir),
+);
+TransferImport transferImport = (path) => dataMaintenance.run(
+  () => transferEngine.importPath(path),
+  refresh: true,
+);
 TransferPickDirectory transferPickDirectory = transferEngine.pickDirectory;
 TransferPickFile transferPickFile = transferEngine.pickFile;
 TransferReveal transferReveal = transferEngine.reveal;

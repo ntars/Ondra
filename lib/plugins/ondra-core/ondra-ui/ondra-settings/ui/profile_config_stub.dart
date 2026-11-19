@@ -5,4 +5,11 @@ library;
 String? readProfileConfigField(String section, String key) => null;
 
 /// 写一个条目配置字段。浏览器写不进装配层，返回 false。
-bool writeProfileConfigField(String section, String key, Object? value) => false;
+bool writeProfileConfigField(String section, String key, Object? value) =>
+    false;
+
+({bool ok, bool changed, String? error}) writeProfileConfigFieldResult(
+  String section,
+  String key,
+  Object? value,
+) => (ok: false, changed: false, error: '当前环境不能写入 profile 配置');

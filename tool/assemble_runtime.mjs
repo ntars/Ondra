@@ -254,6 +254,8 @@ function findDshPkg(nodeBin) {
     }
   }
 
+  // dry-run 不启动 npm：即使 npm root 也可能写日志/缓存。非常规前缀请显式指定。
+  if (dryRun) return null;
   // 最后问一次 npm：非常规前缀（自定义 prefix、pnpm 的怪路径）只有它知道。
   const npmCmd = IS_WIN ? 'npm.cmd' : 'npm';
   const probe = spawnSync(npmCmd, ['root', '-g'], { encoding: 'utf8', shell: IS_WIN });
@@ -475,50 +477,37 @@ const PRUNE_EXACT = new Set([
 
 const NODE_MODULES = path.join(DSH_PKG, 'node_modules');
 const profileSet = new Set(PROFILE_KERNEL_PKGS);
-const seen = new Set();
+// 分发仍是「包名 → 一个顶层目录」。不同 importer 若解析到不同实体，明确拒绝，
+// 不把嵌套版本偷偷提升/替换成先遇到的版本（同版本号也不代表解析上下文相同）。
+const selectedPkgs = new Map();
 
 // NAMED_BY_PATCH 在下面「扫 bundle 的装配描述」时填充，这里先声明：
 // isPruned 要认它，否则「被 patch 点名」的包会被排除清单挡在门外。
 const NAMED_BY_PATCH = new Set();
 
 /**
- * 找一个包的源目录，按 Node 的解析顺序。
- *
- * ## 为什么不能只看 `dsh/node_modules`
- *
- * `npm install -g` 会把依赖 **hoist** 到 prefix 根的 node_modules——Windows 上
- * 是 `C:\npm\prefix\node_modules\@deepseek-ai\*`，Linux/macOS 全局装同理。这时
- * `dsh/node_modules/` 里只留下版本冲突的那些，其余都在上面一层。
- *
- * 只看 `dsh/node_modules` 就会把 hoisted 的包当作「没安装」：CI 上
- * `@deepseek-ai/dsh-tool-pwsh-persistent` 正是这么漏的（本机那份是独立安装、
- * 全在 `dsh/node_modules` 里，所以从来没暴露过）。
- *
- * 搜索顺序照抄 Node：自己那层 → 逐级向上。找到 package.json 才算数，空目录
- * 不算（npm 会留空壳）。
+ * 从 importer 的真实目录逐级搜索 node_modules，兼容 nested / hoisted / symlink。
+ * 不搜索裸父目录，不限制层数，也不借用另一 importer 的缓存结果。
+ * 直接读 manifest，避免 package exports 不导出 package.json 时误判缺包。
  */
 const pkgDirCache = new Map();
-function resolvePkgDir(name) {
-  if (pkgDirCache.has(name)) return pkgDirCache.get(name);
+function resolvePkgDir(name, importer) {
+  const from = fs.realpathSync(importer);
+  const key = JSON.stringify([from, name]);
+  if (pkgDirCache.has(key)) return pkgDirCache.get(key);
 
   let found = null;
-  const local = path.join(NODE_MODULES, name);
-  if (fs.existsSync(path.join(local, 'package.json'))) {
-    found = local;
-  } else {
-    let dir = DSH_PKG;
-    for (let i = 0; i < 6; i++) {
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-      const cand = path.join(dir, name);
-      if (fs.existsSync(path.join(cand, 'package.json'))) {
-        found = cand;
+  for (let dir = from; ; dir = path.dirname(dir)) {
+    if (path.basename(dir) !== 'node_modules') {
+      const candidate = path.join(dir, 'node_modules', name);
+      if (fs.existsSync(path.join(candidate, 'package.json'))) {
+        found = fs.realpathSync(candidate);
         break;
       }
     }
+    if (path.dirname(dir) === dir) break;
   }
-  pkgDirCache.set(name, found);
+  pkgDirCache.set(key, found);
   return found;
 }
 
@@ -530,96 +519,83 @@ function isPruned(name) {
   return PRUNE_PREFIXES.some((p) => name.startsWith(p));
 }
 
-// 「被点名、但安装里没有」的包。
-//
-// 这些进不了闭包（没有 manifest 就无从遍历它的依赖），但它们**可能真的会被
-// 加载**：内核 bundle 的装配描述用 `name:` 字符串点名插件，而 npm 上装的 dsh
-// 主包并不包含它——没有任何 package.json 声明过它。
-//
-// 漏掉的后果不是「少个功能」，是启动时 failed to import 直接退出。Windows CI
-// 上就是这么挂的：`@deepseek-ai/dsh-tool-pwsh-persistent` 被
-// `dsh-sdk-minimal/cordis.patch.yml` 点名，macOS 那份本机安装恰好带了它，
-// 而从 npm 装的那份没有。
-const unresolved = new Set();
+// 缺失按「importer + 包名」记录；可选边先被访问不能掩盖随后出现的必需边。
+const unresolved = new Map();
 
-function walk(name) {
-  if (seen.has(name)) return;
-  // **在进入时就剪，不是收集完再过滤。** 剔掉一个包必须连带剔掉它的整棵子树，
-  // 否则它自己的依赖（libreoffice 的字体包、client-ui 的图标包）仍会被拉进来。
+function walk(name, importer, required = true) {
+  // 保持原有剪枝规则：装配描述点名的包优先于排除清单。
   if (isPruned(name)) return;
-  seen.add(name);
-
-  const dir = resolvePkgDir(name);
+  const dir = resolvePkgDir(name, importer);
   if (!dir) {
-    // 有些依赖被 hoist 到上层，或本来就是可选的。这里只记账，稍后统一补装或
-    // 在自检时暴露——装配阶段无法判断它是否真被 require。
-    unresolved.add(name);
+    const key = JSON.stringify([importer, name]);
+    const previous = unresolved.get(key);
+    unresolved.set(key, { name, importer, required: required || !!previous?.required });
     return;
   }
+  // 必须先按本次 importer 解析，再判断是否访问过，不能按包名提前返回。
+  const selected = selectedPkgs.get(name);
+  if (selected && selected !== dir) {
+    die(`不兼容的同名依赖来源：${name}`,
+      `${selected}\n  ${dir}（importer: ${importer}）\n`
+      + '  当前扁平分发不能保证多个源目录的版本/解析上下文一致，请先整理源安装。');
+  }
+  if (selected) return;
   let data;
   try {
     data = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
-  } catch {
-    unresolved.add(name);
-    return;
+  } catch (err) {
+    die(`依赖 manifest 无法读取：${name}（${dir}）`, err.message);
   }
-  // **三种声明都要读。** 只读 `dependencies` 会漏掉 peer：`dsh-app-boot` 把
-  // `@deepseek-ai/cordis` 写在 `peerDependencies` 里，漏掉就是启动时
-  // `ERR_MODULE_NOT_FOUND: @deepseek-ai/cordis`。这条是实测踩出来的。
-  for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
-    for (const dep of Object.keys(data[field] || {})) walk(dep);
+  selectedPkgs.set(name, dir);
+  // optionalDependencies 覆盖同名 dependencies；peer 只有显式 optional 才可缺。
+  const optional = data.optionalDependencies || {};
+  for (const dep of Object.keys(data.dependencies || {})) {
+    if (!Object.hasOwn(optional, dep)) walk(dep, dir);
   }
+  for (const dep of Object.keys(data.peerDependencies || {})) {
+    walk(dep, dir, data.peerDependenciesMeta?.[dep]?.optional !== true);
+  }
+  for (const dep of Object.keys(optional)) walk(dep, dir, false);
 }
 
 const roots = new Set([...ENTRY_ROOTS, ...AGENT_ROOTS, ...PROFILE_KERNEL_PKGS]);
-for (const r of roots) walk(r);
+for (const r of roots) walk(r, DSH_PKG);
 
-// 闭包里的 bundle 自己也会点名插件。
-//
-// `dsh-sdk-minimal/cordis.patch.yml` 里就写着
-// `name: '@deepseek-ai/dsh-tool-pwsh-persistent'`，而那个包不被**任何**
-// package.json 的依赖声明引用。只看 profile 的 YAML 找不到它——上一版就漏在
-// 这里，直到在 Windows CI 上真跑一次握手才炸出来。
-//
-// 迭代到稳定：扫进来的 bundle 可能再带出新 bundle，一轮扫不干净。
-for (let round = 0; round < 4; round++) {
-  const found = new Set();
-  for (const name of [...seen]) {
-    const pkgRoot = resolvePkgDir(name);
-    if (!pkgRoot) continue;
+// bundle 的装配描述也可能点名没有 manifest 引用的插件。
+// 扫到稳定而非限制轮数；每条引用从描述所在包解析，不能丢掉 importer。
+const scanned = new Set();
+for (;;) {
+  const pending = [...selectedPkgs.values()].filter((dir) => !scanned.has(dir));
+  if (!pending.length) break;
+  for (const pkgRoot of pending) {
+    scanned.add(pkgRoot);
     for (const file of ['cordis.yml', 'cordis.patch.yml']) {
       const p = path.join(pkgRoot, file);
       if (!fs.existsSync(p)) continue;
-      let text;
-      try {
-        text = fs.readFileSync(p, 'utf8');
-      } catch {
-        continue;
+      const text = fs.readFileSync(p, 'utf8');
+      for (const m of text.matchAll(/@deepseek-ai\/[A-Za-z0-9._-]+/g)) {
+        NAMED_BY_PATCH.add(m[0]);
+        walk(m[0], pkgRoot);
       }
-      for (const m of text.matchAll(/@deepseek-ai\/[A-Za-z0-9._-]+/g)) found.add(m[0]);
     }
   }
-  const before = seen.size;
-  for (const n of found) {
-    NAMED_BY_PATCH.add(n);
-    if (!seen.has(n)) {
-      roots.add(n);
-      walk(n);
-    }
-  }
-  if (seen.size === before) break;
 }
 
 const NAMED = new Set([...PROFILE_KERNEL_PKGS, ...NAMED_BY_PATCH]);
-const MISSING = [...unresolved].sort();
-
+const missing = [...unresolved.values()];
+const requiredMissing = missing.filter((dep) => dep.required);
 say(`  装配描述点名的内核包：${NAMED.size} 个`);
-if (MISSING.length) {
-  const head = MISSING.slice(0, 4).join(', ') + (MISSING.length > 4 ? ' …' : '');
-  say(`  安装里缺少 ${MISSING.length} 个（稍后从 npm 补装）：${head}`);
+if (requiredMissing.length) {
+  die(`缺少 ${requiredMissing.length} 个必需依赖（未写入产物，未尝试 npm 补装）`,
+    requiredMissing.map(({ name, importer }) => `${name} <- ${importer}`).join('\n  ')
+    + '\n  请在源安装中准备匹配版本后重试；不会自动降级到 latest。');
+}
+if (missing.length) {
+  warn(`  ! 缺少 ${missing.length} 个显式可选依赖（不下载）：`
+    + missing.map(({ name, importer }) => `${name} <- ${importer}`).join(', '));
 }
 
-const CLOSURE = [...seen].filter((n) => resolvePkgDir(n) !== null).sort();
+const CLOSURE = [...selectedPkgs.keys()].sort();
 if (!CLOSURE.length) die(`依赖闭包为空：${NODE_MODULES} 里找不到 dsh-sdk-minimal`);
 say(`闭包包数 : ${CLOSURE.length}`);
 
@@ -1012,82 +988,30 @@ async function fetchSqlite(destDir) {
 
 const OUT = path.join(REPO, 'runtime', TARGET);
 
-/**
- * 从 npm 补装「装配描述点名、但安装里没有」的包。
- *
- * ## 为什么非补不可
- *
- * 这些包在运行期真的会被 import（装配描述里 `name:` 点名），缺了就是
- * `failed to import` 然后内核退出。而它们不被**任何** package.json 引用，所以
- * `npm i -g @deepseek-ai/dsh` 不会带它们——本机那份恰好装过才有。
- *
- * 这不是理论风险：Windows CI 上 `@deepseek-ai/dsh-tool-pwsh-persistent` 就是
- * 这么缺的，而 macOS 本机因为装过所以从来没暴露。
- *
- * ## 版本怎么选
- *
- * 先试**内核同版本**：这些包与内核配套发布（`dsh-tool-pwsh-persistent` 就有
- * 与内核同号的 0.2.2-rc.1）。那个版本不存在才退回 `latest`，并在输出里说一声
- * ——版本对不上时，症状会是运行期的行为差异，很难查。
- *
- * ## 装完怎么合
- *
- * npm 已经把依赖树平铺在临时目录的 node_modules 下，整体合并进产物：
- * 缺什么补什么，已有的一律不覆盖（已有的那份来自闭包，版本是算准的）。
- */
-function installMissingPackages(names, nmDest) {
-  if (!names.length) return;
-  const npmCmd = IS_WIN ? 'npm.cmd' : 'npm';
-  const kernelVer = (() => {
-    try {
-      return JSON.parse(fs.readFileSync(path.join(DSH_PKG, 'package.json'), 'utf8')).version;
-    } catch {
-      return null;
-    }
-  })();
+// 依赖源在只读预检里已经确定；真实复制和 dry-run 共用同一份去重计划。
+const pkgRoots = new Map(CLOSURE.map((name) => [name, selectedPkgs.get(name)]));
+const plan = planNestedDedup(
+  [...pkgRoots].map(([name, dir]) => ({ name, dir })),
+  DROP_EXT,
+);
 
-  const npmInstall = (dir, spec) => spawnSync(
-    npmCmd,
-    ['install', '--prefix', dir, '--no-save', '--no-audit', '--no-fund',
-      '--loglevel=error', spec],
-    { encoding: 'utf8', shell: IS_WIN, timeout: 300000, windowsHide: true },
-  );
-
-  for (const name of names) {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ondra-extra-'));
-    let used = kernelVer;
-    let res = kernelVer ? npmInstall(tmp, `${name}@${kernelVer}`) : null;
-    if (!res || res.status !== 0) {
-      used = 'latest';
-      res = npmInstall(tmp, `${name}@latest`);
+/** 只读估算要复制的普通文件字节数：与 copyTree 使用相同过滤条件，不跟随链接。 */
+function copySize(src, dropExt, skipLog = false, skipDirs = new Set()) {
+  if (!fs.existsSync(src)) return 0;
+  let bytes = 0;
+  const stack = [src];
+  while (stack.length) {
+    const cur = stack.pop();
+    const stat = fs.lstatSync(cur);
+    if (stat.isSymbolicLink() || skipDirs.has(cur)) continue;
+    if (stat.isDirectory()) {
+      for (const name of fs.readdirSync(cur)) stack.push(path.join(cur, name));
+    } else if (stat.isFile()) {
+      const ext = path.extname(cur).toLowerCase();
+      if (!dropExt.has(ext) && !(skipLog && ext === '.log')) bytes += stat.size;
     }
-    if (res.status !== 0) {
-      rimrafQuietly(tmp, '补装用的临时目录');
-      die(`补装失败：${name}`,
-        ((res.stderr || res.stdout || '').split('\n').filter(Boolean)[0] || 'npm 没有给出原因'));
-    }
-
-    // 合并：只补产物里没有的。scoped 目录要先建出来再往里递归。
-    let count = 0;
-    const merge = (src, dst) => {
-      for (const e of fs.readdirSync(src, { withFileTypes: true })) {
-        if (e.name.startsWith('.')) continue;
-        const s = path.join(src, e.name);
-        const d = path.join(dst, e.name);
-        if (e.isDirectory() && e.name.startsWith('@')) {
-          fs.mkdirSync(d, { recursive: true });
-          merge(s, d);
-        } else if (e.isDirectory()) {
-          if (fs.existsSync(d)) continue;
-          copyTree(s, d, DROP_EXT, false);
-          count += 1;
-        }
-      }
-    };
-    merge(path.join(tmp, 'node_modules'), nmDest);
-    rimrafQuietly(tmp, '补装用的临时目录');
-    say(`  补装 ${name}@${used}（${count} 个包${used === 'latest' ? '，内核版本不存在，已退回 latest' : ''}）`);
   }
+  return bytes;
 }
 
 async function copyPayload(dest) {
@@ -1112,16 +1036,6 @@ async function copyPayload(dest) {
   // 3) 依赖闭包，按 DROP_EXT 过滤。重复副本**一开始就不拷**：先规划，把
   //    要合并的目录排除在拷贝之外，稍后只拷一份实体并建链接。
   const nmDest = path.join(dshDest, 'node_modules');
-  // 每个包的源目录可能不在同一个 node_modules 下（全局安装会 hoist），
-  // 先解析成「包名 → 目录」，后面拷贝与去重都按它走。
-  const pkgRoots = new Map(
-    CLOSURE.map((n) => [n, resolvePkgDir(n)]),
-  );
-  const plan = planNestedDedup(
-    [...pkgRoots].map(([name, dir]) => ({ name, dir })),
-    DROP_EXT,
-  );
-
   let kept = 0;
   let dropped = 0;
   for (const [name, dir] of pkgRoots) {
@@ -1136,19 +1050,6 @@ async function copyPayload(dest) {
     dropped += r.dropped;
   }
   say(`  闭包：保留 ${kept} 个文件，丢弃 ${dropped} 个`);
-
-  // 3.5) 补装「被点名但安装里没有」的包。放在去重之前：它们是小包，
-  //      没有嵌套副本，不参与去重规划。
-  //
-  //      分两类：被装配描述点名的缺了会炸（运行期真的 import），必须补；
-  //      只是某个包的可选依赖缺了不影响对话链路，只报告不去下载。
-  const mustHave = MISSING.filter((n) => NAMED.has(n));
-  const optional = MISSING.filter((n) => !NAMED.has(n));
-  installMissingPackages(mustHave, nmDest);
-  if (optional.length) {
-    warn(`  ! ${optional.length} 个可选依赖没装（不在对话链路上）：` +
-      optional.slice(0, 5).join(', ') + (optional.length > 5 ? ' …' : ''));
-  }
 
   // 4) 去重落地。
   if (plan.groups.length) {

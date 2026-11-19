@@ -74,13 +74,150 @@ class BackupFileEntry {
   static BackupFileEntry? fromJson(Object? raw) {
     if (raw is! Map) return null;
     final p = raw['p'];
-    if (p is! String || p.isEmpty) return null;
-    return BackupFileEntry(
-      path: p,
-      size: (raw['s'] as num?)?.toInt() ?? 0,
-      hash: raw['h'] as String? ?? '',
-      modified: (raw['m'] as num?)?.toInt() ?? 0,
-    );
+    final size = raw['s'];
+    final hash = raw['h'];
+    final modified = raw['m'];
+    if (p is! String ||
+        !BackupPaths.isAsset(p) ||
+        size is! int ||
+        size < 0 ||
+        hash is! String ||
+        !RegExp(r'^[0-9a-f]{16}$').hasMatch(hash) ||
+        modified is! int ||
+        modified < 0) {
+      return null;
+    }
+    return BackupFileEntry(path: p, size: size, hash: hash, modified: modified);
+  }
+}
+
+/// 采集与清单解析共用同一份资产白名单，导入不能扩大恢复的写入权限。
+abstract final class BackupPaths {
+  static const trees = [
+    'user',
+    'sessions',
+    'dsh/sessions',
+    'personas',
+    'storages',
+  ];
+  static const singleFiles = [
+    'prefs.json',
+    'models.json',
+    'browser-sites.json',
+    'avatar.png',
+  ];
+  static const excludedDirectories = {
+    'node_modules',
+    '.git',
+    '.venv',
+    '__pycache__',
+    '.cache',
+    'plugins',
+    'runtime',
+    'profiles',
+    'backups',
+    'scripts',
+    'credentials',
+    'secrets',
+    '.ssh',
+  };
+  static const _extensions = {
+    'json',
+    'jsonl',
+    'md',
+    'txt',
+    'yaml',
+    'yml',
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'gif',
+    'svg',
+    'db',
+    'sqlite',
+    'sqlite3',
+    'csv',
+  };
+
+  /// 使用可跨平台搬运的规范相对路径；同时挡住 Windows ADS/盘符/设备名。
+  static bool isRelative(String path) {
+    if (path.isEmpty || RegExp(r'[\\\x00-\x1f\x7f:*?"<>|]').hasMatch(path)) {
+      return false;
+    }
+    return path
+        .split('/')
+        .every(
+          (part) =>
+              part.isNotEmpty &&
+              part != '.' &&
+              part != '..' &&
+              !part.endsWith('.') &&
+              !part.endsWith(' ') &&
+              !RegExp(
+                r'^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)',
+                caseSensitive: false,
+              ).hasMatch(part),
+        );
+  }
+
+  static bool isAsset(String path) {
+    if (!isRelative(path)) return false;
+    if (singleFiles.contains(path)) return true;
+    if (!trees.any((tree) => path.startsWith('$tree/'))) return false;
+    final parts = path.toLowerCase().split('/');
+    if (parts.any(excludedDirectories.contains)) return false;
+    final leaf = parts.last;
+    if (leaf.startsWith('.') ||
+        RegExp(r'(^|[._-])(credentials?|secrets?|tokens?|api[-_]?key)([._-]|$)')
+            .hasMatch(leaf) ||
+        {
+          'package.json',
+          'package-lock.json',
+          'pnpm-lock.yaml',
+          'pnpm-workspace.yaml',
+          'cordis.yml',
+          'cordis.patch.yml',
+        }.contains(leaf)) {
+      return false;
+    }
+    // PersonaStore 发布的内核人设包只位于这一层，不能泛化成任意 ZIP 白名单。
+    // slug 与人设存储约定一致：保留历史大小写/点，但不允许隐藏名、连续点或尾点。
+    if (parts.length == 3 &&
+        path.startsWith('user/personas/') &&
+        path.endsWith('.skill.zip')) {
+      final name = path.split('/').last;
+      final slug = name.substring(0, name.length - '.skill.zip'.length);
+      return RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$').hasMatch(slug) &&
+          !slug.contains('..') &&
+          !slug.endsWith('.');
+    }
+    return _extensions.contains(leaf.split('.').last);
+  }
+
+  /// 不能静默过滤坏条目，否则一份有问题的备份会被显示成「部分成功」。
+  static List<BackupFileEntry> parseFiles(Object? raw) {
+    if (raw is! List || raw.isEmpty) throw const FormatException('清单文件列表为空或无效');
+    final files = <BackupFileEntry>[];
+    final paths = <String>{};
+    for (final item in raw) {
+      final entry = BackupFileEntry.fromJson(item);
+      if (entry == null) throw const FormatException('清单含不安全路径或无效 hash/size');
+      // 即使在区分大小写的系统导入，也不能生成搬到 macOS/Windows 会冲突的备份。
+      if (!paths.add(entry.path.toLowerCase())) {
+        throw FormatException('清单路径重复：${entry.path}');
+      }
+      files.add(entry);
+    }
+    for (final path in paths) {
+      final parts = path.split('/');
+      for (var i = 1; i < parts.length; i++) {
+        if (paths.contains(parts.take(i).join('/'))) {
+          throw FormatException('清单文件/目录路径冲突：$path');
+        }
+      }
+    }
+    return files;
   }
 }
 
@@ -259,13 +396,18 @@ class BackupOverview {
 /// 一次操作的结果。界面拿 [message] 直接显示，不自己拼文案——
 /// 只有引擎知道「恢复了几个文件、有几个没在该快照里」。
 class BackupOpResult {
-  const BackupOpResult({required this.ok, required this.message, this.snapshotId});
+  const BackupOpResult({
+    required this.ok,
+    required this.message,
+    this.snapshotId,
+  });
 
   final bool ok;
   final String message;
   final String? snapshotId;
 
-  const BackupOpResult.failure(String message) : this(ok: false, message: message);
+  const BackupOpResult.failure(String message)
+    : this(ok: false, message: message);
 }
 
 /// 字节的人类读法。
