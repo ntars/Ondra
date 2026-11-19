@@ -101,35 +101,68 @@
 
 ---
 
-## 四、核心特性
+## 四、插件清单（两套侧，各自真实现）
 
-### 4.1 插件即一切
+### 4.0.1 界面侧（Flutter，`lib/plugins/`）
+
+| 插件 | 功能 | 状态 |
+|---|---|---|
+| ondra-ui | 三栏外壳、注册表、引导挂载点 | ✓ |
+| ondra-onboarding | 首次启动引导（一屏，prefs 判据） | ✓ |
+| ondra-status | 状态面板：真读 ondra.db / 日志 / 端口探活 | ✓ |
+| ondra-memory | 记忆星图：真读 memory_fact / memory_link | ✓ |
+| ondra-history | 历史对话 + 会话行点开只读详情 | ✓ |
+| ondra-plugins | 插件管理：清单 18 项 + 装配层，开关真改 YAML | ✓ |
+| ondra-backup | 备份还原：真文件 + 时间线 + 平台守卫 | ✓ |
+| ondra-transfer | 导入导出：真文件 + sqlite，导出回读校验 | ✓ |
+| ondra-guide | 使用教程（5 条问答） | ✓ |
+| ondra-logs | 三类日志：真读 transport/ondra-code/window.log，档位接线 | ✓ |
+| ondra-chat | 右栏聊天：附件真发内核、新建真换会话、离线常驻提示 + 重连 | ✓ |
+| ondra-settings | 5 类设置：模型基座落盘 models.json、密钥真写钥匙串、人设记住选择 | ✓ |
+| ondra-model | 模型基座投影：UI id → 内核路由翻译（kernelRouteOf） | ✓ |
+| ondra-store / runtime | TS 内核实现（src/），无 Dart UI | ✓ |
+| ondra-beichen-api / browser / voice / channel / emotion / relationship / font / locale | 内核侧 TS 实现（src/），浏览器白名单已落盘 | ✓ |
+
+**设置的落点**：真生效的位置是 `~/.ondra/dsh/profiles/ondra/cordis.patch.yml`
+里各条目的 `config` 块（内核装配时传给 `apply(ctx, config)`）。设置页改动
+写这里，下一次内核启动生效；`settings.json` 是历史形状，内核不读它。
+
+### 4.0.2 内核侧（TS，运行在 `plugin-profile/` 的 77 个 @ondra 包）
+
+旧版 78 包按「是否共用一份状态」合并成 14 个新版（memory/emotion/persona/
+relationship/channel/voice/model/store/runtime 等）；运行清单见
+`lib/plugins/LAYOUT.md`。chat 链路上游 `deepseek-official` 与 `magpie`
+两条路由由装配层声明，无路由的提供商在「设为默认」时被拦截并说明。
+
+## 五、核心特性
+
+### 5.1 插件即一切
 
 界面不实现任何业务能力。`ondra-core/` 随包默认且不可关闭，`ondra-extensions/` 可开关，`ondra-custom/` 由用户自装；框架 `cordis/` 是宿主，不属于插件。
 
-### 4.2 情绪是状态量，不是形容词
+### 5.2 情绪是状态量，不是形容词
 
 情绪带惯性：上一轮的状态会影响这一轮，而不是每轮重新描述一次。界面上两条轴显示的是落定后的值，零数据时显示「还没有第一次落定」。
 
-### 4.3 记忆是链路，不是向量库
+### 5.3 记忆是链路，不是向量库
 
 记忆从采集、提炼、判重、衰减、召回到注入是一条完整链路，每一环都是独立插件，可以单独替换或关闭。
 
-### 4.4 上下文有预算
+### 5.4 上下文有预算
 
 冻结前缀 + 增量注入 + 预算装箱：每轮重拼 system prompt 会让成本成倍上升，冻结前缀是成本敏感部分的解法。
 
-### 4.5 备份内容寻址
+### 5.5 备份内容寻址
 
 `~/.ondra/backups` 下只有对象库与快照清单；相同内容只存一次，本机实测 32 个文件 / 437 KB，第二份快照新增 0 字节。
 
-### 4.6 启动时序自愈
+### 5.6 启动时序自愈
 
 内核三十多个插件按「取不到依赖就转不可用」写，而 loader 是并发 apply。新增 `ondra-boot-settle` 在依赖真正就绪后重启抢跑的插件，本机实测启动降级条目 **55 → 0**。
 
 ---
 
-## 五、设计细节与工程取舍
+## 六、设计细节与工程取舍
 
 完整推演见 [docs/design-notes.md](docs/design-notes.md)，此处只留关键决定。
 
@@ -145,7 +178,7 @@
 
 ---
 
-## 六、技术栈与依赖清单
+## 七、技术栈与依赖清单
 
 | 层 | 技术 | 版本约束 |
 |---|---|---|
@@ -161,9 +194,9 @@
 
 ---
 
-## 七、安装与部署
+## 八、安装与部署
 
-### 7.1 环境要求
+### 8.1 环境要求
 
 | 项 | 要求 | 用途 |
 |---|---|---|
@@ -172,7 +205,7 @@
 | Node.js | 18+ | 安装 dsh 内核与插件 |
 | llama.cpp | 可选，`brew install llama.cpp` | 本地模型部署 |
 
-### 7.2 安装与运行
+### 8.2 安装与运行
 
 ```sh
 git clone https://github.com/ntars/Ondra.git
@@ -180,7 +213,7 @@ cd Ondra && flutter pub get
 flutter run -d macos
 ```
 
-### 7.3 直接下载
+### 8.3 直接下载
 
 三端安装包在 [Releases](https://github.com/ntars/Ondra/releases) 里，附 `SHA256SUMS.txt`：
 
@@ -192,7 +225,7 @@ flutter run -d macos
 
 校验：`shasum -a 256 -c SHA256SUMS.txt`。三个包都没有正式签名，首次打开按发行版说明处理系统拦截。
 
-### 7.4 构建与分发
+### 8.4 构建与分发
 
 **先装配运行时，再打包。** 应用自带 Node 与内核，这两步不能省——只跑
 `flutter build` 出来的包里没有任何运行时，装到别人机器上会连不上内核。
@@ -281,11 +314,11 @@ Windows 的构建前置比 macOS 多一步，而且**不能省**：`flutter buil
 
 四条硬约束：关闭 App Sandbox（要拉起本机子进程）、不引入原生插件、GUI 应用自行探测 `dsh` 路径、数据目录独立（`DSH_HOME=~/.ondra/dsh`）。
 
-### 7.5 升级与卸载
+### 8.5 升级与卸载
 
 升级：替换 `.app`，数据目录不动。卸载：删除应用与 `~/.ondra/`（含会话、记忆、备份、日志），删除后不可恢复，操作前建议先用备份页导出一份。
 
-### 7.6 容器化
+### 8.6 容器化
 
 桌面应用不做容器化；Web 构建产物为静态文件，可部署到任意静态托管，但无法连本机内核。
 

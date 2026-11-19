@@ -81,12 +81,19 @@ Future<void> main() async {
 /// 按「设置 → 模型基座」里选中的那一档建传输层。
 ///
 /// `provider` 与 `model` 是在 initialize 时交给内核的**选路参数**：
-/// 前者是路由名（`magpie`、`deepseek-official`……），后者是那家目录里的模型名。
+/// 前者是**内核路由名**（`magpie`、`deepseek-official`……），不是 UI 的
+/// 提供商 id——两者由 [ModelClient.kernelRouteOf] 翻译，没有路由的类别在
+/// 「设为默认」那一步就被拦下。后者是那家目录里的模型名。
 /// 默认走本机网关 magpie，不填密钥、不联外网就能说话。
-StdioDshTransport _transportForCurrentModel() => StdioDshTransport(
-      provider: modelClient.defaultProviderId,
-      modelId: modelClient.defaultModelId,
-    );
+StdioDshTransport _transportForCurrentModel() {
+  final p = modelClient.byId(modelClient.defaultProviderId);
+  return StdioDshTransport(
+    provider: p == null
+        ? modelClient.defaultProviderId
+        : (modelClient.kernelRouteOf(p) ?? modelClient.defaultProviderId),
+    modelId: modelClient.defaultModelId,
+  );
+}
 
 /// 换模型要重起内核：`provider` / `model` 只在 initialize 那一刻生效，
 /// 中途改一个正在跑的进程没有接口。所以这里监听默认模型，

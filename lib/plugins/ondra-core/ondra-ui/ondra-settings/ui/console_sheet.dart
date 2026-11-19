@@ -464,7 +464,15 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
                   : '${entries[i].$1.name} · 上下文 ${entries[i].$2.contextWindow}',
               action: _SmallPill(
                 label: modelClient.isDefault(entries[i].$1, entries[i].$2) ? '当前' : '设为默认',
-                onTap: () => modelClient.setDefaultModel(entries[i].$1, entries[i].$2),
+                onTap: () {
+                  final err = modelClient.setDefaultModel(
+                    entries[i].$1,
+                    entries[i].$2,
+                  );
+                  if (err != null && context.mounted) {
+                    OndraToast.show(context, err, ok: false);
+                  }
+                },
               ),
               showDivider: i != entries.length - 1,
             ),

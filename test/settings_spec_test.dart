@@ -91,19 +91,22 @@ void main() {
     expect(client.byId(partner.id)!.baseUrl, isEmpty);
   });
 
-  test('同一模型 id 出自两个提供商时，默认只标一个', () {
+  test('无内核路由的提供商不能设为默认；有路由的能设且只标一个', () {
     final client = ModelClient();
-    // 免费目录里也有 deepseek-chat，与官方重名。
+    // 免费目录还没有内核路由：设为默认会让内核 initialize 直接报
+    // no adapter registered，所以在这一步就拦下。
     final free = presetsOf(ProviderCategory.free).first;
     expect(client.addPreset(free), isNull);
-
-    final official = client.byId('deepseek')!;
-    final officialChat = official.models.firstWhere((m) => m.id == 'deepseek-chat');
     final freeProvider = client.byId(free.id)!;
-    final freeChat = freeProvider.models.firstWhere((m) => m.id == 'deepseek-chat');
+    final freeChat = freeProvider.models.first;
+    expect(client.setDefaultModel(freeProvider, freeChat), isNotNull);
+    expect(client.isDefault(freeProvider, freeChat), isFalse);
 
-    client.setDefaultModel(freeProvider, freeChat);
-    expect(client.isDefault(freeProvider, freeChat), isTrue);
-    expect(client.isDefault(official, officialChat), isFalse);
+    // 官方接口有路由（deepseek-official），能设为默认。
+    final official = client.byId('deepseek')!;
+    final officialChat = official.models.first;
+    expect(client.setDefaultModel(official, officialChat), isNull);
+    expect(client.isDefault(official, officialChat), isTrue);
+    expect(client.isDefault(freeProvider, freeChat), isFalse);
   });
 }

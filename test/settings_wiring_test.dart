@@ -226,9 +226,12 @@ void main() {
   });
 
 
-  test('真写进 settings.json：形状与内核一致，且能读回来', () {
-    // 这一条走真实文件，不是内存里的映射：`DshSettings` 写到
-    // `$DSH_HOME/settings.json`，内核读的就是这一份。
+  test('DshSettings 的文件形状能往返（历史形状，内核不读它）', () {
+    // `DshSettings` 写 `$DSH_HOME/settings.json`。2026-11-19 对着内核源码
+    // 核过：**发行版没有任何模块读这份文件**——它只是历史形状，留着是为了
+    // 旧数据可读。真生效的落点是装配层 `cordis.patch.yml` 的条目 config，
+    // 见 `profile_config_io.dart` 与 `profile_config_test.dart`。
+    // 这一段保留，守的是「读写实现本身没坏、坏文件不拖死设置页」。
     final tmp = Directory.systemTemp.createTempSync('ondra-dsh-');
     DshSettings.setHome(tmp.path);
     addTearDown(() {
