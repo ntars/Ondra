@@ -48,29 +48,52 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
       map: _permissionMode,
     ),
   ],
-  'general.language': [
-    const OndraSettingTarget(section: 'asr', key: 'language', map: _asrLanguage),
-  ],
+  // 「语言」是**界面语言**，落点是 `OndraI18n` 载入哪份语言包，不写 `settings.json`。
+  //
+  // 上一版把它映射到 `asr.language`——那是语音识别语言。改界面语言会顺带
+  // 把语音识别切到别的语种：选 English 之后，说中文录进来识别不出来，
+  // 而用户完全不会把这件事和「界面语言」联系起来。
+  //
+  // 语音识别语言现在单独一项（`voice.asrLanguage`），两者互不影响。
   // 字号只影响界面，没有内核字段——它不在表里，界面据此标注。
 
   // ── 对话 ────────────────────────────────────────────────────────────────
+  // 「允许空谷记住」= 要不要把对话里的东西提炼成记忆点。内核里这件事是
+  // `memory-extract` 这个阶段：关掉它，对话照常，但不再从里面长出记忆。
+  //
+  // 上一版写的是 `memory-core.score-on-write`，那个字段的 doc 原话是
+  // 「关掉后统一 50 分，**仅供对拍调试**」——它不是「记不记得」的开关，
+  // 而是「写入时按不按打分表算显著度」。拨这一下会让所有记忆等权，
+  // 而用户以为自己在说「别记我」。
   'dialog.remember': [
-    const OndraSettingTarget(section: 'memory-core', key: 'score-on-write'),
-  ],
-  'dialog.citeMemory': [
-    const OndraSettingTarget(section: 'dialogue', key: 'include-persona'),
-  ],
-  // 「从记忆里推断偏好」= 要不要从对话里提取出偏好类事实。
-  // 内核里这件事就是 `memory-extract` 这个阶段本身：关掉它，
-  // 对话照常进行，但不会再从里面长出新的偏好记忆。
-  'dialog.inferPreference': [
     const OndraSettingTarget(section: 'memory-extract', key: 'enable'),
+  ],
+  // 「引用记忆」= 回答前先翻一遍记忆点。内核里这件事是**召回**这一步：
+  // 关掉召回，回答照常生成，只是不再引用记忆。上一版写的是
+  // `dialogue.include-persona`——那是「要不要拼人设段进提示词」，
+  // 和记忆毫无关系，拨这个开关只会让人设消失。
+  'dialog.citeMemory': [
+    const OndraSettingTarget(section: 'memory-recall', key: 'enable'),
+  ],
+  // 「从记忆里推断偏好」比「记住」更窄：只关掉偏好的沉淀，事实照记。
+  // 内核没有单独的偏好段，最接近的是梦境归纳（`memory-dream`）——
+  // 它负责在夜巡时把零散对话收成卡片。关掉它，事实仍由 extract 落地，
+  // 只是不再有「归纳」这一层。
+  'dialog.inferPreference': [
+    const OndraSettingTarget(section: 'memory-dream', key: 'enable'),
   ],
   'dialog.replyLength': [
     const OndraSettingTarget(section: 'dialogue', key: 'max-tokens', map: _replyTokens),
   ],
 
   // ── 记忆 ────────────────────────────────────────────────────────────────
+  // 「记忆保留期」= 普通记忆多久没被引用就沉底。内核字段是
+  // `memory-core.archive-normal-days`（1–3650），语义完全对得上。
+  //
+  // 界面不再给「永久」这一档：内核没有「永不沉底」的取值，`3650` 已经
+  // 是它能接受的上界（十年）。上一版把 `forever` 映射成 36500——超出
+  // `max: 3650`，会被 `completeConfig` 的 `clampInt` 夹回 3650，用户
+  // 看到的「永久」实际是十年，且没有任何提示。
   'memory.retention': [
     const OndraSettingTarget(
       section: 'memory-core',
@@ -78,13 +101,13 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
       map: _retentionDays,
     ),
   ],
-  'memory.capacity': [
-    const OndraSettingTarget(
-      section: 'memory-core',
-      key: 'max-select-rows',
-      map: _capacityRows,
-    ),
-  ],
+  // 「自动归纳」= 夜巡时把零散对话收成记忆点。内核里这是 `memory-decay`
+  // 的定时扫描（`auto-scan`），默认 **false**——不是漏配，是刻意：
+  // 「`archive()` 是写操作，时机该由回合边界或夜巡显式给」。
+  //
+  // 界面这一项默认 true，与内核相反。两边不一致时会以最后一次写入为准：
+  // 用户动过一次开关，值就落进 `settings.json`，此后一致。这里记下差异，
+  // 不改默认值——界面的默认只影响「从没碰过这一项的人」。
   'memory.autoSummarize': [
     const OndraSettingTarget(section: 'memory-decay', key: 'auto-scan'),
   ],
@@ -119,10 +142,13 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   ],
 
   // ── 隐私与安全 ──────────────────────────────────────────────────────────
-  // 「允许联网」是产品层说法，落到内核是两个「允许走云通道」的开关＋隐私总闸。
-  'privacy.online': [
-    const OndraSettingTarget(section: 'vision', key: 'cloud-without-privacy'),
+  // 「允许联网」这个大开关已拆成两个如实落点——内核没有全局网络总闸，
+  // 详见 `settings_spec` 里这两项上方的说明。
+  'privacy.voiceCloud': [
     const OndraSettingTarget(section: 'asr', key: 'allow-cloud-fallback'),
+  ],
+  'privacy.imageCloud': [
+    const OndraSettingTarget(section: 'vision', key: 'cloud-without-privacy'),
   ],
   'privacy.screenRead': [
     const OndraSettingTarget(section: 'vision', key: 'enable'),
@@ -132,11 +158,17 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   ],
 
   // ── 通道 ────────────────────────────────────────────────────────────────
-  // 「允许群聊」在内核侧由主动消息闸门的分钟/分时配额表达：
-  // 群里最怕的是刷屏，所以关掉群聊就把配额压到极低而不是写一个不存在的开关。
-  'channels.allowGroups': [
-    const OndraSettingTarget(section: 'proactive-gate', key: 'per-minute'),
-  ],
+  // 这一段目前**没有任何一项有真实落点**，全部如实标注为「需要通道插件」。
+  //
+  // 上一版给「允许群聊」配了 `proactive-gate.per-minute`，这是个打字错误级别的
+  // 灾难：那个字段是 number（1–20 的每分钟配额），写进去的是布尔值。
+  // 内核的 `clampInt` 对非数字一律回退默认值，所以拨开关等于什么都没发生；
+  // 更糟的是即使写对了类型也没意义——群聊主动消息在内核里是**合规章节级
+  // 红线**：「群里不主动说话（§5.7 红线，**无开关**）」（`gate.ts:285` 原话）。
+  // 没有的东西就不该给一个开关。
+  //
+  // 通道接入的真实形态是安装 `ondra-channel` 适配器（QQ / 飞书），
+  // 装上之后由适配器自己的配置段接管，不在这个总表里。
 };
 
 /// 这一项有没有落点。没有的项界面要如实标注。
@@ -164,6 +196,11 @@ const Set<String> _platformWiredKeys = {
   // 界面自身：更新通道会被「检查更新」直接读走（`UpdateChecker.check`
   // 的 channel 参数），选了就查哪条线，不需要经过内核。
   'about.channel',
+  // 界面自身：语言决定 `OndraI18n` 载入哪份语言包，字号改的是会话正文的
+  // 排版系数（`_Bubble._scale`）。两者都不进 `settings.json`，但拨了就
+  // 立刻看得见变化——不在这里算上，界面会在它们下面写「只影响界面」。
+  'general.language',
+  'general.fontSize',
 };
 
 /// 这一项的内核落点（可能为空，表示落点在系统侧或纯界面）。
@@ -218,10 +255,25 @@ bool ondraPushSetting(String uiKey, Object? value) {
 // ── 值映射 ────────────────────────────────────────────────────────────────
 
 /// 界面三档 → 隐私插件的审批模式。
+///
+/// 内核只有三档（`ondra-privacy/src/types.ts` 的 `APPROVAL_MODES`）：
+/// - `supervised` 每个高风险都问；
+/// - `auto` 低风险直过、高风险问；
+/// - `full` 免审批，但要求开沙箱写边界。
+///
+/// **取值必须落在这三个里**：`approvalModeOf()` 认不出来就 `report()` 一次
+/// 然后回退 `DEFAULT_CONFIG.approvalMode`（`auto`）。上一版写的是
+/// `strict` / `open`——两个都不可识别，于是「仅可查看」和「完全权限」
+/// 都静默变成 `auto`。这不是文案问题：用户以为自己收紧了审批，实际没有。
+///
+/// 三档对位：
+/// - 仅可查看 = 每一步都要问（`supervised`）；
+/// - 工作区内修改 = 内核的默认档（`auto`）；
+/// - 完全权限 = 免审批（`full`）。
 Object? _permissionMode(Object? v) => switch (v) {
-  'readOnly' => 'strict',
-  'workspace' => 'supervised',
-  'fullAccess' => 'open',
+  'readOnly' => 'supervised',
+  'workspace' => 'auto',
+  'fullAccess' => 'full',
   _ => null,
 };
 
@@ -241,22 +293,15 @@ Object? _replyTokens(Object? v) => switch (v) {
   _ => null,
 };
 
-/// 记忆保留期 → 归档天数。`forever` 用一个很大的值而不是 null：
-/// null 在内核里表示「未设置」，会回退默认值，那是 180 天，不是永久。
+/// 记忆保留期 → 归档天数。取值必须落在内核的 1–3650 之间：
+/// 超出上界会被 `clampInt` 夹回 3650，用户以为设了更久，实际没有。
 Object? _retentionDays(Object? v) => switch (v) {
   '30d' => 30,
   '180d' => 180,
-  'forever' => 36500,
+  '3650d' => 3650,
   _ => null,
 };
 
-/// 容量上限 → 单次检索最多取多少行。
-Object? _capacityRows(Object? v) => switch (v) {
-  '1k' => 200,
-  '5k' => 1000,
-  '20k' => 4000,
-  _ => null,
-};
 
 /// 音色三档 → tts 的预设 id。
 ///

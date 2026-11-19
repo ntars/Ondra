@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'history_sessions.dart';
+import '../../../../../app/home_dir.dart';
 
 /// 会话库根目录。与 `stdio_transport_io.dart` 里的 `DSH_HOME` 同一个约定：
 /// 内核把会话写这儿，应用只读不写。
 Directory? _sessionsRoot() {
-  final home = Platform.environment['HOME'];
-  if (home == null) return null;
+  final home = ondraUserHome;
   final dir = Directory('$home/.ondra/dsh/sessions');
   return dir.existsSync() ? dir : null;
 }

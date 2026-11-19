@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'app/crash_log.dart';
 import 'app/ondra_app.dart';
+import 'app/runtime_seed.dart';
 import 'app/window_geometry.dart';
 import 'design/font_face.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-settings/ondra-persona/ui/persona_client.dart';
@@ -47,6 +48,10 @@ Future<void> main() async {
   // 运行时（Cordis 宿主）接通前，先把内置人设包读进来，首帧就有名字。
   // 接上运行时后这一行换成 personaClient.connect()，界面不用动。
   await personaClient.load();
+  // 插件清单读的是 `~/.ondra/dsh/profiles/ondra`，所以种子必须在它之前铺。
+  // 装在包里的是**首次运行的种子**：目录已存在就原样不动，用户自己更新过的
+  // 插件不会被包里的旧快照盖掉（见 lib/app/runtime_seed.dart）。
+  seedRuntimeProfile();
   await pluginsClient.load();
 
   // 右栏接内核：桌面端起 `dsh --profile ondra` 子进程；Web 端如实报错。

@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'home_dir.dart';
 
 /// 偏好文件：`~/.ondra/prefs.json`。
 ///
 /// 用同步读写而不是异步：文件只有几百字节，且在启动首帧之前就要拿到主题，
 /// 异步徒增一次「闪一下浅色再变深」的机会。
 File get _file {
-  final home = Platform.environment['HOME'] ?? '.';
+  final home = ondraUserHome;
   return File('$home/.ondra/prefs.json');
 }
 

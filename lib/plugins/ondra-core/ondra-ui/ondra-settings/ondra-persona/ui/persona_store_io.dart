@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'persona_model.dart';
+import '../../../../../../app/home_dir.dart';
 
 /// 人设包的落盘层：把 `.skill` / `.zip` 装进 `~/.ondra/personas/<slug>/`，
 /// 并从那里读回来。
@@ -25,7 +26,7 @@ class PersonaStore {
   final String home;
 
   static String _defaultHome() =>
-      '${Platform.environment['HOME'] ?? '.'}/.ondra';
+      '$ondraUserHome/.ondra';
 
   /// 用户装的包都放这儿，一个包一个目录。
   String get root => '$home/personas';

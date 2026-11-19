@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
+import '../../../../../app/i18n.dart';
 import '../../../../../app/platform_actions.dart';
 import '../../../../../app/prefs.dart';
 import './settings_spec.dart';
@@ -143,6 +144,13 @@ class SettingsClient extends ChangeNotifier {
         } else {
           PlatformActions.endPreventSleep();
         }
+      case 'general.language':
+        // 界面语言：装语言包 + 记进偏好（`prefs.json` 的 `language`，
+        // 与 `settings.` 前缀分开——它是应用级的，不是某个插件的设置）。
+        // 装包是异步的，装完 `OndraI18n` 自己通知，应用根那一层会重建。
+        final code = '$value';
+        writePref('language', code);
+        OndraI18n.instance.load(code);
       // 其余项不是平台行为。
     }
   }

@@ -1,11 +1,22 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../../app/sqlite_cli.dart';
 import 'memory_types.dart';
+import '../../../../../app/home_dir.dart';
 
-/// macOS 自带的命令行前端。用绝对路径：应用从 Finder 启动时 PATH 很短，
-/// 只有 `/usr/bin:/bin:/usr/sbin:/sbin`，靠 `sqlite3` 这个名字碰运气不稳。
-const String _sqlite = '/usr/bin/sqlite3';
+/// 本机的 `sqlite3` 命令行。解析交给 `app/sqlite_cli.dart`：
+/// 从前这里写死 `/usr/bin/sqlite3`，在 Windows 上那是个不存在的路径，
+/// 结果整页星图永远空着而且不报错。
+String get _sqlite {
+  final path = ondraSqliteCli;
+  if (path == null) {
+    // 抛成 ProcessException 而不是别的类型：下面 `_query` 的调用点已经
+    // 按这个类型降级成一条 `note`，不需要再发明一套错误通道。
+    throw const ProcessException('sqlite3', [], ondraSqliteMissingHint);
+  }
+  return path;
+}
 
 /// 读一次记忆库。
 ///
@@ -14,7 +25,7 @@ const String _sqlite = '/usr/bin/sqlite3';
 /// 引入 `sqlite3` 原生插件要为三个平台各编一份二进制，而这里一次查询
 /// 走一个进程几十毫秒就够。等界面需要写库时再换。
 Future<MemorySnapshot> loadMemorySnapshot() async {
-  final home = Platform.environment['HOME'] ?? '';
+  final home = ondraUserHome;
   final db = File('$home/.ondra/user/ondra.db');
   if (!db.existsSync()) {
     return const MemorySnapshot(

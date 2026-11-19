@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../../../../app/desktop_picker.dart';
+import '../../../../../app/home_dir.dart';
 
 /// 应用级维护动作：导出全部数据、清空全部数据、清缓存、查系统权限。
 ///
@@ -18,7 +19,7 @@ class OndraMaintenance {
   final String home;
 
   static String _defaultHome() =>
-      '${Platform.environment['HOME'] ?? '.'}/.ondra';
+      '$ondraUserHome/.ondra';
 
   /// 导出范围：**用户数据**，不含缓存与日志。
   ///

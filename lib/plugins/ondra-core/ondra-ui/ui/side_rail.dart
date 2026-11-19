@@ -1,11 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
 import './module.dart';
 import './registry.dart';
 import './shell_state.dart';
+import '../../../../app/i18n.dart';
 import '../../../../design/brand.dart';
 import '../../../../design/glyph.dart';
+import '../../../../design/native_glass.dart';
 import '../../../../design/primitives.dart';
 import '../../../../design/skin.dart';
 import '../../../../design/tokens.dart';
@@ -16,7 +18,18 @@ import '../ondra-settings/ondra-persona/ui/persona_client.dart';
 /// 尺寸与间隙都取自原实现：表头 48（`h-12`，左右各 14）、菜单区左右 10、
 /// 顶部 6、项间 1px、菜单项 32 高、圆角 8、图标 18 见方。
 class OndraSideRail extends StatelessWidget {
-  const OndraSideRail({super.key});
+  const OndraSideRail({super.key, this.onSelected});
+
+  /// 选中某一项时**额外**要做的事。
+  ///
+  /// 桌面传 null：切页就是 `activeId = id`，三栏并置，人还站在原地。
+  /// 手机必须传：那边聊天是主界面，选中一项意味着「离开聊天去看那一页」，
+  /// 要同时把功能页盖上来、把抽屉收掉（见 `ShellState.openMobilePage`）。
+  ///
+  /// 做成参数而不是「让 `ShellState` 自己猜」：同一个侧栏在两种形态下的
+  /// 行为不同，把它写进状态类等于让 `ShellState` 知道「现在是不是手机」，
+  /// 那一层就不该认识界面形态。
+  final ValueChanged<String>? onSelected;
 
   static const double width = 200;
   static const double headerHeight = 48;
@@ -36,7 +49,10 @@ class OndraSideRail extends StatelessWidget {
           maxWidth: width,
           child: Opacity(
             opacity: open ? 1 : 0,
-            child: IgnorePointer(ignoring: !open, child: const _SideBody()),
+            child: IgnorePointer(
+              ignoring: !open,
+              child: _SideBody(onSelected: onSelected),
+            ),
           ),
         ),
       ),
@@ -45,7 +61,9 @@ class OndraSideRail extends StatelessWidget {
 }
 
 class _SideBody extends StatelessWidget {
-  const _SideBody();
+  const _SideBody({this.onSelected});
+
+  final ValueChanged<String>? onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +71,7 @@ class _SideBody extends StatelessWidget {
     return Container(
       width: OndraSideRail.width,
       decoration: BoxDecoration(
-        // **桌面端这里必须是全透明。**
+        // **有原生玻璃时这里必须是全透明。**
         // 参考应用 `.miclaw-shell-surface` 是 `background:transparent` +
         // `backdrop-filter:none`，`.miclaw-shell-sidebar{background:transparent}`，
         // 也就是说侧栏本身**不画任何东西**，通透感 100% 来自窗口底下那层
@@ -61,8 +79,12 @@ class _SideBody extends StatelessWidget {
         // `--miclaw-glass-background`(10% 白)——那个令牌在参考应用的 CSS 里
         // 定义了却没有任何规则引用（唯一使用者是 win32 的 fallback tint），
         // 叠上去会把 Liquid Glass 的折射压掉一层，看起来发奶、发闷。
-        // Web 没有底层玻璃，才用实色兜底。
-        color: kIsWeb ? s.shell : Colors.transparent,
+        //
+        // **没有玻璃时必须实色。** Windows / Linux 的 runner 是 Flutter 默认
+        // 模板，底下没有那一层，画透明就露窗口底色：深色主题下侧栏本该是
+        // #20242D，实际露出的是一片亮底。`s.shell` 本来就是「无玻璃时侧栏
+        // 该是什么颜色」，浅色深色各自成立。
+        color: ondraHasNativeGlass ? Colors.transparent : s.shell,
         // **不画右缘分界线。** 以前这里有一条 `glassEdge`（42% 白）的发丝线，
         // 那是侧栏还紧贴中栏时的做法：两块实色相接，必须有根线分层。
         // 现在侧栏与纸片之间隔了 4px 玻璃缝——缝本身就是分界，再贴一根白线，
@@ -80,7 +102,7 @@ class _SideBody extends StatelessWidget {
                 children: [
                   for (final group in OndraGroup.values)
                     if (OndraRegistry.byGroup(group).isNotEmpty)
-                      _GroupBlock(group: group),
+                      _GroupBlock(group: group, onSelected: onSelected),
                 ],
               ),
             ),
@@ -166,14 +188,25 @@ class _OndraRailToggleState extends State<OndraRailToggle> {
 }
 
 class _GroupBlock extends StatelessWidget {
-  const _GroupBlock({required this.group});
+  const _GroupBlock({required this.group, this.onSelected});
 
   final OndraGroup group;
+  final ValueChanged<String>? onSelected;
 
   @override
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
-    final label = group.label;
+    // 分组标题也要翻：侧栏是切语言后第一眼看到的东西，
+    // 只翻页面内容、不翻侧栏，切过去会像「一半没生效」。
+    //
+    // 用 `OndraI18nScope.translate(context, …)` 而不是全局的 `t(…)`：
+    // 只有前者会把当前 element 登记成依赖者，语言一变框架才会
+    // `markNeedsBuild` 它。用 `t(…)` 读到的值同样对，但不会重建——
+    // 而这整条链上有 `const`，重建传不下来（见 `i18n.dart`）。
+    final rawLabel = group.label;
+    final label = rawLabel == null
+        ? null
+        : OndraI18nScope.translate(context, rawLabel);
     final modules = OndraRegistry.byGroup(group);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -192,7 +225,7 @@ class _GroupBlock extends StatelessWidget {
               ),
             ),
           ),
-        for (final m in modules) _MenuItem(module: m),
+        for (final m in modules) _MenuItem(module: m, onSelected: onSelected),
       ],
     );
   }
@@ -208,9 +241,10 @@ class _GroupBlock extends StatelessWidget {
 /// 图标比参考小 4px（18 而非 22，用户定的），所以间距补 4：8 + 18 + 10 = 36，
 /// 与参考 `8 + 22 + 6 = 36` 的文字起点完全一致，整列的左边线仍然对齐。
 class _MenuItem extends StatefulWidget {
-  const _MenuItem({required this.module});
+  const _MenuItem({required this.module, this.onSelected});
 
   final OndraModule module;
+  final ValueChanged<String>? onSelected;
 
   @override
   State<_MenuItem> createState() => _MenuItemState();
@@ -236,7 +270,17 @@ class _MenuItemState extends State<_MenuItem> {
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: () => st.activeId = widget.module.id,
+          onTap: () {
+            // 手机形态要先做「盖住聊天 + 收抽屉」，再谈切页；桌面形态没有
+            // 回调，直接切页即可。顺序不能反：`openMobilePage` 内部会一次性
+            // 设好三件事，先设 `activeId` 会多触发一次通知。
+            final hook = widget.onSelected;
+            if (hook != null) {
+              hook(widget.module.id);
+            } else {
+              st.activeId = widget.module.id;
+            }
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 140),
             height: 32,
@@ -251,7 +295,7 @@ class _MenuItemState extends State<_MenuItem> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    widget.module.label,
+                    OndraI18nScope.translate(context, widget.module.label),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: ondraText(

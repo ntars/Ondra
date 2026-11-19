@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'log_types.dart';
+import '../../../../../app/home_dir.dart';
 
 /// 每页最多读多少行。日志是排查用的，不是账本——
 /// 一屏给最近 200 条，比给全部几千条再让人滚到底有用得多。
@@ -23,7 +24,7 @@ const int _maxBytes = 512 * 1024;
 ///
 /// [note] 非空表示「这次为什么没有条目」，界面据此区分空态原因。
 Future<List<LogEntry>> loadLogEntries(LogKind kind) async {
-  final home = Platform.environment['HOME'] ?? '';
+  final home = ondraUserHome;
   final dir = Directory('$home/.ondra/logs');
   if (!dir.existsSync()) return const [];
 

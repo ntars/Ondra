@@ -81,6 +81,58 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# 随包运行时（node.exe + dsh 内核 + profile 种子 + sqlite3.exe）。
+#
+# 目录名必须是 `windows-<架构>`，不能写 `win-x64`：Dart 侧
+# `lib/app/bundled_runtime_io.dart` 拿 `Platform.operatingSystem`（值是
+# `windows`）去拼前缀，`startsWith('windows-')` 匹配不上 `win-` 就会当作
+# 「包里没有运行时」，一路退回到「让用户自己装 node」。
+#
+# 装到 INSTALL_BUNDLE_LIB_DIR（即 exe 同目录）下的 `runtime\`：Dart 侧在
+# 「可执行文件旁边的 runtime\<平台>-<架构>」找它。
+#
+# **缺了它不是「功能少一点」，是应用起不来。** Windows 上系统既没有 dsh 也
+# 没有 node，`_resolveBinary` 最后只剩 PATH 里那个不存在的 `dsh`，用户看到的是
+# 「找不到 dsh 可执行文件」。所以这里默认 FATAL_ERROR，而不是打一行警告就继续
+# 构建出一个装完打不开的安装包。
+#
+# 确实只想验界面、不需要真实对话时，可以显式放行（环境变量，不走 -D：
+# `flutter build` 不转发自定义 -D 给 CMake）：
+#   set ONDRA_ALLOW_NO_RUNTIME=1
+set(ONDRA_ALLOW_NO_RUNTIME OFF)
+if(DEFINED ENV{ONDRA_ALLOW_NO_RUNTIME} AND NOT "$ENV{ONDRA_ALLOW_NO_RUNTIME}" STREQUAL "")
+  set(ONDRA_ALLOW_NO_RUNTIME ON)
+endif()
+
+set(ONDRA_RUNTIME_TARGET "windows-x64")
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set(ONDRA_RUNTIME_TARGET "windows-x86")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|arm64")
+  set(ONDRA_RUNTIME_TARGET "windows-arm64")
+endif()
+set(ONDRA_RUNTIME_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/${ONDRA_RUNTIME_TARGET}")
+
+if(EXISTS "${ONDRA_RUNTIME_SRC}/node.exe")
+  install(DIRECTORY "${ONDRA_RUNTIME_SRC}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}/runtime"
+    COMPONENT Runtime)
+  if(NOT EXISTS "${ONDRA_RUNTIME_SRC}/sqlite3.exe")
+    message(WARNING
+      "随包运行时里没有 sqlite3.exe：内核能跑，但状态面板、记忆星图、"
+      "导入导出会读不到数据。重跑 tool/assemble_runtime.mjs 让它自动取自 sqlite.org。")
+  endif()
+elseif(ONDRA_ALLOW_NO_RUNTIME)
+  message(WARNING
+    "ONDRA_ALLOW_NO_RUNTIME=ON：这次构建不含运行时，产物无法连接内核。")
+else()
+  message(FATAL_ERROR
+    "缺少随包运行时：${ONDRA_RUNTIME_SRC}\n"
+    "Windows 上没有系统 dsh 可退回，这样的安装包双击后连不上内核。\n"
+    "先在本机跑：node tool\\assemble_runtime.mjs\n"
+    "（它会从本机已装的 node 与 @deepseek-ai/dsh 生成这一份，并自动取 sqlite3.exe）\n"
+    "确实只需要界面时，设环境变量 ONDRA_ALLOW_NO_RUNTIME=1 跳过这项检查。")
+endif()
+
 if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"

@@ -25,13 +25,14 @@ void main() {
       // 人设设定（对话 / 记忆 / 数据 / 语音）
       'dialog.busySend', 'dialog.enterSend', 'dialog.replyLength',
       'dialog.remember', 'dialog.citeMemory', 'dialog.inferPreference',
-      'memory.retention', 'memory.capacity', 'memory.autoSummarize',
+      'memory.retention', 'memory.autoSummarize',
       'voice.tts', 'voice.timbre', 'voice.rate', 'voice.asrLanguage',
       // 通道接口
       'channels.qqBot', 'channels.qqSandbox', 'channels.allowGroups',
       'channels.busyPolicy',
       // 关于空谷（隐私已并入）
-      'privacy.online', 'privacy.screenRead', 'privacy.redactLogs',
+      'privacy.voiceCloud', 'privacy.imageCloud',
+      'privacy.screenRead', 'privacy.redactLogs',
       'privacy.crashReport',
       'about.channel',
       // 日志页底部
@@ -39,6 +40,20 @@ void main() {
     ];
     for (final key in used) {
       expect(() => ondraSettingSpec(key), returnsNormally, reason: '$key 没有声明');
+    }
+
+    // 反向：声明里不该留下已经没有界面的孤儿项。
+    // 「容量上限」与「允许联网」被删掉，正是因为它们没法如实落地
+    // （内核不淘汰记忆；没有全局网络总闸）。留着它们没人渲染，
+    // 但会让 `_pushAll` 往 `settings.json` 写一个用户看不见的值。
+    final declared = keys.toSet();
+    for (final gone in [
+      'memory.capacity',
+      'privacy.online',
+      'data.location',
+      'privacy.keychain',
+    ]) {
+      expect(declared.contains(gone), isFalse, reason: '$gone 已删除，不该再声明');
     }
   });
 

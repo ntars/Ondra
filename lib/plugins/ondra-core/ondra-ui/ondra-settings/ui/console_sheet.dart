@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../../app/data_root.dart';
 import '../../../../../app/desktop_picker.dart';
+import '../../../../../app/i18n.dart';
 import '../../../../../app/keychain.dart';
 import '../../../../../app/prefs.dart';
 import '../../../../../app/update_check.dart';
@@ -216,6 +217,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   Widget _specRow(String key, {bool showDivider = true}) {
     final spec = ondraSettingSpec(key);
     final desc = _wiringNote(key, spec.description);
+    // 这里**传中文原文**，翻译统一在 `_Row` / `_Section` 那两处做。
+    // 在这里翻一次、`_Row` 里再翻一次会翻两遍——如果某个译文恰好等于
+    // 另一条的中文键，第二次就会把它换掉，症状是「偶尔有一条英文变成了
+    // 完全不相干的话」，极难查。一处翻译、一处渲染，边界才清楚。
     switch (spec.kind) {
       case OndraSettingKind.toggle:
         return _Row(
@@ -235,7 +240,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           desc: desc,
           action: _PillSegmented(
             value: index < 0 ? 0 : index,
-            items: [for (final o in spec.options) o.label],
+            items: [
+              for (final o in spec.options)
+                OndraI18nScope.translate(context, o.label),
+            ],
             onChanged: (i) => settingsClient.set(key, spec.options[i].value),
           ),
           showDivider: showDivider,
@@ -264,13 +272,19 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   /// - **内核没有这个配置段**：装了也没用，等内核更新；
   /// - **缺的是插件**（QQ 通道这类）：装上对应插件就能生效。
   /// 一律写成「只影响界面」会让人以为永远没救。
+  ///
+  /// 返回值是**中文原文**（未翻译）：调用点拿着它和主描述一起过 [t]。
+  /// 在这里翻译会做出「中文描述 + 英文提示」这种半截结果——两段是拼在一起的，
+  /// 必须一起翻。
   static String? _wiringNote(String key, String? desc) {
     if (ondraSettingIsWired(key)) return desc;
-    final note = key.startsWith('channels.')
-        ? '本项需要通道插件：未安装时只记录界面选择'
-        : '本项只影响界面：内核还没有对应的配置段';
+    final note = _noteOf(key);
     return desc == null || desc.isEmpty ? note : '$desc · $note';
   }
+
+  static String _noteOf(String key) => key.startsWith('channels.')
+      ? '本项需要通道插件：未安装时只记录界面选择'
+      : '本项只影响界面：内核还没有对应的配置段';
 
   // ── 通用设置（权限 / 语言 / 字号，通知已并入） ───────────────────────────────
 
@@ -319,7 +333,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         children: [
           _Row(
             title: '网页白名单',
-            desc: '应用内打开的网页只能来自这份清单；当前 ${browserClient.sites.length} 个站点',
+            desc: '应用内打开的网页只能来自这份清单；当前 {n} 个站点',
+            descVars: {'n': browserClient.sites.length},
             chevron: true,
             onTap: () {
               // 先关设置再露面：面板顶替中栏那一页，设置盖在上面会打架。
@@ -602,7 +617,6 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             _specRow('dialog.citeMemory'),
             _specRow('dialog.inferPreference'),
             _specRow('memory.retention'),
-            _specRow('memory.capacity'),
             _specRow('memory.autoSummarize', showDivider: false),
           ],
         ),
@@ -740,7 +754,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     _Section(
       title: '隐私与安全',
       children: [
-        _specRow('privacy.online'),
+        _specRow('privacy.voiceCloud'),
+        _specRow('privacy.imageCloud'),
         _specRow('privacy.screenRead'),
         _specRow('privacy.redactLogs'),
         _specRow('privacy.crashReport'),
@@ -1439,7 +1454,11 @@ class _Section extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
-              title!,
+              // 章节标题在这里翻：`_Section` 是设置页唯一的标题渲染点，
+              // 逐处翻会漏，而漏一条的表现是「一屏里一句英文夹在中文中间」。
+              // 用 `translate(context, …)`：它会登记依赖，语言变了这一处
+              // 才会被重建（这棵树上有 `const`，靠父级重建传不下来）。
+              OndraI18nScope.translate(context, title!),
               style: ondraText(13, color: s.ink60, height: 18 / 13),
             ),
           ),
@@ -1481,6 +1500,8 @@ class _Card extends StatelessWidget {
 class _ThemePicker extends StatelessWidget {
   const _ThemePicker();
 
+  /// 三格的**原文**。渲染前按当前语言翻译，量宽也用量出来的结果——
+  /// 拿中文原文量宽、画英文，滑片就会与文字错位（这是之前那版的做法）。
   static const List<String> _labels = ['浅色', '深色', '跟随系统'];
   static const List<ThemeMode> _modes = [
     ThemeMode.light,
@@ -1519,7 +1540,12 @@ class _ThemePicker extends StatelessWidget {
     final st = ShellScope.of(context);
     final index = _modes.indexOf(st.themeMode).clamp(0, _modes.length - 1);
 
-    final widths = [for (final l in _labels) _cellWidth(context, l)];
+    // 先翻译再量宽：`_cellWidth` 量的是「画出来的那串字」，
+    // 不是源语言的字。两者用同一份 labels，滑片才对得上格。
+    final labels = [
+      for (final l in _labels) OndraI18nScope.translate(context, l),
+    ];
+    final widths = [for (final l in labels) _cellWidth(context, l)];
     final offsets = <double>[];
     var x = 0.0;
     for (final w in widths) {
@@ -1591,7 +1617,7 @@ class _ThemePicker extends StatelessWidget {
                     height: _cellHeight,
                     child: Center(
                       child: Text(
-                        _labels[i],
+                        labels[i],
                         style: ondraText(
                           11,
                           weight: i == index
@@ -1616,6 +1642,7 @@ class _Row extends StatelessWidget {
   const _Row({
     required this.title,
     this.desc,
+    this.descVars,
     this.value,
     this.action,
     this.chevron = false,
@@ -1627,6 +1654,14 @@ class _Row extends StatelessWidget {
 
   final String title;
   final String? desc;
+
+  /// `desc` 里的 `{name}` 占位符取值。
+  ///
+  /// 为什么要在这里收，而不是在调用点拼好再传：`_Row` 会**翻译** `desc`，
+  /// 而拼接之后的中文（`…当前 3 个站点`）与语言包里的键（`…当前 {n} 个站点`）
+  /// 对不上，翻译永远命不中。让 `_Row` 先按词条翻译、再填占位符，
+  /// 两种语言的语序才都能正确。
+  final Map<String, Object?>? descVars;
   final String? value;
   final Widget? action;
   final bool chevron;
@@ -1661,7 +1696,7 @@ class _Row extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  title,
+                  OndraI18nScope.translate(context, title),
                   maxLines: multiline ? 3 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: ondraText(
@@ -1673,7 +1708,7 @@ class _Row extends StatelessWidget {
                 if (desc != null) ...[
                   const SizedBox(height: 2),
                   Text(
-                    desc!,
+                    OndraI18nScope.translate(context, desc!, descVars),
                     maxLines: descMaxLines,
                     overflow: TextOverflow.ellipsis,
                     style: ondraText(11, color: s.ink45, height: 14 / 11),
@@ -1689,7 +1724,7 @@ class _Row extends StatelessWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 230),
               child: Text(
-                value!,
+                OndraI18nScope.translate(context, value!),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: ondraText(12, color: s.ink45, height: 18 / 12),
@@ -1698,7 +1733,25 @@ class _Row extends StatelessWidget {
           ],
           if (action != null) ...[
             const SizedBox(width: 12),
-            action!,
+            // 右侧控件用 `Flexible` 包住，并给一个明确的上限。
+            //
+            // 不给上限时，`Row` 传给 `action` 的是**无界**宽度约束；里面
+            // `_PillSegmented` 的 `Flexible` 因为拿不到「可用宽度」而退化，
+            // 整行按内容宽度撑开，越过卡片的右边界 → RenderFlex overflow。
+            // 中文三字（仅可查看 / 工作区内修改 / 完全权限）时刚好压线，
+            // 换成英文（View only / Edit in workspace / Full access）就崩。
+            //
+            // 240 是「标题栏留得下两个中文字 + 省略号」的经验值：
+            // 再宽会挤压标题，再窄会让「工作区内修改」这类词截得太碎。
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 240),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: action!,
+                ),
+              ),
+            ),
           ],
           if (chevron) ...[
             const SizedBox(width: 8),
@@ -1926,31 +1979,45 @@ class _PillSegmented extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
+    // 每格用 `Flexible` 而不是固定宽度。
+    //
+    // 中文两三个字（浅色 / 深色 / 跟随系统）时三格排开正好；换成英文
+    // （Light / Dark / System 还好，但 Warm / Clear / Deep、Short / Balanced /
+    // Detailed 这几组会长得多）就越过右边界，直接 RenderFlex overflow。
+    // 固定在中文长度上量宽，等于默认「只有中文」——多语言一上来就崩版。
+    //
+    // `Flexible` + `ellipsis` 的取舍：宁可把某格文字截断，也不能溢出——
+    // 溢出的黄黑条会盖住整行，而截断至少还能靠 hover title 读到全文。
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < items.length; i++)
-          Padding(
-            padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () => onChanged(i),
-                child: Container(
-                  height: 28,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: i == value ? s.fill : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    items[i],
-                    style: ondraText(
-                      13,
-                      weight: 500,
-                      color: i == value ? s.ink80 : s.ink40,
-                      height: 16 / 13,
+          Flexible(
+            child: Padding(
+              padding: EdgeInsets.only(left: i == 0 ? 0 : 4),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => onChanged(i),
+                  child: Container(
+                    height: 28,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: i == value ? s.fill : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      items[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: ondraText(
+                        13,
+                        weight: 500,
+                        color: i == value ? s.ink80 : s.ink40,
+                        height: 16 / 13,
+                      ),
                     ),
                   ),
                 ),

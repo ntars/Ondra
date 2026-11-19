@@ -77,6 +77,7 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'general.language',
     label: '语言',
+    description: '界面语言；未翻译的条目仍显示中文',
     kind: OndraSettingKind.choice,
     defaultValue: 'zh',
     options: [
@@ -225,27 +226,24 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'memory.retention',
     label: '记忆保留期',
-    description: '超过期限的记忆点会被淡出，不再引用',
+    description: '多久没被引用的记忆会沉底；只忘不删，仍可被翻到',
     kind: OndraSettingKind.choice,
-    defaultValue: 'forever',
+    defaultValue: '180d',
     options: [
       OndraSettingOption('30d', '30 天'),
       OndraSettingOption('180d', '半年'),
-      OndraSettingOption('forever', '永久'),
+      OndraSettingOption('3650d', '十年'),
     ],
   ),
-  OndraSettingSpec(
-    key: 'memory.capacity',
-    label: '容量上限',
-    description: '到了上限就按「最久没被引用」淘汰',
-    kind: OndraSettingKind.choice,
-    defaultValue: '5k',
-    options: [
-      OndraSettingOption('1k', '1000 条'),
-      OndraSettingOption('5k', '5000 条'),
-      OndraSettingOption('20k', '20000 条'),
-    ],
-  ),
+  // 「容量上限」这一项已删除。它原本给的是 1000 / 5000 / 20000 三档，
+  // 文案写「到了上限就按最久没被引用淘汰」——两件事都与内核相反：
+  //   1. 内核没有「总量上限」这个字段（`memory-core` 的字段表里没有）；
+  //   2. 淘汰策略在内核里是明确不做的：归档是「沉底，只忘不删」，
+  //      池满时「拒绝新建并告警，不淘汰旧的」（`ondra-memory-pool` 注释原话），
+  //      理由是「删一条核心等于替用户决定「你不该是自己」」。
+  // 做成三档只会让用户以为自己设了配额，实际一个字节都没被限制。
+  // 剩下 `max-select-rows` 那个字段是「单次查询硬上限，内存保护，
+  // 不是召回预算」，拿它顶替等于把保护值当成配额，同样是不生效。
   OndraSettingSpec(
     key: 'memory.autoSummarize',
     label: '自动归纳',
@@ -292,11 +290,25 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   ),
 
   // ── 隐私与安全（已并入关于空谷） ──────────────────────────────────────
+  // 这里原本有一项「允许联网」，文案是「关掉后只用本地模型，插件也不能访问网络」。
+  // 它没有如实落点：内核里**没有**全局网络总闸（`llm-gateway` 只有来源清单与
+  // 重试参数，各 provider 各自出站），也没有「禁用所有插件网络」这样的段。
+  // 硬映射到 `vision.cloud-without-privacy` 更糟：那个字段的语义是
+  // 「没有 ondra-privacy 时是否**仍允许**把图发到云端」，是个绕过确认的开关，
+  // 方向与「禁止联网」相反——用户关掉它，图片反而更容易出站。
+  //
+  // 因此改成两个**各自真能生效**的开关，直接对应内核字段：
   OndraSettingSpec(
-    key: 'privacy.online',
-    label: '允许联网',
-    description: '关掉后只用本地模型，插件也不能访问网络',
+    key: 'privacy.voiceCloud',
+    label: '语音识别云端兜底',
+    description: '本地识别失败时把录音发到云端；关掉即纯本机',
     defaultValue: true,
+  ),
+  OndraSettingSpec(
+    key: 'privacy.imageCloud',
+    label: '图片发往云端无需确认',
+    description: '没有隐私插件时仍允许把图发出去；默认关闭，出站要先问',
+    defaultValue: false,
   ),
   OndraSettingSpec(
     key: 'privacy.redactLogs',

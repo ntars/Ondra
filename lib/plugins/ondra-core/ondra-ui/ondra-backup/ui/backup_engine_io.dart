@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'backup_model.dart';
+import '../../../../../app/home_dir.dart';
 
 /// 备份引擎：把 `~/.ondra` 里「值得带走的东西」按内容存进一个对象库，
 /// 每次备份只写一份清单。
@@ -26,7 +27,7 @@ import 'backup_model.dart';
 /// 恢复时也不会删它，所以密钥一直在原地。
 class BackupEngine {
   BackupEngine({String? home, DateTime Function()? now})
-    : home = home ?? '${Platform.environment['HOME'] ?? ''}/.ondra',
+    : home = home ?? '$ondraUserHome/.ondra',
       _now = now ?? DateTime.now;
 
   /// `~/.ondra` 的绝对路径。测试里换成临时目录。

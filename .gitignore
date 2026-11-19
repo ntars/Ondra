@@ -80,3 +80,9 @@ android/key.properties
 /assets/fonts/*.ttf
 /assets/fonts/*.otf
 /assets/fonts/*.woff2
+
+# 随包运行时（Node + dsh 内核闭包 + profile 种子，约 198MB/平台）。
+# 由 tool/assemble_runtime.sh 从本机安装生成，不进版本库：
+#   1. 它是二进制，体积不适合 git
+#   2. 它必须与本机内核同版本，提交进去反而会「打了包的内核比测过的旧」
+/runtime/

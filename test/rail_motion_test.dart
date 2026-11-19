@@ -6,6 +6,8 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ui/chassis.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ui/shell_state.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ui/side_rail.dart';
 
+import 'support/form_factor.dart';
+
 /// 右栏四条开合路径的**中间态**守卫。
 ///
 /// 这组断言存在的理由：动画断档在静态分析里完全看不出来，截图又只能拍到
@@ -15,6 +17,8 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ui/side_rail.dart';
 /// 量的对象是 `OndraAmbientRail` 的 RenderObject 尺寸：它被宽度轨道直接约束，
 /// 是这条动画唯一的事实来源。
 void main() {
+  // 这组量的是**桌面三栏**里右栏宽度轨道的中间帧。`flutter test` 的默认平台
+  // 是 android，不钉住就会走进手机布局（那边根本没有右栏宽度槽）。
   Future<void> pumpShell(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -82,7 +86,7 @@ void main() {
     }
     expect(frames.last, 0);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: desktopFormFactor);
 
   testWidgets('展开：从 0 连续长回 280', (tester) async {
     await pumpShell(tester, const Size(960, 660));
@@ -104,7 +108,7 @@ void main() {
     }
     expect(frames.last, OndraAmbientRail.width);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: desktopFormFactor);
 
   testWidgets('沉浸：右栏铺满整张纸，中途有过渡帧', (tester) async {
     await pumpShell(tester, const Size(960, 660));
@@ -118,7 +122,7 @@ void main() {
     );
     expect(frames.last, paperWidth);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: desktopFormFactor);
 
   testWidgets('退沉浸：从满宽连续收回 280', (tester) async {
     await pumpShell(tester, const Size(960, 660));
@@ -137,7 +141,7 @@ void main() {
     );
     expect(frames.last, OndraAmbientRail.width);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: desktopFormFactor);
 
   testWidgets('动画途中改主意：从半路折返，不先弹回起点', (tester) async {
     await pumpShell(tester, const Size(960, 660));
@@ -162,7 +166,7 @@ void main() {
     await advance(tester, 300);
     expect(railWidth(tester), OndraAmbientRail.width);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: desktopFormFactor);
 
   testWidgets('窗口变宽不触发右栏补间（目标立即跟随纸宽）', (tester) async {
     await pumpShell(tester, const Size(960, 660));
@@ -177,5 +181,5 @@ void main() {
     await tester.pump();
     expect(railWidth(tester), 1100 - OndraSideRail.width - 8);
     expect(tester.takeException(), isNull);
-  });
+  }, variant: desktopFormFactor);
 }

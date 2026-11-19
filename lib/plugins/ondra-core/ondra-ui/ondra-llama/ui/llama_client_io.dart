@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
+import '../../../../../app/home_dir.dart';
 import 'package:flutter/services.dart' show rootBundle; // ignore: unused_import
 
 /// 一个已下载的本地模型（GGUF）。
@@ -56,7 +57,7 @@ class LlamaClient extends ChangeNotifier {
   List<LlamaModel> get models => _models;
 
   String get modelsDir =>
-      '${Platform.environment['HOME'] ?? '.'}/.ondra/models';
+      '$ondraUserHome/.ondra/models';
 
   /// 找 `llama-server`：显式路径 → 登录 shell → 常见安装位置。
   ///

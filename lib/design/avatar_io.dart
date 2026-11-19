@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show MethodChannel;
+import '../app/home_dir.dart';
 
 /// 头像文件：`~/.ondra/avatar.png`。
 ///
@@ -10,7 +11,7 @@ import 'package:flutter/services.dart' show MethodChannel;
 const MethodChannel _channel = MethodChannel('ondra/avatar');
 
 File get _file {
-  final home = Platform.environment['HOME'] ?? '.';
+  final home = ondraUserHome;
   return File('$home/.ondra/avatar.png');
 }
 

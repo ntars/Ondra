@@ -1,11 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../../app/sqlite_cli.dart';
 import '../../ondra-backup/ui/backup_actions.dart' show backupOverviewLoader;
 import 'status_types.dart';
+import '../../../../../app/home_dir.dart';
 
-/// macOS 自带的命令行前端。应用从 Finder 启动时 PATH 很短，用绝对路径才稳。
-const String _sqlite = '/usr/bin/sqlite3';
+/// 本机的 `sqlite3` 命令行。解析交给 `app/sqlite_cli.dart`：
+/// 从前这里写死 `/usr/bin/sqlite3`，Windows 上那个路径不存在，
+/// 于是整个面板的读数会安静地全变成 0。
+String get _sqlite {
+  final path = ondraSqliteCli;
+  if (path == null) {
+    throw const ProcessException('sqlite3', [], ondraSqliteMissingHint);
+  }
+  return path;
+}
 
 /// 本机网关（magpie）的地址。它是右栏能不能说话的唯一前提，
 /// 所以状态面板第一条要回答的就是「它在不在」。
@@ -22,7 +32,7 @@ const int _gatewayPort = 3425;
 /// 不是「一条读不到就整页报错」。
 Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) async {
   final clock = now ?? DateTime.now;
-  final resolveHome = home ?? Platform.environment['HOME'] ?? '';
+  final resolveHome = home ?? ondraUserHome;
   final root = '$resolveHome/.ondra';
   final db = File('$root/user/ondra.db');
 
@@ -72,6 +82,9 @@ Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) asyn
   final gateway = await _probeGateway();
 
   final sinkRatio = raws <= 0 ? 0.0 : (facts / raws).clamp(0.0, 1.0);
+  // 缺 sqlite3 时上面每一条都降级成了 0。0 看上去和「真的没有记忆」一样，
+  // 所以这里必须换一句话说清楚——否则用户会以为库是空的。
+  final sqliteMissing = ondraSqliteCli == null;
 
   return StatusSnapshot(
     facts: facts,
@@ -79,6 +92,7 @@ Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) asyn
     links: links,
     archived: archived,
     rawsLastDay: rawsLastDay,
+    note: sqliteMissing ? ondraSqliteMissingHint : '',
     sessions: sessions,
     plugins: plugins,
     dbBytes: _fileSize(db.path) + _fileSize('${db.path}-wal'),

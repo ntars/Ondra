@@ -32,14 +32,60 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-latest
+    # 装配要上一次 npm 装内核（解压后约 900MB）+ 拷 6000 个文件，
+    # 再加上 Flutter 首次构建，20 分钟内能完；给三倍余量以免被 runner 抖动打断。
+    timeout-minutes: 60
+    env:
+      # 与开发机同版本的内核。CI 打出的包必须和本地验证过的那份一致，
+      # 否则「测试过 A、发出去 B」——升级内核时改这里，并在本机重跑一次装配。
+      DSH_VERSION: "0.2.2-rc.1"
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # 装配从「全局安装的内核」里提取依赖闭包，所以必须先装一份。
+      - name: 装内核（装配的闭包来源）
+        shell: pwsh
+        run: |
+          npm install -g "@deepseek-ai/dsh@$env:DSH_VERSION"
+          npm root -g
+
+      # 这一步同时是 Windows 分支**唯一的执行机会**：junction 建链、tar.exe
+      # 解压 sqlite3、`node.exe` 命名、以及最后的真握手自检，都只在这里跑得到。
+      # 自检失败会让 job 直接红——这正是要的：宁可不出包，也不要出一个
+      # 双击连不上内核的包。
+      - name: 装配随包运行时
+        shell: pwsh
+        run: node tool/assemble_runtime.mjs
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
       - run: flutter config --enable-windows-desktop
       - run: flutter pub get
       - run: flutter build windows --release
+
+      # CMake 在缺运行时时会 FATAL，但那是构建期的检查。这里再验一次
+      # **产物**：有人把 CMake 的 install 规则改坏、或运行时被装到了别处，
+      # 构建照样成功，包却是空的。
+      - name: 校验产物里带运行时
+        shell: pwsh
+        run: |
+          $rt = "build/windows/x64/runner/Release/runtime/windows-x64"
+          if (-not (Test-Path "$rt/node.exe")) {
+            throw "构建产物里没有运行时：$rt/node.exe"
+          }
+          if (-not (Test-Path "$rt/sqlite3.exe")) {
+            throw "构建产物里没有 sqlite3.exe——状态面板与记忆星图会安静地显示没数据"
+          }
+          if (-not (Test-Path "$rt/dsh/lib/bin.js")) {
+            throw "构建产物里没有内核入口：$rt/dsh/lib/bin.js"
+          }
+          Get-ChildItem $rt | Select-Object Name, Length
+
       - name: Package
         shell: pwsh
         run: |
@@ -82,13 +128,33 @@ jobs:
 
   macos:
     runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      DSH_VERSION: "0.2.2-rc.1"
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 装内核（装配的闭包来源）
+        run: npm install -g "@deepseek-ai/dsh@$DSH_VERSION"
+
+      - name: 装配随包运行时
+        run: node tool/assemble_runtime.mjs
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter build macos --release
+
+      # 必须走 bundle_macos.sh，不能直接 `flutter build`：Dart 产物不会把仓库
+      # 根下的 runtime/ 带进 .app，而往 .app 里加文件又会让签名失效。这两件事
+      # 脚本一起做完了（复制 + 重签 + 校验）。
+      - name: 构建并塞入运行时
+        run: ./tool/bundle_macos.sh
+
       - name: Package
         run: |
           tag="${GITHUB_REF_NAME#v}"

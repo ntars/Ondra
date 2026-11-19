@@ -58,10 +58,55 @@ void main() {
       return out;
     }
 
-    expect(push({'general.permissions': 'readOnly'}), {'privacy.approval-mode': 'strict'});
-    expect(push({'general.permissions': 'fullAccess'}), {'privacy.approval-mode': 'open'});
+    // 内核 `ondra-privacy/src/types.ts` 的 `APPROVAL_MODES`：
+    // `supervised` / `auto` / `full`。取值不在这三个里时，`approvalModeOf()`
+    // 返回 undefined，`completeConfig` 报一次 `report()` 然后回退默认 `auto`。
+    // 上一版写成 `strict` / `open`——两个都不可识别，「仅可查看」与
+    // 「完全权限」都静默落回 `auto`，也就是「用户以为收紧了，实际没有」。
+    expect(push({'general.permissions': 'readOnly'}),
+        {'privacy.approval-mode': 'supervised'});
+    expect(push({'general.permissions': 'workspace'}),
+        {'privacy.approval-mode': 'auto'});
+    expect(push({'general.permissions': 'fullAccess'}),
+        {'privacy.approval-mode': 'full'});
+
     expect(push({'dialog.replyLength': '2'}), {'dialogue.max-tokens': 8192});
     expect(push({'voice.timbre': 'warm'}), {'tts.preset': 'soft'});
+  });
+
+  test('三档权限只映射到内核真有的三个审批模式', () {
+    const approvalModes = {'supervised', 'auto', 'full'};
+    for (final option in ondraSettingSpec('general.permissions').options) {
+      final t = ondraSettingTargets['general.permissions']!.first;
+      final mapped = t.map!(option.value);
+      expect(mapped, isNotNull, reason: '权限档 ${option.value} 没有映射');
+      expect(
+        approvalModes,
+        contains(mapped),
+        reason: '权限档 ${option.value} 映射成了 $mapped，'
+            '它不是内核的审批模式，内核会静默回落到 auto',
+      );
+    }
+    // 三档必须落到三个不同值，否则有一档是假的。
+    final mapped = {
+      for (final o in ondraSettingSpec('general.permissions').options)
+        o.value: ondraSettingTargets['general.permissions']!.first.map!(o.value),
+    };
+    expect(mapped.values.toSet().length, 3, reason: '三档权限必须落到三个不同模式');
+  });
+
+  test('没有落点的项如实报告：isWired 为 false', () {
+    // 这三项是真的没有任何落点，必须如实为 false。
+    for (final key in [
+      'general.focusMute',
+      'channels.qqBot',
+      'channels.allowGroups',
+    ]) {
+      expect(ondraSettingIsWired(key), isFalse, reason: '$key 当前确实没接');
+    }
+    // 这几项是真的有落点。
+    expect(ondraSettingIsWired('voice.tts'), isTrue);
+    expect(ondraSettingIsWired('privacy.voiceCloud'), isTrue);
   });
 
   test('音色只映射到内核真有的八个预设 id', () {
@@ -153,15 +198,6 @@ void main() {
     }
   });
 
-  test('没有落点的项如实报告：isWired 为 false', () {
-    // 字号只影响界面排版，内核里没有对应字段。
-    expect(ondraSettingIsWired('general.fontSize'), isFalse);
-    // 这两项是真的有落点。
-    expect(ondraSettingIsWired('voice.tts'), isTrue);
-    expect(ondraSettingIsWired('privacy.online'), isTrue);
-  });
-
-
   test('落点在系统侧的项也算「真生效」，不能被标成纯界面', () {
     // 这几项的落点不是 settings.json，而是 launchd / caffeinate / osascript。
     // 如果只按「有没有内核段」判定，界面会在一个真能用的开关下面
@@ -172,6 +208,10 @@ void main() {
       'general.notify',
       'general.notifySound',
       'about.channel',
+      // 语言与字号：落点是界面自身（载入哪份语言包 / 会话正文的排版系数）。
+      // 它们不进 settings.json，但拨了立刻看得见——不算「只影响界面」。
+      'general.language',
+      'general.fontSize',
     ]) {
       expect(
         ondraSettingIsWired(key),
@@ -180,7 +220,7 @@ void main() {
       );
     }
     // 这几项是真的没有任何落点，必须如实为 false。
-    for (final key in ['general.fontSize', 'general.focusMute']) {
+    for (final key in ['general.focusMute']) {
       expect(ondraSettingIsWired(key), isFalse, reason: '$key 当前确实没接');
     }
   });
@@ -245,5 +285,47 @@ void main() {
   test('DshSettings 在桌面端可用', () {
     expect(DshSettings.supported, isTrue);
     expect(DshSettings.path, endsWith('settings.json'));
+  });
+
+  test('映射表里的每个段与字段都真实存在于内核（冻结快照）', () {
+    // 这条守的是「段名/字段名改过之后界面还在往旧位置写」。
+    // 快照取自 `~/Downloads/plugins/*/src/settings.ts` 的
+    // `CONFIG_SECTION_ID` 与 `KEY_PAIRS`，2026-11-18 用脚本导出后固化。
+    //
+    // 为什么固化而不是运行时读内核：内核是 TS，Flutter 跑起来时它不一定在
+    // 这台机器上；而这张表的用途恰恰是「内核不在也能提前发现写错位置」。
+    // 内核升级导致字段改名时，这条会失败——那正是要它失败的时候。
+    const sections = <String, Set<String>>{
+      'privacy': {'enable', 'approval-mode', 'strict-hosts', 'scan-secrets', 'consent-ttl-ms', 'verbose'},
+      'asr': {'enable', 'provider', 'binary', 'model-path', 'language', 'threads', 'ffmpeg-path', 'timeout-ms', 'cloud-base-url', 'cloud-model', 'credential-ref', 'allow-cloud-fallback', 'cloud-without-privacy', 'max-audio-bytes', 'max-chars', 'quiet', 'verbose'},
+      'vision': {'enable', 'provider', 'base-url', 'model', 'credential-ref', 'detail', 'timeout-ms', 'max-image-bytes', 'max-output-chars', 'video-frames', 'ffmpeg-path', 'cloud-without-privacy', 'verbose'},
+      'tts': {'enable', 'provider', 'preset', 'voice', 'rate', 'volume', 'max-chars', 'gsv-endpoint', 'gsv-ref-audio', 'gsv-prompt-text', 'gsv-text-lang', 'edge-bin', 'say-voice', 'say-wpm', 'timeout-ms', 'playback', 'cache-files', 'verbose'},
+      'dialogue': {'enable', 'max-turns', 'max-history-chars', 'temperature', 'max-tokens', 'include-persona', 'include-worldbook', 'min-tail-confidence', 'max-conversations', 'verbose'},
+      'memory-core': {'important-salience', 'long-term-base-hours', 'channel-anchor-days', 'floor-weight', 'archive-normal-days', 'archive-important-days', 'resurface-days', 'default-channel', 'max-text-chars', 'max-summary-chars', 'max-select-rows', 'score-on-write'},
+      'memory-extract': {'enable', 'allow-group', 'max-facts', 'max-text-chars', 'max-summary-chars', 'min-quote-chars', 'require-tool-for-digits', 'temperature', 'max-tokens', 'max-input-chars'},
+      'memory-recall': {'enable', 'fuse', 'rrf-k', 'bm25-k1', 'bm25-b', 'bm25-half', 'rare-idf', 'rare-min-docs', 'graph-seeds', 'graph-min-weight', 'include-archived', 'index-ttl-ms', 'page-size', 'max-scan-rows', 'external-limit', 'vector-branch', 'recognition-branch'},
+      'memory-decay': {'enable', 'clear-above', 'faded-above', 'max-review-batch', 'max-scan-rows', 'max-init-per-scan', 'max-interval-days', 'auto-scan', 'scan-interval-minutes'},
+      'memory-dream': {'enable', 'mode', 'max-items', 'max-candidates', 'dream-salience', 'min-quote-chars', 'max-text-chars'},
+      'proactive-gate': {'enable', 'daily-quota', 'quiet-start', 'quiet-end', 'anti-ban-quiet-start', 'anti-ban-quiet-end', 'idle-minutes', 'per-minute', 'per-hour', 'per-day', 'max-len', 'hard-max-len', 'group-cooldown-ms', 'private-cooldown-ms', 'dedupe-minutes', 'dedupe-min-len', 'jitter-ms', 'circuit-hits', 'circuit-minutes', 'block-words', 'verbose'},
+    };
+
+    for (final entry in ondraSettingTargets.entries) {
+      for (final t in entry.value) {
+        final fields = sections[t.section];
+        expect(
+          fields,
+          isNotNull,
+          reason: '${entry.key} 写到了段 `${t.section}`，'
+              '但内核没有这个 CONFIG_SECTION_ID',
+        );
+        expect(
+          fields,
+          contains(t.key),
+          reason: '${entry.key} 写的是 ${t.section}.${t.key}，'
+              '但内核的 KEY_PAIRS 里没有这个 kebab 字段——'
+              '写进去不会报错，只是永远读不到',
+        );
+      }
+    }
   });
 }

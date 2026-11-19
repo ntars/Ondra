@@ -6,6 +6,8 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ui/module.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ondra-persona/ui/persona_client.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ui/registry.dart';
 
+import 'support/form_factor.dart';
+
 void main() {
   test('装配表完整：10 个模块，三组都非空，id 唯一', () {
     expect(OndraRegistry.all.length, 10);
@@ -66,5 +68,5 @@ void main() {
     // 表头只有一行名字。曾经还有一句「内容由 AI 生成，仅供参考」压在人设名下面，
     // 现在对齐参考应用去掉了：那行免责声明既不是信息，也不该常驻在每次对话顶端。
     expect(find.text('内容由 AI 生成，仅供参考'), findsNothing);
-  });
+  }, variant: desktopFormFactor);
 }

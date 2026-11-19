@@ -13,18 +13,31 @@ class ShellState extends ChangeNotifier {
     required String initialId,
     this._themeMode = ThemeMode.system,
     this.onThemeModeChanged,
-  }) : _activeId = initialId;
+    bool initialSidebarOpen = true,
+  })  : _activeId = initialId,
+        _sidebarOpen = initialSidebarOpen;
 
   final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   String _activeId;
-  bool _sidebarOpen = true;
+  bool _sidebarOpen;
   bool _railOpen = true;
   bool _chatFocus = false;
   bool _signedIn = false;
   bool _settingsOpen = false;
   bool _timelineOpen = false;
   ThemeMode _themeMode;
+
+  /// 手机上是否正停留在某个功能页。
+  ///
+  /// **只在手机布局里有意义**（见 `design/form_factor.dart` 的 `ondraIsMobile`）。
+  /// 桌面是三栏并置，页面与对话同时在场，不存在「离开聊天」这件事；
+  /// 手机只有一列，聊天是主界面，点侧栏里的一项就等于离开聊天去看那一页。
+  ///
+  /// 用一个布尔而不是复用 `activeId`：`activeId` 是「选中了哪一项」，
+  /// 桌面切页时它变但人还在三栏里；手机需要额外知道「现在到底盖没盖住聊天」。
+  /// 两者混用会出现「抽屉关掉后聊天没回来」或者「切了页但还显示聊天」。
+  bool _mobilePageOpen = false;
 
   String get activeId => _activeId;
 
@@ -50,6 +63,11 @@ class ShellState extends ChangeNotifier {
   bool get signedIn => _signedIn;
   bool get settingsOpen => _settingsOpen;
 
+  /// 手机上是否正盖着功能页（false = 正在看聊天）。
+  ///
+  /// 见 [_mobilePageOpen] 的说明。桌面布局不读它，恒为 false。
+  bool get mobilePageOpen => _mobilePageOpen;
+
   /// 时间线：把整个窗口接管过去。
   ///
   /// 它和「设置面板」一样是覆盖层，但比设置更彻底——设置是浮在页面上的一个
@@ -60,6 +78,31 @@ class ShellState extends ChangeNotifier {
   set activeId(String value) {
     if (value == _activeId) return;
     _activeId = value;
+    notifyListeners();
+  }
+
+  set mobilePageOpen(bool value) {
+    if (value == _mobilePageOpen) return;
+    _mobilePageOpen = value;
+    notifyListeners();
+  }
+
+  /// 手机上从抽屉里选了某一项：切页、盖住聊天、收起抽屉，三个动作一次做完。
+  ///
+  /// 为什么合成一个方法：分三次赋值会触发三次通知，中间那两帧里
+  /// 「页面已经切了但聊天还盖在上面」会被画出来，肉眼看到抽屉消失的瞬间
+  /// 底下闪一下聊天。
+  void openMobilePage(String id) {
+    _activeId = id;
+    _mobilePageOpen = true;
+    _sidebarOpen = false;
+    notifyListeners();
+  }
+
+  /// 手机上从功能页回到聊天。
+  void closeMobilePage() {
+    if (!_mobilePageOpen) return;
+    _mobilePageOpen = false;
     notifyListeners();
   }
 

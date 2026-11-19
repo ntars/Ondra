@@ -18,6 +18,8 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ui/registry.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ui/shell_state.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ui/chassis.dart';
 
+import 'support/form_factor.dart';
+
 /// 逐页渲染：每个模块在宽（三栏）与窄（抽屉）两种形态下都必须能画出来，
 /// 且不能抛异常、不能溢出。
 ///
@@ -67,14 +69,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
       expect(tester.takeException(), isNull);
       expect(find.text(module.label), findsWidgets);
-    });
+    }, variant: desktopFormFactor);
 
     testWidgets('${module.label} 在 880×700 下可渲染（抽屉形态）', (tester) async {
       await pumpShell(tester, const Size(880, 700));
       stateOf(tester).activeId = module.id;
       await tester.pump(const Duration(milliseconds: 250));
       expect(tester.takeException(), isNull);
-    });
+    }, variant: desktopFormFactor);
   }
 
   testWidgets('设置面板可打开且无异常', (tester) async {
@@ -83,7 +85,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(tester.takeException(), isNull);
     expect(find.text('通用设置'), findsWidgets);
-  });
+  }, variant: desktopFormFactor);
 
   testWidgets('时间线覆盖层能盖住三栏且无异常', (tester) async {
     await pumpShell(tester, const Size(960, 660));
@@ -98,5 +100,5 @@ void main() {
     // 覆盖层是整窗的：它盖住左栏与右栏，而不是挤在中栏里当一页。
     // 左栏的组件仍在树里（只是被盖住了），所以这里测尺寸而不是测有无。
     expect(tester.getSize(find.byType(TimelineStage)), const Size(960, 660));
-  });
+  }, variant: desktopFormFactor);
 }

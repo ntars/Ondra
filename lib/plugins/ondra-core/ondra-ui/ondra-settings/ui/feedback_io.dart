@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../../../../app/desktop_picker.dart';
+import '../../../../../app/home_dir.dart';
 
 /// 问题反馈的落盘层。
 ///
@@ -24,7 +25,7 @@ class FeedbackStore {
   final String home;
 
   static String _defaultHome() =>
-      '${Platform.environment['HOME'] ?? '.'}/.ondra';
+      '$ondraUserHome/.ondra';
 
   String get root => '$home/feedback';
 

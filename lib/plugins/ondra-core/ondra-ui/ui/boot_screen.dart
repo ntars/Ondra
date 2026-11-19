@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../app/version.dart';
 import '../../../../design/brand.dart';
+import '../../../../design/native_glass.dart';
 import '../../../../design/skin.dart';
 import '../../../../design/tokens.dart';
 
@@ -22,10 +22,23 @@ class BootScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 桌面端用 85% 白压在原生玻璃上（参考 splash 的 rgba(246,246,246,.85)），
-    // 开机第一眼就能透出桌面，和主界面是同一层玻璃；Web 没有底层玻璃，用实色。
+    // 有原生玻璃时用 85% 白压在它上面（参考 splash 的 rgba(246,246,246,.85)），
+    // 开机第一眼就能透出桌面，和主界面是同一层玻璃。
+    //
+    // **没有玻璃时必须不透明。** Windows / Linux 的 runner 底下没有那一层，
+    // 85% 半透明露出来的是窗口底色，深色主题下会白得刺眼——而启动屏恰恰是
+    // 用户看到的第一帧。此时用 `splash` 实色（浅色 #F6F7FA）；深色下换成
+    // 皮肤的画布色，与后面的主界面同一档，切过去不会闪一下。
+    final s = OndraSkin.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final Color background;
+    if (ondraHasNativeGlass) {
+      background = OndraColor.splashGlass;
+    } else {
+      background = dark ? s.shell : OndraColor.splash;
+    }
     return ColoredBox(
-      color: kIsWeb ? OndraColor.splash : OndraColor.splashGlass,
+      color: background,
       child: Center(
         child: failed
             ? _BootFailure(message: message ?? '启动时遇到未知错误')

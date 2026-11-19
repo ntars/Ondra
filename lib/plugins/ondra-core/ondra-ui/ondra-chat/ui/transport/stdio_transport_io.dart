@@ -2,8 +2,35 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../../../app/bundled_runtime.dart';
+import '../../../../../../app/runtime_seed.dart';
 import '../chat_client.dart';
 import 'rpc_frames.dart';
+import '../../../../../../app/home_dir.dart';
+
+/// 启动一次内核进程需要的东西：谁被执行、入口参数是什么。
+///
+/// 两种形态合并成一个结构，是因为它们只差「解释器 + 脚本」和「可执行脚本」
+/// 这一处。早先 `_resolveBinary` 只返回一个路径，加入随包运行时后要分辨
+/// 「这是 node 还是 dsh」——靠字符串特征猜太脆，不如在解析时就定下来。
+class _KernelLaunch {
+  const _KernelLaunch({
+    required this.exe,
+    required this.leadingArgs,
+    this.bundledRoot,
+  });
+
+  final String exe;
+  final List<String> leadingArgs;
+
+  /// 用的是随包运行时的话，这里是它的根目录（写进日志用）。
+  final String? bundledRoot;
+
+  @override
+  String toString() =>
+      '${[exe, ...leadingArgs].join(' ')}'
+      '${bundledRoot == null ? '' : '  [bundled $bundledRoot]'}';
+}
 
 /// 通过**本机子进程**连 DSH 内核：`dsh --profile ondra`。
 ///
@@ -70,7 +97,7 @@ class StdioDshTransport implements DshTransport {
   /// GUI 应用没有终端可看，连接过程的每一步都落盘一份，排障时直接读文件。
   void _log(String message) {
     try {
-      final home = Platform.environment['HOME'] ?? '.';
+      final home = ondraUserHome;
       final dir = Directory('$home/.ondra/logs');
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final stamp = DateTime.now().toIso8601String();
@@ -84,32 +111,52 @@ class StdioDshTransport implements DshTransport {
   @override
   Future<void> connect() async {
     if (_process != null) return;
-    final exe = await _resolveBinary();
-    _log('resolved binary: $exe');
+
+    // profile 必须先于进程存在，否则内核会抛
+    // `profile "ondra" does not exist`。
+    //
+    // `main.dart` 在更早的地方也调了一次（那是为了让插件页首帧就有内容），
+    // 这里再调一次是**防御性**的：这个类也会被测试和将来别的入口直接构造，
+    // 「必须由调用方先铺好 profile」是个隐形契约，靠注释维持不住。
+    // 成本是一次 `existsSync`——前面已经铺过就立即返回。
+    final seed = seedRuntimeProfile();
+    if (seed.outcome != RuntimeSeedOutcome.alreadyPresent) {
+      _log('profile seed: $seed');
+    }
+
+    final launch = await _resolveLaunch();
+    _log('launch: $launch');
     // 独立的 DSH_HOME：桌面端的会话库是 .jsonl.zstd，SDK profile 默认写未压缩 JSONL，
     // 共用一个目录会直接报 “uses .jsonl.zstd, but this backend is configured for …”。
     // 顺带的好处是空谷的数据不混进用户自己的 dsh 目录。
     final home = Platform.environment['ONDRA_DSH_HOME'] ??
-        '${Platform.environment['HOME'] ?? '.'}/.ondra/dsh';
+        '$ondraUserHome/.ondra/dsh';
     final Process process;
     try {
-      // dsh 是个带 `#!/usr/bin/env node` 的脚本：GUI 应用的 PATH 里没有 node，
-      // 子进程会立刻退出（表现为 initialize 一直等到超时）。把 dsh 所在目录
-      // 顶到 PATH 前面，node 与 dsh 通常就在同一个 bin 下。
-      final binDir = exe.contains('/')
-          ? File(exe).parent.path
-          : '';
+      // 用系统装的 dsh 时，它是个带 `#!/usr/bin/env node` 的脚本：GUI 应用的
+      // PATH 里没有 node，子进程会立刻退出（表现为 initialize 一直等到超时）。
+      // 把 dsh 所在目录顶到 PATH 前面，node 与 dsh 通常就在同一个 bin 下。
+      //
+      // 用随包运行时则没这个问题（我们是拿 node 直接跑 bin.js 的），但把
+      // runtime 根目录放进 PATH 仍然有用：内核自己要 spawn `bash`、以及可能
+      // 用 `node` 起子 agent。
+      final binDir = File(launch.exe).parent.path;
       final path = [
         if (binDir.isNotEmpty) binDir,
         Platform.environment['PATH'] ?? '/usr/bin:/bin:/usr/sbin:/sbin',
       ].join(':');
       process = await Process.start(
-        exe,
-        // `ondra` 是应用自己的 profile：sdk-minimal 的完整树 + 旧插件包的
-        // 75 个根插件（记忆、人设、情感、主动、TTS、世界书……）。
-        // 它是 `~/.ondra/dsh/profiles/ondra` 里的一份 YAML 装配层，
-        // 不是打进包里的代码——插件包更新时不用重新构建应用。
-        ['--profile', 'ondra'],
+        launch.exe,
+        [
+          ...launch.leadingArgs,
+          // `ondra` 是应用自己的 profile：sdk-minimal 的完整树 + 插件包装配层。
+          // 它是 `~/.ondra/dsh/profiles/ondra` 里的一份 YAML 装配层，
+          // 不是打进包里的代码——插件包更新时不用重新构建应用。
+          // 唯一例外是首次运行：那时目录还不存在，由 `runtime_seed` 从包里
+          // 铺一份种子过去（见 lib/app/runtime_seed.dart）。
+          '--profile',
+          ondraRuntimeProfileName,
+        ],
         environment: {
           ...Platform.environment,
           'DSH_HOME': home,
@@ -127,7 +174,7 @@ class StdioDshTransport implements DshTransport {
         _log('process exited with code $code');
       });
     } on ProcessException catch (e) {
-      _lastError = '找不到 dsh 可执行文件（$exe）：${e.message}';
+      _lastError = '找不到 dsh 可执行文件（${launch.exe}）：${e.message}';
       _log('spawn failed: ${e.message}');
       throw StateError(_lastError!);
     }
@@ -258,20 +305,47 @@ class StdioDshTransport implements DshTransport {
     }
   }
 
-  /// 找到 dsh 可执行文件。
+  /// 决定用哪个内核，以及怎么启动它。
+  ///
+  /// 优先级：**显式传入 → `ONDRA_DSH_BIN` → 随包运行时 → 系统安装**。
+  ///
+  /// 环境变量排在随包前面是刻意的。产品默认路径是随包那份（用户什么都不用装），
+  /// 但包里的运行时一旦出问题，现场唯一能自救的手段就是 `ONDRA_DSH_BIN`；
+  /// 如果随包优先级更高，这个开关就等于没有——它会被那份坏掉的运行时常年压住。
+  /// 所以「默认归随包、覆盖归环境变量」，与 git / rbenv 这类工具的习惯一致。
+  Future<_KernelLaunch> _resolveLaunch() async {
+    if (binary != null && binary!.isNotEmpty) {
+      return _KernelLaunch(exe: binary!, leadingArgs: const []);
+    }
+    final fromEnv = Platform.environment['ONDRA_DSH_BIN'];
+    if (fromEnv != null && fromEnv.isNotEmpty) {
+      return _KernelLaunch(exe: fromEnv, leadingArgs: const []);
+    }
+
+    // 随包运行时：`node <runtime>/dsh/lib/bin.js`。
+    final bundled = ondraBundledRuntime;
+    if (bundled != null) {
+      return _KernelLaunch(
+        exe: bundled.nodePath,
+        leadingArgs: [bundled.dshEntry],
+        bundledRoot: bundled.rootDir,
+      );
+    }
+
+    return _KernelLaunch(exe: _systemDsh(), leadingArgs: const []);
+  }
+
+  /// 找到系统装的 dsh 可执行文件。
   ///
   /// 从 Finder 启动的应用拿到的是最小 PATH（/usr/bin:/bin:/usr/sbin:/sbin），
   /// 那里没有 Homebrew 或 npm 全局装的 dsh——所以除了 `which`，还要探几个常见位置。
-  /// 优先级：显式传入 → 环境变量 → PATH → 常见安装目录。
-  Future<String> _resolveBinary() async {
-    if (binary != null && binary!.isNotEmpty) return binary!;
-    final fromEnv = Platform.environment['ONDRA_DSH_BIN'];
-    if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
-
+  ///
+  /// 这条路径只服务**开发机与 Linux 用户**：发行包装了随包运行时，走不到这里。
+  String _systemDsh() {
     // 从 Finder 启动时 PATH 是极简版，且 `zsh -lc` 只走登录脚本（不读 .zshrc），
     // 用户用 nvm/npm/pnpm 装的 dsh 都不在其中。所以逐条探常见安装位置——
     // 版本目录（nvm / workbuddy 自带 node）用 glob 展开，不写死版本号。
-    final home = Platform.environment['HOME'] ?? '';
+    final home = ondraUserHome;
     // 顺序很关键：绝对路径优先，`dsh`（走 PATH）放最后——
     // 之前把它放第一个，函数见到「不含 / 的名字」就立刻返回，后面的探测全白做。
     final candidates = <String>[

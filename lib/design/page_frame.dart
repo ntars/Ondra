@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../app/i18n.dart';
 import 'primitives.dart';
 import 'skin.dart';
 import 'tokens.dart';
@@ -62,7 +63,9 @@ class OndraPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        // 页面标题也翻：注册表里的 `label` 是中文原文，
+                        // 侧栏翻了、标题没翻的话，同一页会出现两个名字。
+                        OndraI18nScope.translate(context, title),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         // 20/600/28 是参考应用的页面标题档（`text-[20px] font-semibold leading-7`）。
@@ -71,7 +74,7 @@ class OndraPage extends StatelessWidget {
                       if (subtitle != null) ...[
                         const SizedBox(height: 2),
                         Text(
-                          subtitle!,
+                          OndraI18nScope.translate(context, subtitle!),
                           style: ondraText(13, color: s.ink60, height: 18 / 13),
                         ),
                       ],

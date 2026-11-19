@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'version.dart';
+import 'home_dir.dart';
 
 /// 把一次崩溃写进 `~/.ondra/logs/crash.log`。
 ///
@@ -25,7 +26,7 @@ class CrashLog {
   static const int _maxBytes = 256 * 1024;
 
   static String get _dir {
-    final home = Platform.environment['HOME'] ?? '.';
+    final home = ondraUserHome;
     return '$home/.ondra/logs';
   }
 

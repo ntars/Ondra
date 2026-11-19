@@ -6,11 +6,13 @@ import 'package:material_ui/material_ui.dart';
 import '../plugins/ondra-core/ondra-ui/ui/registry.dart';
 import '../plugins/ondra-core/ondra-ui/ui/shell_state.dart';
 import '../design/avatar.dart';
+import '../design/form_factor.dart';
 import '../design/theme.dart';
 import '../design/motion.dart';
 import '../plugins/ondra-core/ondra-ui/ui/boot_screen.dart';
 import '../plugins/ondra-core/ondra-ui/ui/chassis.dart';
 import 'debug_launch.dart';
+import 'i18n.dart';
 import 'prefs.dart';
 import 'version.dart';
 import 'window_appearance.dart';
@@ -88,6 +90,9 @@ class _OndraAppState extends State<OndraApp> {
   late final ShellState _state = ShellState(
     initialId: _debugInitialId(),
     themeMode: _readThemeMode(),
+    // 桌面一进来是三栏，导航必须在场；手机一进来是聊天，抽屉必须先关着——
+    // 否则首帧就是「抽屉盖住聊天」，而用户从没点过任何按钮。
+    initialSidebarOpen: !ondraIsMobile,
     // 只在这里认识「偏好文件」：壳层状态只管通知，落盘由应用根负责。
     onThemeModeChanged: (mode) => writePref('themeMode', mode.name),
   )..settingsOpen = _debugSettings();
@@ -101,6 +106,10 @@ class _OndraAppState extends State<OndraApp> {
     // 放在这里而不是 `OndraAvatar` 的 initState，是因为那个组件有多处实例，
     // 每处都读一遍等于同一份文件解析 N 次。
     avatarStore.reload();
+    // 语言包：读偏好里记着的语言，异步装载（走 rootBundle）。
+    // 装不上就保持中文，界面不会因此空白——见 `i18n.dart` 的说明。
+    // `readPref` 读不到时给空串，`load('')` 会当成「不认识的语言」回落中文。
+    OndraI18n.instance.load(readPref('language'));
   }
 
   @override
@@ -111,11 +120,17 @@ class _OndraAppState extends State<OndraApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ShellScope(
-      state: _state,
-      child: AnimatedBuilder(
-        animation: _state,
-        builder: (context, _) {
+    return OndraI18nScope(
+      child: ShellScope(
+        state: _state,
+        // 两层监听：壳层状态（切页 / 主题 / 设置开合）与语言。
+        // 语言这一路是**兜底**：真正保证「切了立刻变」的是上面那层
+        // `OndraI18nScope`（它把变化直接投递给读过译文的 element，
+        // 不受中间 `const` 影响）。这里再监听一次是为了让应用根自己
+        // 也重建，`MaterialApp` 的 `locale` 之类的参数能跟着更新。
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_state, OndraI18n.instance]),
+          builder: (context, _) {
           return MaterialApp(
             title: ondraAppName,
             debugShowCheckedModeBanner: false,
@@ -140,12 +155,17 @@ class _OndraAppState extends State<OndraApp> {
             },
             // 必须有一层 Material：否则 Text 会继承 WidgetsApp 的「错误文字样式」
             // （红字 + 黄色双下划线），所有未显式声明 decoration 的文本都会被污染。
+            //
+            // 这一层是全 `const` 的，语言切换照样能穿透——因为译文的变化不走
+            // 「父传子」那条会被 `const` 短路的路径，而是由外层 `OndraI18nScope`
+            // 直接投递给每个读过译文的 element。见 `i18n.dart` 的说明。
             home: const Material(
               type: MaterialType.transparency,
               child: _BootGate(),
             ),
           );
-        },
+          },
+        ),
       ),
     );
   }

@@ -186,18 +186,72 @@ flutter run -d macos
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| macOS（通用二进制） | `Ondra-2.0.0-alpha-macos-universal.dmg` | Intel 与 Apple Silicon 同一个包 |
-| Windows（x64） | `Ondra-2.0.0-alpha-windows-x64.zip` | 解压后运行 `ondra.exe`，必须整目录解压 |
-| Android | `Ondra-2.0.0-alpha-android-arm64.apk` | 常规手机；`-universal.apk` 含 32 位与模拟器 |
+| macOS（通用二进制） | `Ondra-3.0.0-alpha-macos-universal.dmg` | Intel 与 Apple Silicon 同一个包 |
+| Windows（x64） | `Ondra-3.0.0-alpha-windows-x64.zip` | 解压后运行 `ondra.exe`，必须整目录解压 |
+| Android | `Ondra-3.0.0-alpha-android-arm64.apk` | 常规手机；`-universal.apk` 含 32 位与模拟器 |
 
 校验：`shasum -a 256 -c SHA256SUMS.txt`。三个包都没有正式签名，首次打开按发行版说明处理系统拦截。
 
 ### 7.4 构建与分发
 
+**先装配运行时，再打包。** 应用自带 Node 与内核，这两步不能省——只跑
+`flutter build` 出来的包里没有任何运行时，装到别人机器上会连不上内核。
+
+装配脚本是 `tool/assemble_runtime.mjs`（node 实现，macOS / Windows / Linux 同一份）。
+`tool/assemble_runtime.sh` 只是转发。**必须在目标平台上跑**：node 二进制与
+原生模块（node-pty / koffi）都是平台相关的，不能交叉产出。
+
 ```sh
-# macOS：本机可出通用二进制（x86_64 + arm64），无需分架构
-flutter build macos --release
-# → build/macos/Build/Products/Release/空谷 Ondra.app
+# 1. 装配随包运行时 → runtime/<平台>-<架构>/
+#    从本机已装的 node 与 @deepseek-ai/dsh 拷一份裁剪过的闭包，
+#    连同 profile 种子，用真实握手自检。
+node tool/assemble_runtime.mjs
+# 产物内容约 180MB（node 108 + dsh 67 + profile 4.3；小文件多，磁盘占用约 198MB）
+# Windows 另加 sqlite3.exe 4MB
+
+# 2. macOS：构建 + 塞进 .app + 重签
+tool/bundle_macos.sh
+# → build/macos/Build/Products/Release/空谷 Ondra.app（约 245MB）
+#   加 --sign "Developer ID Application: 你的名字 (TEAMID)" 可出可分发签名
+```
+
+#### 装配的输入是仓库里的 `plugin-profile/`
+
+内核的插件树（77 个 `@ondra/cordis-plugin-*`）原本只存在于
+`~/.ondra/dsh/profiles/ondra`，而那条目录是靠「在本机跑过一次应用、且
+`~/Downloads/plugins` 里有插件源码」才有的。拿它当装配输入，等于让出包依赖
+本机的偶然状态：CI runner 上永远没有，不同机器打出的包内容也各不相同。
+
+所以装配默认读仓库内的 `plugin-profile/`。它是一份**构建输入快照**
+（`package.json` + `cordis.patch.yml` + 77 个包编译产物，4.3MB / 596 个文件），
+由 `tool/sync_plugin_profile.mjs` 从真实 profile 固化：
+
+```sh
+# 插件改了之后（先重新装进 ~/.ondra/dsh/profiles/ondra，再同步）
+node tool/sync_plugin_profile.mjs
+git diff --stat plugin-profile      # 先看包数量与装配结构的变化合理不合理
+```
+
+装配时会比对「快照」与「本机 profile」：不一致就警告并打出差异，但**打的是快照**
+（这样本地与 CI 的包始终对应同一份提交）。要临时用本机那份：
+`ONDRA_PROFILE_SRC=~/.ondra/dsh/profiles/ondra node tool/assemble_runtime.mjs`。
+
+Windows 的运行时由 CMake 在 `flutter build windows --release` 期间拷进
+`build\windows\x64\runner\Release\runtime\windows-x64\`（见
+`windows/CMakeLists.txt`）。**缺了它构建会直接失败**，不是警告：Windows 上
+不存在可退回的系统 dsh，少了这一份，装出来的应用双击后连不上内核。
+确实只需要界面时，设环境变量 `ONDRA_ALLOW_NO_RUNTIME=1` 跳过（`flutter build`
+不转发自定义 `-D` 给 CMake，所以走环境变量）。Windows 没有系统
+`sqlite3`，装配脚本会从 sqlite.org 取官方 `sqlite3.exe`（SHA3-256 校验）；
+内网环境可用 `ONDRA_SQLITE3_BIN` 指向本机副本，或 `ONDRA_SKIP_SQLITE=1` 跳过。
+
+`runtime/` 不进版本库（见 `.gitignore`）：它是二进制，而且必须与本机内核
+同版本，提交进去会让「打进包的内核」和「测试过的内核」悄悄分叉。
+`plugin-profile/` 相反，**必须提交**——它是文本与小型编译产物，正是为了让
+装配在任何机器上可重现。
+
+```sh
+# macOS：出 zip 与 dmg
 ditto -c -k --norsrc --noextattr --keepParent "空谷 Ondra.app" Ondra-macos.zip
 hdiutil create -volname "空谷 Ondra" -srcfolder "空谷 Ondra.app" -ov -format UDZO Ondra-macos.dmg
 
@@ -213,6 +267,17 @@ flutter build web --release     # → build/web
 
 **Windows 只能在 Windows 上构建**（MSVC 没有交叉编译），走 `.github/workflows/release.yml`：
 Actions → Release build → Run workflow，结束后在 Artifacts 取 `ondra-windows`。
+
+Windows 的构建前置比 macOS 多一步，而且**不能省**：`flutter build windows` 之前
+必须先 `node tool\assemble_runtime.mjs`，否则 CMake 会因为找不到
+`runtime\windows-x64\node.exe` 直接失败。
+
+⚠️ 而这一条在干净的 CI runner 上跑不通：装配脚本的 profile 种子取自
+`%USERPROFILE%\.ondra\dsh\profiles\ondra`，那是**应用跑过一次之后**才有的东西
+（插件包由安装器下发）。所以要么让 Windows 发布包在「跑过一次应用的机器」上出，
+要么把 `runtime\windows-x64\` 作为构建缓存（`actions/cache`）在 job 之间传递。
+两者都还没接进 workflow——现在的 `release.yml` 里没有这两步，打出来的 Windows
+包不含运行时。
 
 四条硬约束：关闭 App Sandbox（要拉起本机子进程）、不引入原生插件、GUI 应用自行探测 `dsh` 路径、数据目录独立（`DSH_HOME=~/.ondra/dsh`）。
 

@@ -5,8 +5,11 @@ import 'package:material_ui/material_ui.dart';
 
 import './registry.dart';
 import './shell_state.dart';
+import '../../../../app/i18n.dart';
+import '../../../../design/form_factor.dart';
 import '../../../../design/glyph.dart';
 import '../../../../design/motion.dart';
+import '../../../../design/native_glass.dart';
 import '../../../../design/primitives.dart';
 import '../../../../design/skin.dart';
 import '../../../../design/tokens.dart';
@@ -23,7 +26,9 @@ import 'side_rail.dart';
 /// 红绿灯落在侧栏表头里。页面自带顶部的拖拽条（52 或 44 高），所以内容槽
 /// 直接铺页面，不再额外叠一层。
 ///
-/// 两种形态：
+/// 三种形态：
+/// - **手机**（`ondraIsMobile`）：**聊天就是主界面**，其余功能收进侧边抽屉。
+///   判据是平台，不是宽度——见 `design/form_factor.dart` 的说明。
 /// - **展开**（宽 ≥ 930）：三栏在流内，两侧栏做 200ms 宽度过渡；
 /// - **紧凑**（更窄，只可能出现在 web 预览里）：两栏收起，展开时以覆盖式抽屉出现。
 ///
@@ -41,6 +46,8 @@ class OndraChassis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 手机不走宽度阈值，直接按平台决定形态。
+    if (ondraIsMobile) return const _MobileBody();
     return LayoutBuilder(
       builder: (context, constraints) {
         return _Shell(compact: constraints.maxWidth < 930);
@@ -105,10 +112,18 @@ class _ShellState extends State<_Shell> {
     );
 
     return Container(
-      // 桌面：整窗透明，玻璃由 AppKit 的 NSVisualEffectView 画在内容下面，
-      // 侧栏那层 10% 白叠上去就是毛玻璃。内容区与右栏自己画实色，所以只有侧栏透。
-      // Web 没有底层玻璃，用实色兜底。
-      color: kIsWeb ? s.shell : Colors.transparent,
+      // 整窗透明的前提是**底下真的有一层玻璃**：macOS 由
+      // `macos/Runner/MainFlutterWindow.swift` 往 contentView 最底层插
+      // `NSGlassEffectView`（取不到就回退 `NSVisualEffectView`），
+      // 侧栏画透明让那层露出来，内容区与右栏自己画实色。
+      //
+      // Windows / Linux 的 runner 是 Flutter 默认模板，**没有任何玻璃层**，
+      // 此时画透明露出来的是窗口自己的底色：深色主题下侧栏本该是 #20242D，
+      // 实际是一片亮底，像深色纸上贴了条白胶布。所以那两处必须退回实色
+      // `s.shell`（它就是「没有玻璃时侧栏该是什么颜色」）。
+      //
+      // Web 同理：浏览器里不存在 behind-window 合成。
+      color: ondraHasNativeGlass ? Colors.transparent : s.shell,
       child: Stack(
         children: [
           widget.compact ? _CompactBody(page: content) : _WideBody(page: content),
@@ -148,6 +163,7 @@ class _WideBody extends StatelessWidget {
             // 左栏照常，**不受展开影响**：展开讲的是「让对话接管中栏」，
             // 不是「把左栏收走」。左栏开不开一直是用户自己的选择，
             // 一个和它无关的按钮不该顺手改掉它。
+            //
             const OndraSideRail(),
             // 中栏 + 右栏同处一张「纸片」上：纸片圆角 12、四周让出 4px，
             // 那 4px 露出的就是窗口底下的原生玻璃。侧栏不在这张纸上——
@@ -452,6 +468,279 @@ class _Paper extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 手机形态：**聊天是主界面**，其余功能收进左侧抽屉。
+///
+/// ## 为什么是聊天而不是「页面」
+///
+/// 桌面是三栏并置：左栏导航、中栏看页、右栏说话。手机只有一列，必须选一个
+/// 常驻。选聊天，因为它是**每天都发生的事**；状态面板、日志、备份是偶尔才
+/// 翻的。把偶尔的那件事放在首屏，等于每天打开应用先看到一堆不用管的数字。
+///
+/// 这也是「空谷」这个产品的形状：它是一个会说话的东西，不是一个仪表盘。
+///
+/// ## 层次
+///
+/// 1. 最底：聊天，铺满整屏（`OndraAmbientRail` 在满宽下自己会做阅读限宽）；
+/// 2. 之上：功能页。选中侧栏里的一项就盖上来，左上角有返回键回到聊天；
+/// 3. 再上：侧边抽屉（导航）、设置面板、时间线。
+///
+/// 功能页是**盖上来**而不是「换掉聊天」：换掉就得在返回时重建聊天页，
+/// 滚动位置与输入框草稿都会丢。盖着时聊天仍在树上，只是被覆盖。
+///
+/// ## 安全区
+///
+/// 顶部交给聊天/页面自己的表头（它们本来就留了 48 的画布），底部留
+/// [ondraMobileBottomInset]：刘海屏的 home 指示条会压住输入框。
+class _MobileBody extends StatelessWidget {
+  const _MobileBody();
+
+  @override
+  Widget build(BuildContext context) {
+    final st = ShellScope.of(context);
+    final s = OndraSkin.of(context);
+
+    final module = OndraRegistry.byId(st.activeId) ??
+        (OndraRegistry.available.isEmpty ? null : OndraRegistry.available.first);
+    final page = module == null
+        ? const _NoModuleView()
+        : KeyedSubtree(
+            key: ValueKey(module.id),
+            child: Builder(builder: module.build),
+          );
+
+    // 网页与桌面同一套规则：它被动出现，顶替当前页。
+    final content = AnimatedBuilder(
+      animation: browserClient,
+      builder: (context, _) => browserClient.visible
+          ? BrowserPage(onClose: browserClient.close)
+          : page,
+    );
+
+    final bottom = ondraMobileBottomInset(context);
+    // 键盘弹出时把聊天整体顶上去。
+    //
+    // 桌面没有这回事：窗口高度固定，键盘是外设。手机上键盘会盖住屏幕下方
+    // 三分之一，而输入框就在底部——不顶的话，用户正在打的字被键盘压住，
+    // 只能盲打。
+    //
+    // 为什么不用 `Scaffold` 的 `resizeToAvoidBottomInset`：整个应用没有
+    // `Scaffold`（三栏是自绘的），而且那条逻辑会连功能页一起顶，功能页
+    // 不需要——它们没有输入框在底部。所以只给聊天这一层加。
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    // 顶部安全区：刘海与状态栏。外壳的底色铺到最顶（刘海后面也是同一块底），
+    // 但**内容**要让开——聊天表头 48 高，正好在状态栏下面，不让开会被盖住。
+    final top = MediaQuery.paddingOf(context).top;
+
+    return ColoredBox(
+      color: s.shell,
+      child: Stack(
+        children: [
+          // 第一层：聊天。`focusAmount: 1` 让它按整页处理——不画左分界线、
+          // 不铺神经元底纹，正文做 720 的阅读限宽并居中。
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.only(top: top, bottom: bottom + keyboard),
+              child: const OndraAmbientRail(focusAmount: 1),
+            ),
+          ),
+
+          // 第二层：功能页 + 它的返回键。
+          if (st.mobilePageOpen)
+            Positioned.fill(
+              child: Padding(
+                // 功能页自己顶上有一条 48 的 DragStrip（`OndraPage` 的画布），
+                // 那在手机上不是拖拽区，只是留白。让开状态栏后它刚好当
+                // 「导航栏下面的一条呼吸区」，所以这里只补顶部安全区。
+                padding: EdgeInsets.only(top: top),
+                child: _MobilePageLayer(
+                  bottomInset: bottom,
+                  onBack: st.closeMobilePage,
+                  child: content,
+                ),
+              ),
+            ),
+
+          // 第三层：侧边抽屉。导航就是桌面那条左栏，宽度按屏宽收窄。
+          if (st.sidebarOpen) _MobileDrawer(topInset: top, onClose: () => st.sidebarOpen = false),
+
+          // 抽屉入口。功能页盖着时用页面自己的返回键，这里就不再画一颗，
+          // 否则左上角会出现两个按钮，一个返回聊天、一个开抽屉，含义打架。
+          if (!st.mobilePageOpen && !st.sidebarOpen)
+            Positioned(
+              left: 8,
+              // 让开状态栏：这颗按钮是聊天页的操作入口，压在刘海下面点不到。
+              top: top + 6,
+              child: _MobileBarButton(
+                glyph: Glyphs.railToggle,
+                tooltip: '打开导航',
+                onTap: () => st.sidebarOpen = true,
+              ),
+            ),
+
+          if (st.settingsOpen)
+            Positioned.fill(
+              child: ConsoleSheet(onClose: () => st.settingsOpen = false),
+            ),
+          if (st.timelineOpen)
+            Positioned.fill(
+              child: TimelineStage(onClose: () => st.timelineOpen = false),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 手机上盖在聊天之上的功能页：一条返回条 + 页面本身。
+class _MobilePageLayer extends StatelessWidget {
+  const _MobilePageLayer({
+    required this.child,
+    required this.onBack,
+    required this.bottomInset,
+  });
+
+  final Widget child;
+  final VoidCallback onBack;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    return ColoredBox(
+      color: s.content,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 返回条：44 高是 iOS 导航栏的常规高度，也是拇指点得准的下限。
+          // 它与下面的页面共用同一个底色，所以看起来是页面顶上多了一条
+          // 可点的区域，而不是「页面上又压了一个工具条」。
+          SizedBox(
+            height: 44,
+            child: Row(
+              children: [
+                _MobileBarButton(
+                  glyph: Glyphs.chevronLeft,
+                  tooltip: '返回对话',
+                  onTap: onBack,
+                ),
+                Expanded(
+                  child: Text(
+                    OndraI18nScope.translate(
+                      context,
+                      OndraRegistry.byId(ShellScope.of(context).activeId)?.label ?? '',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ondraText(15, weight: 600, color: s.ink, height: 1),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 从左侧滑出的导航抽屉。
+///
+/// 宽度取屏宽的 78%（上限 300）：再宽会把内容全遮住，失去「这是盖在上面
+/// 的一层」的感觉；再窄则菜单文字会挤成两行。
+class _MobileDrawer extends StatelessWidget {
+  const _MobileDrawer({required this.onClose, required this.topInset});
+
+  final VoidCallback onClose;
+
+  /// 顶部安全区：抽屉里的侧栏表头同样会被刘海压住。
+  final double topInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final st = ShellScope.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final width = (screenWidth * 0.78).clamp(200.0, 300.0);
+
+    return Stack(
+      children: [
+        // 遮罩：点一下关掉。28% 是「能看出底下的东西还在，但明显不是当前层」
+        // 的常用档位，比 16% 更能表明这是一层模态。
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onClose,
+            child: ColoredBox(color: Colors.black.withValues(alpha: 0.28)),
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width,
+            child: _Drawer(
+              fromLeft: true,
+              child: Material(
+                type: MaterialType.transparency,
+                child: SizedBox(
+                  width: width,
+                  // 抽屉比侧栏宽（侧栏写死 200），留着一条空白边会让它看起来
+                  // 「没做完」。这里铺一层抽屉底色，侧栏浮在上面。
+                  child: ColoredBox(
+                    color: OndraSkin.of(context).shell,
+                    // 手机上选中一项 = 离开聊天去看那一页。桌面传 null 走默认。
+                    child: Padding(
+                      padding: EdgeInsets.only(top: topInset),
+                      child: OndraSideRail(onSelected: st.openMobilePage),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 手机上的一颗图标按钮：44×44 触摸目标，图标 20。
+///
+/// 44 是 Apple HIG 的最小可点尺寸，也是 Material 的 48 之下能接受的下限。
+/// 桌面的 24 圆按钮在手机上点不准——那是给鼠标 1px 精度的目标设计的。
+class _MobileBarButton extends StatelessWidget {
+  const _MobileBarButton({
+    required this.glyph,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final String glyph;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    final button = GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(child: Glyph(glyph, size: 20, color: s.ink80)),
+      ),
+    );
+    if (tooltip == null) return button;
+    // 手机上没有 hover，tooltip 靠长按出现；它同时是给读屏用的语义标签。
+    return Tooltip(message: tooltip!, child: button);
   }
 }
 

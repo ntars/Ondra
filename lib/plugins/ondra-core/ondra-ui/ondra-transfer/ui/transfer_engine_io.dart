@@ -1,12 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../../app/sqlite_cli.dart';
 import '../../ondra-backup/ui/backup_actions.dart'
     show backupCreate, backupExport, backupImport, backupOverviewLoader;
 import 'transfer_model.dart';
+import '../../../../../app/home_dir.dart';
 
-/// macOS 自带的命令行前端。用绝对路径：应用从 Finder 启动时 PATH 很短。
-const String _sqlite = '/usr/bin/sqlite3';
+/// 本机的 `sqlite3` 命令行。解析交给 `app/sqlite_cli.dart`：
+/// 从前这里写死 `/usr/bin/sqlite3`，在 Windows 上导入导出会直接失败。
+String get _sqlite {
+  final path = ondraSqliteCli;
+  if (path == null) {
+    throw const ProcessException('sqlite3', [], ondraSqliteMissingHint);
+  }
+  return path;
+}
 
 /// 导出文件名的前缀。带时间戳是为了「同一天导两次」不会互相覆盖，
 /// 用户不必先想「放哪、叫什么」。
@@ -25,7 +34,7 @@ const String _prefix = '空谷';
 /// 一次写坏就是永久损失，而这个动作的成本只有几百毫秒。
 class TransferEngine {
   TransferEngine({String? home, DateTime Function()? now})
-    : _home = home ?? Platform.environment['HOME'] ?? '',
+    : _home = home ?? ondraUserHome,
       _now = now ?? DateTime.now;
 
   final String _home;

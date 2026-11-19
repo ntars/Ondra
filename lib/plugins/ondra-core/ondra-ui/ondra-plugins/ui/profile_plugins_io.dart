@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'profile_plugins.dart';
+import '../../../../../app/home_dir.dart';
 
 /// 应用自己的 profile。与 `stdio_transport_io.dart` 里 `--profile ondra`
 /// 必须一致——两处写死同一个名字是有意的：它是产品的一部分，不是配置项。
@@ -10,7 +11,7 @@ const String _profile = 'ondra';
 File _patchFile() {
   final override = debugProfileFileOverride;
   if (override != null) return File(override);
-  final home = Platform.environment['HOME'] ?? '.';
+  final home = ondraUserHome;
   return File('$home/.ondra/dsh/profiles/$_profile/cordis.patch.yml');
 }
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'home_dir.dart';
 
 /// 桌面端的内核配置桥：直接读写 `settings.json`。
 ///
@@ -31,7 +32,7 @@ class DshSettings {
     if (override != null) return override;
     final env = Platform.environment['DSH_HOME'];
     if (env != null && env.trim().isNotEmpty) return env.trim();
-    return '${Platform.environment['HOME'] ?? '.'}/.ondra/dsh';
+    return '$ondraUserHome/.ondra/dsh';
   }
 
   /// 测试用的重定向：非 null 时 `path` 落到这里。

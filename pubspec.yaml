@@ -3,7 +3,7 @@ description: "空谷 · 桌面陪伴体（Flutter 前端骨架）"
 publish_to: 'none'
 
 # 2.0.0-alpha：Flutter 重写版。预发布标识写在 + 之前，语义版本合法。
-version: 2.0.0-alpha+1
+version: 3.0.0-alpha+1
 
 environment:
   sdk: ^3.14.0
@@ -44,3 +44,6 @@ flutter:
     # 有字体就装上，没有就整个应用降级到系统字体，构建和功能都不受影响。
     # 生成方式见 tool/subset_font.sh。
     - assets/fonts/
+    # 界面语言包。键是简体中文原文，值是译文，缺条目回落原文。
+    # 装载逻辑见 `lib/app/i18n.dart`（含为什么用原文当键的说明）。
+    - assets/locales/
