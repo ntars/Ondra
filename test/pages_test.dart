@@ -33,7 +33,8 @@ void main() {
   setUp(() {
     memorySnapshotLoader = () async =>
         const MemorySnapshot(facts: [], links: [], note: '测试环境');
-    logEntriesLoader = (LogKind kind) async => const <LogEntry>[];
+    logEntriesLoader = (LogKind kind, {int maxLines = 200}) async =>
+        const <LogEntry>[];
     // 平台行为层会真的写 launchd 登录项、起 caffeinate 子进程。
     // 测试跑一遍就在用户机器上留下一个开机启动项，比测试失败糟糕得多。
     PlatformActions.probe = const PlatformActionsProbe();

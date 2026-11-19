@@ -129,3 +129,103 @@ String _tidy(String text) {
   if (oneLine.length <= 60) return oneLine;
   return '${oneLine.substring(0, 59)}…';
 }
+
+/// 读一份会话的完整对话（user / assistant 的正文，按时间顺序）。
+///
+/// 会话是追加写的 jsonl：每一行是一条事件，用户与助手的正文都在
+/// `data.inserted[]` 里。工具调用、系统事件没有正文，直接跳过——
+/// 历史页要的是「当时说了什么」，不是内核的事件流水。
+Future<List<HistoryEntry>> readSessionMessages(String sessionId) async {
+  final file = await _findSessionFile(sessionId);
+  if (file == null) return const [];
+
+  final out = <HistoryEntry>[];
+  try {
+    await for (final line in file
+        .openRead()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())) {
+      if (line.isEmpty) continue;
+      final Object? json;
+      try {
+        json = jsonDecode(line);
+      } catch (_) {
+        continue;
+      }
+      if (json is! Map) continue;
+      final data = json['data'];
+      if (data is! Map) continue;
+      final inserted = data['inserted'];
+      if (inserted is! List) continue;
+      for (final item in inserted) {
+        if (item is! Map) continue;
+        final role = item['role'];
+        if (role != 'user' && role != 'assistant') continue;
+        final text = _contentTextOf(item['content']);
+        if (text.isEmpty) continue;
+        out.add(HistoryEntry(role: role as String, text: text));
+      }
+    }
+  } catch (_) {
+    return out; // 半截文件就给已读到的部分，不整页报错。
+  }
+  return out;
+}
+
+/// content 是字符串直接用；是块列表就拼出 text 段（图片块没有正文可拼）。
+String _contentTextOf(Object? content) {
+  if (content is String) return content;
+  if (content is List) {
+    final buf = StringBuffer();
+    for (final part in content) {
+      if (part is Map && part['type'] == 'text' && part['text'] is String) {
+        buf.write(part['text']);
+      }
+    }
+    return buf.toString();
+  }
+  return '';
+}
+
+/// 按 id 找会话文件。逐层扫目录与 [readSessions] 同一个口径；
+/// 找不到返回 null，调用方显示空态。
+Future<File?> _findSessionFile(String sessionId) async {
+  final root = _sessionsRoot();
+  if (root == null) return null;
+  for (final project in root.listSync()) {
+    if (project is! Directory) continue;
+    for (final session in project.listSync()) {
+      if (session is! Directory) continue;
+      final file = File('${session.path}/session.v4.jsonl');
+      if (!file.existsSync()) continue;
+      if (session.uri.pathSegments.lastWhere(
+            (s) => s.isNotEmpty,
+            orElse: () => '',
+          ) ==
+          sessionId) {
+        return file;
+      }
+      // 目录名不一定等于会话 id（旧版会把 id 写在文件里），
+      // 扫第一行确认。
+      try {
+        final first = await file
+            .openRead()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .first;
+        final Object? json;
+        try {
+          json = jsonDecode(first);
+        } catch (_) {
+          continue;
+        }
+        if (json is Map && json['type'] == 'session' && json['id'] == sessionId) {
+          return file;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+  }
+  return null;
+}

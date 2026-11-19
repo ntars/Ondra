@@ -171,8 +171,11 @@ class _OndraAppState extends State<OndraApp> {
   }
 }
 
-/// 启动屏 → 主壳。骨架期用固定 700ms 模拟初始化，
-/// 真实实现里这里等的是「宿主进程就绪 + 首帧数据」。
+/// 启动屏 → 主壳。
+///
+/// main() 在 `runApp` 之前已经把人设、模型基座与内核连接全部做完
+/// （内核连接带 8 秒超时兜底，失败不拦启动），所以这里等的只是
+/// 品牌动画的最短时长，不是数据。`?boot=hold` 用于截图核对。
 class _BootGate extends StatefulWidget {
   const _BootGate();
 
@@ -187,7 +190,8 @@ class _BootGateState extends State<_BootGate> {
   @override
   void initState() {
     super.initState();
-    // 700ms 是产品时长；`?boot=hold` 时改成 10 分钟，只为截图核对。
+    // 700ms 是产品时长（品牌动画的下限）；`?boot=hold` 时改成 10 分钟，
+    // 只为截图核对。数据就绪发生在 runApp 之前，见类注释。
     final hold = _debugBootHold();
     _timer = Timer(Duration(milliseconds: hold ? 600000 : 700), () {
       if (mounted) setState(() => _ready = true);

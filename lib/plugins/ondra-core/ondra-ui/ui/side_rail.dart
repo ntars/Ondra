@@ -355,7 +355,10 @@ class _AccountRowState extends State<_AccountRow> {
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: () => st.settingsOpen = true,
+          onTap: () {
+    st.settingsPane = ShellPane.persona;
+    st.settingsOpen = true;
+  },
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(

@@ -16,9 +16,12 @@ class StdioDshTransport implements DshTransport {
   Future<void> connect() async => throw StateError(reason);
 
   @override
-  Stream<String> send(String text) async* {
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     throw StateError(reason);
   }
+
+  @override
+  void resetSession() {}
 
   @override
   void stop() {}

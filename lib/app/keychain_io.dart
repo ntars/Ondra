@@ -62,7 +62,9 @@ class Keychain {
       return KeychainSecret(ok: ok, message: ok ? '已清除。' : '清除失败。');
     }
     try {
-      // `-w` 从 stdin 读密码；末尾不带换行，钥匙串会把换行算进去。
+      // 密钥走 stdin 而不是命令行参数：`ps aux` 能看到进程的完整命令行，
+      // 参数里带密钥等于把它贴到系统监视器上。`security add-generic-password
+      // -w` 不带值时从 stdin 读，读到 EOF 为止。
       final add = await Process.start('security', [
         'add-generic-password',
         '-U',
@@ -71,8 +73,9 @@ class Keychain {
         '-a',
         key,
         '-w',
-        value,
       ]);
+      add.stdin.write(value);
+      await add.stdin.flush();
       await add.stdin.close();
       final code = await add.exitCode;
       final err = await add.stderr.transform(const SystemEncoding().decoder).join();

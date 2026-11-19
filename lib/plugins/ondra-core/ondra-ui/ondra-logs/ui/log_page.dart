@@ -11,7 +11,10 @@ import '../../ondra-settings/ui/settings_spec.dart';
 
 /// 取数入口。默认读 `~/.ondra/logs`；测试里换成空实现——
 /// 理由同记忆星图：在 fake_async 的时间轴上起子进程会留下悬空定时器。
-typedef LogEntriesLoader = Future<List<LogEntry>> Function(LogKind kind);
+typedef LogEntriesLoader = Future<List<LogEntry>> Function(
+  LogKind kind, {
+  int maxLines,
+});
 
 LogEntriesLoader logEntriesLoader = loadLogEntries;
 
@@ -47,7 +50,12 @@ class _LogPageState extends State<LogPage> {
   }
 
   Future<void> _load() async {
-    final entries = await logEntriesLoader(widget.kind);
+    // 「性能与用量」的分段真的决定读多少：简洁档 60 行、详细档 200 行。
+    // 之前这个开关只写 prefs 没人消费，切了档页面纹丝不动。
+    final maxLines = settingsClient.choice('logs.usageDetail') == 'compact'
+        ? 60
+        : 200;
+    final entries = await logEntriesLoader(widget.kind, maxLines: maxLines);
     if (!mounted) return;
     setState(() {
       _all = entries;

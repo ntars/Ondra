@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../../design/glyph.dart';
 import '../../../../../design/page_frame.dart';
 import '../../../../../design/primitives.dart';
 import '../../../../../design/skin.dart';
@@ -157,7 +158,9 @@ class _HistoryListState extends State<_HistoryList> {
               cursor: SystemMouseCursors.click,
               onEnter: (_) => setState(() => _hover = i),
               onExit: (_) => setState(() => _hover = -1),
-              child: Container(
+              child: OndraPressable(
+                onTap: () => _openSession(_items[i]),
+                child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 decoration: BoxDecoration(
                   // 选中是 6% 灰底 + 加粗，不用颜色区分：单色界面里
@@ -184,9 +187,34 @@ class _HistoryListState extends State<_HistoryList> {
                   ],
                 ),
               ),
+              ),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// 打开一份会话的只读详情：按 id 从会话库里把正文读出来。
+  ///
+  /// 之前整行有 hover 高亮与点击光标、点了却没有任何反应——用户会以为
+  /// 坏了。看历史是历史页的本职，读文件就够，不需要动右栏的活会话。
+  Future<void> _openSession(SessionSummary item) async {
+    final entries = await readSessionMessages(item.id);
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.32),
+        transitionDuration: const Duration(milliseconds: 160),
+        pageBuilder: (_, _, _) => _SessionDetailOverlay(
+          title: item.title,
+          entries: entries,
+        ),
+        transitionsBuilder: (_, animation, _, child) => FadeTransition(
+          opacity: animation,
+          child: child,
+        ),
       ),
     );
   }
@@ -213,5 +241,133 @@ class _HistoryListState extends State<_HistoryList> {
     if (day == today) return '今天 $hm';
     if (today.difference(day).inDays == 1) return '昨天 $hm';
     return '${t.month} 月 ${t.day} 日';
+  }
+}
+
+/// 一份会话的只读详情：520 宽的卡片，里面是按时间排的消息流。
+class _SessionDetailOverlay extends StatelessWidget {
+  const _SessionDetailOverlay({required this.title, required this.entries});
+
+  final String title;
+  final List<HistoryEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    return Center(
+      child: GestureDetector(
+        // 拦住点在卡片上的那一下，别让它穿透到遮罩把详情关掉。
+        onTap: () {},
+        child: Container(
+          width: 520,
+          height: 560,
+          decoration: BoxDecoration(
+            color: s.surface,
+            borderRadius: BorderRadius.circular(OndraRadius.modal),
+            boxShadow: const [
+              BoxShadow(color: Color(0x2E000000), blurRadius: 48, offset: Offset(0, 16)),
+              BoxShadow(color: Color(0x2E000000), spreadRadius: 1),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: ondraText(14, weight: 500, color: s.ink, height: 20 / 14),
+                          ),
+                          Text(
+                            entries.isEmpty ? '' : '${entries.length} 条消息',
+                            style: ondraText(11, color: s.ink40, height: 15 / 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OndraPressable(
+                      radius: OndraRadius.pill,
+                      onTap: () => Navigator.of(context).maybePop(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Glyph(Glyphs.close, size: 16, color: s.ink40),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OndraHairline(color: s.lineFaint),
+              Expanded(
+                child: entries.isEmpty
+                    ? Center(
+                        child: Text(
+                          '读不到这份会话的正文',
+                          style: ondraText(12, color: s.ink40),
+                        ),
+                      )
+                    : OndraScroll(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (final e in entries) _EntryBubble(e: e),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 详情里的一条消息。用户靠左实底、助手靠左淡底——历史是回看，
+/// 不复制聊天栏的左右对话版式，读起来更像一篇文章。
+class _EntryBubble extends StatelessWidget {
+  const _EntryBubble({required this.e});
+
+  final HistoryEntry e;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    final isUser = e.role == 'user';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isUser ? '你' : '空谷',
+            style: ondraText(11, weight: 500, color: s.ink40, height: 14 / 11),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isUser ? s.fillFaint : Colors.transparent,
+              borderRadius: BorderRadius.circular(OndraRadius.md),
+            ),
+            child: Text(
+              e.text,
+              style: ondraText(12.5, color: s.ink85, height: 19 / 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

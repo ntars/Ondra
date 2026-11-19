@@ -23,7 +23,10 @@ const int _maxBytes = 512 * 1024;
 /// | 系统日志 | `window.log` | 原生窗口（frame / layout / 外观） |
 ///
 /// [note] 非空表示「这次为什么没有条目」，界面据此区分空态原因。
-Future<List<LogEntry>> loadLogEntries(LogKind kind) async {
+///
+/// [maxLines] 由设置「性能与用量」决定：简洁档少读些、详细档多读些。
+/// 之前这个开关只写 prefs 没人消费——切了档页面纹丝不动。
+Future<List<LogEntry>> loadLogEntries(LogKind kind, {int maxLines = _maxLines}) async {
   final home = ondraUserHome;
   final dir = Directory('$home/.ondra/logs');
   if (!dir.existsSync()) return const [];
@@ -42,7 +45,7 @@ Future<List<LogEntry>> loadLogEntries(LogKind kind) async {
   for (final name in files) {
     final file = File('${dir.path}/$name');
     if (!file.existsSync()) continue;
-    final lines = await _tailLines(file, _maxLines);
+    final lines = await _tailLines(file, maxLines);
     out.addAll(_parse(name, lines));
   }
 

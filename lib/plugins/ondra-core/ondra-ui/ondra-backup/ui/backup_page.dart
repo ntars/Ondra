@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:ondra/app/desktop_picker.dart';
 
+import '../../../../../design/dialog.dart';
 import '../../../../../design/glyph.dart';
 import '../../../../../design/page_frame.dart';
 import '../../../../../design/primitives.dart';
@@ -98,12 +100,20 @@ class _BackupPageState extends State<BackupPage> {
   }
 
   Future<void> _export(String id) async {
+    if (!DesktopPicker.supported) {
+      OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
+      return;
+    }
     final dir = await backupPickDirectory('选择要把这份备份导出到哪里');
     if (dir == null) return;
     await _run(() => backupExport(id, dir));
   }
 
   Future<void> _import() async {
+    if (!DesktopPicker.supported) {
+      OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
+      return;
+    }
     final dir = await backupPickDirectory('选择一份导出的备份目录');
     if (dir == null) return;
     await _run(() => backupImport(dir));

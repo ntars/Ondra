@@ -260,8 +260,15 @@ class StdioDshTransport implements DshTransport {
     });
   }
 
+  /// 「新建对话」：丢掉当前会话 id。内核按 sessionId 建会话（`getOrCreateSession`），
+  /// 换一个 id 就是新会话，不需要动进程。下一次 [send] 会取新的 id。
   @override
-  Stream<String> send(String text) async* {
+  void resetSession() {
+    _sessionId = null;
+  }
+
+  @override
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     if (_process == null) throw StateError('内核未连接：先调用 connect()');
 
     final sessionId = _sessionId ?? 'ondra-${DateTime.now().millisecondsSinceEpoch}';
@@ -279,11 +286,37 @@ class StdioDshTransport implements DshTransport {
     });
 
     try {
+      // 图片附件读成 base64 块：内核的 durablePromptContent 会把它们收进
+      // attachment store，再以 attachment 引用交给模型。读不到的文件跳过
+      // 并说明——静默丢弃等于骗用户「发了」。
+      final blocks = <Map<String, dynamic>>[
+        {'type': 'text', 'text': text},
+      ];
+      final skipped = <String>[];
+      for (final a in attachments) {
+        final mime = a.mimeType;
+        if (mime == null) {
+          skipped.add('${a.name}（不是图片）');
+          continue;
+        }
+        try {
+          final bytes = await File(a.path).readAsBytes();
+          blocks.add({
+            'type': 'image',
+            'data': base64Encode(bytes),
+            'mimeType': mime,
+            'name': a.name,
+          });
+        } catch (_) {
+          skipped.add('${a.name}（读不到）');
+        }
+      }
+      if (skipped.isNotEmpty) {
+        yield '[跳过附件] ${skipped.join('、')}';
+      }
       final receipt = await _call('session/prompt', {
         'sessionId': sessionId,
-        'contentBlocks': [
-          {'type': 'text', 'text': text},
-        ],
+        'contentBlocks': blocks,
       });
       if (receipt.error != null) {
         throw StateError('${receipt.error!['message'] ?? '发送失败'}');

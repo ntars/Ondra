@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import '../../../../../app/desktop_picker.dart';
 import '../../ui/shell_state.dart';
 import '../../../../../design/brand.dart';
+import '../../../../../design/dialog.dart';
 import '../../../../../design/glyph.dart';
 import '../../../../../design/motion.dart';
 import '../../../../../design/primitives.dart';
@@ -145,6 +146,13 @@ class _RailBody extends StatelessWidget {
                         padding: EdgeInsets.symmetric(horizontal: inset),
                         child: const _Conversation(),
                       ),
+                    ),
+                    // 离线提示压在输入盒上面：内核没接上时它必须在场——
+                    // 之前 offlineReason 只是记在 client 里没人显示，
+                    // 用户要发一句才知道没连上。带一颗「重连」。
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: inset),
+                      child: const _OfflineBanner(),
                     ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: inset),
@@ -744,6 +752,66 @@ class _Welcome extends StatelessWidget {
 ///
 /// 它是真输入框（能打字、能聚焦），只是发送还没有后端接。把「能打字」
 /// 做出来是有必要的：一个连光标都点不进去的框，看起来就像坏了一半。
+/// 离线原因 + 重连：内核没接上时必须让用户当场知道，而不是等他发了话
+/// 才在对话流里看到一条错误。之前 `offlineReason` 记在 client 里没人读。
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: chatClient,
+      builder: (context, _) {
+        final reason = chatClient.offlineReason;
+        if (reason == null || reason.isEmpty) return const SizedBox.shrink();
+        final s = OndraSkin.of(context);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+            decoration: BoxDecoration(
+              color: s.surface,
+              borderRadius: BorderRadius.circular(OndraRadius.md),
+              border: Border.all(color: s.lineFaint),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    reason,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: ondraText(11.5, color: s.ink60, height: 16 / 11.5),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OndraPressable(
+                  onTap: () => chatClient.connect(),
+                  radius: OndraRadius.md,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: s.accentSoft,
+                      borderRadius: BorderRadius.circular(OndraRadius.md),
+                    ),
+                    child: Text(
+                      '重连',
+                      style: ondraText(11.5, weight: 500, color: s.ink),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _RailComposer extends StatefulWidget {
   const _RailComposer({required this.hint, required this.onSend});
 
@@ -762,6 +830,9 @@ class _RailComposerState extends State<_RailComposer> {
   @override
   void initState() {
     super.initState();
+    // 发送键的可用性取决于附件（只带图也能发），所以要跟着 chatClient 刷新；
+    // 不监听的话，挂上附件后那颗键还是灰的，用户只能先打一个字。
+    chatClient.addListener(_onChatChanged);
     _controller.addListener(() {
       final has = _controller.text.trim().isNotEmpty;
       if (has != _hasText) setState(() => _hasText = has);
@@ -769,6 +840,13 @@ class _RailComposerState extends State<_RailComposer> {
     // 设置里的「回车发送」改了要立刻反映到输入框：这项只在按键那一刻判定，
     // 不需要重建整棵树，但要让 setState 触发一次以更新 textInputAction。
     settingsClient.addListener(_onSettingsChanged);
+  }
+
+  void _onChatChanged() {
+    if (!mounted) return;
+    final canSend =
+        _controller.text.trim().isNotEmpty || chatClient.attachments.isNotEmpty;
+    if (canSend != _hasText) setState(() => _hasText = canSend);
   }
 
   void _onSettingsChanged() {
@@ -782,6 +860,7 @@ class _RailComposerState extends State<_RailComposer> {
 
   @override
   void dispose() {
+    chatClient.removeListener(_onChatChanged);
     settingsClient.removeListener(_onSettingsChanged);
     _controller.dispose();
     _focus.dispose();
@@ -789,15 +868,16 @@ class _RailComposerState extends State<_RailComposer> {
   }
 
   void _submit() {
-    final text = _controller.text;
+    final text = _controller.text.trim();
+    final hasAttachments = chatClient.attachments.isNotEmpty;
+    // 只带图不打字也允许：内核的 prompt 接受非文本块，图片本身就是一句话。
     // 生成期间不拦：交给 chatClient 按「繁忙时的发送行为」处理
     // （排队 / 插话）。这里再拦一次，那两个设置就永远轮不到生效。
-    if (text.trim().isEmpty) return;
+    if (text.isEmpty && !hasAttachments) return;
     _controller.clear();
     widget.onSend(text);
-    // 附件随这一条一起发出去：发完就撤掉，不然下一句会莫名其妙地
-    // 又带上同一张图。内核接上来之后，这里改成「把附件一起递给 send」。
-    chatClient.clearAttachments();
+    // 附件的清理在 chatClient.send 里做：随消息一起发出，发完就撤——
+    // 之前在发送前就清掉，附件从没真的交给内核，界面却像发过了。
   }
 
   /// 选附件。选完挂在 chatClient 上，输入盒上方会出现一行小标签。
@@ -806,11 +886,25 @@ class _RailComposerState extends State<_RailComposer> {
   /// 而用户其实也记不清自己选了哪几个。
   Future<void> _pickAttachments() async {
     final picked = await DesktopPicker.pickFiles(
-      prompt: '选择要一起发送的文件',
+      prompt: '选择要一起发送的图片',
       limit: 5,
     );
+    var rejected = 0;
     for (final path in picked) {
-      chatClient.attach(ChatAttachment.fromPath(path));
+      final a = ChatAttachment.fromPath(path);
+      // 内核的 prompt 只收图片块，其他文件没有传输形态——挑选时就拦下，
+      // 不给「挂上了却发不出去」的假象。
+      if (!a.isImage) {
+        rejected++;
+        continue;
+      }
+      chatClient.attach(a);
+    }
+    if (rejected > 0 && mounted) {
+      OndraToast.show(
+        context,
+        '只支持图片附件，$rejected 个文件没有加入',
+      );
     }
   }
 
@@ -933,7 +1027,10 @@ class _RailComposerState extends State<_RailComposer> {
               // 排队与插话都发生在 busy 的那一刻。上一版这里写了
               // `&& !chatClient.busy`，那颗键在生成时一直是灰的，
               // 于是那两个选项无论怎么设都没有机会被触发。
-              enabled: _hasText,
+              // 有文字或有附件都允许发送：只带图不打字是一条完整的消息。
+              // 附件状态在这里实时反映——这个 build 由输入区监听 chatClient
+              // 触发，见下面 _submit 的说明。
+              enabled: _hasText || chatClient.attachments.isNotEmpty,
               onTap: _submit,
             ),
           ],

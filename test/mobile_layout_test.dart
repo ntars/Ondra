@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/app/keychain.dart';
+import 'package:ondra/app/prefs.dart';
 import 'package:ondra/app/ondra_app.dart';
 import 'package:ondra/app/platform_actions.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/ambient_rail.dart';
@@ -24,6 +27,13 @@ import 'support/form_factor.dart';
 /// 尺寸取 iPhone 15 的逻辑像素 393×852，是当前最常见的一档。
 void main() {
   setUp(() {
+    // 偏好落到临时目录：不写用户真实的 ~/.ondra/prefs.json。
+    final prefsHome = Directory.systemTemp.createTempSync('ondra-prefs-');
+    addTearDown(() => prefsHome.deleteSync(recursive: true));
+    setPrefHome(prefsHome.path);
+    addTearDown(() => setPrefHome(null));
+    // 引导只在第一次启动出现；这里守的是布局，不是引导。
+    writePref('onboardingDone', '1');
     // 设置面板打开时会查钥匙串；真实实现要起 `security` 子进程，
     // 在 widget 测试的 fake_async 时钟里走不完。
     Keychain.existsProbe = (_) async => false;

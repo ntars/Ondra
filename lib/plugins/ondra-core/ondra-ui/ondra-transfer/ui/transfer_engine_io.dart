@@ -26,7 +26,7 @@ const String _prefix = '空谷';
 /// 三件事全部落到真文件上：
 /// - **导出记忆**：读 `~/.ondra/user/ondra.db` 的 `memory_fact` / `memory_link`，
 ///   写成 Markdown（给人读）或 JSON（给程序读，可再导回）；
-/// - **导出人设与偏好**：`prefs.json` + `user/personas/` + 内核 profile 里的人设配置段；
+/// - **导出人设与偏好**：`prefs.json` + `personas/`（与人设插件同一个目录）；
 /// - **整包**：不另起一套打包逻辑，直接复用备份引擎的自包含导出——
 ///   备份能带走的东西，正好就是「换台机器还是同一个空谷」需要的东西。
 ///
@@ -283,7 +283,7 @@ class TransferEngine {
     if (personasSrc.existsSync()) {
       for (final pack in personasSrc.listSync().whereType<Directory>()) {
         final name = pack.uri.pathSegments.where((s) => s.isNotEmpty).last;
-        await _copyTree(pack, Directory('$dataRoot/user/personas/$name'));
+        await _copyTree(pack, Directory('$dataRoot/personas/$name'));
         restored++;
       }
     }
@@ -789,7 +789,7 @@ class TransferEngine {
   }
 
   List<Directory> _personaPacks() {
-    final root = Directory('$dataRoot/user/personas');
+    final root = Directory('$dataRoot/personas');
     if (!root.existsSync()) return const [];
     return root.listSync().whereType<Directory>().toList(growable: false);
   }

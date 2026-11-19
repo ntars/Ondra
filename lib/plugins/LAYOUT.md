@@ -38,10 +38,9 @@ lib/plugins/
 │  │  ├─ ondra-voice/                   语音：朗读计划 / 音色 / 识别
 │  │  ├─ ondra-emotion/                 情绪：状态 / 表现 / 在场 / 呼吸
 │  │  ├─ ondra-relationship/            关系与主动：阶段 / 信任 / 主动额度
-│  │  ├─ ondra-onboarding/              初始使用引导
-│  │  ├─ ondra-font/                    MiSans（不可见、不可改）
-│  │  ├─ ondra-locale/                  语言包
-│  │  ├─ ondra-knowledge/               知识资料（页面完整，未装配）
+│  │  ├─ ondra-onboarding/              初始引导（OnboardingGate，首次启动一屏说明）
+│  │  ├─ ondra-font/                    字体声明（实现在 design/font_face.dart）
+│  │  ├─ ondra-locale/                  语言声明（实现在 app/i18n.dart + assets/locales）
 │  │  ├─ ondra-logs/                    日志容器（共用骨架）
 │  │  │  ├─ ondra-log-dialog/           对话日志
 │  │  │  ├─ ondra-log-plugin/           插件日志
@@ -52,10 +51,17 @@ lib/plugins/
 │  │     ├─ ondra-channels/             3 通道接口（QQ 机器人等）
 │  │     ├─ ondra-persona/              4 人设设定（含对话 / 记忆 / 语音）
 │  │     └─ ondra-about/                5 关于空谷（含隐私 / 反馈）
-│  └─ ondra-flutter/                    占位（平台能力，用途待定）
+└─（ondra-flutter / ondra-knowledge 已删除：无实现的目录不留在树里）
 ├─ ondra-extensions/                    随包默认、可关闭（当前为空）
-├─ dsh-base/                            dsh 内核（本体在 ~/Downloads/dsh-kernel/）
+├─ dsh-base/                            dsh 内核（真身在随包运行时里，见 README 7.4）
 └─ ondra-custom/                        用户自装插件（当前为空）
+
+## 五、两套侧的对应关系（易混淆）
+
+`lib/plugins/*/src/` 是 **TS 实现**（运行在内核里），`*/ui/` 是 **Flutter 投影**。
+channel / emotion / model / relationship / runtime / store / voice 七个目录
+只有 src 没有 ui——它们在内核里干活，界面上没有自己的页面，**不是占位**。
+内核侧实际运行的是 `plugin-profile/`（77 个 @ondra 包的快照），见 `README 7.4`。
 ```
 
 ## 二·五、已写好的插件（11 个 TS 实现 + 15 条清单）

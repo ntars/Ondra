@@ -23,7 +23,6 @@ class ShellState extends ChangeNotifier {
   bool _sidebarOpen;
   bool _railOpen = true;
   bool _chatFocus = false;
-  bool _signedIn = false;
   bool _settingsOpen = false;
   bool _timelineOpen = false;
   ThemeMode _themeMode;
@@ -60,8 +59,13 @@ class ShellState extends ChangeNotifier {
   /// 否则会出现「左栏收了但右栏还是 280」这种中间态。
   bool get chatFocus => _chatFocus;
 
-  bool get signedIn => _signedIn;
   bool get settingsOpen => _settingsOpen;
+
+  /// 打开设置面板时落在哪一栏。由入口（如侧栏账户行 → 人设）指定，
+  /// 面板取走后清空：下一次从菜单进，还是落回通用。
+  /// 打开设置面板时落在哪一栏。由入口（如侧栏账户行 → 人设）指定，
+  /// 面板取走后清空：下一次从菜单进，还是落回通用。
+  ShellPane? settingsPane;
 
   /// 手机上是否正盖着功能页（false = 正在看聊天）。
   ///
@@ -129,12 +133,6 @@ class ShellState extends ChangeNotifier {
     notifyListeners();
   }
 
-  set signedIn(bool value) {
-    if (value == _signedIn) return;
-    _signedIn = value;
-    notifyListeners();
-  }
-
   set settingsOpen(bool value) {
     if (value == _settingsOpen) return;
     _settingsOpen = value;
@@ -168,3 +166,7 @@ class ShellScope extends InheritedNotifier<ShellState> {
     return scope!.notifier!;
   }
 }
+
+/// 设置面板的初始落点。与设置面板自己的枚举同形：壳层只说「想去哪一类」，
+/// 面板把它翻译成自己的 pane，两边不互相 import 私有类型。
+enum ShellPane { general, model, channels, persona, about }

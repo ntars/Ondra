@@ -37,9 +37,15 @@ import '../../../../../design/tokens.dart';
 /// 标题 20/500，正文 `px-6 pt-2 pb-6`。分组卡圆角 12、4% 黑底，
 /// 行高至少 42、左右 16、行间 5% 发丝线，开关 36×16。
 class ConsoleSheet extends StatefulWidget {
-  const ConsoleSheet({super.key, required this.onClose});
+  const ConsoleSheet({super.key, required this.onClose, this.initialPane});
 
   final VoidCallback onClose;
+
+  /// 打开时落在哪一栏。空（默认）进通用设置；侧栏的账户行指定人设——
+  /// 那一行是「这个人是谁」的入口，落进通用设置等于点了没反应。
+  ///
+  /// 用壳层的 [ShellPane] 而不是自己的枚举：壳层不该 import 面板的私有类型。
+  final ShellPane? initialPane;
 
   @override
   State<ConsoleSheet> createState() => _ConsoleSheetState();
@@ -235,11 +241,19 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       case OndraSettingKind.choice:
         final current = settingsClient.choice(key);
         final index = spec.options.indexWhere((o) => o.value == current);
+        // 存储值不在选项里（旧数据、手改过的 prefs）：回写默认值。
+        // 高亮第 0 项会让用户看到「选中的」其实没生效，那是假的当前值。
+        if (index < 0) {
+          settingsClient.set(key, spec.defaultValue);
+        }
+        final resolved = index < 0
+            ? spec.options.indexWhere((o) => o.value == spec.defaultValue)
+            : index;
         return _Row(
           title: spec.label,
           desc: desc,
           action: _PillSegmented(
-            value: index < 0 ? 0 : index,
+            value: resolved < 0 ? 0 : resolved,
             items: [
               for (final o in spec.options)
                 OndraI18nScope.translate(context, o.label),
@@ -457,8 +471,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         ],
       ),
       Text(
-        '提供商与模型目录按 DSH 的 settings.yaml 同形保存；密钥只写不读，存本机钥匙串。'
-        '本地部署与网关可以直接「检测连接」，从端点读回模型目录。',
+        '提供商与模型目录保存在 ~/.ondra/models.json，重启后还在；'
+        '密钥只写不读，存本机钥匙串。本地部署与网关可以直接「检测连接」，从端点读回模型目录。',
         style: ondraText(11, color: s.ink30, height: 16 / 11),
       ),
     ]);
@@ -590,6 +604,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           children: [
             _Row(
               title: '让你怎么叫我',
+              desc: '本项只影响界面：内核提示词段的称呼要等人设切换接上后一并生效',
               value: _nickname.isEmpty ? '不指定' : _nickname,
               chevron: true,
               onTap: _editNickname,
@@ -682,13 +697,13 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       children: [
         _Row(
           title: 'AppID',
-          desc: '在 QQ 开放平台创建机器人后取得',
+          desc: '在 QQ 开放平台创建机器人后取得 · 本项需要通道插件：接上前只记录填写内容',
           value: _qqAppId.isEmpty ? '未填写' : _qqAppId,
           action: _LinkText(label: '填写', onTap: () => _editQqCredential(qqAppIdKey)),
         ),
         _Row(
           title: '密钥',
-          desc: '只存在本机钥匙串，不上传',
+          desc: '只存在本机钥匙串，不上传 · 接上通道插件后才会被读取',
           value: _qqSecretSet ? '已保存' : '未填写',
           action: _LinkText(label: '填写', onTap: () => _editQqCredential(qqSecretKey)),
           showDivider: false,
@@ -758,7 +773,6 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _specRow('privacy.imageCloud'),
         _specRow('privacy.screenRead'),
         _specRow('privacy.redactLogs'),
-        _specRow('privacy.crashReport'),
         // 「API Key 存放」不给选择器：当前只有钥匙串一种实现，
         // 「本地加密文件」这个选项背后没有代码。留一个选了会静默失效的
         // 单选，用户会以为密钥存到了别处。
@@ -831,6 +845,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   /// 全在 `PersonaStore.install` 里做。界面层如果自己也判一遍，两处的规则
   /// 迟早会分叉——一处放行、另一处拒绝，用户看到的是「选完没反应」。
   Future<void> _importPersona() async {
+    if (!DesktopPicker.supported && mounted) {
+      OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
+      return;
+    }
     final path = await DesktopPicker.pickFile(
       prompt: '选择人设包（.skill / .zip / .ondra）',
     );
@@ -864,6 +882,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
 
   /// 导出全部数据：挑目录 → 复制成 `ondra-export/` → 报文件数与体积。
   Future<void> _exportAll() async {
+    if (!DesktopPicker.supported) {
+      OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
+      return;
+    }
     final dir = await _maintenance.pickDirectory('选择导出位置');
     if (dir == null) return;
     final r = await _maintenance.exportAll(dir);
@@ -1096,8 +1118,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       body: _feedbackBody,
       version: '$ondraVersion+$ondraBuild',
       attachmentPaths: _attachments,
-      // 「日志脱敏」是隐私页的一项：用户关了它，就不该再擅自把日志带进来。
-      attachLog: settingsClient.boolean('privacy.redactLogs'),
+      // 反馈写的是**本机**的 markdown 文件，附上日志尾部是为了让用户能
+      // 把原因一起发出去；内容在写入前统一脱敏（见 FeedbackStore._redact），
+      // 出不出本机由用户自己决定。
+      attachLog: true,
     );
     if (!mounted) return;
     if (!r.ok) {
@@ -1163,6 +1187,16 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   @override
   void initState() {
     super.initState();
+    // 打开时落在指定的那一栏：侧栏账户行 → 人设。枚举在壳层，这里翻译。
+    if (widget.initialPane != null) {
+      _pane = switch (widget.initialPane!) {
+        ShellPane.general => _Pane.general,
+        ShellPane.model => _Pane.model,
+        ShellPane.channels => _Pane.channels,
+        ShellPane.persona => _Pane.persona,
+        ShellPane.about => _Pane.about,
+      };
+    }
     // 「已填写 / 未填写」要让用户一眼看清，而密钥本身永远不读回界面。
     //
     // 放到首帧之后：查钥匙串要起一个 `security` 子进程，在 initState 里同步
@@ -2206,18 +2240,18 @@ class _CustomProviderFormState extends State<_CustomProviderForm> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
     final modelText = _modelId.text.trim();
     if (modelText.isEmpty) {
       setState(() => _error = '至少需要一个模型');
       return;
     }
+    final key = _key.text.trim();
     final provider = OndraProvider(
       id: _id.text.trim(),
       name: _name.text.trim().isEmpty ? _id.text.trim() : _name.text.trim(),
       category: widget.category,
       baseUrl: _baseUrl.text.trim(),
-      keyConfigured: _key.text.trim().isNotEmpty,
       models: [OndraModelEntry(id: modelText)],
     );
     final err = modelClient.addProvider(provider);
@@ -2225,6 +2259,16 @@ class _CustomProviderFormState extends State<_CustomProviderForm> {
       setState(() => _error = err);
       return;
     }
+    // 密钥真的写进钥匙串。之前这里只取 isNotEmpty 存成布尔——用户输入的
+    // 密钥被直接丢掉，页面却显示「密钥已配置」。
+    if (key.isNotEmpty) {
+      final keyErr = await modelClient.writeProviderKey(provider.id, key);
+      if (keyErr != null && mounted) {
+        setState(() => _error = keyErr);
+        return;
+      }
+    }
+    if (!mounted) return;
     widget.onDone();
   }
 
@@ -2301,6 +2345,37 @@ class _ProviderEditorState extends State<_ProviderEditor> {
   String? _probeMessage;
   bool _probeOk = false;
 
+  /// 填写 / 更换 API 密钥：收进钥匙串，状态由写入结果驱动。
+  ///
+  /// 之前这里只把 `keyConfigured` 置成 true——不弹输入框、不存任何东西，
+  /// 重启后布尔也丢。密钥属于「只写不读」的凭据，唯一去处是钥匙串。
+  Future<void> _editKey() async {
+    final controller = TextEditingController();
+    final value = await OndraDialog.show<String>(
+      context,
+      _TextPromptDialog(
+        title: 'API 密钥',
+        hint: '只写进系统钥匙串，不在任何文件里出现',
+        controller: controller,
+        maxLength: 200,
+      ),
+    );
+    controller.dispose();
+    if (value == null) return; // 取消。
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    final err = await modelClient.writeProviderKey(widget.provider.id, trimmed);
+    if (!mounted) return;
+    setState(() {
+      // 写入失败时状态保持「未配置」，错误借「检测连接」那一行显示——
+      // 它本来就是这个编辑器的错误出口，不另开一条。
+      if (err != null) {
+        _probeOk = false;
+        _probeMessage = err;
+      }
+    });
+  }
+
   /// 探测端点并合并模型目录。
   ///
   /// 只对本地部署与网关有意义（它们在 127.0.0.1 上），但对官方接口同样可用——
@@ -2356,8 +2431,8 @@ class _ProviderEditorState extends State<_ProviderEditor> {
                 desc: p.apiKeyEnv.isEmpty ? '只写不读，保存后不再显示' : '环境变量回退：${p.apiKeyEnv}',
                 value: p.keyConfigured ? '已配置' : '未配置',
                 action: _LinkText(
-                  label: '填写',
-                  onTap: () => setState(() => p.keyConfigured = true),
+                  label: p.keyConfigured ? '更换' : '填写',
+                  onTap: _editKey,
                 ),
                 showDivider: false,
               )
@@ -2378,6 +2453,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
             _Row(
               title: _probing ? '正在检测…' : '检测连接',
               desc: '请求 {地址}/models，把端点里的模型读回来',
+              descVars: {'地址': p.baseUrl},
               action: _probing
                   ? null
                   : _SmallPill(label: '检测', onTap: _probe),
@@ -2551,9 +2627,16 @@ class _ProviderEditorState extends State<_ProviderEditor> {
               title: '恢复默认模型目录',
               desc: '回到适配器自带的模型列表',
               onTap: () => setState(() {
-                modelClient.restoreCatalog(p.id, [
-                  OndraModelEntry(id: 'deepseek-chat', contextWindow: '128K'),
-                ]);
+                // 按这一类来源找同名端点的预设：OpenAI 恢复成 OpenAI 的目录，
+                // 本地部署恢复成本地那份。自定义 API 的「目录」本来就来自
+                // 端点检测，默认值是空——恢复后清空是实情，不是丢数据。
+                final preset = presetsOf(p.category)
+                    .where((e) => e.baseUrl == p.baseUrl)
+                    .firstOrNull;
+                final List<OndraModelEntry> catalog = (preset?.models ?? const [])
+                    .map((m) => m.toEntry())
+                    .toList();
+                modelClient.restoreCatalog(p.id, catalog);
               }),
               showDivider: false,
             ),
@@ -2561,7 +2644,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
         ),
         const SizedBox(height: 4),
         Text(
-          '改动即时写入模型基座；未接运行时前只存在于本次会话。',
+          '改动即时写入 ~/.ondra/models.json；密钥写进系统钥匙串，文件里不出现。',
           style: ondraText(11, color: s.ink30, height: 16 / 11),
         ),
       ],

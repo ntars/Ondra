@@ -33,7 +33,6 @@ void main() {
       // 关于空谷（隐私已并入）
       'privacy.voiceCloud', 'privacy.imageCloud',
       'privacy.screenRead', 'privacy.redactLogs',
-      'privacy.crashReport',
       'about.channel',
       // 日志页底部
       'logs.usageDetail',

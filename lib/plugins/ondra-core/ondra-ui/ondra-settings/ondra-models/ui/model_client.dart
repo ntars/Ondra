@@ -1,5 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
+import '../../../../../../app/home_dir.dart';
+import '../../../../../../app/keychain.dart';
 import 'model_types.dart';
 
 /// 模型基座的投影。规则与 DSH 的模型设置保持一致：
@@ -61,6 +67,176 @@ class ModelClient extends ChangeNotifier {
     // 默认走本机网关：不填密钥、不联外网就能说话，先把链路跑通。
     _defaultProviderId = 'magpie';
     _defaultModelId = 'group/ntars';
+    // 每一次改动都落盘：模型基座不是「本次会话」的东西，重启后必须还在。
+    // persist 幂等，多挂几次 notify 也不会写乱。
+    addListener(_persist);
+  }
+
+  // ── 持久化 ────────────────────────────────────────────────────────────────
+  //
+  // 存 `~/.ondra/models.json`，不进 prefs.json：它是一段结构化配置而不是
+  // 少量开关，独立成文件才能直接拿编辑器改、也才能在备份里单独带走。
+  //
+  // **密钥不在文件里**——`keyConfigured` 只是从钥匙串回读出来的状态。
+  // 文件里写密钥等于把「只存在本机」写成「以明文存在本机」。
+
+  static File get _storeFile {
+    final home = ondraUserHome;
+    return File('$home/.ondra/models.json');
+  }
+
+  /// 启动时读回上一次的模型基座。文件坏了就当没存过，回到内置默认。
+  ///
+  /// 密钥状态另查：钥匙串是异步的，回读完成后单独通知一次。
+  void load() {
+    try {
+      final f = _storeFile;
+      if (!f.existsSync()) return;
+      final raw = jsonDecode(f.readAsStringSync());
+      if (raw is! Map) return;
+      final list = raw['providers'];
+      if (list is! List) return;
+      final loaded = <OndraProvider>[];
+      for (final item in list) {
+        if (item is! Map) continue;
+        final p = _providerFromJson(item);
+        if (p != null) loaded.add(p);
+      }
+      if (loaded.isEmpty) return;
+      _providers = loaded;
+      final dp = '${raw['defaultProviderId'] ?? ''}';
+      final dm = '${raw['defaultModelId'] ?? ''}';
+      if (dp.isNotEmpty && dm.isNotEmpty) {
+        _defaultProviderId = dp;
+        _defaultModelId = dm;
+      }
+      _ensureDefault();
+      notifyListeners();
+      _refreshKeyStates();
+    } catch (_) {
+      // 文件坏了不拦启动：内置默认还能说话。
+    }
+  }
+
+  /// 钥匙串是异步的：启动后逐个回读「密钥在不在」，回来再刷一次界面。
+  /// 支持不了钥匙串的机器永远得到 false——那是实情，不编一个 true。
+  void _refreshKeyStates() {
+    for (final p in _providers) {
+      if (p.category == ProviderCategory.local || p.category == ProviderCategory.gateway) {
+        continue; // 本地与网关不校验密钥，状态恒为「不需要」。
+      }
+      unawaited(
+        Keychain.exists(_keyName(p.id)).then((ok) {
+          if (p.keyConfigured == ok) return;
+          p.keyConfigured = ok;
+          notifyListeners();
+        }),
+      );
+    }
+  }
+
+  void _persist() {
+    try {
+      _storeFile.writeAsStringSync(
+        const JsonEncoder.withIndent('  ').convert({
+          'version': 1,
+          'defaultProviderId': _defaultProviderId,
+          'defaultModelId': _defaultModelId,
+          'providers': [
+            for (final p in _providers) _providerToJson(p),
+          ],
+        }),
+      );
+    } catch (_) {
+      // 写盘失败不打断界面：模型改动还在内存里活着，下次改动会再试。
+    }
+  }
+
+  /// 钥匙串里密钥项的名字。一处约定，写入与删除都用它。
+  static String _keyName(String providerId) => 'provider.$providerId.key';
+
+  Map<String, dynamic> _providerToJson(OndraProvider p) => {
+    'id': p.id,
+    'name': p.name,
+    'category': p.category.name,
+    'baseUrl': p.baseUrl,
+    'apiKeyEnv': p.apiKeyEnv,
+    'builtIn': p.builtIn,
+    'launchHint': p.launchHint,
+    'models': [
+      for (final m in p.models)
+        {
+          'id': m.id,
+          'name': m.name,
+          'contextWindow': m.contextWindow,
+          'maxTokens': m.maxTokens,
+          'inputs': m.inputs,
+          'reasoning': [
+            for (final r in m.reasoning)
+              {'label': r.label, 'apiValue': r.apiValue},
+          ],
+        },
+    ],
+  };
+
+  OndraProvider? _providerFromJson(Map item) {
+    final categoryName = '${item['category']}';
+    final category = ProviderCategory.values
+        .where((c) => c.name == categoryName)
+        .firstOrNull;
+    if (category == null) return null;
+    final p = OndraProvider(
+      id: '${item['id'] ?? ''}',
+      name: '${item['name'] ?? ''}',
+      category: category,
+      baseUrl: '${item['baseUrl'] ?? ''}',
+      apiKeyEnv: '${item['apiKeyEnv'] ?? ''}',
+      builtIn: item['builtIn'] == true,
+      launchHint: '${item['launchHint'] ?? ''}',
+    );
+    final models = item['models'];
+    if (models is List) {
+      for (final m in models) {
+        if (m is! Map) continue;
+        final entry = OndraModelEntry(
+          id: '${m['id'] ?? ''}',
+          name: '${m['name'] ?? ''}',
+          contextWindow: '${m['contextWindow'] ?? ''}',
+          maxTokens: '${m['maxTokens'] ?? ''}',
+          inputs: (m['inputs'] as List?)?.cast<String>().toList() ?? ['text'],
+        );
+        final reasoning = m['reasoning'];
+        if (reasoning is List) {
+          for (final r in reasoning) {
+            if (r is! Map) continue;
+            final apiValue = '${r['apiValue'] ?? ''}';
+            entry.reasoning.add(
+              OndraReasoningLevel(
+                label: '${r['label'] ?? apiValue}',
+                apiValue: apiValue,
+              ),
+            );
+          }
+        }
+        p.models.add(entry);
+      }
+    }
+    return p.id.isEmpty ? null : p;
+  }
+
+  /// 把某个提供商的密钥写进钥匙串。返回错误文案，null 表示成功。
+  ///
+  /// UI 的「填写 / 更换」与自定义表单都走这一个入口；`keyConfigured` 由
+  /// 写入结果驱动，不靠界面自己置位。
+  Future<String?> writeProviderKey(String providerId, String key) async {
+    final r = await Keychain.write(_keyName(providerId), key);
+    if (!r.ok) return r.message;
+    final p = byId(providerId);
+    if (p != null && !p.keyConfigured) {
+      p.keyConfigured = true;
+      notifyListeners();
+    }
+    return null;
   }
 
   late List<OndraProvider> _providers;
@@ -167,6 +343,9 @@ class ModelClient extends ChangeNotifier {
     if (p == null || p.builtIn) return false;
     _providers = _providers.where((e) => e.id != id).toList();
     // 删除提供商＝连密钥一起清（官方文案：会移除其配置和存储的 API 密钥）。
+    // 钥匙串删除是异步的，失败不影响提供商本身被移除——那条记录会在
+    // 「钥匙串访问」里残留，用户能自己看到并删掉。
+    unawaited(Keychain.erase(_keyName(id)));
     p.keyConfigured = false;
     _ensureDefault();
     notifyListeners();

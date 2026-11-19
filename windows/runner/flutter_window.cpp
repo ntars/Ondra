@@ -1,6 +1,9 @@
 #include "flutter_window.h"
 
 #include <dwmapi.h>
+#include <flutter/encodable_value.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 #include <flutter_windows.h>
 #include <windows.h>
 

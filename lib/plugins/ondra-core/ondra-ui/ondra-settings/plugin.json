@@ -7,7 +7,7 @@
   "owner": "ondra-ui",
   "summary": "设置面板",
   "provides": [
-    "6 个设置分类的容器"
+    "5 个设置分类的容器"
   ],
   "depends": [
     "ondra-ui"

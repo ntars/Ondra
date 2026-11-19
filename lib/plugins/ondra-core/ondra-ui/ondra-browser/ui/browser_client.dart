@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
+import 'browser_store.dart';
+
 /// 白名单里的一个站点。
 class OndraSite {
   const OndraSite({required this.url, this.note = ''});
@@ -25,12 +27,34 @@ class BrowserClient extends ChangeNotifier {
   /// 或用户从设置里进白名单时才会出现，关掉就回到原来那一页。
   bool _visible = false;
 
-  final List<OndraSite> _sites = [
+  List<OndraSite> _sites = [
     const OndraSite(url: 'https://platform.deepseek.com', note: 'API 密钥与用量'),
   ];
   String? _active;
 
+  BrowserClient() {
+    // 白名单落盘读回（浏览器环境没有文件系统，store 的 stub 会给空表）。
+    // 这是用户攒出来的准入清单，重启丢了等于把「我用哪些服务」又替他忘了一次。
+    final saved = loadBrowserSites();
+    // 文件里的清单整体替换出厂值：出厂那一条要是用户删了，不该每次
+    // 启动又冒回来。
+    if (saved.isNotEmpty) {
+      _sites = [
+        for (final item in saved)
+          OndraSite(url: item['url'] ?? '', note: item['note'] ?? ''),
+      ].where((s) => s.url.isNotEmpty).toList(growable: true);
+    }
+    addListener(_persist);
+  }
+
   List<OndraSite> get sites => List.unmodifiable(_sites);
+
+  /// 白名单落盘。监听器要求 VoidCallback，所以包一层。
+  void _persist() {
+    saveBrowserSites([
+      for (final s in _sites) {'url': s.url, 'note': s.note},
+    ]);
+  }
   String? get active => _active;
   bool get visible => _visible;
 
@@ -38,14 +62,6 @@ class BrowserClient extends ChangeNotifier {
   void showList() {
     _visible = true;
     notifyListeners();
-  }
-
-  /// 由别的功能请求打开一个网址：先过白名单，再露面。
-  String? request(String url) {
-    final err = open(url);
-    if (err == null) _visible = true;
-    notifyListeners();
-    return err;
   }
 
   /// 规范化：没写协议的补 https://；不是 http(s) 的一律拒绝。

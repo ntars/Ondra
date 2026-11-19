@@ -317,15 +317,6 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
     defaultValue: true,
   ),
   OndraSettingSpec(
-    key: 'privacy.crashReport',
-    label: '崩溃上报',
-    // 文案必须说清「发」与「记」是两件事：本地那份永远写，
-    // 这个开关只管要不要往外发。写成「上报」而不解释，用户会以为
-    // 关掉之后连本地日志都没有——那不是隐私保护，那是让问题查不了。
-    description: '把崩溃堆栈发给开发者；本地记录始终保留，不含对话内容',
-    defaultValue: false,
-  ),
-  OndraSettingSpec(
     key: 'privacy.screenRead',
     label: '允许读取屏幕',
     description: '插件需要时才能截取当前窗口',

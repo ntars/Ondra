@@ -197,9 +197,12 @@ class _LongTransport implements DshTransport {
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text) async* {
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     yield '这是一段很长的回答，' * 12;
   }
+
+  @override
+  void resetSession() {}
 
   @override
   void stop() {}
@@ -214,9 +217,12 @@ class _FailingTransport implements DshTransport {
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text) async* {
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     throw Exception('连接断了');
   }
+
+  @override
+  void resetSession() {}
 
   @override
   void stop() {}
@@ -241,11 +247,14 @@ class _GatedTransport implements DshTransport {
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text) async* {
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     final round = _round++;
     if (!stallFirst || round == 0) await gate.future;
     yield '$text 的回答';
   }
+
+  @override
+  void resetSession() {}
 
   @override
   void stop() {}
@@ -259,10 +268,13 @@ class _EchoTransport implements DshTransport {
   Future<void> connect() async {}
 
   @override
-  Stream<String> send(String text) async* {
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     yield '在的';
     yield '在的';
   }
+
+  @override
+  void resetSession() {}
 
   @override
   void stop() {}
