@@ -1232,8 +1232,21 @@ try {
     // 选路，这样这条检查只测「加载」，不测「用户配的网关通不通」。
     const hs = await handshake(seedHome, PROFILE_NAME);
     if (!hs.out.includes('"result"')) {
+      // 原生绑定缺失是握手崩的高频原因（node-addon-require-builtin-<平台>
+      // 没被拷进包）：die 之前把源安装与产物两边的 node-addon-* 列出来，
+      // 一眼看出是「源就没有」还是「拷贝丢了」。
+      const addonList = (base) => {
+        try {
+          return fs.readdirSync(path.join(base, 'node_modules'))
+            .filter((n) => n.includes('node-addon-require-builtin')).sort();
+        } catch {
+          return [];
+        }
+      };
       die('握手失败（stdout 里没有 result）',
-        `${hs.out.split('\n').slice(0, 3).join('\n')}\n${hs.err.split('\n').slice(0, 8).join('\n')}`);
+        `${hs.out.split('\n').slice(0, 3).join('\n')}\n${hs.err.split('\n').slice(0, 8).join('\n')}` +
+        `\n[addon 源安装] ${addonList(DSH_PKG).join(', ') || '（无）'}` +
+        `\n[addon 产物]   ${addonList(path.join(OUT, 'dsh')).join(', ') || '（无）'}`);
     }
     if (hs.err.includes('failed to import')) {
       const lines = hs.err.split('\n');
