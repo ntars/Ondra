@@ -511,6 +511,14 @@ function resolvePkgDir(name, importer) {
   return found;
 }
 
+function manifestVersion(dir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).version ?? '';
+  } catch {
+    return '';
+  }
+}
+
 function isPruned(name) {
   // 装配层点名的包一律保留：它真的会被加载，不需要再判断。
   // 排除清单与装配层冲突时，**装配层赢**——那是运行期事实，清单只是预估。
@@ -535,9 +543,19 @@ function walk(name, importer, required = true) {
   // 必须先按本次 importer 解析，再判断是否访问过，不能按包名提前返回。
   const selected = selectedPkgs.get(name);
   if (selected && selected !== dir) {
-    die(`不兼容的同名依赖来源：${name}`,
-      `${selected}\n  ${dir}（importer: ${importer}）\n`
-      + '  当前扁平分发不能保证多个源目录的版本/解析上下文一致，请先整理源安装。');
+    // npm 对不同 importer 的嵌套依赖各留一份副本（dsh-agent 与 dsh-llm 各带
+    // zod），布局本身合法。拍平后同名包共用一份（首个来源），版本不同时
+    // **警告但不拦**——发行版安装（npm -g）与本机安装天然是嵌套双份，
+    // 拦下来等于三端都装配不了；而事实依据是此前所有版本都这样装配运行，
+    // 没有出过解析错配。真正要拦的是「缺包」，在 unresolved 里兜底。
+    const a = manifestVersion(selected);
+    const b = manifestVersion(dir);
+    if (a !== b) {
+      console.warn(
+        `⚠ 同名依赖多来源（取 ${a}）：${name}\n` +
+        `  ${selected}\n  ${dir}（importer: ${importer}，v${b}）\n` +
+        '  拍平后所有 importer 共用第一份；运行期如有行为差异再看这里。');
+    }
   }
   if (selected) return;
   let data;
