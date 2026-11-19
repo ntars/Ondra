@@ -18,6 +18,7 @@ import '../ondra-backup/ui/timeline/timeline_stage.dart';
 import '../ondra-browser/ui/browser_client.dart';
 import '../ondra-browser/ui/browser_page.dart';
 import '../ondra-chat/ui/ambient_rail.dart';
+import '../ondra-onboarding/ui/onboarding_gate.dart';
 import 'side_rail.dart';
 
 /// 主壳：左导航 + 内容槽 + 右助手栏。
@@ -46,12 +47,17 @@ class OndraChassis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 手机不走宽度阈值，直接按平台决定形态。
-    if (ondraIsMobile) return const _MobileBody();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return _Shell(compact: constraints.maxWidth < 930);
-      },
+    // 手机不走宽度阈值，直接按平台决定形态。引导层在最外面：桌面与手机
+    // 同样是「第一次打开先看到它」。
+    if (ondraIsMobile) {
+      return const OnboardingGate(child: _MobileBody());
+    }
+    return OnboardingGate(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return _Shell(compact: constraints.maxWidth < 930);
+        },
+      ),
     );
   }
 }
@@ -129,7 +135,13 @@ class _ShellState extends State<_Shell> {
           widget.compact ? _CompactBody(page: content) : _WideBody(page: content),
           if (st.settingsOpen)
             Positioned.fill(
-              child: ConsoleSheet(onClose: () => st.settingsOpen = false),
+              child: ConsoleSheet(
+                onClose: () {
+                  st.settingsPane = null;
+                  st.settingsOpen = false;
+                },
+                initialPane: st.settingsPane,
+              ),
             ),
           // 时间线压在最上层：它要吞掉三栏，包括侧栏的毛玻璃。
           // 用 State 而不是 Navigator——退出是「回到刚才那一页」，不是「返回」。
@@ -582,7 +594,13 @@ class _MobileBody extends StatelessWidget {
 
           if (st.settingsOpen)
             Positioned.fill(
-              child: ConsoleSheet(onClose: () => st.settingsOpen = false),
+              child: ConsoleSheet(
+                onClose: () {
+                  st.settingsPane = null;
+                  st.settingsOpen = false;
+                },
+                initialPane: st.settingsPane,
+              ),
             ),
           if (st.timelineOpen)
             Positioned.fill(

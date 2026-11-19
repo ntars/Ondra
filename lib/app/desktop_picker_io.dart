@@ -19,7 +19,9 @@ import 'dart:io';
 class DesktopPicker {
   const DesktopPicker._();
 
-  static bool get supported => true;
+  /// 实现走 `osascript`，只有 macOS 有。Windows / Linux 上这个值是 false，
+  /// 调用点据此把「取文件」入口如实禁用——否则用户点下去什么都不会发生。
+  static bool get supported => Platform.isMacOS;
 
   /// 选一个文件。`prompt` 是面板顶部的说明文字。
   static Future<String?> pickFile({required String prompt}) async {

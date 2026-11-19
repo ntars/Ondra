@@ -32,3 +32,17 @@ class SessionSummary {
 ///
 /// 没有会话目录就返回空列表——那说明内核还没在这个 profile 下聊过。
 Future<List<SessionSummary>> readSessions() => impl.readSessions();
+
+/// 一条历史消息：只保留能显示的正文，工具与系统事件不进这里。
+class HistoryEntry {
+  const HistoryEntry({required this.role, required this.text});
+
+  /// `user` 或 `assistant`；别的角色在读的时候就跳过了。
+  final String role;
+  final String text;
+}
+
+/// 读一份会话的完整对话。找不到或读不动返回空列表——
+/// 列表页说「N 句」，点进去却是空的，那比报错更骗人。
+Future<List<HistoryEntry>> readSessionMessages(String sessionId) =>
+    impl.readSessionMessages(sessionId);

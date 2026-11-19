@@ -94,16 +94,16 @@ class FeedbackStore {
         if (tail != null && tail.isNotEmpty) {
           buffer
             ..writeln()
-            ..writeln('## 最近日志（尾部 32 KB）')
+            ..writeln('## 最近日志（尾部 32 KB，已脱敏）')
             ..writeln()
             ..writeln('```')
-            ..writeln(tail)
+            ..writeln(_redact(tail))
             ..writeln('```');
         }
       }
 
       await file.writeAsString(buffer.toString());
-      return FeedbackResult(ok: true, path: file.path, message: '已存到 $file.path');
+      return FeedbackResult(ok: true, path: file.path, message: '已存到 ${file.path}');
     } catch (e) {
       return FeedbackResult(ok: false, message: '写文件失败：$e');
     }
@@ -137,6 +137,20 @@ class FeedbackStore {
   /// 选附件。走系统面板，最多三个——多了用户自己也不会再看。
   Future<List<String>> pickAttachments() =>
       DesktopPicker.pickFiles(prompt: '选择要附上的图片或视频', limit: 3);
+
+  /// 日志尾部的脱敏清洗：绝对路径、邮箱、看起来像密钥的十六进制串。
+  ///
+  /// 附带的日志要离开这台机器（用户手动发出去），写进去之前就该把
+  /// 这三类东西抹掉，而不是把开关的判断留给调用点。
+  String _redact(String raw) {
+    final pathExp = RegExp('/Users/[^\\s\'\' ]+');
+    final mailExp = RegExp('[\\w.+-]+@[\\w.-]+\\.\\w+');
+    final secretExp = RegExp('[0-9a-fA-F]{32,}');
+    return raw
+        .replaceAllMapped(pathExp, (_) => '~/…')
+        .replaceAllMapped(mailExp, (_) => '[邮箱]')
+        .replaceAllMapped(secretExp, (_) => '[密钥片段]');
+  }
 
   Future<String?> _logTail() async {
     try {

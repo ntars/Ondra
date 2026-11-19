@@ -160,7 +160,11 @@ class ChatClient extends ChangeNotifier {
       }
     }
 
-    await _sendNow(trimmed);
+    final attachments = List<ChatAttachment>.of(_attachments);
+    await _sendNow(trimmed, attachments: attachments);
+    // 附件随这一条一起发出去：发完就撤掉，不然下一句会莫名其妙地
+    // 又带上同一张图。清理放在发送之后（失败也清——失败原因里会说明）。
+    if (_attachments.isNotEmpty) clearAttachments();
     // 这一轮结束后把排队的话接着发出去。用 while 而不是 if：
     // 排队期间用户可能又敲了两句，一次只发一句会把后面的丢掉。
     //
@@ -183,11 +187,19 @@ class ChatClient extends ChangeNotifier {
   /// 所以每一轮给自己领一个号，只有「当前号」才有资格改 [_busy]。
   /// 谁先把号丢掉，谁的收尾就一概不认——包括错误提示，否则旧轮被插话
   /// 打断时报的错会盖在新一轮的回答上。
-  Future<void> _sendNow(String trimmed) async {
+  Future<void> _sendNow(String trimmed, {List<ChatAttachment> attachments = const []}) async {
     final gen = ++_generation;
     bool stale() => gen != _generation;
 
-    _messages.add(ChatMessage(role: ChatRole.user, text: trimmed));
+    // 用户气泡把附件名列出来：它已经随消息发出去了，界面上得能看见带了什么。
+    if (attachments.isNotEmpty) {
+      final names = attachments.map((a) => a.name).join('、');
+      _messages.add(
+        ChatMessage(role: ChatRole.user, text: '$trimmed\n[附件] $names'),
+      );
+    } else {
+      _messages.add(ChatMessage(role: ChatRole.user, text: trimmed));
+    }
     final reply = ChatMessage(role: ChatRole.assistant, text: '', streaming: true);
     _messages.add(reply);
     _busy = true;
@@ -196,7 +208,7 @@ class ChatClient extends ChangeNotifier {
     // 这一轮是不是正常收尾。被作废 / 抛错时为 false，收尾时要把气泡撤掉。
     var answered = false;
     try {
-      await for (final chunk in _transport.send(trimmed)) {
+      await for (final chunk in _transport.send(trimmed, attachments: attachments)) {
         if (stale()) return;
         reply.text += chunk;
         notifyListeners();
@@ -301,13 +313,10 @@ class ChatClient extends ChangeNotifier {
     _messages.clear();
     _usage = const ChatUsage();
     notifyListeners();
-    // 内核可用的话让它也开新会话。失败不拦路——界面已经清空了，
-    // 报一个错把用户顶回去反而更怪；下一句发送时会再遇到同一条错误。
-    if (_offlineReason == null) {
-      try {
-        await _transport.connect();
-      } catch (_) {}
-    }
+    // 换掉内核会话：内核按 sessionId 建会话，「新建」就是换一个 id，
+    // 上下文从这一句起真正归零。之前只调 connect——已连接时它直接返回，
+    // 界面像新会话，内核还在原来的上下文里续写。
+    _transport.resetSession();
   }
 }
 
@@ -331,6 +340,21 @@ class ChatAttachment {
     final i = path.lastIndexOf('/');
     return ChatAttachment(path: path, name: i < 0 ? path : path.substring(i + 1));
   }
+
+  /// 发送时的 MIME 类型；认不出的扩展名返回 null。
+  ///
+  /// 内核的 `session/prompt` 只收图片块（`{type:'image', data, mimeType}`），
+  /// 其他文件类型没有对应的传输形态——所以界面只让选图片。
+  String? get mimeType {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return null;
+  }
+
+  bool get isImage => mimeType != null;
 }
 
 /// 一条消息。[streaming] 为真时界面显示一个正在生成的占位。
@@ -352,7 +376,15 @@ class ChatMessage {
 /// 否则「接入」之后还得再改一次界面。
 abstract class DshTransport {
   Future<void> connect();
-  Stream<String> send(String text);
+
+  /// 发一句话。附件是这一条消息要带的图片（本机路径与文件名），
+  /// 传输层负责把它读成内核认的 contentBlocks；不支持附件的实现忽略它。
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []});
+
+  /// 丢掉当前会话，下一次 [send] 用新会话。内核按 sessionId 建会话，
+  /// 「新建对话」就是换一个 id——不需要新进程。
+  void resetSession() {}
+
   void stop();
 
   /// 每一步模型调用的记账。内核不报（离线、适配器不支持）时就是空流，
@@ -436,9 +468,12 @@ class UnavailableTransport implements DshTransport {
   }
 
   @override
-  Stream<String> send(String text) async* {
+  Stream<String> send(String text, {List<ChatAttachment> attachments = const []}) async* {
     throw StateError(reason);
   }
+
+  @override
+  void resetSession() {}
 
   @override
   void stop() {}

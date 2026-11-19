@@ -165,10 +165,11 @@ class OndraSkin {
     hintInk: OndraColor.placeholder,
   );
 
-  /// 深色皮肤：2.0.0-alpha 的主题方案只做浅色，这套定义**暂未启用**。
+  /// 深色皮肤：随 `MaterialApp.darkTheme` 一起挂载（见 `design/theme.dart`），
+  /// 跟随系统的「设置 → 通用 → 外观」或用户在设置里选的档位生效。
   ///
-  /// 它不参与构建——`MaterialApp` 只挂了浅色主题，[OndraSkin.of] 因此永远拿到
-  /// [light]。保留在这里是为了方案定稿后能一次接上，不用回头重写角色名。
+  /// [OndraSkin.of] 按 `Theme.brightness` 在两套之间切换；Windows 端没有
+  /// 原生玻璃，深色的替代底色也走这里（见 `native_glass.dart`）。
   static const darkSkin = OndraSkin._(
     dark: true,
     content: OndraColor.darkCanvas,

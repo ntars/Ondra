@@ -107,13 +107,6 @@ class SettingsClient extends ChangeNotifier {
     return d is int ? d : 0;
   }
 
-  /// 任意类型的取值。给「字符串输入」这类没有专用 getter 的项用。
-  String text(String key) {
-    final v = _values[key];
-    if (v == null) return '';
-    return '$v';
-  }
-
   void set(String key, Object? value) {
     final changed = _values[key] != value;
     _values[key] = value;
@@ -181,6 +174,10 @@ class SettingsClient extends ChangeNotifier {
     for (final spec in ondraSettingSpecs) {
       _values[spec.key] = spec.defaultValue;
       writePref('$_prefix${spec.key}', '');
+      // 平台侧动作也要退回去：只把界面值改回默认的话，caffeinate 进程
+      // 与 launchd 登录项会原样留着——「清空全部数据」清完，机器还在
+      // 按旧设置运转。
+      _applyPlatformAction(spec.key, spec.defaultValue);
     }
     notifyListeners();
   }

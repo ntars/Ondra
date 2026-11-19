@@ -91,8 +91,6 @@
   "插件需要时才能截取当前窗口": "Plugins may capture the current window when needed",
   "日志脱敏": "Redact logs",
   "写日志前去掉路径、邮箱、密钥等敏感片段": "Strip paths, emails and keys before writing logs",
-  "崩溃上报": "Crash reports",
-  "把崩溃堆栈发给开发者；本地记录始终保留，不含对话内容": "Send crash stacks to the developer; local records always stay, no conversation content",
   "API Key 存放": "API key storage",
   "密钥只进系统钥匙串，不写进任何配置文件": "Keys go only into the system keychain, never into config files",
   "系统钥匙串": "System keychain",

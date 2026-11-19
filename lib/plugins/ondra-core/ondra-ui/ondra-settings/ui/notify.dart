@@ -22,18 +22,10 @@ class OndraNotify {
   /// 报一件事。失败静默——通知发不出去不该让业务流程失败。
   static Future<void> tell(String title, String body) async {
     if (!settingsClient.boolean('general.notify')) return;
-    if (!settingsClient.boolean('general.notifySound') &&
-        _focusMuteActive) {
-      // 两个都关 = 完全不出声也不弹：用户明确表示「现在别打扰我」。
-      return;
-    }
     await Notifier.show(
       title: title,
       body: body,
       sound: settingsClient.boolean('general.notifySound'),
     );
   }
-
-  /// 专注静音是否生效。见类注释：当前没有前台应用查询能力，恒为 false。
-  static bool get _focusMuteActive => false;
 }

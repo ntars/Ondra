@@ -83,10 +83,15 @@ class PersonaClient extends ChangeNotifier {
   Future<void> reload() => load();
 
   /// 热切换：切到另一个包。返回 false 表示这个 id 不在清单里。
+  ///
+  /// 选择写进 prefs：重启后回到用户选的那个，而不是清单默认。
+  /// 内核侧的提示词段由装配层灌入，界面切换改变的是「空谷在界面上是谁」；
+  /// 提示词层的切换要等内核 RPC（`ondra.persona.switch`）接上，见类注释。
   Future<bool> switchTo(String id) async {
     if (!_packs.any((p) => p.id == id)) return false;
     if (_activeId == id) return true;
     _activeId = id;
+    await _rememberActive(id);
     notifyListeners();
     return true;
   }

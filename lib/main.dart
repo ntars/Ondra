@@ -54,6 +54,10 @@ Future<void> main() async {
   seedRuntimeProfile();
   await pluginsClient.load();
 
+  // 模型基座先读回上一次的提供商与默认模型，再建传输层——
+  // 顺序反了的话，传输层会拿着出厂默认选路，读完配置又得重连一次。
+  modelClient.load();
+
   // 右栏接内核：桌面端起 `dsh --profile ondra` 子进程；Web 端如实报错。
   // connect 失败不算启动失败——应用照常起，右栏会显示具体原因。
   // 桌面端这个构造不是 const（要持有进程与订阅），Web 端的空实现才是；
@@ -106,9 +110,9 @@ String _currentRoute() => '${modelClient.defaultProviderId}/${modelClient.defaul
 
 /// 记一次崩溃。
 ///
-/// 上报开关（`privacy.crashReport`）只决定**要不要往外发**；
-/// 本地这一份永远写——用户来问「为什么闪退」时，没有堆栈就只能猜。
-/// 往外发的那一半等有接收端再接，否则就是一个永远发不出去的假开关。
+/// 只写本地（`~/.ondra/crash/`），没有「往外发」的开关——接收端还不存在，
+/// 留一个永远发不出去的开关等于让用户以为有人在看。用户来问「为什么闪退」
+/// 时，把这份堆栈发出来就够了。
 void _logCrash(String scope, Object error, StackTrace? stack) {
   CrashLog.write(scope, error, stack);
 }
