@@ -270,6 +270,22 @@ class ModelClient extends ChangeNotifier {
       for (final m in p.models) (p, m),
   ];
 
+  /// 这条提供商在**内核侧**的路由名；null 表示内核没有对应适配器。
+  ///
+  /// 内核的 `provider` 参数不是这里的 id，而是装配层注册的路由名。当前
+  /// profile 只声明了两条：`magpie`（pi-ai 手工路由，本机网关）与
+  /// `deepseek-official`（LlmDeepSeek fiber，官方 API）。把 UI 的 id 直接
+  /// 传过去，内核会报 `no adapter registered`——表现为「换了模型就连不上」，
+  /// 而且只有发消息那一刻才炸。
+  ///
+  /// 其余类别（免费/合作/自定义/本地）要等装配层把对应路由声明进去。
+  String? kernelRouteOf(OndraProvider p) => switch (p.category) {
+    ProviderCategory.gateway => 'magpie',
+    ProviderCategory.official =>
+      p.id == 'deepseek' ? 'deepseek-official' : p.id,
+    _ => null,
+  };
+
   bool isDefault(OndraProvider p, OndraModelEntry m) =>
       p.id == _defaultProviderId && m.id == _defaultModelId;
 
@@ -381,11 +397,22 @@ class ModelClient extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setDefaultModel(OndraProvider provider, OndraModelEntry model) {
-    if (_defaultProviderId == provider.id && _defaultModelId == model.id) return;
+  /// 「设为默认」被拒绝的原因；null 表示成功。
+  ///
+  /// 无内核路由的提供商不能设为默认——否则换完模型内核直接连不上，
+  /// 界面看着像「新会话」，实际一句都发不出去。
+  String? setDefaultModel(OndraProvider provider, OndraModelEntry model) {
+    if (_defaultProviderId == provider.id && _defaultModelId == model.id) {
+      return null;
+    }
+    if (kernelRouteOf(provider) == null) {
+      return '${provider.name} 还没有内核路由（当前只装配了 magpie 网关与'
+          ' DeepSeek 官方），先不要设为默认';
+    }
     _defaultProviderId = provider.id;
     _defaultModelId = model.id;
     notifyListeners();
+    return null;
   }
 
   void touch() => notifyListeners();
