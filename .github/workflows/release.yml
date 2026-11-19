@@ -195,10 +195,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          # 预发行版与否由 tag 名决定，不写死。写死 --prerelease 会让正式版
+          # 永远抢不到 Latest（GitHub 不允许预发行版设为 Latest）。
+          case "$TAG" in
+            *-alpha*|*-beta*|*-rc*) FLAG="--prerelease" ;;
+            *)                      FLAG="--latest" ;;
+          esac
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "发行版已存在，只上传资产"
           else
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --title "$TAG" --generate-notes --prerelease
+              --title "$TAG" --generate-notes "$FLAG"
           fi
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*
