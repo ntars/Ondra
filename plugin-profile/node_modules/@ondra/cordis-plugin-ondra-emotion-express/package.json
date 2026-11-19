@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-emotion-express",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的情绪六态映射（手册 §3.2）：雀跃/软和/平静/蔫/炸毛/困，六态与宣传片 05 章完全一致、不得增删改名。同一个判定同时供 prompt / rhythm / tts 三处取用，语速 ±10%/−15%、主动额度 ±1、不朗读、贴纸概率等系数全仓只在本插件出现一次。只出参数不出文本——投影文本唯一归 ondra-emotion-project。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

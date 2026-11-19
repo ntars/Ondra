@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-persona-loader",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的人设包加载器：只读扫描 ondra-persona-skills/*.skill.zip，解析 meta.json 与 SKILL.md，注册可用人设（出厂鲸鲸、夏柠柒为示例包）。人设包本体永不回写。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

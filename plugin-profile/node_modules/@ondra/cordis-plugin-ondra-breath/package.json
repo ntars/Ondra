@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-breath",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的「正在输入」与呼吸感（手册 §4.2）：把 O-039 的打字阶段映射成「此刻该不该显示正在输入」（走神的长停顿期间不显示），并在一天最多两次的额度内给一个括号动作（伸了个懒腰这类）。只决定「要不要」与「哪一句」，不发送、不画界面、不装定时器。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

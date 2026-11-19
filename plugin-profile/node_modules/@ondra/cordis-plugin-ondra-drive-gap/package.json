@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-drive-gap",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的缺口池与张力（手册 §5.1）：她心里那几件没弄明白的事记在这里。三源生成（模型自认不知道 / 工具查空 / 请求失败），张力按 created_at 幂等派生（base + 小时×rate − relief + 判重加压），相似度 ≥0.6 只加压不新建并保留最早措辞，闭合时连坐相似的 open 条目。唤醒四条件 tension≥80 且 energy>30 且闲置>30min 且不在 60min 冷却期；离线梦境窗口 02:00–05:00；休眠时长只补给那时已存在的缺口。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

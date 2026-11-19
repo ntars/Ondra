@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-memory-graph",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的记忆图谱：四边建边与 1 跳扩散。同主题 0.72 起每次 +0.05、共现 0.15 起每次 +0.10、荒诞 0.03 永不进检索；扩散门槛 0.4、枢纽度上限 40、90 天 ×0.5（带 decayed_at 游标）。只碰边表，绝不写 memory_fact。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

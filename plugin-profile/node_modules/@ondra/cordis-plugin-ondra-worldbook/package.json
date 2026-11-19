@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-worldbook",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的世界书选择器：六层预算（总 1600 token，L1 350 / L2 180 / L3 100 / L4 500 / L5 200 / L6 150）硬分桶，撞限整条丢、绝不截字；常驻条目单独成段并冻结为会话前缀（§8.5），层内排序稳定不随命中次数浮动，保证同一会话的前缀一次都不变。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

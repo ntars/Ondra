@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-oral",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的口语化塑形（手册 §4.2）：口头禅池每人格 12–20 条、按六态分档、单场最多 2 次；不完整句 8%（省略主语或收尾词）；标点习惯（不用句号结尾 / 连续问号表疑惑 / 省略号表犹豫）；语气词只做减法；单条中位 8–12 字只报告不截断；贴纸最小间隔 3 条只做闸门不发贴纸。零错别字写进类型字面量，装笨必须改类型。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

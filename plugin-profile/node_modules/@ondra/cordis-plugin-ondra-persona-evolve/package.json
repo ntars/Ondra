@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-persona-evolve",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的人格演化（手册 §3.1/§3.5，P0）：出厂只给基线，性格由经历长成。只动数值不动正文——特质分按「基线 + 未回滚增量」派生（有界、可回滚、可解释，漂移上限占量程比例），阈值按 threshold = base × (1 + 0.6 × min(1, interactions/5000)) 随相处时间上移、上限 +60%，explainThreshold() 能回答「为什么以前 60 就算开心，现在要 80」。base 由调用方传入，本插件只持久化互动次数，不留第二份基线。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

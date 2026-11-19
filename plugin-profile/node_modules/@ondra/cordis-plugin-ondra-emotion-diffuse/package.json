@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-emotion-diffuse",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的跨会话情绪弥散：按手册 §9.1 的 (mood−baseline)×0.4×(1−familiarity×0.5) 算出「上一场会话结束时的情绪有多少会带进这一场」。只算不写——交出 target 与 delta，落笔由调用方经 O-026 的 setAxis 完成；同一会话内靠边界键幂等 + 间隔闸防「越聊越淡」。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

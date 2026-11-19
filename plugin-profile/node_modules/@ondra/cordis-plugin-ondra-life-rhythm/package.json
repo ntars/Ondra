@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-life-rhythm",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的生活层与作息（手册 §3.7 + §3.3）：一边是她自己过日子——六类活动、兴趣权重与标签（烧脑/放松/创造）、10% 概率探索新兴趣、心情差时优先放松型、做一次加权、长期没碰按半衰期衰减、笔记分长期与临时；一边是能量积分——清醒 +0.2/min、深睡或深夜 +1/min、自然上限 60、喂到 100 按 0.1/min 回落、急停期间冻结、5 分钟一片分段积分、睡醒缓冲取走即清零。只有一个由时钟驱动的 tick，没有子进程、没有常驻循环，卸载即停。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

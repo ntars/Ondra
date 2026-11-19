@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-memory-dream",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的记忆做梦：闸式做梦（四道闸只补带逐字出处的事实，默认）、轻量睡眠巩固（空闲 2 分钟浅睡 / 5 分钟深睡，纯规则挖五类卡片，零模型调用）、荒诞联想与梦话（surreal 边永不进检索）。三支互斥，写记忆只经记忆内核。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

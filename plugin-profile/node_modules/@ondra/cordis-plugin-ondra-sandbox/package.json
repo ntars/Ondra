@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-sandbox",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的能力分级沙箱（L9 扩展池，〔薄〕档）：把「这只插件这一次能干多大的事」分成四级（read / suggest / act / spend），发一张有期限、有次数上限的票据，越权就拒绝。四条裁决写死在实现里：默认拒绝，没票就没有任何能力；票过期即失效，且过期后必须查得到是哪张票、截止在哪一秒（endedAt 存的是 expiresAt，不是发现过期的时刻）；spend 级必须二次确认，调用方要把动作名原样放进 confirm，因为布尔值总会被复制成 true 而重写一遍动作名至少要求知道自己在做什么；票据档 user/sandbox-tickets.json 0600 原子写，只存票据，不存任何调用内容——参数、返回值、调用理由一律不落盘，否则那就是一份行为日志。与 ondra-organ-gate 的边界：那边管器官能不能用宿主门面（进程内能力白名单，抛 CapabilityDeniedError），这边管某次具体动作该不该放行（带票、带期限、带次数，抛 SandboxDeniedError），两层都要过，谁也不能替代谁，错误类刻意不同名以免一个 catch 把「没资格」和「票过期」混成同一件事。不接管宿主权限系统、不实现器官 ABI、不做界面、不装定时器、不主动发消息。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

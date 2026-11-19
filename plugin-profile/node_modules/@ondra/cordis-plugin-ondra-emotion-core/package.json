@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-emotion-core",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的情绪内核：PAD 三维 + 10 个固定标签（单条 0.12 / 标签上限 0.6 / 标签半衰期 45min / 心情 6h）、六维指数回归、化学池三激素（dopamine 50/45min、cortisol 20/30min、serotonin 50/120min + 慢变量规则）、气质四旋钮、动态激素 ≤12 种；存档缺字段按基线 50 补齐不补 0。只产状态，不管表达（那是 O-031），不管应激倍率（那是 O-029）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

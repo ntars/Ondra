@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-startup-check",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的加载自检：十项，只判定不拦启动。它验的不是代码对不对，而是「它到底有没有被装上」。手册 §8.3 列了三条静默失败，全都不报错、不影响启动、界面上也看不出来：package.json 漏了 ondra.bundle.patch 时宿主只往 stderr 打一行 declares no ondra.bundle 然后永不加载；补丁语义写错（insert 带 id 却指向非 group、无 insert 却没给 id）时宿主只告警然后跳过；入口字段或 name 与包名不一致时同样静默。这三条的坏形态是同一个：日志干净、进程正常、功能不在。所以第十项把宿主那套 applyEntryPatches 的语义移植过来，算出宿主会看到的那份入口树，再看自己在不在里面。移植时按源码而不是按手册摘要：name 不一致的检查只发生在无 insert 的补丁行上，insert 分支从头到尾不看 name；insert 带 id 时目标 config 不是数组会被静默改成空数组；被 insert 的行立刻进索引，所以同一条补丁列表里后面的补丁可以命中它——漏掉任何一条，自检就会对一份实际能加载的包报错。补丁里出现 !!js、锚点、流式集合这类本包 YAML 子集不支持的语法时标判不了而不是通过，因为假装能算的后果是自检说能加载而宿主说不能。前九项是 master-plan §19.1 的机械自检：结构、清单、编译配置、入口契约、服务键唯一、依赖可解析、无越界 import、降级到位、交付物齐全。其中降级到位是启发式，最多出提醒不出致命；服务键唯一与依赖可解析要全仓索引，索引没建起来时如实说不判，而不是拿「只有一个包」当唯一。root 默认空，因为猜出来的扫描根会让自检对着错的目录跑出全过，那比不检查更坏。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

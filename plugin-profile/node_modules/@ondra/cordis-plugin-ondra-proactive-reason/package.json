@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-proactive-reason",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的主动话由（手册 §5.1 / §9.3）：此刻该拿什么当由头。把执念、到点承诺、情绪偏离、待办、近期事件、时间线、环境、台词池八类候选按优先级排序（字典序，权重只在同种类内比较），并用 72 小时话题冷却保证「同一件事三天内只说一次」。只出由头不生成正文，不判断发不发（那是 ondra-proactive-gate），不按条数砍。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,310 @@
+# 旧插件包（~/Downloads/plugins）的装配层。
+# 每个包都是独立根插件；id 用包名去掉 @ondra/cordis-plugin- 前缀，
+# 与它自己的 cordis.patch.yml 里写的 id 一致。
+- insert:
+    # ── L0：身份与路径 ──────────────────────────────────────────
+    # 这两个必须在最前面。其余插件大多是「取不到就退回内存态」的软依赖：
+    # 它们 apply 时同步 ctx.get()，只要这两个还没 provide，就会安静地
+    # 跑在内存里——日志不落盘、记忆不落库，而且一行错误都不报。
+    # 实测：把 path-layout 放在第 49 位，前面 22 个插件全部退化成内存态。
+    - id: ondra-identity
+      name: '@ondra/cordis-plugin-ondra-identity'
+    # 路径服务提前：日志、存储、隐私台账都软取它，
+    # 排在后面会让它们静默退回内存态（实测踩到）。
+    - id: ondra-path-layout
+      name: '@ondra/cordis-plugin-ondra-path-layout'
+      inject:
+        - ondra-identity
+
+    # ── L1：存储与记忆内核 ──────────────────────────────────────
+    # memory-audit / decay / dedupe / dream / recall 这些是字母序排在
+    # 内核**前面**的（m-e-m-o-r-y-* 里 audit < core）。它们 apply 时同步取
+    # 内核，取不到就注册成「不可用」且永不自愈。所以内核必须在这里，
+    # 不能跟着字母序漂到后面去。
+    - id: ondra-store-sqlite
+      name: '@ondra/cordis-plugin-ondra-store-sqlite'
+      inject:
+        - ondra-path-layout
+    - id: ondra-memory-core
+      name: '@ondra/cordis-plugin-ondra-memory-core'
+      inject:
+        - ondra-store-sqlite
+    # ── 其余插件 ────────────────────────────────────────────────
+    - id: ondra-absence
+      name: '@ondra/cordis-plugin-ondra-absence'
+    - id: ondra-asr
+      name: '@ondra/cordis-plugin-ondra-asr'
+      inject:
+        - ondra-privacy
+    - id: ondra-breath
+      name: '@ondra/cordis-plugin-ondra-breath'
+    - id: ondra-clock
+      name: '@ondra/cordis-plugin-ondra-clock'
+    - id: ondra-config-schema
+      name: '@ondra/cordis-plugin-ondra-config-schema'
+    - id: ondra-crisis
+      name: '@ondra/cordis-plugin-ondra-crisis'
+    - id: ondra-data-migrate
+      name: '@ondra/cordis-plugin-ondra-data-migrate'
+    - id: ondra-dialogue
+      name: '@ondra/cordis-plugin-ondra-dialogue'
+      inject:
+        - ondra-dialogue-protocol
+        - ondra-llm-gateway
+    - id: ondra-dialogue-protocol
+      name: '@ondra/cordis-plugin-ondra-dialogue-protocol'
+    - id: ondra-drive-gap
+      name: '@ondra/cordis-plugin-ondra-drive-gap'
+    - id: ondra-emotion-core
+      name: '@ondra/cordis-plugin-ondra-emotion-core'
+    - id: ondra-emotion-diffuse
+      name: '@ondra/cordis-plugin-ondra-emotion-diffuse'
+    - id: ondra-emotion-express
+      name: '@ondra/cordis-plugin-ondra-emotion-express'
+    - id: ondra-emotion-project
+      name: '@ondra/cordis-plugin-ondra-emotion-project'
+    - id: ondra-emotion-stage
+      name: '@ondra/cordis-plugin-ondra-emotion-stage'
+    - id: ondra-evidence-gate
+      name: '@ondra/cordis-plugin-ondra-evidence-gate'
+    - id: ondra-expression-decide
+      name: '@ondra/cordis-plugin-ondra-expression-decide'
+    - id: ondra-filter-chain
+      name: '@ondra/cordis-plugin-ondra-filter-chain'
+    - id: ondra-first-meet
+      name: '@ondra/cordis-plugin-ondra-first-meet'
+    - id: ondra-forget-right
+      name: '@ondra/cordis-plugin-ondra-forget-right'
+    - id: ondra-inject-dedupe
+      name: '@ondra/cordis-plugin-ondra-inject-dedupe'
+    - id: ondra-install-doctor
+      name: '@ondra/cordis-plugin-ondra-install-doctor'
+    - id: ondra-installer
+      name: '@ondra/cordis-plugin-ondra-installer'
+    - id: ondra-lexicon
+      name: '@ondra/cordis-plugin-ondra-lexicon'
+      inject:
+        - ondra-path-layout
+    - id: ondra-life-rhythm
+      name: '@ondra/cordis-plugin-ondra-life-rhythm'
+    - id: ondra-live
+      name: '@ondra/cordis-plugin-ondra-live'
+    - id: ondra-llm-gateway
+      name: '@ondra/cordis-plugin-ondra-llm-gateway'
+      # 网关默认 sources 为空（刻意空：它不知道怎么路由到别人的模型）。
+      # 这里把上面的 magpie 路由填进去，记忆提炼 / 做梦 / 评估才有模型可用。
+      config:
+        sources:
+          # 本机网关首次请求要等模型侧排队，20s 首块超时偶尔不够，放宽到 120s。
+          - id: magpie-local
+            kind: local
+            provider: magpie
+            model: group/ntars
+            priority: 10
+            timeoutMs: 120000
+    - id: ondra-log-zh
+      name: '@ondra/cordis-plugin-ondra-log-zh'
+    - id: ondra-memory-audit
+      name: '@ondra/cordis-plugin-ondra-memory-audit'
+      inject:
+        - ondra-memory-core
+        - ondra-store-sqlite
+    - id: ondra-memory-decay
+      name: '@ondra/cordis-plugin-ondra-memory-decay'
+      inject:
+        - ondra-memory-core
+        - ondra-store-sqlite
+    - id: ondra-memory-dedupe
+      name: '@ondra/cordis-plugin-ondra-memory-dedupe'
+      inject:
+        - ondra-memory-core
+        - ondra-store-sqlite
+    - id: ondra-memory-dream
+      name: '@ondra/cordis-plugin-ondra-memory-dream'
+      inject:
+        - ondra-memory-core
+        - ondra-store-sqlite
+        - ondra-llm-gateway
+    - id: ondra-memory-extract
+      name: '@ondra/cordis-plugin-ondra-memory-extract'
+      inject:
+        - ondra-llm-gateway
+    - id: ondra-memory-graph
+      name: '@ondra/cordis-plugin-ondra-memory-graph'
+      inject:
+        - ondra-store-sqlite
+    - id: ondra-memory-heal
+      name: '@ondra/cordis-plugin-ondra-memory-heal'
+    - id: ondra-memory-humanlike
+      name: '@ondra/cordis-plugin-ondra-memory-humanlike'
+      inject:
+        - ondra-memory-core
+        - ondra-store-sqlite
+    - id: ondra-memory-intake
+      name: '@ondra/cordis-plugin-ondra-memory-intake'
+      inject:
+        - ondra-memory-core
+        - ondra-memory-extract
+    - id: ondra-memory-pool
+      name: '@ondra/cordis-plugin-ondra-memory-pool'
+      inject:
+        - ondra-store-sqlite
+    - id: ondra-memory-prospective
+      name: '@ondra/cordis-plugin-ondra-memory-prospective'
+      inject:
+        - ondra-memory-core
+        - ondra-store-sqlite
+    - id: ondra-memory-recall
+      name: '@ondra/cordis-plugin-ondra-memory-recall'
+      inject:
+        - ondra-memory-core
+    - id: ondra-memory-recognition
+      name: '@ondra/cordis-plugin-ondra-memory-recognition'
+      inject:
+        - ondra-memory-core
+    - id: ondra-memory-vector
+      name: '@ondra/cordis-plugin-ondra-memory-vector'
+    - id: ondra-multimodal-memory
+      name: '@ondra/cordis-plugin-ondra-multimodal-memory'
+      inject:
+        - ondra-memory-core
+    - id: ondra-onboarding
+      name: '@ondra/cordis-plugin-ondra-onboarding'
+    - id: ondra-oral
+      name: '@ondra/cordis-plugin-ondra-oral'
+    - id: ondra-organ-gate
+      name: '@ondra/cordis-plugin-ondra-organ-gate'
+    - id: ondra-organ-host
+      name: '@ondra/cordis-plugin-ondra-organ-host'
+    - id: ondra-persona-assemble
+      name: '@ondra/cordis-plugin-ondra-persona-assemble'
+      inject:
+        - ondra-persona-core
+    - id: ondra-persona-core
+      name: '@ondra/cordis-plugin-ondra-persona-core'
+      inject:
+        - ondra-persona-loader
+    - id: ondra-persona-evolve
+      name: '@ondra/cordis-plugin-ondra-persona-evolve'
+      inject:
+        - ondra-store-sqlite
+    - id: ondra-persona-loader
+      name: '@ondra/cordis-plugin-ondra-persona-loader'
+    - id: ondra-persona-vars
+      name: '@ondra/cordis-plugin-ondra-persona-vars'
+    - id: ondra-port-picker
+      name: '@ondra/cordis-plugin-ondra-port-picker'
+    - id: ondra-privacy
+      name: '@ondra/cordis-plugin-ondra-privacy'
+    - id: ondra-proactive-gate
+      name: '@ondra/cordis-plugin-ondra-proactive-gate'
+    - id: ondra-proactive-quota
+      name: '@ondra/cordis-plugin-ondra-proactive-quota'
+    - id: ondra-proactive-reason
+      name: '@ondra/cordis-plugin-ondra-proactive-reason'
+    - id: ondra-process-host
+      name: '@ondra/cordis-plugin-ondra-process-host'
+    - id: ondra-prompt-inject
+      name: '@ondra/cordis-plugin-ondra-prompt-inject'
+      inject:
+        - ondra-memory-recall
+        - ondra-memory-core
+    - id: ondra-rhythm
+      name: '@ondra/cordis-plugin-ondra-rhythm'
+    - id: ondra-rhythm-typing
+      name: '@ondra/cordis-plugin-ondra-rhythm-typing'
+    - id: ondra-sandbox
+      name: '@ondra/cordis-plugin-ondra-sandbox'
+    - id: ondra-snapshot
+      name: '@ondra/cordis-plugin-ondra-snapshot'
+      inject:
+        - ondra-store-sqlite
+    - id: ondra-startup-check
+      name: '@ondra/cordis-plugin-ondra-startup-check'
+    - id: ondra-store-json
+      name: '@ondra/cordis-plugin-ondra-store-json'
+    # 关掉内存后端：它先于 sqlite 提供同接口的服务，记忆内核会抢在
+    # sqlite 就绪前选它，数据只活在进程里，退出即丢（实测踩到）。
+    # - id: ondra-store-memory
+    #   name: '@ondra/cordis-plugin-ondra-store-memory'
+    - id: ondra-tts
+      name: '@ondra/cordis-plugin-ondra-tts'
+    - id: ondra-tts-gate
+      name: '@ondra/cordis-plugin-ondra-tts-gate'
+    - id: ondra-vision
+      name: '@ondra/cordis-plugin-ondra-vision'
+    - id: ondra-window
+      name: '@ondra/cordis-plugin-ondra-window'
+    - id: ondra-worldbook
+      name: '@ondra/cordis-plugin-ondra-worldbook'
+
+    # ── L9：启动时序补丁（必须排在本列表最后）────────────────────
+    # loader 对一个入口树是并发 apply 的；`ondra-store-sqlite` 要先开库才
+    # `ctx.provide`，那几十毫秒里所有同步 `ctx.get('ondra-store-sqlite')` 的
+    # 插件都拿到 undefined，于是注册成「不可用」——日志看起来像「存储没装」，
+    # 实际是装得晚了一步。fiber 级 inject 救不了（服务尚未 provide 时不阻塞）。
+    # 这里用回调式注入：服务真就绪后再把这些插件重启一遍，让它们第二轮
+    # apply 拿到真依赖。名单只收「依赖 store-sqlite / memory-core」的那些，
+    # 依赖本来就缺席的（asr 没 privacy、installer 没 manifest）不在此列。
+    - id: ondra-boot-settle
+      name: '@ondra/cordis-plugin-ondra-boot-settle'
+      config:
+        services:
+          - ondra-store-sqlite
+          - ondra-memory-core
+          # 模型运行时也是「注册得早、provide 得晚」的一类：网关在 apply 时
+          # 读一次 `ctx.llm`，读不到就永久 available=false，连带提炼、做梦、
+          # 对话编排全部降级。它同样是时序问题，一并等。
+          - llm
+        # 让首轮 apply 走完再重启：restart 一个正在 apply 的 fiber 会把
+        # 它的卸载与重载撞在一起。
+        graceMs: 600
+        targets:
+          # 顺序有意义：
+          # 1. 日志插件排第一。它同样软取 path-layout，缺席就转「仅内存」，
+          #    表现是所有插件日志一条都不落盘——包括本插件自己接下来要写的
+          #    那几行。不先修它，后面修好了也看不见。
+          - ondra-log-zh
+          # 2. 模型网关次之，后面依赖它的插件重启时才能拿到。
+          - ondra-llm-gateway
+          - ondra-memory-extract
+          - ondra-memory-dream
+          - ondra-dialogue
+          - ondra-memory-decay
+          - ondra-memory-dedupe
+          - ondra-memory-graph
+          - ondra-memory-humanlike
+          - ondra-memory-intake
+          - ondra-memory-pool
+          - ondra-memory-prospective
+          - ondra-memory-recall
+          - ondra-memory-recognition
+          - ondra-multimodal-memory
+          - ondra-prompt-inject
+          - ondra-snapshot
+          # 语感形状也软取 path-layout：缺席时只在内存里攒，重启即丢。
+          - ondra-lexicon
+
+# 本地网关 magpie（/Applications/magpie.app，127.0.0.1:3425）。
+# 它是 OpenAI 兼容网关（/v1/chat/completions、/v1/messages 都有），
+# 所以走 pi-ai 适配器手工声明一条路由，而不是去改 DeepSeek 官方路由。
+# 不需要密钥：magpie 在本机环回上，谁连上就是谁。
+- insert:
+    - id: llm-magpie
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          magpie:
+            displayName: Magpie 本地网关
+            api: openai-completions
+            baseURL: http://127.0.0.1:3425/v1
+            # magpie 不校验密钥（只监听 127.0.0.1），但 pi-ai 的手工路由
+            # 必须解析出一个非空 apiKeyEnv 才肯发请求，否则报
+            # 「No API key for provider」。这里给一个占位值。
+            apiKeyEnv: MAGPIE_API_KEY
+            defaultContextWindow: 1000000
+            defaultMaxTokens: 8192
+            models:
+              - id: group/ntars
+                name: 星玖优选
+                contextWindow: 1000000

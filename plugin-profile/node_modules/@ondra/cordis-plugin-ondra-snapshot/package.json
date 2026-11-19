@@ -1,0 +1,36 @@
+{
+  "name": "@ondra/cordis-plugin-ondra-snapshot",
+  "version": "2.1.2",
+  "private": true,
+  "description": "空谷 Ondra 的记忆快照：VACUUM INTO 一致副本、KEEP=3 轮转、quick_check 校验，恢复必须显式确认且绝不自动执行。",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "peerDependencies": {
+    "@ntars/cordis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  },
+  "ondra": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
