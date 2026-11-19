@@ -1,4 +1,4 @@
-import '../../../../../app/dsh_settings.dart';
+import 'profile_config.dart';
 
 /// 一个设置项在内核里的落点。
 ///
@@ -16,7 +16,7 @@ class OndraSettingTarget {
   /// 内核段 id（`CONFIG_SECTION_ID`，kebab）。
   final String section;
 
-  /// 段内字段名（**kebab**，与 `settings.json` 里的写法一致）。
+  /// 段内字段名（**kebab**，与旧插件 `KEY_PAIRS` 的段字段一致）。
   final String key;
 
   /// 数值换算：界面上的 0–100 语速要变成 `say` 的「词/分钟」这类。
@@ -29,12 +29,24 @@ class OndraSettingTarget {
 
 /// 设置页的键 → 内核落点。
 ///
-/// 这份表是本轮新增的**唯一接线处**：它把「33 个开关」变成「内核真的会读的字段」。
+/// 这份表是**唯一接线处**：它把「33 个开关」变成「内核真的会读的字段」。
+///
+/// ## 落点是 profile 装配层，不是 settings.json（2026-11-19 核查）
+///
+/// 内核对外的配置真源是 `~/.ondra/dsh/profiles/ondra/cordis.patch.yml`
+/// 里每个条目的 `config` 块：装配时传给 `apply(ctx, config)`，插件再用
+/// `schema.resolve(section, {user: config})` 做四层合并。发行版里**没有**
+/// 任何模块读 `$DSH_HOME/settings.json`——之前写那份文件等于写完没人看，
+/// 拨了开关内核照旧按默认值跑，两边都不报错。
+///
+/// 段 id（`privacy` / `tts` / …）与 patch 条目 id 的关系是 `ondra-<section>`。
+/// 写入在**下一次内核启动**后生效（内核没有文件 watcher）；「换默认模型」
+/// 会重启内核子进程，所以那条路径当场生效。
 /// 没有落点的项不在这张表里，界面会显式标注「本项只影响界面」——
 /// 不假装生效。
 ///
-/// 字段名全部按 `settings.json` 的口径写 **kebab**。改成 camel 会让内核
-/// 安静地按默认值跑（`ondra-tts` 的 README 里记着这个坑），而且两处都不报错。
+/// 字段名全部写 **kebab**。改成 camel 会让内核安静地按默认值跑
+/// （`ondra-tts` 的 README 里记着这个坑），而且两处都不报错。
 ///
 /// 是 `final` 不是 `const`：`scale` / `map` 是闭包，Dart 的 const 表达式
 /// 不允许闭包。这张表在启动时建一次，之后只读，final 的代价可以忽略。
@@ -209,7 +221,7 @@ List<OndraSettingTarget> ondraSettingTargetsOf(String key) =>
 
 /// 把所有设置写进内核。
 ///
-/// 在启动时调用一次：把界面上记着的值同步到 `settings.json`。
+/// 在启动时调用一次：把界面上记着的值同步到装配层的条目 config。
 /// 之后每次 `set()` 只写变化的那一项——全量重写在设置页里拨一下开关
 /// 就要重写几十个字段，写坏的窗口也更大。
 ///
@@ -228,7 +240,7 @@ List<OndraSettingTarget> ondraSettingTargetsOf(String key) =>
       final mapped = t.map == null ? value : t.map!(value);
       if (mapped == null) continue;
       final resolved = t.scale != null && mapped is num ? t.scale!(mapped) : mapped;
-      if (DshSettings.writeField(t.section, t.key, resolved)) {
+      if (writeProfileConfigField(t.section, t.key, resolved)) {
         written += 1;
       } else {
         failed += 1;
@@ -247,7 +259,7 @@ bool ondraPushSetting(String uiKey, Object? value) {
     final mapped = t.map == null ? value : t.map!(value);
     if (mapped == null) continue;
     final final_ = t.scale != null && mapped is num ? t.scale!(mapped) : mapped;
-    if (!DshSettings.writeField(t.section, t.key, final_)) ok = false;
+    if (!writeProfileConfigField(t.section, t.key, final_)) ok = false;
   }
   return ok;
 }

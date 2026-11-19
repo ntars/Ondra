@@ -123,6 +123,10 @@
 | ondra-store / runtime | TS 内核实现（src/），无 Dart UI | ✓ |
 | ondra-beichen-api / browser / voice / channel / emotion / relationship / font / locale | 内核侧 TS 实现（src/），浏览器白名单已落盘 | ✓ |
 
+**设置的落点**：真生效的位置是 `~/.ondra/dsh/profiles/ondra/cordis.patch.yml`
+里各条目的 `config` 块（内核装配时传给 `apply(ctx, config)`）。设置页改动
+写这里，下一次内核启动生效；`settings.json` 是历史形状，内核不读它。
+
 ### 4.0.2 内核侧（TS，运行在 `plugin-profile/` 的 77 个 @ondra 包）
 
 旧版 78 包按「是否共用一份状态」合并成 14 个新版（memory/emotion/persona/
