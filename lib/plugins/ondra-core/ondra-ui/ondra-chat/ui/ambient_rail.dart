@@ -596,8 +596,11 @@ class _Conversation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // settingsClient 也在监听里：设置面板改字号时，已有消息的渲染字号
+    // 要立即跟着变（alpha.2 审查第 7 项——只听 chatClient 时旧消息
+    // 要等下一条消息才更新）。
     return AnimatedBuilder(
-      animation: chatClient,
+      animation: Listenable.merge([chatClient, settingsClient]),
       builder: (context, _) {
         if (!chatClient.hasConversation) return const _Welcome();
         final msgs = chatClient.messages;

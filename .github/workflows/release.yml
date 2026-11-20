@@ -186,17 +186,20 @@ jobs:
           app="build/macos/Build/Products/Release/空谷 Ondra.app"
           # --norsrc --noextattr：不带资源叉。用 --sequesterRsrc 的话解压端会
           # 多出几百个 ._* 与 __MACOSX/，WinRAR 还会误判压缩包损坏。
+          # 命名如实（alpha.2 审查第 24 项）：这个包只含构建机架构的内核
+          # 运行时，叫 universal 是撒谎。Intel 版需要 Intel runner 产出
+          # macos-x64 运行时后再加，在那之前不给 Intel 用户假承诺。
           ditto -c -k --norsrc --noextattr --keepParent "$app" \
-            "Ondra-$tag-macos-universal.zip"
+            "Ondra-$tag-macos-arm64.zip"
           # dmg 用 udzo 压缩，20 MB 上下；不签名，只有链接器的 ad-hoc 签名。
           hdiutil create -volname "空谷 Ondra" -srcfolder "$app" -ov -format UDZO \
-            "Ondra-$tag-macos-universal.dmg"
+            "Ondra-$tag-macos-arm64.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: |
-            Ondra-*-macos-universal.zip
-            Ondra-*-macos-universal.dmg
+            Ondra-*-macos-arm64.zip
+            Ondra-*-macos-arm64.dmg
 
   # 只有 tag 触发才发布；workflow_dispatch 停在 Artifacts，免得误发。
   release:

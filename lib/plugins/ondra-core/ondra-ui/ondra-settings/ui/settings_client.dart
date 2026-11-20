@@ -39,6 +39,37 @@ class SettingsClient extends ChangeNotifier {
   });
   Set<String> get restartRequiredKeys => Set.unmodifiable(_restart);
   bool get restartRequired => _restart.isNotEmpty;
+
+  /// 启动时内核 profile 是否已就位。seed 在 main.dart 里发生在 load()
+  /// 之后（首启场景），profile 未就位时启动同步写了也落空。
+  final bool _profileNotReady = false;
+
+  /// 内核是否已连接。离线时跳过启动同步——写了内核也读不到，状态会对不上。
+  bool _connected = false;
+
+  bool _needsRestart(String key) => _restart.contains(key);
+
+  /// 连接成功后由 ChatClient 调用：此后启动同步不再跳过。
+  /// （首启场景：load() 时 profile 刚 seed、内核还没连上，直接推会落空。）
+  void markConnected() {
+    if (_connected) return;
+    _connected = true;
+    // 补推启动阶段跳过的项。
+    _runStartupSync();
+  }
+
+  void _runStartupSync() {
+    for (final spec in ondraSettingSpecs) {
+      if (spec.key == 'general.launchAtLogin' || _errors.containsKey(spec.key)) {
+        continue;
+      }
+      if (_profileNotReady || (!_connected && _needsRestart(spec.key))) {
+        continue;
+      }
+      _apply(spec.key, _values[spec.key]);
+    }
+    _notify();
+  }
   bool get applying => _states.containsValue(SettingApplyState.applying);
   String? errorFor(String key) => _errors[key];
   SettingApplyState stateOf(String key) =>
@@ -65,6 +96,15 @@ class SettingsClient extends ChangeNotifier {
     for (final spec in ondraSettingSpecs) {
       if (spec.key == 'general.launchAtLogin' ||
           _errors.containsKey(spec.key)) {
+        continue;
+      }
+      // 启动同步的三个跳过条件（alpha.2 审查第 18 项）：
+      // 1. profile 尚未 seed（首启场景）——写了也落空，等 seed 后重连；
+      // 2. 内核离线且此项需要重启——写了状态也对不上，等连上后由
+      //    applyPending 补；
+      // 3. 上一次的应用还挂着 pendingRestart——覆盖它会丢掉用户改动
+      //    没生效的事实。
+      if (_profileNotReady || (!_connected && _needsRestart(spec.key))) {
         continue;
       }
       _apply(spec.key, _values[spec.key]);

@@ -88,7 +88,12 @@ void main() {
         'avatar.png',
       ]),
     );
-    expect(paths.any((path) => path.startsWith('dsh/profiles/')), isFalse);
+    // dsh/profiles/ 的装配层整体不收；唯一例外是 cordis.patch.yml——
+    // 人设选择与各插件的用户配置写在这里，快照不带它恢复后会回旧人设。
+    expect(
+      paths.where((path) => path.startsWith('dsh/profiles/')),
+      ['dsh/profiles/ondra/cordis.patch.yml'],
+    );
     expect(paths, isNot(contains('browser-allowlist.json')));
     expect(paths, isNot(contains('user/plugin.js')));
     expect(paths, isNot(contains('user/secrets.json')));

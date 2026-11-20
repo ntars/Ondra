@@ -227,8 +227,11 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   // 不是召回预算」，拿它顶替等于把保护值当成配额，同样是不生效。
   OndraSettingSpec(
     key: 'memory.autoSummarize',
-    label: '自动归纳',
-    description: '每晚把零散的对话收成记忆点',
+    label: '定期整理记忆',
+    // 文案与实际行为对齐（alpha.2 审查第 15 项）：开关控制的是内核的
+    // 定期记忆整理任务（检查旧记忆是否该沉底归档），不是对话归纳——
+    // 对话归纳由对话管线自己决定，不在这颗开关的管辖内。
+    description: '每晚检查旧记忆，该沉底的沉底、该归档的归档',
     defaultValue: true,
   ),
   // ── 语音与音色（已并入人设设定） ──────────────────────────────────────

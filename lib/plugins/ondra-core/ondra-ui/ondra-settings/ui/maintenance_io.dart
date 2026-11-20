@@ -117,17 +117,24 @@ class OndraMaintenance {
         final src = Directory('$home/$name');
         if (!await src.exists()) continue;
         final dest = Directory('${out.path}/$name');
-        final r = await Process.run('ditto', [
-          '--norsrc',
-          '--noextattr',
-          src.path,
-          dest.path,
-        ]);
-        if (r.exitCode != 0) {
-          return MaintenanceResult(
-            ok: false,
-            message: '复制 $name 失败：${(r.stderr as String).trim()}',
-          );
+        // macOS 用 ditto（保留时间戳与权限、--norsrc 不生成 ._*)；
+        // Windows 没有 ditto，走 Dart 递归拷贝（上方已拒绝符号链接，
+        // 纯文件拷贝在这里是等价的）。
+        if (Platform.isMacOS) {
+          final r = await Process.run('ditto', [
+            '--norsrc',
+            '--noextattr',
+            src.path,
+            dest.path,
+          ]);
+          if (r.exitCode != 0) {
+            return MaintenanceResult(
+              ok: false,
+              message: '复制 $name 失败：${(r.stderr as String).trim()}',
+            );
+          }
+        } else {
+          await _copyTree(src, dest);
         }
         for (final f in dest.listSync(recursive: true)) {
           if (f is File) {
@@ -175,6 +182,20 @@ class OndraMaintenance {
         try {
           partial.deleteSync(recursive: true);
         } catch (_) {}
+      }
+    }
+  }
+
+  /// 递归拷贝目录（Windows 侧导出用）。符号链接已在导出入口统一拒绝，
+  /// 这里只处理文件与目录两种实体；中途失败抛异常，由调用方清理 partial。
+  Future<void> _copyTree(Directory src, Directory dest) async {
+    await dest.create(recursive: true);
+    await for (final entity in src.list(followLinks: false)) {
+      final target = '${dest.path}/${entity.uri.pathSegments.where((s) => s.isNotEmpty).last}';
+      if (entity is Directory) {
+        await _copyTree(entity, Directory(target));
+      } else if (entity is File) {
+        await entity.copy(target);
       }
     }
   }

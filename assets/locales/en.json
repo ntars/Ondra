@@ -62,8 +62,6 @@
   "30 天": "30 days",
   "半年": "6 months",
   "十年": "10 years",
-  "自动归纳": "Auto summarize",
-  "每晚把零散的对话收成记忆点": "Collect scattered conversations into memories every night",
   "语音": "Voice",
   "朗读回复": "Read replies aloud",
   "把回答念出来，长回答只念前两段": "Speak the answer; long answers read the first two paragraphs only",
@@ -100,5 +98,7 @@
   "取消": "Cancel",
   "删除": "Delete",
   "保存": "Save",
-  "关闭": "Close"
+  "关闭": "Close",
+  "定期整理记忆": "Tidy memories on schedule",
+  "每晚检查旧记忆，该沉底的沉底、该归档的归档": "Nightly check: settle or archive old memories"
 }

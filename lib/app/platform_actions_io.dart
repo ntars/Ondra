@@ -1,3 +1,4 @@
+import 'dart:convert' show utf8;
 import 'dart:io';
 
 import 'package:flutter/services.dart'
@@ -61,8 +62,12 @@ class PlatformActions {
       (debugOperatingSystemOverride ?? Platform.operatingSystem) == 'macos';
 
   // Linux 没有实现 XDG autostart / inhibitor，不能谎报支持并执行 macOS 命令。
+  static bool get _isWindows =>
+      (debugOperatingSystemOverride ?? Platform.operatingSystem) == 'windows';
+
   static bool get canAutoLaunch =>
       probe?.canAutoLaunch ??
+      (_isWindows && _executable.isNotEmpty) ||
       (_isMacOS &&
           (Platform.environment['HOME'] ?? '').startsWith('/') &&
           (debugProcessRunner != null || File('/bin/launchctl').existsSync()));
@@ -75,15 +80,43 @@ class PlatformActions {
   /// 被 `launchd` 直接执行，相对路径在登录阶段没有意义（工作目录不确定）。
   static String get _executable => Platform.resolvedExecutable;
 
+  static const _runKey =
+      r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
+  static const _runValueName = 'Ondra';
+
   static Future<bool?> autoLaunchEnabled() async {
     if (!canAutoLaunch) return null;
     if (probe != null) return probe!.autoLaunchEnabled();
+    if (_isWindows) {
+      final query = await Process.run('reg', [
+        'query',
+        _runKey,
+        '/v',
+        _runValueName,
+      ], stdoutEncoding: utf8, stderrEncoding: utf8);
+      if (query.exitCode != 0) return false;
+      final out = (query.stdout as String);
+      if (!out.contains(_executable)) {
+        // 有记录但指向别的目录（便携升级后常见，alpha.2 审查第 23 项）：
+        // 如实报「未知」而不是 true/false——用户看到的不再是「明明开过
+        // 却显示关闭」。重新拨一次开关就会把记录迁移到当前目录。
+        lastAutoLaunchMismatch = out
+            .split(RegExp(r'\s+'))
+            .where((part) => part.toLowerCase().endsWith('.exe'))
+            .join(' ');
+        return null;
+      }
+      return true;
+    }
     try {
       return File(_plistPath).existsSync();
     } catch (_) {
       return null;
     }
   }
+
+  /// 自启记录指向其他目录时的提示（autoLaunchEnabled 返回 null 的原因）。
+  static String? lastAutoLaunchMismatch;
 
   static Future<bool> _launchQueue = Future.value(true);
 
@@ -96,6 +129,24 @@ class PlatformActions {
   static Future<bool> _setAutoLaunch(bool enabled) async {
     if (!canAutoLaunch) return false;
     if (probe != null) return probe!.setAutoLaunch(enabled);
+    // Windows：注册表 Run 项。reg add 对同名值直接覆盖——便携升级后
+    // 开一次开关就把旧目录的记录迁移到当前目录（alpha.2 审查第 23 项）；
+    // reg delete 不看路径，旧记录也能清干净。
+    if (_isWindows) {
+      final exe = _executable;
+      final dir = File(exe).parent.path;
+      if (enabled) {
+        final add = await Process.run('reg', [
+          'add', _runKey, '/v', _runValueName, '/t', 'REG_SZ',
+          '/d', '$dir\\', '/f',
+        ], stdoutEncoding: utf8, stderrEncoding: utf8);
+        return add.exitCode == 0;
+      }
+      final del = await Process.run('reg', [
+        'delete', _runKey, '/v', _runValueName, '/f',
+      ], stdoutEncoding: utf8, stderrEncoding: utf8);
+      return del.exitCode == 0;
+    }
     try {
       final file = File(_plistPath);
       if (!enabled) {

@@ -148,6 +148,7 @@ class TransferFact {
     this.evidence = '',
     this.subject = '',
     this.archived = false,
+    this.sealed = false,
   });
 
   final String id;
@@ -158,6 +159,9 @@ class TransferFact {
   final String evidence;
   final String subject;
   final bool archived;
+
+  /// 封存：用户手动下架，与「归档」（沉底）是两回事。导出导入必须保真。
+  final bool sealed;
 }
 
 /// 一条要导出的关联。

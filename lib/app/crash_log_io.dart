@@ -36,10 +36,24 @@ class CrashLog {
       final dir = Directory(_dir);
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final file = _rotateIfNeeded(dir);
+      final home = ondraUserHome;
+      String redact(Object raw) {
+        var text = '$raw';
+        // 邮箱整段抹掉（alpha.2 审查第 14 项：脱敏开关之外，崩溃日志
+        // 本身也不该留可识别信息——它是排障材料，不是档案）。
+        text = text.replaceAllMapped(
+          RegExp('[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}'),
+          (_) => '<email>',
+        );
+        // 用户主目录抹掉：堆栈里的绝对路径会带出用户名。
+        if (home.isNotEmpty) text = text.replaceAll(home, '~');
+        return text;
+      }
+
       file.writeAsStringSync(
         '${_stamp()} [$scope] v$ondraVersion\n'
-        '$error\n'
-        '${stack ?? ''}\n'
+        '${redact('$error')}\n'
+        '${redact(stack ?? '')}\n'
         '${'-' * 60}\n',
         mode: FileMode.append,
         flush: true,

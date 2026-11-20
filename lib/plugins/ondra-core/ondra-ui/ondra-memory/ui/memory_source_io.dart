@@ -95,7 +95,14 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
 
 /// 跑一条查询，把 `-json` 输出解析成行列表。
 Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
-  final result = await Process.run(_sqlite, ['-readonly', '-json', dbPath, sql]);
+  final result = await Process.run(
+      _sqlite,
+      ['-readonly', '-json', dbPath, sql],
+      // sqlite3 的 JSON 输出是 UTF-8；Windows 上不指定就是系统编码
+      //（代码页 936），中文记忆直接乱码（alpha.2 审查第 20 项）。
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
   if (result.exitCode != 0) {
     throw ProcessException(
       _sqlite,

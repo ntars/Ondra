@@ -1,30 +1,43 @@
+import 'dart:convert' show utf8;
 import 'dart:io';
 
 /// 桌面端的系统文件面板。
 ///
-/// ## 为什么用 `osascript` 而不是引一个原生插件
+/// ## 为什么用系统自带命令而不是引一个原生插件
 ///
 /// 这个项目没有原生侧代码（Flutter 3.50 起原生壳由工具链生成，不手写）。
-/// macOS 自带 `osascript` 可以叫起 NSOpenPanel / NSSavePanel，代价是每次
-/// 起一个几十毫秒的子进程——而选文件本来就是人手动作，这点延迟看不见。
+/// macOS 自带 `osascript` 可以叫起 NSOpenPanel / NSSavePanel；Windows 自带
+/// PowerShell + .NET WinForms 可以叫起 OpenFileDialog / FolderBrowserDialog /
+/// SaveFileDialog。代价是每次起一个几十毫秒的子进程——而选文件本来就是
+/// 人手动作，这点延迟看不见。
 ///
 /// 换一个 zip 包处理器、或引 `file_selector`，都要在工程里加一份平台通道；
 /// 面板这种事一次交互一次进程，不值得。
 ///
 /// ## 失败一律返回 null / 空表
 ///
-/// 用户点「取消」时 osascript 的退出码是 1 且 stderr 有一句
-/// 「User canceled」。这与「真出错」在调用点没有区别——两者都该什么都不做，
+/// 用户点「取消」时 macOS 的 osascript 退出码是 1；Windows 的对话框返回
+/// Cancel、不输出路径。这与「真出错」在调用点没有区别——两者都该什么都不做，
 /// 所以这里不区分，统一当成「没选」。
 class DesktopPicker {
   const DesktopPicker._();
 
-  /// 实现走 `osascript`，只有 macOS 有。Windows / Linux 上这个值是 false，
-  /// 调用点据此把「取文件」入口如实禁用——否则用户点下去什么都不会发生。
-  static bool get supported => Platform.isMacOS;
+  /// macOS 走 `osascript`，Windows 走 PowerShell + WinForms。
+  /// Linux 没有免依赖的统一方案，保持 false 并由调用点如实提示。
+  static bool get supported => Platform.isMacOS || Platform.isWindows;
 
   /// 选一个文件。`prompt` 是面板顶部的说明文字。
   static Future<String?> pickFile({required String prompt}) async {
+    if (Platform.isWindows) {
+      final out = await _runWin([
+        'Add-Type -AssemblyName System.Windows.Forms | Out-Null;',
+        '\$d = New-Object System.Windows.Forms.OpenFileDialog;',
+        '\$d.Title = ${_psLit(prompt)};',
+        '\$d.Filter = "全部文件 (*.*)|*.*";',
+        'if (\$d.ShowDialog() -eq "OK") { [Console]::Out.Write(\$d.FileName) }',
+      ]);
+      return out.isEmpty ? null : out.first;
+    }
     final out = await _run([
       '-e',
       'POSIX path of (choose file with prompt ${_lit(prompt)})',
@@ -37,6 +50,19 @@ class DesktopPicker {
     required String prompt,
     int limit = 3,
   }) async {
+    if (Platform.isWindows) {
+      final out = await _runWin([
+        'Add-Type -AssemblyName System.Windows.Forms | Out-Null;',
+        '\$d = New-Object System.Windows.Forms.OpenFileDialog;',
+        '\$d.Title = ${_psLit(prompt)};',
+        '\$d.Multiselect = \$true;',
+        '\$d.Filter = "全部文件 (*.*)|*.*";',
+        'if (\$d.ShowDialog() -eq "OK") {',
+        '  [Console]::Out.Write((\$d.FileNames -join "`n"))',
+        '}',
+      ]);
+      return out.take(limit).toList(growable: false);
+    }
     // 多选不能用 `POSIX path of (choose file …)`：对列表取 POSIX path 在
     // 老版本 osascript 上只回第一条。显式收集再逐条转。
     final out = await _run([
@@ -59,6 +85,15 @@ class DesktopPicker {
 
   /// 选一个目录。
   static Future<String?> pickDirectory(String prompt) async {
+    if (Platform.isWindows) {
+      final out = await _runWin([
+        'Add-Type -AssemblyName System.Windows.Forms | Out-Null;',
+        '\$d = New-Object System.Windows.Forms.FolderBrowserDialog;',
+        '\$d.Description = ${_psLit(prompt)};',
+        'if (\$d.ShowDialog() -eq "OK") { [Console]::Out.Write(\$d.SelectedPath) }',
+      ]);
+      return out.isEmpty ? null : out.first;
+    }
     final out = await _run([
       '-e',
       'POSIX path of (choose folder with prompt ${_lit(prompt)})',
@@ -71,12 +106,31 @@ class DesktopPicker {
     required String prompt,
     required String defaultName,
   }) async {
+    if (Platform.isWindows) {
+      final out = await _runWin([
+        'Add-Type -AssemblyName System.Windows.Forms | Out-Null;',
+        '\$d = New-Object System.Windows.Forms.SaveFileDialog;',
+        '\$d.Title = ${_psLit(prompt)};',
+        '\$d.FileName = ${_psLit(defaultName)};',
+        '\$d.Filter = "全部文件 (*.*)|*.*";',
+        'if (\$d.ShowDialog() -eq "OK") { [Console]::Out.Write(\$d.FileName) }',
+      ]);
+      return out.isEmpty ? null : out.first;
+    }
     final out = await _run([
       '-e',
       'POSIX path of (choose file name with prompt ${_lit(prompt)} '
           'default name ${_lit(defaultName)})',
     ]);
     return out.isEmpty ? null : out.first;
+  }
+
+  /// PowerShell 命令行参数里不能直接放单引号字面量——外层用双引号包裹
+  /// 由 cmd 层转义，这里统一走 -EncodedCommand 太绕；直接把内层引号
+  /// 换成 PowerShell 的双引号转义形式。
+  static String _psLit(String raw) {
+    final escaped = raw.replaceAll('`', '``').replaceAll('"', '`"');
+    return '"$escaped"';
   }
 
   /// AppleScript 字符串字面量。提示语里可能出现引号或反斜杠——
@@ -93,6 +147,35 @@ class DesktopPicker {
   static Future<List<String>> _run(List<String> args) async {
     try {
       final r = await Process.run('osascript', args);
+      if (r.exitCode != 0) return const [];
+      return (r.stdout as String)
+          .split('\n')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Windows：拼成一段 PowerShell 脚本执行。
+  ///
+  /// - `-STA`：WinForms 对话框要求单线程单元，缺了直接抛异常；
+  /// - `-NoProfile -NonInteractive`：不吃用户配置、绝不挂住等待输入；
+  /// - 输出强制 UTF-8（`chcp 65001` 管不到 .NET 的 Console 编码），
+  ///   Dart 侧按 utf8 解——否则中文路径在代码页 936 的机器上是乱码。
+  static Future<List<String>> _runWin(List<String> scriptLines) async {
+    try {
+      final script =
+          '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; '
+                  '${scriptLines.join(' ')}'
+              .replaceAll('\n', ' ');
+      final r = await Process.run(
+        'powershell',
+        ['-NoProfile', '-NonInteractive', '-STA', '-Command', script],
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+      );
       if (r.exitCode != 0) return const [];
       return (r.stdout as String)
           .split('\n')

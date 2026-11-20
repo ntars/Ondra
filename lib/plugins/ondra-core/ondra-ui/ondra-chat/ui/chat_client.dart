@@ -142,6 +142,8 @@ class ChatClient extends ChangeNotifier {
       await _transport.connect();
       if (generation != _connectionGeneration) return;
       _connected = true;
+      // 连接成功后允许设置层做启动同步（首次启动 profile 刚 seed 完的场景）。
+      settingsClient.markConnected();
       _offlineReason = null;
     } catch (e) {
       if (generation != _connectionGeneration) return;
@@ -242,6 +244,8 @@ class ChatClient extends ChangeNotifier {
       if (stale()) return;
       reply.streaming = false;
       _connected = true;
+      // 连接成功后允许设置层做启动同步（首次启动 profile 刚 seed 完的场景）。
+      settingsClient.markConnected();
       _offlineReason = null;
       answered = true;
       if (reply.text.isEmpty) {

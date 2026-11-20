@@ -677,6 +677,7 @@ class TransferEngine {
             subject: _text(row['subject']),
             evidence: _text(row['evidence']),
             archived: _int(row['archived']) == 1,
+            sealed: _int(row['sealed']) == 1,
           ),
     ];
   }
@@ -714,7 +715,13 @@ class TransferEngine {
       // WAL 模式下 `-readonly` 需要能打开 `-wal` / `-shm`；这两个文件缺失
       // （刚被杀进程、或库是拷贝来的）时会报 CANTOPEN。这时退回 URI 只读，
       // 读主库里的内容——宁可少一条刚落盘的，也不该显示成「没有记忆」。
-      r = await Process.run(_sqlite, ['-json', 'file:$dbPath?mode=ro', sql]);
+      r = await Process.run(
+      _sqlite,
+      ['-json', 'file:$dbPath?mode=ro', sql],
+      // 同 memory_source_io：UTF-8 输出显式解码，防 Windows 代码页 936 乱码。
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
     }
     if (r.exitCode != 0) {
       throw ProcessException(
@@ -791,7 +798,7 @@ class TransferEngine {
             '${f.createdAt.millisecondsSinceEpoch}',
             '${f.createdAt.millisecondsSinceEpoch}',
             f.archived ? '1' : '0',
-            '0',
+            f.sealed ? '1' : '0',
             f.evidence.isEmpty ? 'null' : _q(f.evidence),
           ].join(', '),
         )
@@ -905,6 +912,7 @@ class TransferEngine {
             if (f.subject.isNotEmpty) 'subject': f.subject,
             if (f.evidence.isNotEmpty) 'evidence': f.evidence,
             if (f.archived) 'archived': true,
+            if (f.sealed) 'sealed': true,
           },
       ],
       'links': [for (final l in links) l.toJson()],
@@ -1011,6 +1019,7 @@ class TransferEngine {
           subject: _text(item['subject']),
           evidence: _text(item['evidence']),
           archived: item['archived'] == true || _int(item['archived']) == 1,
+          sealed: item['sealed'] == true || _int(item['sealed']) == 1,
         ),
       );
     }

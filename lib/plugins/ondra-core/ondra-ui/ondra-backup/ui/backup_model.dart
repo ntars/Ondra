@@ -105,6 +105,10 @@ abstract final class BackupPaths {
     'models.json',
     'browser-sites.json',
     'avatar.png',
+    // 内核 profile 的装配描述：人设选择（persona-loader.active-persona）
+    // 与各插件配置都写在这里。excludedDirectories 里的 profiles 排除的是
+    // 装配层目录（node_modules 等），这一个文件是用户配置，必须跟随快照。
+    'dsh/profiles/ondra/cordis.patch.yml',
   ];
   static const excludedDirectories = {
     'node_modules',
