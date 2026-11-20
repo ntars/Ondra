@@ -171,38 +171,6 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   ),
 
 
-  // ── 通道接口 ────────────────────────────────────────────────────────────
-  OndraSettingSpec(
-    key: 'channels.qqBot',
-    label: 'QQ 机器人',
-    description: '把空谷接到 QQ 群或私聊；需要机器人 AppID 与密钥',
-    defaultValue: false,
-  ),
-  OndraSettingSpec(
-    key: 'channels.qqSandbox',
-    label: 'QQ 沙箱环境',
-    description: '先在测试频道里跑通，再切到正式环境',
-    defaultValue: true,
-  ),
-  OndraSettingSpec(
-    key: 'channels.allowGroups',
-    label: '允许群聊',
-    description: '关掉后只回应私聊',
-    defaultValue: false,
-  ),
-  OndraSettingSpec(
-    key: 'channels.busyPolicy',
-    label: '通道繁忙时',
-    description: '多个通道同时来消息时的排队方式',
-    kind: OndraSettingKind.choice,
-    defaultValue: 'queue',
-    options: [
-      OndraSettingOption('queue', '排队'),
-      OndraSettingOption('steer', '插话'),
-      OndraSettingOption('drop', '丢弃'),
-    ],
-  ),
-
   // ── 记忆与数据（已并入人设设定） ──────────────────────────────────────
   OndraSettingSpec(
     key: 'memory.retention',

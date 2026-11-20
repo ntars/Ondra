@@ -29,8 +29,7 @@ void main() {
       'memory.retention', 'memory.autoSummarize',
       'voice.tts', 'voice.timbre', 'voice.rate', 'voice.asrLanguage',
       // 通道接口
-      'channels.qqBot', 'channels.qqSandbox', 'channels.allowGroups',
-      'channels.busyPolicy',
+      // channels.* 已随 QQ 适配器计划推迟移除（见 settings_spec 注释）。
       // 关于空谷（隐私已并入）
       'privacy.voiceCloud', 'privacy.imageCloud',
       'privacy.screenRead', 'privacy.redactLogs',

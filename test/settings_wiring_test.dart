@@ -71,11 +71,8 @@ void main() {
   // 永远无法兑现）：相关断言随之删除，等接口落地一并恢复。
 
   test('没有落点的项如实报告：isWired 为 false', () {
-    // focusMute/permissions 已从 spec 表移除（见 settings_spec 注释）。
-    // 这两项是真的没有任何落点，必须如实为 false。
-    for (final key in ['channels.qqBot', 'channels.allowGroups']) {
-      expect(ondraSettingIsWired(key), isFalse, reason: '$key 当前确实没接');
-    }
+    // focusMute/permissions/channels.* 已从 spec 表移除（QQ 适配器推迟，
+    // 见 settings_spec 注释）；spec 里没有的键直接抛「未声明」，无需 isWired。
     // 这几项是真的有落点（语音装配的是旧拆分件 tts/asr）。
     expect(ondraSettingIsWired('voice.tts'), isTrue);
     expect(ondraSettingIsWired('privacy.voiceCloud'), isTrue);

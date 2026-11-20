@@ -68,7 +68,6 @@ class ConsoleSheet extends StatefulWidget {
 enum _Pane {
   general('通用设置'),
   model('模型基座'),
-  channels('通道接口'),
   persona('人设设定'),
   about('关于空谷');
 
@@ -228,7 +227,6 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         final pane = switch (_pane) {
           _Pane.general => _general(s),
           _Pane.model => _model(s),
-          _Pane.channels => _channels(s),
           _Pane.persona => _persona(s),
           _Pane.about => _about(s),
         };
@@ -835,52 +833,6 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     );
   }
 
-  // ── 通道接口（QQ 机器人这类外部通道） ──────────────────────────────────────
-
-  Widget _channels(OndraSkin s) => _stack([
-    _Section(
-      title: 'QQ',
-      children: [
-        _specRow('channels.qqBot'),
-        _specRow('channels.qqSandbox'),
-        _specRow('channels.allowGroups', showDivider: false),
-      ],
-    ),
-    _Section(
-      title: '机器人凭据',
-      children: [
-        _Row(
-          title: 'AppID',
-          desc: '在 QQ 开放平台创建机器人后取得 · 本项需要通道插件：接上前只记录填写内容',
-          value: _qqAppId.isEmpty ? '未填写' : _qqAppId,
-          action: _LinkText(
-            label: '填写',
-            onTap: () => _editQqCredential(qqAppIdKey),
-          ),
-        ),
-        _Row(
-          title: '密钥',
-          desc: '只存在本机钥匙串，不上传 · 接上通道插件后才会被读取',
-          value: _qqSecretSet ? '已保存' : '未填写',
-          action: _LinkText(
-            label: '填写',
-            onTap: () => _editQqCredential(qqSecretKey),
-          ),
-          showDivider: false,
-        ),
-      ],
-    ),
-    _Section(
-      title: '投递',
-      children: [_specRow('channels.busyPolicy', showDivider: false)],
-    ),
-    const SizedBox(height: 4),
-    Text(
-      '通道是「把空谷接到别的聊天工具」：消息从 QQ 进来，回复送回去，'
-      '会话与记忆仍在本机。',
-      style: ondraText(11, color: s.ink30, height: 16 / 11),
-    ),
-  ]);
 
   // ── 关于空谷（隐私 / 反馈已并入） ──────────────────────────────────────────
 
@@ -1421,84 +1373,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     return flat.length <= max ? flat : '${flat.substring(0, max)}…';
   }
 
-  // ── 通道凭据 ────────────────────────────────────────────────────────────
-
-  /// AppID 存在偏好里、密钥进系统钥匙串。
-  ///
-  /// 分开存不是随意的：AppID 在 QQ 开放平台的控制台里是可见的公开标识，
-  /// 而密钥是密码。两样都塞钥匙串会让「AppID 填错了」这种排查变得麻烦
-  /// （得开钥匙串访问才能看），两样都放明文则是把密码摊在磁盘上。
-  static const String qqAppIdKey = 'channels.qqAppId';
-  static const String qqSecretKey = 'channels.qqSecret';
-
-  String get _qqAppId => readPref(qqAppIdKey);
-
-  bool _qqSecretSet = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // 打开时落在指定的那一栏：侧栏账户行 → 人设。枚举在壳层，这里翻译。
-    if (widget.initialPane != null) {
-      _pane = switch (widget.initialPane!) {
-        ShellPane.general => _Pane.general,
-        ShellPane.model => _Pane.model,
-        ShellPane.channels => _Pane.channels,
-        ShellPane.persona => _Pane.persona,
-        ShellPane.about => _Pane.about,
-      };
-    }
-    // 「已填写 / 未填写」要让用户一眼看清，而密钥本身永远不读回界面。
-    //
-    // 放到首帧之后：查钥匙串要起一个 `security` 子进程，在 initState 里同步
-    // 发起会让帧预算里挂一个未完成的定时器——测试里 `pumpWidget` 会因此报
-    // 「pending timers」，真机上则是打开设置的第一帧多一次进程创建的抖动。
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshSecretState());
-  }
-
-  Future<void> _refreshSecretState() async {
-    final has = await Keychain.exists(qqSecretKey);
-    if (mounted && has != _qqSecretSet) setState(() => _qqSecretSet = has);
-  }
 
   /// 填写凭据。AppID 走偏好，密钥走钥匙串，两者校验规则不同：
   /// AppID 是纯数字，密钥是 32 位十六进制以上的串——但这里**不强制**，
   /// 只挡掉明显错的（空、带空格）。格式校验归通道插件，界面不该抢着判。
-  Future<void> _editQqCredential(String key) async {
-    final isSecret = key == qqSecretKey;
-    final controller = TextEditingController(text: isSecret ? '' : _qqAppId);
-    final value = await OndraDialog.show<String>(
-      context,
-      _TextPromptDialog(
-        title: isSecret ? 'QQ 机器人密钥' : 'QQ 机器人 AppID',
-        hint: isSecret
-            ? (_qqSecretSet ? '已保存；重新输入可覆盖，留空则不修改' : '在 QQ 开放平台 → 开发设置里取得')
-            : '机器人资料页上的 AppID',
-        controller: controller,
-        obscure: isSecret,
-        maxLength: 4096,
-      ),
-    );
-    final text = value?.trim();
-    controller.dispose();
-    if (text == null) return;
-    if (text.isEmpty) {
-      // 密钥留空 = 「不修改」。要清掉得显式点删除，避免手滑清空一个正确的密钥。
-      if (isSecret) return;
-      writePref(key, '');
-      setState(() {});
-      return;
-    }
-    if (!isSecret) {
-      writePref(key, text);
-      if (mounted) setState(() {});
-      return;
-    }
-    final r = await Keychain.write(key, text);
-    if (!mounted) return;
-    OndraToast.show(context, r.message, ok: r.ok);
-    if (r.ok) await _refreshSecretState();
-  }
 
   /// 开源许可的展开内容。
   ///

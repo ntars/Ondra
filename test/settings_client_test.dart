@@ -115,13 +115,12 @@ void main() {
     await client.set('voice.tts', true);
     await client.set('voice.rate', 160);
     await client.set('dialog.replyLength', '2');
-    // 权限和无实现的通道项明确失败，不妨碍能执行的默认值真正写入。
-    expect(await client.resetAll(), isFalse);
+    // channels.*（QQ 适配器）已从 spec 移除：现在全部项都有落点，全成功。
+    expect(await client.resetAll(), isTrue);
     expect(readProfileConfigField('tts', 'enable'), 'false');
     expect(readProfileConfigField('tts', 'rate'), '0.0');
     expect(readProfileConfigField('dialogue', 'max-tokens'), '2048');
     expect(readPref('settings.voice.tts'), 'false');
-    expect(client.errorFor('channels.qqBot'), isNotNull);
   });
 
   test('平台 false/异常可见，失败不会标成 applied', () async {

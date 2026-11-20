@@ -169,4 +169,4 @@ class ShellScope extends InheritedNotifier<ShellState> {
 
 /// 设置面板的初始落点。与设置面板自己的枚举同形：壳层只说「想去哪一类」，
 /// 面板把它翻译成自己的 pane，两边不互相 import 私有类型。
-enum ShellPane { general, model, channels, persona, about }
+enum ShellPane { general, model, persona, about }
