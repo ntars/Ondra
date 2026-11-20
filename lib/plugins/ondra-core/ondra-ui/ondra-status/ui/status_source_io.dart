@@ -13,7 +13,7 @@ import '../../../../../app/home_dir.dart';
 String get _sqlite {
   final path = ondraSqliteCli;
   if (path == null) {
-    throw const ProcessException('sqlite3', [], ondraSqliteMissingHint);
+    throw ProcessException('sqlite3', [], ondraSqliteMissingHint);
   }
   return path;
 }

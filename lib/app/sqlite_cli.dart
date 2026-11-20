@@ -23,10 +23,16 @@ String? get ondraSqliteCli {
 }
 
 /// 给人看的一句话，用在「读不到数据」的地方。
-const String ondraSqliteMissingHint =
-    '本机没有找到 sqlite3 命令行工具，记忆库的读数暂时读不到。'
-    '发行版会随包带一份；从源码运行时可以安装 sqlite3，'
-    '或用环境变量 ONDRA_SQLITE3 指向它。';
+/// 安卓版不随包带 sqlite3（运行时只有 macos 目录），「等发行版」的说法
+/// 在那里是假的——按平台给话。
+String get ondraSqliteMissingHint {
+  if (Platform.isAndroid) {
+    return '安卓版还没有内置 sqlite3：记忆库的读数要等远程网关接入后才有。';
+  }
+  return '本机没有找到 sqlite3 命令行工具，记忆库的读数暂时读不到。'
+      '发行版会随包带一份；从源码运行时可以安装 sqlite3，'
+      '或用环境变量 ONDRA_SQLITE3 指向它。';
+}
 
 String? _cache;
 bool _probed = false;

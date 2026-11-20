@@ -271,7 +271,17 @@ class _BackupPageState extends State<BackupPage> {
                   label: '打开备份目录',
                   filled: false,
                   height: 34,
-                  onTap: () => _run(backupReveal),
+                  onTap: () async {
+                    if (!DesktopPicker.supported) {
+                      OndraToast.show(
+                        context,
+                        '这台系统还没有文件管理面板：备份目录在应用数据文件夹里。',
+                        ok: false,
+                      );
+                      return;
+                    }
+                    await _run(backupReveal);
+                  },
                 ),
               ),
             ],

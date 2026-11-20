@@ -13,7 +13,7 @@ String get _sqlite {
   if (path == null) {
     // 抛成 ProcessException 而不是别的类型：下面 `_query` 的调用点已经
     // 按这个类型降级成一条 `note`，不需要再发明一套错误通道。
-    throw const ProcessException('sqlite3', [], ondraSqliteMissingHint);
+    throw ProcessException('sqlite3', [], ondraSqliteMissingHint);
   }
   return path;
 }
@@ -28,10 +28,14 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
   final home = ondraUserHome;
   final db = File('$home/.ondra/user/ondra.db');
   if (!db.existsSync()) {
-    return const MemorySnapshot(
-      facts: [],
-      links: [],
-      note: '还没有记忆库（内核第一次收到对话后才会建）',
+    // 安卓的内核起不来（系统不允许启动 node 子进程），「等内核建库」
+    // 会变成永远等不到的承诺——文案必须如实。
+    const desktopNote = '还没有记忆库（内核第一次收到对话后才会建）';
+    const androidNote = '安卓版还没有内核运行时：记忆库要等远程网关接入后才有。';
+    return MemorySnapshot(
+      facts: const [],
+      links: const [],
+      note: Platform.isAndroid ? androidNote : desktopNote,
     );
   }
 

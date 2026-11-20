@@ -29,11 +29,31 @@ android {
         versionName = flutter.versionName
     }
 
+    // 签名密钥从 key.properties 读（不进仓库）；CI 上由 workflow 解码注入。
+    // 密钥固定是升级覆盖安装的前提：换一次 key，用户就必须卸载重装。
+    val keystoreProperties = java.util.Properties().apply {
+        val f = rootProject.file("key.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties.isNotEmpty()) {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (keystoreProperties.isNotEmpty()) {
+                signingConfigs.getByName("release")
+            } else {
+                // 没有 key.properties（例如克隆仓库直接跑）时退回 debug key，
+                // 本地能跑起来；正式发版必须走上面的 release 配置。
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

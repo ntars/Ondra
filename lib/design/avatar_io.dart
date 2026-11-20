@@ -27,14 +27,20 @@ Uint8List? readAvatarBytes() {
   }
 }
 
+/// 原生头像通道是否可用：现在只有 macOS 的 app 壳实现了 `ondra/avatar`。
+/// 安卓没有这个通道——调用会抛 MissingPluginException，被 catch 吞掉后
+/// 界面点下去毫无反应。暴露出来让调用方如实提示。
+bool get avatarPickerSupported => Platform.isMacOS;
+
 /// 弹 NSOpenPanel。原生侧负责裁切、缩放、落盘，返回是否真的换了图。
+/// [avatarPickerSupported] 为 false 时不会真正调用。
 Future<bool> pickAvatar() async {
+  if (!avatarPickerSupported) return false;
   try {
     final changed = await _channel.invokeMethod<bool>('pick');
     return changed ?? false;
   } catch (_) {
-    // 原生侧没接（Web 构建、通道未建好）时静默失败：按钮点下去没反应，
-    // 但不会抛到界面上。真正的平台差异由 avatar_stub 兜。
+    // 通道建好但仍失败（面板被系统策略拒绝等）：同上，false 即取消/失败。
     return false;
   }
 }

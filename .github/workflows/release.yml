@@ -101,6 +101,10 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -111,20 +115,29 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - name: 解码签名密钥
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/ondra-release.jks
+          cat > android/key.properties <<KEYPROPS
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=ondra-release.jks
+          KEYPROPS
       - name: Build arm64
         run: |
           flutter build apk --release --target-platform android-arm64
           cp build/app/outputs/flutter-apk/app-release.apk \
-            "Ondra-${GITHUB_REF_NAME#v}-android-arm64.apk"
+            "空谷 Ondra-${GITHUB_REF_NAME#v}-android-arm64.apk"
       - name: Build universal
         run: |
           flutter build apk --release
           cp build/app/outputs/flutter-apk/app-release.apk \
-            "Ondra-${GITHUB_REF_NAME#v}-android-universal.apk"
+            "空谷 Ondra-${GITHUB_REF_NAME#v}-android-universal.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: Ondra-*-android-*.apk
+          path: "*android-*.apk"
 
   macos:
     runs-on: macos-latest
