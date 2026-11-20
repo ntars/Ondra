@@ -1,5 +1,12 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+import 'package:flutter/services.dart' show rootBundle;
+
+import 'android_native.dart';
+import 'version.dart';
+import 'home_dir.dart';
+
 /// 一份随包运行时的三个入口路径。
 ///
 /// 三者必须来自同一个 `runtime/<平台>-<架构>/` 目录：混用会出现
@@ -10,7 +17,12 @@ class OndraBundledRuntime {
     required this.nodePath,
     required this.dshEntry,
     required this.profileDir,
+    this.libDir,
   });
+
+  /// 动态库目录（安卓 = nativeLibraryDir，node 的依赖库都在那里；
+  /// 桌面 = null，依赖走系统路径）。启动子进程时要喂给 LD_LIBRARY_PATH。
+  final String? libDir;
 
   /// `runtime/macos-arm64` 本身。排障时把它打进日志，一眼看出用的哪一份。
   final String rootDir;
@@ -45,6 +57,12 @@ bool _probed = false;
 OndraBundledRuntime? get ondraBundledRuntime {
   if (_probed) return _cache;
   _probed = true;
+  // 安卓：内核与闭包不在 runtime/<plat>/ 里，而在 jniLibs（libnode.so）
+  // 与应用私有目录（assets 解压出来的 dsh）。initAndroidRuntimeAssets()
+  // 在启动序列里已把解压做完；这里只做探测，失败如实 null。
+  if (Platform.isAndroid) {
+    return _cache = _androidRuntime();
+  }
   for (final base in _runtimeBases()) {
     final found = _pickIn(base);
     if (found != null) {
@@ -92,6 +110,74 @@ Iterable<String> _runtimeBases() sync* {
     final parent = Directory(dir).parent.path;
     if (parent == dir || parent.isEmpty) break;
     dir = _normalize(parent);
+  }
+}
+
+/// 安卓的解压目标：应用私有目录下的 runtime-android。
+String get _androidRuntimeDir =>
+    '${ondraUserDataRoot.replaceAll(r'\', '/')}/runtime-android';
+
+String? _androidLibDirCache;
+
+/// 安卓运行时探测：闭包解压 + libnode.so 就位即返回。
+OndraBundledRuntime? _androidRuntime() {
+  final dshEntry = File('$_androidRuntimeDir/dsh/lib/bin.js');
+  final libDir = _androidLibDirCache;
+  if (!dshEntry.existsSync() || libDir == null) return null;
+  final node = File('$libDir/libnode.so');
+  if (!node.existsSync()) return null;
+  final profile = Directory('$_androidRuntimeDir/profile');
+  return OndraBundledRuntime(
+    rootDir: _androidRuntimeDir,
+    nodePath: node.path,
+    dshEntry: dshEntry.path,
+    profileDir: profile.existsSync()
+        ? profile.path
+        : '$_androidRuntimeDir/dsh',
+    libDir: libDir,
+  );
+}
+
+/// 启动序列调用（安卓专属，其他平台空操作）：把 assets 里的内核闭包
+/// 解压到应用私有目录。幂等——MANIFEST 记录「应用构建号 + 包字节数」，
+/// 没变就跳过（省去每次启动 14MB 的解压）；变了（升级 APK）整体重铺。
+///
+/// 为什么不直接从 assets 跑：node 的模块解析、dsh 的会话库都要真实
+/// 文件路径，assets 是只读的内存映射。
+Future<void> initAndroidRuntimeAssets() async {
+  if (!Platform.isAndroid) return;
+  _androidLibDirCache = await androidNativeLibDir();
+  const asset = 'assets/ondra-dsh.zip';
+  final zipDir = Directory(_androidRuntimeDir);
+  final manifestFile = File('$_androidRuntimeDir/MANIFEST');
+  const expected = 'build=$ondraBuild';
+  if (manifestFile.existsSync() &&
+      manifestFile.readAsStringSync().trim() == expected) {
+    return; // 已经解压过，同一份构建。
+  }
+  try {
+    final data = await rootBundle.load(asset);
+    final archive = ZipDecoder().decodeBytes(data.buffer.asUint8List());
+    if (zipDir.existsSync()) {
+      zipDir.deleteSync(recursive: true);
+    }
+    zipDir.createSync(recursive: true);
+    var files = 0;
+    for (final entry in archive) {
+      if (entry.isFile) {
+        final out = File('${zipDir.path}/${entry.name}');
+        out.createSync(recursive: true);
+        out.writeAsBytesSync(entry.content as List<int>);
+        files++;
+      } else {
+        Directory('${zipDir.path}/${entry.name}').createSync(recursive: true);
+      }
+    }
+    manifestFile.writeAsStringSync('$expected\nfiles=$files\n', flush: true);
+  } on Exception {
+    // 解压失败（存储满、通道缺）：如实清空 MANIFEST，探测会返回 null，
+    // 界面按「内核不可用」处理——好过半解压的残骸被当成完整闭包。
+    if (manifestFile.existsSync()) manifestFile.deleteSync();
   }
 }
 

@@ -86,3 +86,9 @@ android/key.properties
 #   1. 它是二进制，体积不适合 git
 #   2. 它必须与本机内核同版本，提交进去反而会「打了包的内核比测过的旧」
 /runtime/
+
+# 安卓内核打包产物：CI/本地用 tool/pack_android_kernel.mjs 现拉现打，
+# 不进仓库（node 49M + 依赖库 + 闭包 zip，全在 termux CDN 与装配产物里）。
+android/app/src/main/jniLibs/
+android/app/src/main/assets/ondra-dsh.zip
+runtime/closure/

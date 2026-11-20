@@ -185,6 +185,8 @@ for (const arg of process.argv.slice(2)) {
     say('  ONDRA_SQLITE3_BIN  指定 sqlite3.exe（Windows）');
     say('  ONDRA_SKIP_SQLITE  设为 1 则不去取 sqlite3.exe');
     process.exit(0);
+  } else if (arg === '--closure-only') {
+    // 标记位，主流程统一处理（见 --closure-only 分支）。
   } else die(`未知参数：${arg}`);
 }
 
@@ -1117,6 +1119,32 @@ async function copyPayload(dest) {
 
   // 7) Windows 的 sqlite3.exe。
   await fetchSqlite(dest);
+}
+
+// --closure-only：只产出 dsh 依赖闭包（runtime/closure/dsh/），不拷 node、
+// 不抓 sqlite、不跑握手。给安卓打包用：闭包与宿主平台无关（差异只有各平台
+// 的 prebuilds 目录，安卓侧再裁），CI 的 android job 用它拿到与桌面同一份
+// 闭包，不用重复实现遍历逻辑。
+if (process.argv.includes('--closure-only')) {
+  const closureOut = path.join(REPO, 'runtime', 'closure');
+  if (fs.existsSync(closureOut)) rimraf(closureOut);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ondra-closure-'));
+  await copyPayload(tmp);
+  fs.mkdirSync(path.join(closureOut), { recursive: true });
+  fs.renameSync(path.join(tmp, 'dsh'), path.join(closureOut, 'dsh'));
+  // profile 种子也要带上：安卓端解压后靠它 seed（CI 的 android job 没有
+  // 本机 profile，只能用仓库快照——copyPayload 已经处理好了来源）。
+  if (fs.existsSync(path.join(tmp, 'profile'))) {
+    fs.renameSync(path.join(tmp, 'profile'), path.join(closureOut, 'profile'));
+  }
+  rimrafQuietly(tmp, '闭包临时目录');
+  say(`── 产出 ${path.relative(REPO, closureOut)} ──`);
+  say(`  dsh     : ${mb(sizeOf(path.join(closureOut, 'dsh')))}`);
+  if (fs.existsSync(path.join(closureOut, 'profile'))) {
+    say(`  profile : ${mb(sizeOf(path.join(closureOut, 'profile')))}`);
+  }
+  say('完成。');
+  process.exit(0);
 }
 
 // dry-run 不碰已有产物：它承诺的是「只看体积」。删了再算，等于把上一次

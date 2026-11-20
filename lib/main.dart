@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:material_ui/material_ui.dart';
 
 import 'app/crash_log.dart';
+import 'app/bundled_runtime.dart';
 import 'app/home_dir.dart';
 import 'app/ondra_app.dart';
 import 'app/runtime_seed.dart';
@@ -41,6 +42,9 @@ Future<void> main() async {
   // 安卓的持久数据目录要在任何数据落盘之前定好（prefs / 密钥 / 模型清单
   // 都以 ondraUserHome 为根）。桌面平台是空操作。
   await initAndroidHome();
+  // 内核闭包解压：必须在第一次连接内核（seed / bundledRuntime 探测）之前
+  // 完成。桌面是空操作；解压失败不影响启动，界面按「内核不可用」处理。
+  await initAndroidRuntimeAssets();
   await OndraFont.load();
   // 桌面端在这里把窗口定成 960×600；web 上是空实现。
   await applyWindowGeometry();
