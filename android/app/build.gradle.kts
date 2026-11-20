@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -31,7 +33,7 @@ android {
 
     // 签名密钥从 key.properties 读（不进仓库）；CI 上由 workflow 解码注入。
     // 密钥固定是升级覆盖安装的前提：换一次 key，用户就必须卸载重装。
-    val keystoreProperties = java.util.Properties().apply {
+    val keystoreProperties = Properties().apply {
         val f = rootProject.file("key.properties")
         if (f.exists()) f.inputStream().use { load(it) }
     }
