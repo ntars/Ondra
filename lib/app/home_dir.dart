@@ -19,6 +19,16 @@ String get ondraUserHome {
   if (home != null && home.isNotEmpty) return home;
   final profile = env['USERPROFILE'];
   if (profile != null && profile.isNotEmpty) return profile;
+  // 安卓上 HOME 未设、当前目录不可写——不接这一分支的话，所有本地数据
+  // （prefs / models.json / 日志）都会静默写失败，界面显示成「没有数据」。
+  // TMPDIR 由系统设置为应用私有 cache（/data/user/0/<包名>/cache）：
+  // 可写、其他应用读不到。持久的 files 目录需要 path_provider 通道，
+  // 是下一轮的事；先保证写得进去。
+  if (Platform.isAndroid) {
+    final tmp = env['TMPDIR'];
+    if (tmp != null && tmp.isNotEmpty) return tmp;
+    return Directory.systemTemp.path;
+  }
   return Directory.current.path;
 }
 
