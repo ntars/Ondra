@@ -26,8 +26,8 @@
 | Item | Value |
 |---|---|
 | Version | 2.0.0-alpha |
-| Status | Internal alpha: macOS builds and runs, web builds, core features complete |
-| Platforms | macOS (runs) · Web (builds) |
+| Status | Internal alpha: macOS builds and runs, web builds, Windows builds but the release package does not yet bundle the runtime |
+| Platforms | macOS (runs) · Web (builds) · Windows (builds, in progress) |
 | Repository | <https://github.com/ntars/Ondra> |
 | License | Apache-2.0 / MIT (layered by directory) |
 
@@ -377,7 +377,9 @@ Follows Keep a Changelog and semantic versioning.
 | Item | Target version | Status |
 |---|---|---|
 | Keychain storage and key management | 2.0.0-beta | Planned |
-| Native window entries for Windows / Linux | 2.0.0-beta | Planned |
+| Windows release package bundling the runtime (assembly and cache in workflow) | 2.0.0-beta | In progress |
+| Native window entry for Windows | 2.0.0-beta | In progress |
+| Native window entry for Linux | 2.0.0-beta | Planned |
 | Wrap five `schema.register()` calls in `ctx.effect` | 2.0.1 | Planned |
 | End-to-end memory pipeline visualisation | 2.1.0 | Planned |
 | Frame-rate and cold-start benchmarks | 2.1.0 | Planned |
@@ -394,6 +396,7 @@ All non-commitments.
 - Commit messages: `<type>(<scope>): <subject>`, scope from `ui` / `plugin` / `core` / `design` / `docs`.
 - New plugins need `plugin.json`, a README and a dependency entry in the assembly layer.
 - Full process in [CONTRIBUTING.md](CONTRIBUTING.md); community expectations in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- Contributors and their scopes of responsibility: [CONTRIBUTORS.md](CONTRIBUTORS.md) (Chinese).
 
 ---
 

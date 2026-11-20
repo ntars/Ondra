@@ -26,8 +26,8 @@
 | 项 | 内容 |
 |---|---|
 | 版本 | 2.0.0-alpha |
-| 状态 | 内测阶段：macOS 可构建可运行，Web 可构建，核心功能完成 |
-| 平台 | macOS（可运行）· Web（可构建） |
+| 状态 | 内测阶段：macOS 可构建可运行，Web 可构建，Windows 可构建但发布包尚未自带运行时 |
+| 平台 | macOS（可运行）· Web（可构建）· Windows（可构建，构建中） |
 | 仓库 | <https://github.com/ntars/Ondra> |
 | 许可 | Apache-2.0 / MIT（按目录分层） |
 
@@ -521,7 +521,9 @@ Ondra/
 | 计划项 | 目标版本 | 状态 |
 |---|---|---|
 | 钥匙串写入与密钥管理 | 2.0.0-beta | 计划中 |
-| Windows / Linux 原生窗口入口 | 2.0.0-beta | 计划中 |
+| Windows 发布包自带运行时（装配与缓存接入 workflow） | 2.0.0-beta | 构建中 |
+| Windows 原生窗口入口 | 2.0.0-beta | 构建中 |
+| Linux 原生窗口入口 | 2.0.0-beta | 计划中 |
 | 五处 `schema.register()` 改为 effect 包裹 | 2.0.1 | 计划中 |
 | 记忆链路端到端可视化 | 2.1.0 | 计划中 |
 | 帧率与冷启动基准测试 | 2.1.0 | 计划中 |
@@ -538,6 +540,7 @@ Ondra/
 - 提交信息：`<type>(<scope>): <subject>`，scope 取 `ui` / `plugin` / `core` / `design` / `docs`。
 - 新增插件须提供 `plugin.json` 与 README，并在装配层登记依赖。
 - 详细流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+- 贡献者及其职责范围见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。
 
 ---
 
