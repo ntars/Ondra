@@ -15,7 +15,11 @@ Copyright (c) 2024-2026 星玖工作室 Ntarstudio
 | 范围 | 许可 | 依据 |
 |---|---|---|
 | `lib/plugins/ondra-core/` `ondra-extensions/` `ondra-custom/` `dsh-base/` | Apache-2.0 | 见 [`LICENSE`](./LICENSE) |
-| `lib/app/` `lib/design/` `lib/main.dart` `tool/` `test/` | MIT | 同上 |
+| `plugin-profile/`（插件装配快照，77 个首方插件包） | Apache-2.0 | 同上；为该层的编译产物 |
+| `assets/plugins/manifest.json` | Apache-2.0 | 同上；插件体系元数据 |
+| `lib/app/` `lib/design/` `lib/main.dart` `tool/` `test/` `docs/` `assets/locales/` | MIT | 同上 |
+| `pubspec.yaml` `pubspec.lock` `analysis_options.yaml` `.metadata` | MIT | 同上；根级工程配置 |
+| `android/` `ios/` `macos/` `windows/` `linux/` `web/` `ohos/` | 随上游模板 | Flutter / OpenHarmony 生成脚手架，模板随各自 SDK，本项目改动随根许可 |
 | 品牌名称、Logo、界面设计 | 保留所有权利 | 不随代码许可授予 |
 | `assets/personas/` 人设文本 | 保留所有权利 | 创作内容 |
 | `assets/fonts/` | 各自上游许可 | 见第四节 |
@@ -24,6 +28,9 @@ Copyright (c) 2024-2026 星玖工作室 Ntarstudio
 让闭源插件也能安心接入；界面与胶水代码用 MIT，门槛最低。
 
 **两种许可都无传染性**：第三方插件、二次开发、商业分发均无需开放自己的代码。
+
+**默认归属**：本表未列出的本项目自研文件，一律适用根 `LICENSE`（Apache-2.0）。
+完整路由见 [`LICENSING.md`](./LICENSING.md)。
 
 ---
 
@@ -192,7 +199,7 @@ message-square / plug）
 使用或再分发本项目时，请一并保留：
 
 1. 本 NOTICE 文件；
-2. `LICENSES/Apache-2.0.txt` 与 `LICENSES/MIT.txt` 许可全文；
+2. 根目录的 `LICENSE`（Apache-2.0 全文）与 `LICENSE-MIT`（MIT 全文）——本仓库没有 `LICENSES/` 目录；
 3. `lib/plugins/cordis/LICENSE`（上游 MIT 声明）；
 4. 源文件中已有的版权与许可声明。
 

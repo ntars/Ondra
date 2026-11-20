@@ -540,8 +540,12 @@ Copyright © 2024-2026 星玖工作室 Ntarstudio. Licensed under Apache-2.0 / M
 | 路径 | 许可 |
 |---|---|
 | `lib/plugins/ondra-core/` `ondra-extensions/` `ondra-custom/` `dsh-base/` | Apache-2.0 |
-| `lib/app/` `lib/design/` `lib/main.dart` `tool/` `test/` | MIT |
+| `plugin-profile/`（插件装配快照）`assets/plugins/manifest.json` | Apache-2.0 |
+| `lib/app/` `lib/design/` `lib/main.dart` `tool/` `test/` `docs/` `assets/locales/` | MIT |
 | `assets/brand/` `assets/personas/` `assets/icons/` 与品牌界面 | 保留所有权利 |
+
+**默认归属**：上表未列出的本项目自研文件，一律适用根 `LICENSE`（Apache-2.0）。
+逐路径路由、平台脚手架的归属、再分发须保留的文件清单，见 [LICENSING.md](LICENSING.md)。
 
 `lib/plugins/cordis/` 是上游 Cordis 4.1.0 的发行包副本，许可为 MIT，版权归其作者，不适用本仓库分层授权。
 

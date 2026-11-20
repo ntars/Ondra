@@ -10,6 +10,18 @@ Copyright (c) 2024-2026 星玖工作室 Ntarstudio
 
 ---
 
+## 零、默认归属（先看这条）
+
+**下表未列出的、由本项目编写的文件，一律适用根 [`LICENSE`](./LICENSE)，即 Apache-2.0。**
+
+这条兜底规则是必须的。只列目录而不写默认值，克隆者面对 `pubspec.yaml`、
+`analysis_options.yaml` 这类根级配置就无从判断归属，法律上等于没有授权。
+需要相反结果的路径，必须显式写进下表——**不存在「靠猜」的路径**。
+
+第三方文件与「保留所有权利」的内容不适用本兜底条款，它们按第二、三节处理。
+
+---
+
 ## 一、分层映射
 
 | 路径 | 许可 | 说明 |
@@ -18,14 +30,20 @@ Copyright (c) 2024-2026 星玖工作室 Ntarstudio
 | `lib/plugins/ondra-extensions/` | **Apache-2.0** | 插件扩展 API 与契约 |
 | `lib/plugins/ondra-custom/` | **Apache-2.0** | 内置插件实现 |
 | `lib/plugins/dsh-base/` | **Apache-2.0** | 内核适配层（仅接口定义） |
+| `plugin-profile/` | **Apache-2.0** | 内核插件装配快照（77 个首方插件包的编译产物，由 `tool/sync_plugin_profile.mjs` 生成，非独立源码） |
+| `assets/plugins/manifest.json` | **Apache-2.0** | 插件清单，属插件体系元数据 |
 | `lib/app/` | **MIT** | 三栏界面、导航、页面装配 |
 | `lib/design/` | **MIT** | 设计令牌与主题 |
 | `lib/main.dart` | **MIT** | 应用入口 |
 | `tool/` | **MIT** | 构建与开发脚本 |
 | `test/` | **MIT** | 测试 |
+| `docs/` | **MIT** | 架构与平台说明 |
+| `assets/locales/` | **MIT** | 界面文案资源 |
+| `pubspec.yaml` `pubspec.lock` `analysis_options.yaml` `.metadata` | **MIT** | 根级工程配置 |
+| `android/` `ios/` `macos/` `windows/` `linux/` `web/` `ohos/` | **随上游模板 / 本项目改动随根许可** | 平台脚手架由 Flutter 与 OpenHarmony 模板生成，模板本身随各自 SDK 的 BSD-3-Clause；本项目对其的修改不单独主张 |
 | `assets/brand/` 品牌名称、Logo、界面设计 | **保留所有权利** | 不随代码许可授予 |
 | `assets/personas/` 人设包文本 | **保留所有权利** | 创作内容，非代码 |
-| `assets/icons/` | **保留所有权利** | 见下方说明 |
+| `assets/icons/` | **保留所有权利** | 其中 30 枚取自 Lucide（ISC），见 [`NOTICE`](./NOTICE) 第五节 |
 | `assets/fonts/` | **不含字体文件** | 只有 `.gitkeep` 占位，见 §2.1 |
 
 ## 二、第三方框架
@@ -61,7 +79,19 @@ Copyright (c) 2024-2026 星玖工作室 Ntarstudio
 代码许可只授予**代码**权利，不授予商标权，也不授予「暗示获得原作者背书」的权利。
 修改版请更换品牌标识，或明确标注为非官方版本。
 
-## 五、禁止引入 copyleft 组件
+## 五、再分发时须一并保留的文件
+
+| 文件 | 依据 |
+|---|---|
+| `LICENSE`（Apache-2.0 全文） | Apache-2.0 第 4 条 a 项 |
+| `LICENSE-MIT`（MIT 全文） | MIT 正文「须包含上述版权声明与许可声明」 |
+| `NOTICE` | Apache-2.0 第 4 条 d 项 |
+| `lib/plugins/cordis/LICENSE` | 上游 MIT 声明 |
+| 各源文件中已有的版权与许可声明 | Apache-2.0 第 4 条 b 项 |
+
+本仓库**没有** `LICENSES/` 目录，许可全文只有根目录这两个文件。
+
+## 六、禁止引入 copyleft 组件
 
 宽松许可可以吸收宽松许可，但**不能反向吸收 copyleft**。
 一个 GPL / LGPL / AGPL / MPL 组件一旦引入，整个项目将被要求以该 copyleft 许可分发，
