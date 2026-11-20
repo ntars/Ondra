@@ -114,12 +114,17 @@ function extractFromDeb(tmp, url, wantPath) {
   download(url, deb);
   const tarXz = path.join(tmp, 'data.tar.xz');
   extractDataTarXz(deb, tarXz);
-  // bsdtar（mac 自带 tar）与 ubuntu tar 都认 xz。wantPath 为空 = 全量展开
-  //（依赖库包在 data/data/com.termux/files/usr/lib/ 下自己找）。
-  const args = ['-xf', tarXz, '-C', tmp];
-  if (wantPath) args.push(wantPath);
-  run('tar', args);
-  // wantPath 是空字符串时 ?? 不会兜底（'' 不是 nullish）——用三元。
+  // 一律全量展开，不用 pattern：deb 的 data.tar.xz 里路径可能带 `./`
+  // 前缀（./data/data/…），GNU tar（CI ubuntu）的成员匹配是精确的，
+  // pattern 对不上就整个失败；mac 的 bsdtar 宽松所以本地测不出来。
+  // 展开后的路径是归一化的（./data → data），按展开后的真实路径找。
+  run('tar', ['-xf', tarXz, '-C', tmp]);
+  if (wantPath) {
+    const exact = path.join(tmp, wantPath);
+    if (fs.existsSync(exact)) return exact;
+    die(`展开的包里没有 ${wantPath}`);
+  }
+  // wantPath 是空字符串时 ?? 不会兜底（'' 不是 nullish）——用 ||。
   return path.join(tmp, wantPath || 'data/data/com.termux/files/usr/lib');
 }
 
