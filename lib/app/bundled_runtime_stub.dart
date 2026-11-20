@@ -8,6 +8,7 @@ class OndraBundledRuntime {
     required this.nodePath,
     required this.dshEntry,
     required this.profileDir,
+    this.libDir,
   });
 
   final String rootDir;
@@ -15,9 +16,15 @@ class OndraBundledRuntime {
   final String dshEntry;
   final String profileDir;
 
+  /// 动态库目录（桌面/Web 恒 null）。
+  final String? libDir;
+
   bool get hasProfile => false;
 }
 
 OndraBundledRuntime? get ondraBundledRuntime => null;
 
 void debugResetBundledRuntime() {}
+
+/// Web 空操作：没有 assets 解压，也没有内核。
+Future<void> initAndroidRuntimeAssets() async {}

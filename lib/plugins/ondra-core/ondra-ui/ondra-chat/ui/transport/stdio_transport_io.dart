@@ -172,16 +172,6 @@ class StdioDshTransport implements DshTransport {
       await retired;
       await previousClosed;
       _checkConnection(connection);
-      // 安卓的沙箱不允许应用执行任意子进程（exec 权限被系统约束），也没有
-      // node 运行时——内核在安卓上跑不了。这个守卫必须放在**最前**：
-      // 后面的 seed 与模型受管段写入各自会抛「缺随包运行时」之类的话，
-      // 会把真正的原因盖住（那句话在安卓上没有意义——装了也跑不了）。
-      if (Platform.isAndroid) {
-        throw StateError(
-          '安卓版还没有可用的内核运行时：系统不允许应用启动 node 子进程。'
-          '请使用桌面版，或等待远程网关接入。',
-        );
-      }
       final seed = seedRuntimeProfile(dshHome: _dshHome);
       if (seed.outcome != RuntimeSeedOutcome.alreadyPresent) {
         _log('profile seed: $seed');
@@ -218,7 +208,16 @@ class StdioDshTransport implements DshTransport {
           '--profile',
           ondraRuntimeProfileName,
         ],
-        environment: {...childEnvironment, 'DSH_HOME': _dshHome, 'PATH': path},
+        environment: {
+          ...childEnvironment,
+          'DSH_HOME': _dshHome,
+          'PATH': path,
+          // 安卓：node 的动态依赖（openssl/icu/…）全在 nativeLibraryDir，
+          // bionic linker 只看 LD_LIBRARY_PATH 与自己的默认路径。
+          if (Platform.isAndroid)
+            'LD_LIBRARY_PATH':
+                ondraBundledRuntime?.libDir ?? '',
+        },
         workingDirectory: workingDirectory,
         includeParentEnvironment: false,
       );

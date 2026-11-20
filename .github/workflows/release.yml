@@ -114,6 +114,9 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: flutter pub get
       - name: 解码签名密钥
         run: |
@@ -124,6 +127,15 @@ jobs:
           keyAlias=$ANDROID_KEY_ALIAS
           storeFile=ondra-release.jks
           KEYPROPS
+      - name: 打内核闭包与 node（安卓）
+        run: |
+          # 闭包：与桌面同一份装配逻辑（仓库快照 plugin-profile/ 当种子）。
+          npm install -g "@deepseek-ai/dsh@0.2.2-rc.1"
+          node tool/assemble_runtime.mjs --closure-only
+          # node 运行时（Termux bionic ELF）+ 闭包 zip → jniLibs/assets。
+          # node 二进制的 NEEDED 版本名要用 pyelftools 改短。
+          pip3 install pyelftools
+          node tool/pack_android_kernel.mjs
       - name: Build arm64
         run: |
           flutter build apk --release --target-platform android-arm64

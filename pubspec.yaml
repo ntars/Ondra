@@ -3,7 +3,7 @@ description: "空谷 · 桌面陪伴体（Flutter 前端骨架）"
 publish_to: 'none'
 
 # 2.0.0-alpha：Flutter 重写版。预发布标识写在 + 之前，语义版本合法。
-version: 3.0.0-alpha+4
+version: 3.0.0-alpha+5
 
 environment:
   sdk: ^3.14.0
@@ -14,6 +14,8 @@ dependencies:
   # 安卓拿应用私有目录（files/）的唯一官方通道：TMPDIR 是 cache，
   # 系统清缓存会把 prefs/密钥/人设/备份一起带走。
   path_provider: ^2.1.5
+  # 安卓端解压内核闭包（assets/ondra-dsh.zip → 应用私有目录）。
+  archive: ^4.0.0
   flutter:
     sdk: flutter
   material_ui: ^1.11.0
