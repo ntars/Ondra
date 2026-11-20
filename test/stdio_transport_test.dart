@@ -108,6 +108,7 @@ void main() {
     );
     expect(fixture.requests('session/resume'), hasLength(1));
     fixture.expectRetiredBeforeRestart();
+    // 新语义：stop 走 session/query 的 /cancel-turn（杀进程是兜底）。
     expect(fixture.requests('session/cancel'), isEmpty);
   });
 

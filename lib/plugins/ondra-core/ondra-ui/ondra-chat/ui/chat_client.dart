@@ -425,6 +425,10 @@ abstract class DshTransport {
 
   void stop();
 
+  /// 彻底关停：杀掉内核进程并释放资源。只在应用退出/测试收尾时调用——
+  /// [stop] 现在只中断当前轮，连接与进程保留（审查第 9 项）。
+  void dispose() {}
+
   /// 每一步模型调用的记账。内核不报（离线、适配器不支持）时就是空流，
   /// 界面因此显示「—」而不是 0——把「没测到」画成 0 是在编数据。
   Stream<StepUsage> get usage => const Stream.empty();
@@ -497,6 +501,9 @@ class ChatUsage {
 /// 未接内核时的占位实现：如实说明原因，不假装能对话。
 class UnavailableTransport implements DshTransport {
   const UnavailableTransport();
+
+  @override
+  void dispose() {}
 
   static const reason = '对话内核未连接：本机 dsh 运行时未启动';
 

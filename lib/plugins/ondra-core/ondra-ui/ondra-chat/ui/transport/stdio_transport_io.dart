@@ -337,6 +337,21 @@ class StdioDshTransport implements DshTransport {
   }) {
     final turn = _Turn();
     turn.output.onListen = () {
+      final settled = _turnSettled;
+      if (settled != null) {
+        // 上一次 stop 的取消流程（命令往返 + idle 等待/兜底重启）还没走完：
+        // 期间不占 _active——兜底断连的 finish 不能误伤这条还没开始的轮次；
+        // settle 后要么 idle（消息立即执行），要么走重启后的新连接。
+        unawaited(settled.whenComplete(() {
+          if (_active != null || turn.done) {
+            turn.finish(StateError('已有一轮对话正在生成'));
+            return;
+          }
+          _active = turn;
+          unawaited(_send(turn, text, attachments));
+        }));
+        return;
+      }
       if (_active != null) {
         turn.finish(StateError('已有一轮对话正在生成'));
         return;
@@ -395,10 +410,19 @@ class StdioDshTransport implements DshTransport {
       final sessionId = _sessionId ??=
           'ondra-${DateTime.now().microsecondsSinceEpoch}-${_nextSession++}';
       _stepStart = null;
+      // prompt 应答前的 turn/end 属于上一轮的取消收尾（stop() 经
+      // /cancel-turn 中断的那一轮），不是本轮的——同一会话的事件流不区分
+      // 轮次，不过滤的话取消收尾会被紧随其后的新轮消费掉，表现为「新消息
+      // 立刻空结束」。frames 广播流只放行 notification（response 走
+      // pending 分发），所以「prompt 已受理」不能在 sub 里判断，改由
+      // _call 返回后置位：事件先缓冲在 turn.events，await for 开始时按序
+      // 读取，顺序不失真。
+      var promptSettled = false;
       sub = connection.frames.stream.listen((frame) {
         if (turn.done || frame.method != 'session.event') return;
         final payload = frame.params;
         if (payload == null || payload['sessionId'] != sessionId) return;
+        if (!promptSettled && isTurnEnd(payload)) return;
         turn.events.add(payload);
       });
       timer = Timer(turnTimeout, () {
@@ -413,6 +437,8 @@ class StdioDshTransport implements DshTransport {
         'sessionId': sessionId,
         'contentBlocks': blocks,
       });
+      // prompt 被 kernel 受理（RPC 应答已回），此后的事件都是本轮的。
+      promptSettled = true;
       if (turn.done) return;
       await for (final payload in turn.events.stream) {
         if (turn.done) return;
@@ -491,12 +517,82 @@ class StdioDshTransport implements DshTransport {
   }
 
   @override
-  void stop() {
-    final error = StateError('生成已停止');
-    _active?.finish(error);
-    _active = null;
+  void dispose() {
     final connection = _connection;
-    if (connection != null) _disconnect(connection, error);
+    if (connection != null) _disconnect(connection, StateError('传输层已释放'));
+  }
+
+  @override
+  void stop() {
+    final turn = _active;
+    final connection = _connection;
+    // 没有活动轮次时（如握手未完成被叫停），stop 就是「把当前连接断开」，
+    // 与旧语义一致——没有可取消的轮次，命令无从执行。
+    if (turn == null) {
+      if (connection != null && connection.failure == null) {
+        _disconnect(connection, StateError('生成已停止'));
+      }
+      return;
+    }
+    _active = null;
+    turn.finish(StateError('生成已停止'));
+    // 健康连接走内核命令 /cancel-turn（ondra-turn-control 插件提供，处理
+    // 器走官方 sessionController 的 cancel 语义：cause={kind:'user'} +
+    // keepInbox）：agent.abort 中断本轮，内核以 aborted turn/end 收尾，
+    // 连接与进程保持，下一句在同一会话里继续（alpha.2 审查第 9 项——旧
+    // 实现直接杀进程）。命令失败时兜底退回杀进程，保证 stop 永远真的停。
+    if (connection == null || connection.failure != null) return;
+    final sessionId = _sessionId;
+    if (sessionId == null) {
+      // 还没有会话（握手阶段被打断）：没有可取消的轮次，直接断开。
+      _disconnect(connection, StateError('生成已停止'));
+      return;
+    }
+    // settle 期间（取消命令往返 + idle 等待）新的 send 必须等它结束：
+    // 提前发出的 prompt 会作为 followup 排队，若兜底杀进程则被误杀。
+    _turnSettled = _cancelTurn(connection, sessionId);
+    unawaited(_turnSettled!);
+  }
+
+  /// 最近一次 stop 的取消流程完成信号；send 前等待它，避免把新消息排进
+  /// 一个即将被杀死的内核的 inbox 里。
+  Future<void>? _turnSettled;
+
+  /// 发 `session/query` 执行内核命令 `/cancel-turn`（白名单内——stdio
+  /// 协议没有 session/cancel 方法，命令系统是唯一的 agent 级中断通道）。
+  ///
+  /// 两段超时兜底，保证 stop 永远真的停：
+  /// 1. 命令应答 10 秒——超时/失败（插件缺席/不支持/管道断）退回杀进程；
+  /// 2. session/wait 等 idle 10 秒——正常生成中 cancel 立刻 idle、连接
+  ///    保持；agent 卡死在无法中断的调用里永不 idle 时杀进程保下一轮。
+  Future<void> _cancelTurn(_Connection connection, String sessionId) async {
+    try {
+      await _call(connection, 'session/query', {
+        'sessionId': sessionId,
+        'contentBlocks': [
+          {'type': 'text', 'text': '/cancel-turn'},
+        ],
+      }).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      if (_active == null || _connection != connection) {
+        _disconnect(connection, StateError('生成已停止'));
+      }
+      return;
+    }
+    // 等内核回到 idle：agent.cancel 的 abort 在下一个事件边界生效（turn
+    // 驱动循环的每个 chunk 都过 signal.throwIfAborted()），正常生成中
+    // 立刻 idle；内核不把取消收敛进 turn/end 事件，所以这里用白名单内的
+    // session/wait（等 idle + 子代理收敛）做权威判定。超时（agent 卡死
+    // 在无法中断的调用里，永不 idle）退回杀进程——排队的新 prompt 也
+    // 永远执行不到，重启内核是唯一生路。
+    try {
+      await _call(connection, 'session/wait', {
+        'sessionId': sessionId,
+      }).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // turn 没收尾：退回杀进程，排队的新 prompt 也永远执行不到。
+      _disconnect(connection, StateError('生成已停止（内核未响应取消）'));
+    }
   }
 
   void _disconnect(_Connection connection, Object error, [StackTrace? stack]) {

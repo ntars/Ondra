@@ -96,6 +96,14 @@ lines.on('line', line => {
     result(id, { sessionId: params.sessionId });
     return;
   }
+  if (method === 'session/query') {
+    // 模拟 ondra-turn-control 插件的 /cancel-turn：agent.abort 后内核
+    // 以 aborted turn/end 收尾（不经过 prompt 事件流）。
+    const sid = params.sessionId;
+    event(sid, 'turn/end', { reason: { kind: 'aborted' } });
+    result(id, { kind: 'command', execution: { kind: 'success', text: '已中断当前轮次' } });
+    return;
+  }
   if (method !== 'session/prompt') {
     fail(id, `unsupported method: ${method}`, -32601);
     return;

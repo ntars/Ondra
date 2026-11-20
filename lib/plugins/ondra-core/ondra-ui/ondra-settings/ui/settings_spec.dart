@@ -171,6 +171,9 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   ),
 
 
+  // channels.*（QQ 适配器）已按产品决定推迟：设置项与通道面板一并移除，
+  // 适配器落地时随内核 ondra-channel 一起恢复。
+
   // ── 记忆与数据（已并入人设设定） ──────────────────────────────────────
   OndraSettingSpec(
     key: 'memory.retention',

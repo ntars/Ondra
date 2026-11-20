@@ -150,6 +150,8 @@ values ('main', '{"valence":-0.4,"arousal":0.7}', '["有点低落"]', '{}', 'cal
 
 class _ConnectedTransport implements DshTransport {
   @override
+  void dispose() {}
+  @override
   Future<void> connect() async {}
 
   @override

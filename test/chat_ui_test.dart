@@ -138,6 +138,8 @@ void main() {
 }
 
 class _ControlledTransport implements DshTransport {
+  @override
+  void dispose() {}
   StreamController<String>? response;
   List<ChatAttachment> attachments = [];
 
