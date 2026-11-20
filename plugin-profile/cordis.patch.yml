@@ -239,6 +239,8 @@
     # sqlite 就绪前选它，数据只活在进程里，退出即丢（实测踩到）。
     # - id: ondra-store-memory
     #   name: '@ondra/cordis-plugin-ondra-store-memory'
+    - id: ondra-turn-control
+      name: '@ondra/cordis-plugin-ondra-turn-control'
     - id: ondra-tts
       name: '@ondra/cordis-plugin-ondra-tts'
     - id: ondra-tts-gate
