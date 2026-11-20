@@ -39,6 +39,8 @@ class AvatarStore extends ChangeNotifier {
   /// 弹原生选择框。用户取消时什么都不变，成功了立刻换图。
   ///
   /// 返回 `false` 表示「没换」（取消 / 平台不支持），调用方不需要分辨原因。
+  bool get pickerSupported => platform.avatarPickerSupported;
+
   Future<bool> pick() async {
     final changed = await platform.pickAvatar();
     if (!changed) return false;

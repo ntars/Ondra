@@ -893,6 +893,18 @@ class _RailComposerState extends State<_RailComposer> {
   /// 一次最多 5 个：再多的话那行标签会占掉输入盒的两行，
   /// 而用户其实也记不清自己选了哪几个。
   Future<void> _pickAttachments() async {
+    // 不加守卫时，安卓上 pickFiles 吞掉异常返回空表——点了毫无反应。
+    // 如实说明比假装点了有用强。
+    if (!DesktopPicker.supported) {
+      if (mounted) {
+        OndraToast.show(
+          context,
+          '这台系统还没有文件选择面板，附件发送需要桌面版。',
+          ok: false,
+        );
+      }
+      return;
+    }
     final picked = await DesktopPicker.pickFiles(
       prompt: '选择要一起发送的图片',
       limit: 5,

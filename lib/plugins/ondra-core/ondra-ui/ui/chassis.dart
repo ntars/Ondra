@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 
 import './registry.dart';
@@ -514,6 +515,52 @@ class _MobileBody extends StatelessWidget {
     final st = ShellScope.of(context);
     final s = OndraSkin.of(context);
 
+    // 安卓返回手势：按覆盖栈从顶往下退，栈空才放行退出应用。
+    // 没有这个 PopScope，返回手势会直接杀掉应用——抽屉、功能页、设置
+    // 面板、时间线全都只能靠界面里的按钮关闭。
+    // Overlay 挂的对话框（OndraDialog）不在这棵栈里，Flutter 的返回
+    // 事件到不了它，那类弹框靠确认/取消关闭，是已知局限。
+    // 状态栏图标对比度：壳底色亮 → 深色图标，暗 → 浅色。全库没有任何
+    // SystemChrome 调用，安卓的浅色皮肤下状态栏是「白底白图标」，看不见。
+    // AnnotatedRegion 随皮肤切换自动更新，不需要监听。
+    final lightShell = s.shell.computeLuminance() > 0.5;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarIconBrightness: lightShell ? Brightness.dark : Brightness.light,
+        statusBarBrightness: lightShell ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness:
+            lightShell ? Brightness.dark : Brightness.light,
+      ),
+      child: PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (st.timelineOpen) {
+          st.timelineOpen = false;
+        } else if (st.settingsOpen) {
+          st.settingsPane = null;
+          st.settingsOpen = false;
+        } else if (st.mobilePageOpen) {
+          st.closeMobilePage();
+        } else if (st.sidebarOpen) {
+          st.sidebarOpen = false;
+        }
+      },
+        child: _MobileBodyInner(st: st, s: s),
+      ),
+    );
+  }
+}
+
+class _MobileBodyInner extends StatelessWidget {
+  const _MobileBodyInner({required this.st, required this.s});
+
+  final ShellState st;
+  final OndraSkin s;
+
+  @override
+  Widget build(BuildContext context) {
+
     final module = OndraRegistry.byId(st.activeId) ??
         (OndraRegistry.available.isEmpty ? null : OndraRegistry.available.first);
     final page = module == null
@@ -592,23 +639,30 @@ class _MobileBody extends StatelessWidget {
               ),
             ),
 
+          // 设置面板与时间线都是全屏接管层：外壳的 Positioned.fill 不给
+          // 安全区，头部按钮会压在状态栏下、底部操作条会撞上手势条。
+          // 在调用点统一包 SafeArea，比改两个组件的内部结构安全。
           if (st.settingsOpen)
             Positioned.fill(
-              child: ConsoleSheet(
-                onClose: () {
-                  st.settingsPane = null;
-                  st.settingsOpen = false;
-                },
-                initialPane: st.settingsPane,
+              child: SafeArea(
+                child: ConsoleSheet(
+                  onClose: () {
+                    st.settingsPane = null;
+                    st.settingsOpen = false;
+                  },
+                  initialPane: st.settingsPane,
+                ),
               ),
             ),
           if (st.timelineOpen)
             Positioned.fill(
-              child: TimelineStage(onClose: () => st.timelineOpen = false),
+              child: SafeArea(
+                child: TimelineStage(onClose: () => st.timelineOpen = false),
+              ),
             ),
         ],
-      ),
-    );
+      ),  // Stack
+    );  // ColoredBox（壳底色）
   }
 }
 

@@ -151,7 +151,20 @@ class _OndraAppState extends State<OndraApp> {
               final dark = Theme.of(context).brightness == Brightness.dark;
               OndraOptics.sync(dark: dark);
               applyWindowBrightness(dark: dark);
-              return child ?? const SizedBox.shrink();
+              // 系统字号上限收到 1.3x：全站是写死的 fontSize + 大量固定
+              // 高度容器（侧栏项 32、日志时间列 58、用量条 26），2x 会有
+              // 成片的裁字与溢出。1.3 是「明显放大但仍放得下」的边界；
+              // 真正要做到 2x 无裁切需要整套布局改成自适应高度，单列。
+              final media = MediaQuery.of(context);
+              return MediaQuery(
+                data: media.copyWith(
+                  textScaler: media.textScaler.clamp(
+                    minScaleFactor: 1,
+                    maxScaleFactor: 1.3,
+                  ),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
             },
             // 必须有一层 Material：否则 Text 会继承 WidgetsApp 的「错误文字样式」
             // （红字 + 黄色双下划线），所有未显式声明 decoration 的文本都会被污染。

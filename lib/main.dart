@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:material_ui/material_ui.dart';
 
 import 'app/crash_log.dart';
+import 'app/home_dir.dart';
 import 'app/ondra_app.dart';
 import 'app/runtime_seed.dart';
 import 'app/window_geometry.dart';
@@ -37,6 +38,9 @@ Future<void> main() async {
 
   // 字体要在 runApp 之前装：字体族一旦被首帧用过，中途注册会让已排好版的
   // 文字按旧字体测量、按新字体绘制，出现一次跳变。装不上就降级到系统字体。
+  // 安卓的持久数据目录要在任何数据落盘之前定好（prefs / 密钥 / 模型清单
+  // 都以 ondraUserHome 为根）。桌面平台是空操作。
+  await initAndroidHome();
   await OndraFont.load();
   // 桌面端在这里把窗口定成 960×600；web 上是空实现。
   await applyWindowGeometry();

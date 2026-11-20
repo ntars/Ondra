@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 安卓上没有桌面内核，联网只用于：模型探测/远端模型调用、更新检查、
+         llama 模型下载。缺这条，release 包所有网络请求直接失败（debug/profile
+         清单自带，所以开发时看不出来）。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="ondra"
+        android:label="空谷 Ondra"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

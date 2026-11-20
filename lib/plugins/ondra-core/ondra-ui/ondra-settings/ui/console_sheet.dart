@@ -111,8 +111,13 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             Center(
               child: LayoutBuilder(
                 builder: (context, c) {
+                  // 手机会吃掉一部分屏幕：状态栏/刘海在顶，手势条在底，
+                  // 软键盘直接盖住下半屏。桌面只有那 48 的呼吸边距。
+                  final pad = MediaQuery.paddingOf(context);
+                  final insets = MediaQuery.viewInsetsOf(context);
+                  final spare = 48.0 + pad.top + pad.bottom + insets.bottom;
                   final w = (c.maxWidth - 48).clamp(0.0, 760.0);
-                  final h = (c.maxHeight - 48).clamp(0.0, 500.0);
+                  final h = (c.maxHeight - spare).clamp(280.0, 500.0);
                   return GestureDetector(
                     onTap: () {},
                     child: Container(
@@ -138,13 +143,17 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
                           // 看起来像弹窗高度没对齐。宽度改由外层 SizedBox 给。
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            SizedBox(
-                              width: w < 620 ? 140 : 168,
-                              child: _NavPane(
-                                pane: _pane,
-                                onPane: (p) => setState(() => _pane = p),
+                            // 手机（<560dp）没有左导航的生存空间：140dp 的导航
+                            // 只给右列留 92dp，连一行字都放不下。窄屏改成
+                            // 顶部横向分类条，内容区独占整行宽。
+                            if (w >= 560)
+                              SizedBox(
+                                width: w < 620 ? 140 : 168,
+                                child: _NavPane(
+                                  pane: _pane,
+                                  onPane: (p) => setState(() => _pane = p),
+                                ),
                               ),
-                            ),
                             Expanded(
                               child: Column(
                                 children: [
@@ -168,6 +177,11 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
                                     ),
                                   ),
                                   _Header(pane: _pane),
+                                  if (w < 560)
+                                    _MobilePaneBar(
+                                      pane: _pane,
+                                      onPane: (p) => setState(() => _pane = p),
+                                    ),
                                   Expanded(
                                     child: OndraScroll(
                                       padding: const EdgeInsets.fromLTRB(
@@ -1556,6 +1570,38 @@ class _Header extends StatelessWidget {
 }
 
 /// 左栏：168 宽、比面板再深一档的底、右侧 6% 发丝线。
+/// 手机（<560dp）的分类条：横排 pills，可滚动，替代 140dp 的左导航。
+class _MobilePaneBar extends StatelessWidget {
+  const _MobilePaneBar({required this.pane, required this.onPane});
+
+  final _Pane pane;
+  final ValueChanged<_Pane> onPane;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            for (final p in _Pane.values)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: _NavItem(
+                  label: p.label,
+                  selected: pane == p,
+                  onTap: () => onPane(p),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NavPane extends StatelessWidget {
   const _NavPane({required this.pane, required this.onPane});
 
@@ -1859,7 +1905,9 @@ class _ThemePicker extends StatelessWidget {
               ),
             ),
           ),
-          Row(
+          // Wrap 而不是 Row：三档（浅色/深色/跟随系统）在窄屏的设置行里
+          // 排不下，Row 会直接从右侧溢出 36px。Wrap 在窄屏折成两行。
+          Wrap(
             children: [
               for (var i = 0; i < _labels.length; i++)
                 OndraPressable(
@@ -1976,13 +2024,17 @@ class _Row extends StatelessWidget {
             // 说明与右侧的值之间留 12：不留的时候，长说明的省略号会正好顶在
             // 值的第一个字上，看起来像两个字叠在一起。
             const SizedBox(width: 12),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 230),
-              child: Text(
-                OndraI18nScope.translate(context, value!),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: ondraText(12, color: s.ink45, height: 18 / 12),
+            // Flexible 兜住窄屏：宽屏上 230 上限生效（行为不变），
+            // 手机上剩余宽度可能只有几十 dp，没有弹性这行必溢出。
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 230),
+                child: Text(
+                  OndraI18nScope.translate(context, value!),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ondraText(12, color: s.ink45, height: 18 / 12),
+                ),
               ),
             ),
           ],
@@ -3058,6 +3110,43 @@ class _InputRowState extends State<_InputRow> {
   @override
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
+    final field = TextField(
+      controller: _controller,
+      obscureText: widget.obscure,
+      onChanged: widget.onChanged,
+      textAlign: TextAlign.right,
+      cursorColor: OndraColor.accent,
+      style: ondraText(12, color: s.ink, height: 18 / 12),
+      decoration: InputDecoration(
+        isDense: true,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(vertical: 6),
+        hintText: widget.hint,
+        hintStyle: ondraText(11, color: s.ink25, height: 18 / 11),
+      ),
+    );
+    // 窄屏（<420dp，全部手机）标签上置：84dp 的行内标签会把输入框挤到
+    // 只剩个位数像素——改 API 地址/模型 ID 的表单在手机上没法用。
+    // 宽屏保持桌面原样。
+    final narrow = MediaQuery.sizeOf(context).width < 420;
+    if (narrow) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.title,
+              style: ondraText(12, color: s.ink80, height: 16 / 12),
+            ),
+            const SizedBox(height: 2),
+            field,
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
@@ -3069,25 +3158,7 @@ class _InputRowState extends State<_InputRow> {
               style: ondraText(13, color: s.ink80, height: 30 / 13),
             ),
           ),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              obscureText: widget.obscure,
-              onChanged: widget.onChanged,
-              textAlign: TextAlign.right,
-              cursorColor: OndraColor.accent,
-              style: ondraText(12, color: s.ink, height: 18 / 12),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                hintText: widget.hint,
-                hintStyle: ondraText(11, color: s.ink25, height: 18 / 11),
-              ),
-            ),
-          ),
+          Expanded(child: field),
         ],
       ),
     );
@@ -3205,9 +3276,19 @@ class _AvatarEditorState extends State<_AvatarEditor> {
   bool _hover = false;
 
   Future<void> _pick() async {
+    // 通道不支持（安卓没有 ondra/avatar）：如实提示。不拦的话用户看到
+    // 的是「点了没反应」，会以为是卡死。用户取消则一声不吭。
+    if (!avatarStore.pickerSupported) {
+      if (mounted) {
+        OndraToast.show(
+          context,
+          '这台系统还没有接入头像选择，换头像需要桌面版。',
+          ok: false,
+        );
+      }
+      return;
+    }
     final ok = await avatarStore.pick();
-    // 失败只可能是「用户取消」或「原生通道没接上」。前者不该有提示，
-    // 后者在桌面上不会发生（通道在 awakeFromNib 里建好），所以这里不弹错误。
     if (!ok) return;
     if (mounted) setState(() {});
   }

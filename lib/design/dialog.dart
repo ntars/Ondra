@@ -236,27 +236,43 @@ class OndraDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            title,
-            style: ondraText(15, weight: 500, color: s.ink, height: 21 / 15),
-          ),
-          if (body != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              body!,
-              style: ondraText(12.5, color: s.ink60, height: 19 / 12.5),
+          // 正文可滚：手机上长文案（「清空全部数据」那段有六行）叠加系统
+          // 字号放大后，超出屏高的部分会被直接裁掉。
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    title,
+                    style: ondraText(
+                      15,
+                      weight: 500,
+                      color: s.ink,
+                      height: 21 / 15,
+                    ),
+                  ),
+                  if (body != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      body!,
+                      style: ondraText(12.5, color: s.ink60, height: 19 / 12.5),
+                    ),
+                  ],
+                  if (content != null) ...[const SizedBox(height: 14), content!],
+                ],
+              ),
             ),
-          ],
-          if (content != null) ...[const SizedBox(height: 14), content!],
+          ),
           const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              for (var i = 0; i < actions.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                actions[i],
-              ],
-            ],
+          // Wrap 而不是 Row：三个按钮（稍后 / 复制链接 / 打开发行页）
+          // 在 360dp 屏上一行放不下，Row 会直接溢出。
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: actions,
           ),
         ],
       ),
@@ -307,11 +323,22 @@ class _DialogLayer extends StatelessWidget {
               child: ColoredBox(color: Colors.black.withValues(alpha: 0.32)),
             ),
           ),
-          Center(
-            child: GestureDetector(
-              // 拦住面板上的点击，不让它穿透到遮罩把对话框关掉。
-              onTap: () {},
-              child: child,
+          SafeArea(
+            child: Center(
+              // ConstrainedBox 把桌面的 380/460 固定宽度在窄屏上钳到
+              // 「屏宽 - 32」：Container 的 width 只是期望值，受父约束钳制，
+              // 所以 dialog 组件本身不用感知屏幕尺寸。
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width - 32,
+                  maxHeight: MediaQuery.sizeOf(context).height - 96,
+                ),
+                child: GestureDetector(
+                  // 拦住面板上的点击，不让它穿透到遮罩把对话框关掉。
+                  onTap: () {},
+                  child: child,
+                ),
+              ),
             ),
           ),
         ],
