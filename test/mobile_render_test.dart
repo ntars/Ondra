@@ -49,12 +49,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump();
     // 启动帧本身允许有异步铺设（字体、皮肤），先把首帧的异常清掉再动作。
-    // reason 里保留原异常，便于定位是哪一帧。
     final boot = tester.takeException();
     expect(boot, isNull, reason: '首帧就抛异常：$boot');
+    // 溢出的定位需要完整的渲染详情（哪个 Row、树形箭头），
+    // takeException 只给一行摘要——挂 onError 把详情打全再断言。
+    Object? caught;
+    final prevOnError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      caught ??= details.exception;
+      FlutterError.dumpErrorToConsole(details, forceReport: true);
+    };
+    addTearDown(() => FlutterError.onError = prevOnError);
     await act();
-    final after = tester.takeException();
-    expect(after, isNull, reason: '交互后渲染溢出或异常：$after');
+    FlutterError.onError = prevOnError;
+    expect(caught, isNull, reason: '交互后渲染溢出或异常：$caught');
   }
 
   ShellState stateOf(WidgetTester tester) =>

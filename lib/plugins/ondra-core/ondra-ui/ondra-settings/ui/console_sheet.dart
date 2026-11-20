@@ -1723,15 +1723,22 @@ class _CloseButtonState extends State<_CloseButton> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          width: 24,
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: _hover ? s.fillHover : Colors.transparent,
-            shape: BoxShape.circle,
+        // 视觉圆圈仍是 24；命中区垫到 44×44（触控最低标准）。
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _hover ? s.fillHover : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Glyph(Glyphs.close, size: 16, color: s.ink45),
+            ),
           ),
-          child: Glyph(Glyphs.close, size: 16, color: s.ink45),
         ),
       ),
     );
@@ -1993,6 +2000,9 @@ class _Row extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // 窄屏（手机单列）标题 flex 1、控件 flex 2：像字号加减这种
+          // ~140dp 的复合控件，1:1 平分只有 ~124dp 会溢出；2:1 才放得下。
+          // 宽屏不受影响（两种都是 Expanded/Flexible 的默认 1:1）。
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2051,6 +2061,7 @@ class _Row extends StatelessWidget {
             // 240 是「标题栏留得下两个中文字 + 省略号」的经验值：
             // 再宽会挤压标题，再窄会让「工作区内修改」这类词截得太碎。
             Flexible(
+              flex: MediaQuery.sizeOf(context).width < 420 ? 2 : 1,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 240),
                 child: Align(alignment: Alignment.centerRight, child: action!),
@@ -2189,15 +2200,21 @@ class _StepKeyState extends State<_StepKey> {
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: widget.onTap,
+          // 命中区 44：视觉块 26 不变，外面垫透明命中层。
           child: Container(
-            width: 26,
-            height: 26,
+            width: 44,
+            height: 44,
             alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hover ? s.fill : s.fillFaint,
-              borderRadius: BorderRadius.circular(OndraRadius.sm),
+            child: Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _hover ? s.fill : s.fillFaint,
+                borderRadius: BorderRadius.circular(OndraRadius.sm),
+              ),
+              child: Glyph(widget.glyph, size: 12, color: s.ink60),
             ),
-            child: Glyph(widget.glyph, size: 12, color: s.ink60),
           ),
         ),
       ),

@@ -853,6 +853,7 @@ class _SnapshotRowState extends State<_SnapshotRow> {
                 GlyphButton(
                   glyph: Glyphs.trash,
                   size: 24,
+                  hitSize: 44,
                   glyphSize: 14,
                   color: _hover ? OndraColor.ink45 : s.ink30,
                   tooltip: '删除这份备份',

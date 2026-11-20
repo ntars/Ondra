@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../../design/form_factor.dart';
 import '../../../../../design/glyph.dart';
 import '../../../../../design/page_frame.dart';
 import '../../../../../design/primitives.dart';
@@ -31,10 +32,10 @@ class _GuidePageState extends State<GuidePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var i = 0; i < _topics.length; i++) ...[
+          for (var i = 0; i < _currentTopics.length; i++) ...[
             if (i > 0) OndraHairline(color: s.lineFaint),
             _TopicRow(
-              topic: _topics[i],
+              topic: _currentTopics[i],
               index: i,
               open: _open == i,
               onTap: () => setState(() => _open = _open == i ? null : i),
@@ -162,7 +163,10 @@ class _Topic {
   final String body;
 }
 
-const List<_Topic> _topics = [
+/// 桌面讲三栏，手机讲单列+抽屉——同一页两套文案，按形态取。
+List<_Topic> get _currentTopics => ondraIsMobile ? _topicsMobile : _topicsDesktop;
+
+const List<_Topic> _topicsDesktop = [
   _Topic(
     title: '三栏分别是什么',
     body: '左栏是目录与入口，中栏是当前这一项的内容，右栏是跟 TA 说话的地方。'
@@ -187,5 +191,19 @@ const List<_Topic> _topics = [
     title: '数据在谁手里',
     body: '全部在本机。对话框里的每次调用、每条记忆、每份备份都只写本地磁盘；'
         '导入导出走明文，你可以随时把一切带走。',
+  ),
+];
+
+/// 手机形态：没有三栏，聊天是主界面，功能收进左上角的抽屉。
+const List<_Topic> _topicsMobile = [
+  _Topic(
+    title: '界面长什么样',
+    body: '跟 TA 说话的对话是主界面；左上角的按钮打开抽屉，里面是状态面板、'
+        '记忆星图、备份这些功能页——选一项就会盖住对话，用页面左上角的返回键回来。',
+  ),
+  _Topic(
+    title: '怎么开始一次对话',
+    body: '直接在底部输入框打字，回车发送。对话与「记忆」是两件事：聊天记录留在历史对话里，'
+        '值得长期记住的东西才会沉成记忆点。',
   ),
 ];

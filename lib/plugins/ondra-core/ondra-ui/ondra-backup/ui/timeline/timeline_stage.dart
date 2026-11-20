@@ -227,27 +227,48 @@ class _TimelineStageState extends State<TimelineStage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _header(overview),
+              // 手机（<560dp）：竖排 132dp 导轨会把主区压到 ~200dp，
+              // 改成横排滚动条放在主区上方，点按逻辑一致。
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: overview == null
-                          ? const _Loading()
-                          : _stack(overview),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 4, 18, 12),
-                      child: TimelineRail(
-                        entries: entries,
-                        selected: _index,
-                        onSelect: (i) {
-                          if (!_busy) setState(() => _index = i);
-                        },
+                child: MediaQuery.sizeOf(context).width < 560
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TimelineRail(
+                            entries: entries,
+                            selected: _index,
+                            onSelect: (i) {
+                              if (!_busy) setState(() => _index = i);
+                            },
+                            horizontal: true,
+                          ),
+                          Expanded(
+                            child: overview == null
+                                ? const _Loading()
+                                : _stack(overview),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: overview == null
+                                ? const _Loading()
+                                : _stack(overview),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 4, 18, 12),
+                            child: TimelineRail(
+                              entries: entries,
+                              selected: _index,
+                              onSelect: (i) {
+                                if (!_busy) setState(() => _index = i);
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
               _footer(overview),
             ],
@@ -452,7 +473,9 @@ class _TimelineStageState extends State<TimelineStage> {
               ),
               const SizedBox(width: 12),
               Text(
-                '↑↓ 或滚轮切换 · ⏎ 恢复 · esc 退出',
+                MediaQuery.sizeOf(context).width < 560
+                    ? '滑动上方时间轴选择'
+                    : '↑↓ 或滚轮切换 · ⏎ 恢复 · esc 退出',
                 style: ondraText(
                   10,
                   color: TimelinePalette.inkFaint,
