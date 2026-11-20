@@ -3,6 +3,8 @@
          llama 模型下载。缺这条，release 包所有网络请求直接失败（debug/profile
          清单自带，所以开发时看不出来）。 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- API 33+ 系统通知的运行时授权之外，清单里仍要声明这条。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="空谷 Ondra"
         android:name="${applicationName}"

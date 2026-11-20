@@ -27,10 +27,9 @@ Uint8List? readAvatarBytes() {
   }
 }
 
-/// 原生头像通道是否可用：现在只有 macOS 的 app 壳实现了 `ondra/avatar`。
-/// 安卓没有这个通道——调用会抛 MissingPluginException，被 catch 吞掉后
-/// 界面点下去毫无反应。暴露出来让调用方如实提示。
-bool get avatarPickerSupported => Platform.isMacOS;
+/// 原生头像通道是否可用：macOS（NSOpenPanel）与安卓（系统选图 + 原生
+/// 裁切落盘）都实现了 `ondra/avatar`。
+bool get avatarPickerSupported => Platform.isMacOS || Platform.isAndroid;
 
 /// 弹 NSOpenPanel。原生侧负责裁切、缩放、落盘，返回是否真的换了图。
 /// [avatarPickerSupported] 为 false 时不会真正调用。

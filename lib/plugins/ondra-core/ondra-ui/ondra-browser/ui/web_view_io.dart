@@ -11,8 +11,10 @@ import '../../../../../design/tokens.dart';
 import 'web_view_stub.dart' as fallback;
 
 /// IO 不等于 AppKit；既检查实际系统，也支持 Flutter 的平台能力测试。
+/// 安卓走系统 WebView 的 PlatformView（OndraWebView.kt），同一协议。
 bool get embeddedBrowserAvailable =>
-    Platform.isMacOS && defaultTargetPlatform == TargetPlatform.macOS;
+    (Platform.isMacOS && defaultTargetPlatform == TargetPlatform.macOS) ||
+    (Platform.isAndroid && defaultTargetPlatform == TargetPlatform.android);
 
 /// 每个原生视图单独的通道：接收被拦截导航的原因，不打开外部浏览器兜底。
 class OndraWebView extends StatefulWidget {
@@ -115,14 +117,23 @@ class _OndraWebViewState extends State<OndraWebView> {
             ),
           ),
         Expanded(
-          child: AppKitView(
-            // 规则变化也重建原生视图，撤销站点立即生效。
-            key: ValueKey(paramsKey),
-            viewType: 'ondra/webview',
-            creationParams: _params,
-            creationParamsCodec: const StandardMessageCodec(),
-            onPlatformViewCreated: (id) => _created(id, paramsKey),
-          ),
+          // 规则变化也重建原生视图，撤销站点立即生效。mac 用 AppKitView，
+          // 安卓用 AndroidView——同一 viewType、同一协议，两套原生实现。
+          child: Platform.isAndroid
+              ? AndroidView(
+                  key: ValueKey(paramsKey),
+                  viewType: 'ondra/webview',
+                  creationParams: _params,
+                  creationParamsCodec: const StandardMessageCodec(),
+                  onPlatformViewCreated: (id) => _created(id, paramsKey),
+                )
+              : AppKitView(
+                  key: ValueKey(paramsKey),
+                  viewType: 'ondra/webview',
+                  creationParams: _params,
+                  creationParamsCodec: const StandardMessageCodec(),
+                  onPlatformViewCreated: (id) => _created(id, paramsKey),
+                ),
         ),
       ],
     );

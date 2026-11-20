@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart' show MethodChannel;
 
 /// 把 Flutter 当前是深还是浅告诉 AppKit。
@@ -14,6 +16,9 @@ const MethodChannel _channel = MethodChannel('ondra/window');
 bool? _lastDark;
 
 void applyWindowBrightness({required bool dark}) {
+  // 安卓的深浅色完全由系统主题管理，应用没有窗口级的外观控制——
+  // 直接不调，而不是发了再吞错（吞错属于「安静失败」）。
+  if (Platform.isAndroid) return;
   if (_lastDark == dark) return;
   _lastDark = dark;
   _channel.invokeMethod<void>('setAppearance', dark).catchError((_) {

@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart'
+    show MethodChannel, PlatformException;
+
 /// 桌面端的平台行为。
 ///
 /// ## 开机自启动：写 LaunchAgent，不写登录项
@@ -19,6 +22,8 @@ import 'dart:io';
 /// macOS 自带的 `caffeinate -i` 就是「别因为空闲而睡」的标准做法。
 /// 起一个子进程，进程活着断言就有效，退出即解除——不需要配对清理，
 /// 也不需要在别处记一个「现在阻止着」的全局状态：进程本身就是那个状态。
+const MethodChannel _platformChannel = MethodChannel('ondra/platform');
+
 class PlatformActions {
   const PlatformActions._();
 
@@ -64,7 +69,7 @@ class PlatformActions {
 
   static bool get canPreventSleep =>
       probe?.canPreventSleep ??
-      (_isMacOS && File('/usr/bin/caffeinate').existsSync());
+      (Platform.isAndroid || (_isMacOS && File('/usr/bin/caffeinate').existsSync()));
 
   /// 当前应用的绝对路径。写进 plist 的 `ProgramArguments` 要能在登录时
   /// 被 `launchd` 直接执行，相对路径在登录阶段没有意义（工作目录不确定）。
@@ -169,6 +174,15 @@ class PlatformActions {
   static Future<bool> beginPreventSleep() => _sleepAction(() async {
     if (!canPreventSleep) return false;
     if (probe != null) return probe!.beginPreventSleep();
+    // 安卓：FLAG_KEEP_SCREEN_ON 由原生侧开关窗口 flag（见 MainActivity.kt
+    // 的 ondra/platform handler），不驻留子进程。
+    if (Platform.isAndroid) {
+      try {
+        return await _platformChannel.invokeMethod<bool>('beginPreventSleep') ?? false;
+      } on PlatformException {
+        return false;
+      }
+    }
     if (_caffeinate != null) return true;
     try {
       final process = await Process.start('/usr/bin/caffeinate', ['-i']);
@@ -187,6 +201,14 @@ class PlatformActions {
   static Future<void> endPreventSleep() => _sleepAction(() async {
     if (!canPreventSleep) throw UnsupportedError('当前平台不支持阻止睡眠');
     if (probe != null) return probe!.endPreventSleep();
+    if (Platform.isAndroid) {
+      try {
+        await _platformChannel.invokeMethod<void>('endPreventSleep');
+      } on PlatformException {
+        // 已不在前台时 clear flag 无害失败，如实忽略。
+      }
+      return;
+    }
     final process = _caffeinate;
     if (process == null) return;
     process.kill();

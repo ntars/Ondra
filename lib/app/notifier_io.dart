@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart'
+    show MethodChannel, PlatformException;
+
 /// 桌面端的系统通知。
 ///
 /// ## 为什么用 `osascript` 而不是引原生插件
@@ -17,6 +20,8 @@ import 'dart:io';
 /// 不想要声音，那就是提示音关、通知开。
 ///
 /// 「专注时静音」由调用方判断（它要知道当前是不是全屏），这一层只执行。
+const MethodChannel _notifyChannel = MethodChannel('ondra/notify');
+
 class Notifier {
   const Notifier._();
 
@@ -24,6 +29,7 @@ class Notifier {
   static String? debugOperatingSystemOverride;
   static bool get supported =>
       probe != null ||
+      (debugOperatingSystemOverride ?? Platform.operatingSystem) == 'android' ||
       ((debugOperatingSystemOverride ?? Platform.operatingSystem) == 'macos' &&
           (debugProcessRunner != null ||
               File('/usr/bin/osascript').existsSync()));
@@ -66,6 +72,21 @@ class Notifier {
       if (probe != null) {
         await probe!.show(title: title, body: body, sound: sound);
         return true;
+      }
+      // 安卓走原生通道（NotificationManager）；参数形状与
+      // MainActivity.kt 的 ondra/notify handler 一致。
+      if ((debugOperatingSystemOverride ?? Platform.operatingSystem) == 'android') {
+        try {
+          await _notifyChannel.invokeMethod<bool>('show', {
+            'title': title,
+            'body': body,
+            'sound': sound,
+          });
+          return true;
+        } on PlatformException catch (e) {
+          lastError = e.message ?? '通知发送失败';
+          return false;
+        }
       }
       final soundPart = sound ? ' sound name "Glass"' : '';
       final args = [
