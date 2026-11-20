@@ -52,9 +52,8 @@ class OndraSettingTarget {
 /// 不允许闭包。这张表在启动时建一次，之后只读，final 的代价可以忽略。
 final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   // ── 通用 ────────────────────────────────────────────────────────────────
-  // 权限控件的文件访问边界不等于 privacy 的出站审批档。保留键以便
-  // pushAll 报告阻塞，但绝不把 readOnly 写成仍可写文件的 supervised。
-  'general.permissions': [],
+  // general.permissions 的映射已随 spec 项移除：内核没有会话文件权限
+  // 接口，出站审批档不等于只读/工作区边界，不能冒充。
   // 「语言」是**界面语言**，落点是 `OndraI18n` 载入哪份语言包，不写 `settings.json`。
   //
   // 上一版把它映射到 `asr.language`——那是语音识别语言。改界面语言会顺带
@@ -124,6 +123,12 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   ],
 
   // ── 语音 ────────────────────────────────────────────────────────────────
+  // ── 语音 ────────────────────────────────────────────────────────────────
+  // 真实装配在内核里的是旧拆分件（ondra-tts / ondra-asr，见 profile 种子的
+  // node_modules/@ondra/），lib 下的合并版 ondra-voice 尚未进 profile——
+  // 所以落点仍是 'tts' / 'asr' 段。哪天装配合并版时这里要跟着改段名
+  // （voice.enable / voice.tts / voice.timbre / voice.rate 原值 /
+  // voice.asrLanguage），并同步 wiring_test 的冻结快照。
   'voice.tts': [const OndraSettingTarget(section: 'tts', key: 'enable')],
   'voice.timbre': [
     const OndraSettingTarget(section: 'tts', key: 'preset', map: _ttsPreset),
@@ -131,8 +136,8 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   'voice.rate': [
     // 界面的 60–160% 是「相对百分比」，内核的 `rate` 是**增量**（-0.5–+0.5，
     // 0.1 表示快一成）。两者是同一件事的两种刻度，不能拿 wpm 顶替：
-    // `say-wpm` 是 macOS `say` 的**基准值**（120–300 词/分钟），
-    // 写它等于改基准，而不是改这一档的快慢。
+    // `say-wpm` 是 macOS `say` 的**基准值**（120–300 词/分钟），写它等于改
+    // 基准，而不是改这一档的快慢。
     //
     // 换算必须**分段**：界面的区间本身不对称（100 往下一共 40 格，
     // 往上一共 60 格），而内核两头都是 0.5。用一个分母（比如都除以 120），
@@ -159,6 +164,8 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   // ── 隐私与安全 ──────────────────────────────────────────────────────────
   // 「允许联网」这个大开关已拆成两个如实落点——内核没有全局网络总闸，
   // 详见 `settings_spec` 里这两项上方的说明。
+  // privacy.voiceCloud 的落点是 asr.allow-cloud-fallback（旧 ondra-asr
+  // 仍在装配）。
   'privacy.voiceCloud': [
     const OndraSettingTarget(section: 'asr', key: 'allow-cloud-fallback'),
   ],
@@ -263,13 +270,6 @@ bool ondraPushSetting(String uiKey, Object? value) =>
   String uiKey,
   Object? value,
 ) {
-  if (uiKey == 'general.permissions') {
-    return (
-      ok: false,
-      changed: false,
-      error: '未应用权限：当前内核没有对应的会话文件权限接口；出站审批档不等于只读或工作区边界，原权限保持不变',
-    );
-  }
   final targets = ondraSettingTargets[uiKey];
   if (targets == null) {
     return ondraSettingIsWired(uiKey)

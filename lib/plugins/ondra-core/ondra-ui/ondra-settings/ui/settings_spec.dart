@@ -62,18 +62,9 @@ enum OndraSettingKind {
 /// 全表。顺序即界面顺序（分组由页面决定）。
 const List<OndraSettingSpec> ondraSettingSpecs = [
   // ── 通用 ────────────────────────────────────────────────────────────────
-  OndraSettingSpec(
-    key: 'general.permissions',
-    label: '权限',
-    description: '选择新会话的默认权限模式',
-    kind: OndraSettingKind.choice,
-    defaultValue: 'workspace',
-    options: [
-      OndraSettingOption('readOnly', '仅可查看'),
-      OndraSettingOption('workspace', '工作区内修改'),
-      OndraSettingOption('fullAccess', '完全权限'),
-    ],
-  ),
+  // general.permissions 已移除：内核没有会话文件权限接口，界面给的三档
+  // 选择永远无法兑现——保存必失败、「重试应用」永远无效。等接口落地
+  // 再恢复这一项（settings_client 里的同名守卫也一并删）。
   OndraSettingSpec(
     key: 'general.language',
     label: '语言',
@@ -114,19 +105,9 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
     defaultValue: true,
   ),
   OndraSettingSpec(key: 'general.notifySound', label: '通知提示音', defaultValue: true),
-  OndraSettingSpec(
-    key: 'general.focusMute',
-    label: '专注时静音',
-    // 这一项**当前不生效**，原因不是没做，是要付的代价太大：
-    // 判断「是不是有全屏应用在前台」只能查 System Events 的前台进程，
-    // 而那需要「辅助功能」授权——一个能读所有窗口内容的权限。
-    // 实测（`osascript -e '... frontmost is true'`）在没有授权时直接
-    // 返回 -10004 权限违例。为一个「通知要不要响」去要这种权限，
-    // 比不做更糟。等有了不需要授权的前台查询（或系统 API）再接。
-    description: '全屏应用运行时只留角标（需要辅助功能权限，当前未生效）',
-    defaultValue: false,
-  ),
-
+  // general.focusMute 已移除：它的真实语义是「通知不响」，但应用当前
+  // 没有任何系统通知场景（唯一调用方是设置页的测试按钮），也没有应用内
+  // 声音播放。挂一个可拨但永不生效的开关比没有更糟。
   // ── 对话 ────────────────────────────────────────────────────────────────
   OndraSettingSpec(
     key: 'dialog.busySend',

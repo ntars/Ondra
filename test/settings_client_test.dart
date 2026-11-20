@@ -7,7 +7,6 @@ import 'package:ondra/app/platform_actions_io.dart';
 import 'package:ondra/app/prefs.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ui/profile_config_io.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ui/settings_client.dart';
-import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ui/settings_spec.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ui/settings_targets.dart';
 
 void main() {
@@ -122,7 +121,6 @@ void main() {
     expect(readProfileConfigField('tts', 'rate'), '0.0');
     expect(readProfileConfigField('dialogue', 'max-tokens'), '2048');
     expect(readPref('settings.voice.tts'), 'false');
-    expect(client.errorFor('general.permissions'), isNotNull);
     expect(client.errorFor('channels.qqBot'), isNotNull);
   });
 
@@ -198,23 +196,7 @@ void main() {
     client = SettingsClient();
   });
 
-  test('权限档不能用出站审批冒充；原手工安全字段不变', () async {
-    patch.writeAsStringSync('''
-- insert:
-    - id: ondra-privacy
-      name: privacy
-      config:
-        approval-mode: supervised
-        strict-hosts: true
-''');
-    final before = patch.readAsStringSync();
-    for (final option in ondraSettingSpec('general.permissions').options) {
-      expect(await client.set('general.permissions', option.value), isFalse);
-      expect(client.errorFor('general.permissions'), contains('文件权限'));
-      expect(readPref('settings.general.permissions'), isEmpty);
-      expect(patch.readAsStringSync(), before);
-    }
-  });
+  // permissions 测试已随 spec 项移除（内核没有会话文件权限接口）。
 
   test('坏类型/非法选项/越界数值不会落盘或应用', () async {
     expect(await client.set('voice.tts', 'true'), isFalse);

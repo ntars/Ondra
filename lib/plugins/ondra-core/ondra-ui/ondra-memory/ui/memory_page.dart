@@ -24,7 +24,8 @@ MemorySnapshotLoader memorySnapshotLoader = loadMemorySnapshot;
 /// 一张看起来热闹但没有真实来源的图，比一张空图更糟。三条交互：
 /// - 悬停节点：高亮它和它的一阶邻居，其余压暗；
 /// - 点击节点：下方详情条显示这条记忆的类别、强度、关联与最近回想；
-/// - 空闲时：连线上有缓慢移动的脉冲，表示记忆在被「回想」。
+/// - 空闲时：连线上有缓慢移动的脉冲。它是**氛围动画**，不是活动指示——
+///   内核目前没有对外暴露「正在回想」的事件流，接上之前这里不冒充状态。
 class MemoryPage extends StatefulWidget {
   const MemoryPage({super.key});
 

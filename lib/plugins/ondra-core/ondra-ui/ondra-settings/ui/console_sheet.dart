@@ -210,6 +210,15 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     );
   }
 
+  /// 该键是否仍被声明。老版本写进 prefs 的键在 spec 表移除后依旧
+  /// 会被读到，这里兜住升级路径。
+  bool _declared(String key) {
+    for (final spec in ondraSettingSpecs) {
+      if (spec.key == key) return true;
+    }
+    return false;
+  }
+
   Widget _body(OndraSkin s) {
     // 设置值统一由 ondra-settings 的投影提供：任一开关 / 选项变化都要重建，
     // 所以整页包一层 AnimatedBuilder，而不是让每个控件自己管状态。
@@ -267,7 +276,12 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             child: SelectableText(
               [
                 for (final entry in settingsClient.applicationErrors.entries)
-                  '${ondraSettingSpec(entry.key).label}：${entry.value}',
+                  // prefs 里可能有已被移除的设置项（老版本写下的）：
+                  // spec 表不再声明它们，直接跳过而不是把整页炸掉。
+                  if (_declared(entry.key))
+                    '${ondraSettingSpec(entry.key).label}：${entry.value}'
+                  else
+                    entry.key,
               ].join('\n\n'),
             ),
           ),
@@ -334,7 +348,11 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         // 存储值不在选项里（旧数据、手改过的 prefs）：回写默认值。
         // 高亮第 0 项会让用户看到「选中的」其实没生效，那是假的当前值。
         if (index < 0) {
-          settingsClient.set(key, spec.defaultValue);
+          // 回写默认值放到帧尾：set 会 notifyListeners，build 期间触发
+          // 是接线瑕疵（极端时序下额外重建一帧）。
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            settingsClient.set(key, spec.defaultValue);
+          });
         }
         final resolved = index < 0
             ? spec.options.indexWhere((o) => o.value == spec.defaultValue)
@@ -410,10 +428,9 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _specRow('general.fontSize', showDivider: false),
       ],
     ),
-    _Section(
-      title: '权限',
-      children: [_specRow('general.permissions', showDivider: false)],
-    ),
+    // 「权限」整节移除：内核没有会话文件权限接口，三档选择永远无法兑现。
+    // 「专注时静音」移除：应用没有系统通知场景与声音播放，开关永不生效。
+    // 两者等内核接口/通知场景落地后再恢复（spec 表里的注释记了原因）。
     _Section(
       title: '启动',
       children: [
@@ -425,8 +442,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       title: '通知',
       children: [
         _specRow('general.notify'),
-        _specRow('general.notifySound'),
-        _specRow('general.focusMute', showDivider: false),
+        _specRow('general.notifySound', showDivider: false),
       ],
     ),
     // 白名单是「被动网页」的唯一入口：浏览不挂在左栏，管理它的地方在这里。

@@ -107,7 +107,7 @@ class GlyphButton extends StatefulWidget {
   });
 
   final String glyph;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double size;
   final double glyphSize;
   final Color? color;
@@ -128,10 +128,13 @@ class _GlyphButtonState extends State<GlyphButton> {
   @override
   Widget build(BuildContext context) {
     final color = widget.color ?? const Color(0xFF636878);
+    // onTap 为 null = 真禁用：没有点击光标、没有 hover 高亮、不响应按压。
+    // 之前调用方传 () {} 造出过「点了没反应」的假按钮（备份忙时的删除键）。
+    final enabled = widget.onTap != null;
     final button = MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: enabled ? (_) => setState(() => _hover = true) : null,
+      onExit: enabled ? (_) => setState(() => _hover = false) : null,
       child: OndraPressable(
         onTap: widget.onTap,
         radius: widget.radius,
