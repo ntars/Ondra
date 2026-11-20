@@ -77,6 +77,9 @@ Future<void> writeRuntimeModelPatch({
   );
   await errors;
   final body = await out;
+  if (body.trim().isEmpty) {
+    throw StateError('受管段生成失败：合并子进程没有输出（exit $code）');
+  }
   if (code != 0) throw StateError('无法安全合并模型配置，请检查 profile YAML、网关条目与路由 ID');
   final newline = original.contains('\r\n') ? '\r\n' : '\n';
   final separator = parts.before.isEmpty || parts.before.endsWith('\n')

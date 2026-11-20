@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -2641,6 +2642,19 @@ class _ProviderEditorState extends State<_ProviderEditor> {
   ///
   /// 之前这里只把 `keyConfigured` 置成 true——不弹输入框、不存任何东西，
   /// 重启后布尔也丢。密钥属于「只写不读」的凭据，唯一去处是钥匙串。
+  /// 密钥的存储说明按平台如实：mac 是钥匙串；安卓没有钥匙串，
+  /// 落到应用私有目录（沙箱内其他应用读不到，root 设备除外）。
+  /// 不说清楚 = 用户以为都进了加密存储。
+  String _keyStorageNote(String apiKeyEnv) {
+    final envNote = apiKeyEnv.isEmpty ? '' : '环境变量回退：$apiKeyEnv · ';
+    final storage = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS => 'mac：写进系统钥匙串',
+      TargetPlatform.android => '安卓：应用私有目录（root 设备可读）',
+      _ => '当前平台不支持保存密钥',
+    };
+    return '$envNote$storage，只写不读';
+  }
+
   Future<void> _editKey() async {
     final controller = TextEditingController();
     final value = await OndraDialog.show<String>(
@@ -2731,9 +2745,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
             if (!isLocal)
               _Row(
                 title: 'API 密钥',
-                desc: p.apiKeyEnv.isEmpty
-                    ? '只写不读，保存后不再显示'
-                    : '环境变量回退：${p.apiKeyEnv}',
+                desc: _keyStorageNote(p.apiKeyEnv),
                 value: p.keyConfigured ? '已配置' : '未配置',
                 action: _LinkText(
                   label: p.keyConfigured ? '更换' : '填写',

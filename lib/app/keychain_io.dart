@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'home_dir.dart';
 import 'keychain_secret.dart';
 
 export 'keychain_secret.dart';
@@ -26,7 +28,45 @@ class Keychain {
 
   static const String _service = 'Ondra';
 
-  static bool get supported => Platform.isMacOS;
+  /// 安卓的降级存储：应用私有目录下的单文件（JSON：键 → 密钥）。
+  /// 与 prefs.json 分开——文件里全是密钥，备份/导出时更容易被注意到。
+  static File get _androidStore {
+    final home = ondraUserHome;
+    return File('$home/.ondra/android-keys.json');
+  }
+
+  static Map<String, String> _androidRead() {
+    try {
+      final f = _androidStore;
+      if (!f.existsSync()) return {};
+      final raw = jsonDecode(f.readAsStringSync());
+      if (raw is! Map) return {};
+      return {for (final e in raw.entries) '${e.key}': '${e.value}'};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static void _androidWriteAll(Map<String, String> data) {
+    final f = _androidStore;
+    f.parent.createSync(recursive: true);
+    // 0600：只有应用自己能读（安卓沙箱本就如此，双重保险）。
+    f.writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert(data),
+      flush: true,
+    );
+    try {
+      Process.runSync('chmod', ['600', f.path]);
+    } catch (_) {
+      // chmod 不可用不致命：沙箱已保证隔离。
+    }
+  }
+
+  /// mac 用系统钥匙串；安卓没有可比的钥匙串，密钥退到**应用私有目录**的
+  /// 文件（`/data/user/0/<包名>/…`，系统沙箱保证其他应用读不到，风险是
+  /// 设备被 root）——「完全填不了」比「知情降级」更伤人，界面会如实说明。
+  /// Windows / Web 等其余平台保持如实拒绝。
+  static bool get supported => Platform.isMacOS || Platform.isAndroid;
 
   /// 存在性查询的注入点。测试里换成 `() async => false`：
   /// widget 测试的时钟是 fake_async，`security` 子进程的定时器永远走不完，
@@ -50,7 +90,24 @@ class Keychain {
     if (!supported) {
       return const KeychainSecret(
         ok: false,
-        message: '这台机器上没有系统钥匙串，密钥暂不支持保存。',
+        message: '这台机器上没有可用的密钥存储，密钥暂不支持保存。',
+      );
+    }
+    if (Platform.isAndroid) {
+      if (key.trim().isEmpty) {
+        return const KeychainSecret(ok: false, message: '键名不能为空。');
+      }
+      final data = _androidRead();
+      if (value.isEmpty) {
+        data.remove(key);
+        _androidWriteAll(data);
+        return const KeychainSecret(ok: true, message: '已清除。');
+      }
+      data[key] = value;
+      _androidWriteAll(data);
+      return const KeychainSecret(
+        ok: true,
+        message: '已保存（安卓没有系统钥匙串，密钥存在应用私有目录）。',
       );
     }
     if (key.trim().isEmpty) {
@@ -62,9 +119,11 @@ class Keychain {
       return KeychainSecret(ok: ok, message: ok ? '已清除。' : '清除失败。');
     }
     try {
-      // 密钥走 stdin 而不是命令行参数：`ps aux` 能看到进程的完整命令行，
-      // 参数里带密钥等于把它贴到系统监视器上。`security add-generic-password
-      // -w` 不带值时从 stdin 读，读到 EOF 为止。
+      // 注意：`security -w` 不带值时**读的是 /dev/tty 而不是 stdin**——在应用
+      // 的无 TTY 子进程里它会挂死在「password data for new item:」提示上
+      // （2026-11-20 实测，printf 管道也不行）。所以密钥必须作为参数传递。
+      // 参数会出现在 `ps` 输出里：子进程只活一瞬，且 macOS 的 ps 对其他用户
+      // 进程隐藏参数，本机单用户场景风险可接受；stdin 方案不可用是硬事实。
       final add = await Process.start('security', [
         'add-generic-password',
         '-U',
@@ -73,9 +132,8 @@ class Keychain {
         '-a',
         key,
         '-w',
+        value,
       ]);
-      add.stdin.write(value);
-      await add.stdin.flush();
       await add.stdin.close();
       final code = await add.exitCode;
       final err = await add.stderr.transform(const SystemEncoding().decoder).join();
@@ -94,6 +152,9 @@ class Keychain {
   /// 读一条。读不到返回 null。
   static Future<String?> read(String key) async {
     if (!supported) return null;
+    if (Platform.isAndroid) {
+      return _androidRead()[key];
+    }
     try {
       final r = await Process.run('security', [
         'find-generic-password',
@@ -114,6 +175,13 @@ class Keychain {
 
   static Future<bool> erase(String key) async {
     if (!supported) return false;
+    if (Platform.isAndroid) {
+      final data = _androidRead();
+      if (!data.containsKey(key)) return false;
+      data.remove(key);
+      _androidWriteAll(data);
+      return true;
+    }
     try {
       final r = await Process.run('security', [
         'delete-generic-password',
