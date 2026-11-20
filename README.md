@@ -213,6 +213,27 @@ cd Ondra && flutter pub get
 flutter run -d macos
 ```
 
+### 8.2.1 安卓端的现状（如实）
+
+安卓版可用的是**界面与本地数据**：聊天外壳、主题/语言/字号、模型与密钥的
+CRUD、状态/记忆/历史/日志/插件页的展示与空态、反馈、备份的本地创建。
+
+**不可用且已在界面上如实提示**：聊天内核（安卓沙箱不允许启动 node 子进程，
+内核起不来；会话/记忆落库随之为空）、导入导出与打开目录（没有系统文件面板）、
+更新检查与模型探测（release 包需要 INTERNET，已加）、llama 本地模型、
+头像更换（没有原生通道）、时间线里的恢复动作。
+
+当前缺口（下一轮）：内核要么走远程网关，要么走 WebView 桥——两者都是架构级
+改动；手机端时间线仍是两栏；触控目标普遍小于 44dp。
+
+**签名**：从 v3.0.0-alpha.3 起用固定的 release keystore（仓库不存密钥，
+CI 经 secrets 注入）。指纹 `04:D5:19:FF:…:3D:7F`——所有版本一致，可以直接
+覆盖安装；v3.0.0-alpha.2 及更早用的是构建机的临时 debug key，需要卸载一次。
+
+**产物名**：构建产物与 CI artifact 里是 `空谷 Ondra-<版本>-<架构>.apk`；
+GitHub Release 会把非 ASCII 的资产名转写成 `Ondra-<版本>-<架构>.apk`
+（平台对 asset name 的限制），下载下来的 APK 安装后桌面图标名仍是「空谷 Ondra」。
+
 ### 8.3 直接下载
 
 三端安装包在 [Releases](https://github.com/ntars/Ondra/releases) 里，附 `SHA256SUMS.txt`：
