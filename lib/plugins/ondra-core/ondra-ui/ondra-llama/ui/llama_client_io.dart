@@ -101,7 +101,11 @@ class LlamaClient extends ChangeNotifier {
         final result = await Process.run(shell, [
           '-lc',
           'command -v llama-server',
-        ], environment: _environment).timeout(const Duration(seconds: 4));
+        ],
+        // Windows 检测走 git-bash 时，路径可能含中文目录；显式 UTF-8。
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+        environment: _environment).timeout(const Duration(seconds: 4));
         final path = (result.stdout as String).trim();
         if (result.exitCode == 0 &&
             path.isNotEmpty &&

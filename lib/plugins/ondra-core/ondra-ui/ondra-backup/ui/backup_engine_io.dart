@@ -147,7 +147,11 @@ class BackupEngine {
               '-readonly',
               source.path,
               'PRAGMA integrity_check;',
-            ]);
+            ],
+            // sqlite3 的输出与错误是 UTF-8；Windows 的 ACP=936 会按 GBK
+            // 误解（见 maintenance/审查第 20 项），三处都显式声明。
+            stdoutEncoding: utf8,
+            stderrEncoding: utf8,);
             if (check.exitCode != 0 || '${check.stdout}'.trim() != 'ok') {
               throw StateError(
                 'SQLite 恢复副本完整性检查失败：${file.entry.path} '
@@ -443,7 +447,9 @@ class BackupEngine {
         '.timeout 5000',
         path,
         '.backup ${jsonEncode(snapshot.path)}',
-      ]);
+      ],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,);
       if (result.exitCode != 0) {
         throw StateError('SQLite 一致性备份失败：${result.stderr}');
       }
@@ -454,7 +460,9 @@ class BackupEngine {
         '-bail',
         snapshot.path,
         'PRAGMA journal_mode=DELETE; PRAGMA integrity_check;',
-      ]);
+      ],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,);
       if (check.exitCode != 0 || '${check.stdout}'.trim() != 'delete\nok') {
         throw StateError('SQLite 副本完整性检查失败：${check.stderr} ${check.stdout}');
       }
@@ -532,7 +540,9 @@ class BackupEngine {
       '.timeout 1000',
       target.path,
       '.restore ${jsonEncode(source)}',
-    ]);
+    ],
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,);
     if (result.exitCode != 0) {
       throw StateError('SQLite 恢复失败：$rel ${result.stderr}');
     }

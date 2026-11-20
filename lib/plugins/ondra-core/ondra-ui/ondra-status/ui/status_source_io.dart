@@ -371,11 +371,22 @@ Future<DateTime?> _lastTime(String dbPath, String table) async {
 }
 
 Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
-  var r = await Process.run(_sqlite, ['-readonly', '-json', dbPath, sql]);
+  var r = await Process.run(
+    _sqlite,
+    ['-readonly', '-json', dbPath, sql],
+    // sqlite3 的 JSON 输出是 UTF-8；Windows 的 ACP=936 会按 GBK 误解。
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,
+  );
   if (r.exitCode != 0) {
     // WAL 库在 `-wal` / `-shm` 缺失时 `-readonly` 会 CANTOPEN。
     // 退回 URI 只读还能读到主库，总比整页显示成 0 强。
-    r = await Process.run(_sqlite, ['-json', 'file:$dbPath?mode=ro', sql]);
+    r = await Process.run(
+      _sqlite,
+      ['-json', 'file:$dbPath?mode=ro', sql],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
   }
   if (r.exitCode != 0) {
     throw ProcessException(_sqlite, const [], 'exit', r.exitCode);
