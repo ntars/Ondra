@@ -1316,13 +1316,15 @@ function handshake(home, profile) {
       } catch { /* 已经退了 */ }
       resolve({ out, err });
     };
-    // 4 秒够内核把 77 个插件挂完；更久说明卡住了，报超时比一直挂着好。
+    // 77 个插件挂完要几秒；Windows CI 的 runner 磁盘慢，4 秒会偶发
+    // 超时（alpha.9 的 windows job：握手超时 + tts-gate 的加载告警被打成
+    // 原因——其实插件挂完了，只是慢）。放宽到 12 秒，仍比一直挂着好。
     const timer = setTimeout(() => {
-      resolve({ out, err: `${err}\n[超时] 4 秒内没有收到 result` });
+      resolve({ out, err: `${err}\n[超时] 12 秒内没有收到 result` });
       try {
         child.kill();
       } catch { /* 已经退了 */ }
-    }, 4000);
+    }, 12000);
     child.stdout.on('data', (d) => {
       out += d;
       if (out.includes('"result"')) done();
