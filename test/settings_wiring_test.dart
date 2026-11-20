@@ -67,29 +67,16 @@ void main() {
     expect(push({'voice.timbre': 'warm'}), {'tts.preset': 'soft'});
   });
 
-  test('权限的文件访问边界不能用合法但不同义的出站审批档冒充', () {
-    expect(ondraSettingIsWired('general.permissions'), isFalse);
-    for (final option in ondraSettingSpec('general.permissions').options) {
-      final result = ondraPushSettingResult(
-        'general.permissions',
-        option.value,
-      );
-      expect(result.ok, isFalse);
-      expect(result.changed, isFalse);
-      expect(result.error, contains('文件权限'));
-    }
-  });
+  // permissions 已从 spec 表移除（内核没有会话文件权限接口，三档选择
+  // 永远无法兑现）：相关断言随之删除，等接口落地一并恢复。
 
   test('没有落点的项如实报告：isWired 为 false', () {
-    // 这三项是真的没有任何落点，必须如实为 false。
-    for (final key in [
-      'general.focusMute',
-      'channels.qqBot',
-      'channels.allowGroups',
-    ]) {
+    // focusMute/permissions 已从 spec 表移除（见 settings_spec 注释）。
+    // 这两项是真的没有任何落点，必须如实为 false。
+    for (final key in ['channels.qqBot', 'channels.allowGroups']) {
       expect(ondraSettingIsWired(key), isFalse, reason: '$key 当前确实没接');
     }
-    // 这几项是真的有落点。
+    // 这几项是真的有落点（语音装配的是旧拆分件 tts/asr）。
     expect(ondraSettingIsWired('voice.tts'), isTrue);
     expect(ondraSettingIsWired('privacy.voiceCloud'), isTrue);
   });

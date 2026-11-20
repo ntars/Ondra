@@ -19,9 +19,10 @@ void main() {
     // 但正是这条对应关系能在键被误删时立刻炸。
     const used = [
       // 通用设置
-      'general.language', 'general.fontSize', 'general.permissions',
+      // permissions/focusMute 已移除（见 settings_spec 注释）。
+      'general.language', 'general.fontSize',
       'general.launchAtLogin', 'general.preventSleep',
-      'general.notify', 'general.notifySound', 'general.focusMute',
+      'general.notify', 'general.notifySound',
       // 人设设定（对话 / 记忆 / 数据 / 语音）
       'dialog.busySend', 'dialog.enterSend', 'dialog.replyLength',
       'dialog.remember', 'dialog.citeMemory', 'dialog.inferPreference',

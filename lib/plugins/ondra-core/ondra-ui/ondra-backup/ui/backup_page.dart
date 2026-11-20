@@ -857,7 +857,9 @@ class _SnapshotRowState extends State<_SnapshotRow> {
                   glyphSize: 14,
                   color: _hover ? OndraColor.ink45 : s.ink30,
                   tooltip: '删除这份备份',
-                  onTap: widget.busy ? () {} : widget.onDelete,
+                  // 忙时真禁用（null）而不是空函数：空函数会留下点击
+                  // 光标与 hover 高亮，点了没反应像坏了。
+                  onTap: widget.busy ? null : widget.onDelete,
                 ),
               ],
             ),

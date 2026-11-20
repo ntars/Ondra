@@ -161,12 +161,6 @@ class SettingsClient extends ChangeNotifier {
       _notify();
       return Future.value(false);
     }
-    // 不用出站审批档冒充文件权限，也不保存一个无法兑现的权限选择。
-    if (key == 'general.permissions') {
-      _fail(key, ondraPushSettingResult(key, value).error!);
-      _notify();
-      return Future.value(false);
-    }
     _requested[key] = value;
     _revisions[key] = (_revisions[key] ?? 0) + 1;
     if (!_persist(key, value)) {

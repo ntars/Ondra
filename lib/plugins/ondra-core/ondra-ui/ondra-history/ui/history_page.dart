@@ -49,6 +49,7 @@ class _HistoryOverlay extends StatelessWidget {
     final s = OndraSkin.of(context);
     return Center(
       child: GestureDetector(
+        // 拦住点在卡片上的那一下，别让它穿透到遮罩把浮层关掉。
         onTap: () {},
         child: Container(
           width: 520,
