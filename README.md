@@ -237,9 +237,13 @@ llama 本地模型、头像更换（没有原生通道）。
 
 时间线两栏折叠、触控 44dp、教程文案分派已在 v3.0.0-alpha.4 完成。
 
-**签名**：从 v3.0.0-alpha.3 起用固定的 release keystore（仓库不存密钥，
-CI 经 secrets 注入）。指纹 `04:D5:19:FF:…:3D:7F`——所有版本一致，可以直接
-覆盖安装；v3.0.0-alpha.2 及更早用的是构建机的临时 debug key，需要卸载一次。
+**签名与包名**：包名 `cn.ntars.ai`（域名反推，自 v3.0.0-alpha.7 锁定，
+不再变更）。签名从 v3.0.0-alpha.3 起用固定的 release keystore（仓库不存
+密钥，CI 经 secrets 注入）。指纹 `04:D5:19:FF:…:3D:7F`——所有版本一致。
+
+**覆盖安装的分界线**：v3.0.0-alpha.6 及更早是旧包名 `com.example.ondra`，
+与现包名互不覆盖——装 alpha.7 前要先卸载旧版；alpha.7 起内部互相覆盖安装。
+旧版卸载会带走其私有数据目录，需要保留数据的先用应用内备份导出再装新版。
 
 **产物名**：构建产物与 CI artifact 里是 `空谷 Ondra-<版本>-<架构>.apk`；
 GitHub Release 会把非 ASCII 的资产名转写成 `Ondra-<版本>-<架构>.apk`
