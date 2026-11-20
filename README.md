@@ -26,8 +26,8 @@
 | 项 | 内容 |
 |---|---|
 | 版本 | 2.0.0-alpha |
-| 状态 | 内测阶段：macOS 可构建可运行，Web 可构建，Windows 可构建但发布包尚未自带运行时 |
-| 平台 | macOS（可运行）· Web（可构建）· Windows（可构建，构建中） |
+| 状态 | 内测阶段：三端（macOS / Windows / Android）CI 全绿并随版发布，Web 可构建 |
+| 平台 | macOS（可运行）· Windows（发布包自带运行时）· Android（内核已上机，待真机握手）· Web（可构建） |
 | 仓库 | <https://github.com/ntars/Ondra> |
 | 许可 | Apache-2.0 / MIT（按目录分层） |
 
@@ -260,7 +260,7 @@ GitHub Release 会把非 ASCII 的资产名转写成 `Ondra-<版本>-<架构>.ap
 | 平台 | 文件 | 说明 |
 |---|---|---|
 | macOS（通用二进制） | `Ondra-3.0.0-alpha-macos-universal.dmg` | Intel 与 Apple Silicon 同一个包 |
-| Windows（x64） | `Ondra-3.0.0-alpha-windows-x64.zip` | 解压后运行 `ondra.exe`，必须整目录解压 |
+| Windows（x64） | `Ondra-<tag>-windows-x64.zip` | 解压后运行 `ondra.exe`，必须整目录解压。导入导出 / 打开目录走系统文件面板（PowerShell + WinForms，中文路径 UTF-8 解码） |
 | Android | `Ondra-3.0.0-alpha-android-arm64.apk` | 常规手机；`-universal.apk` 含 32 位与模拟器 |
 
 校验：`shasum -a 256 -c SHA256SUMS.txt`。三个包都没有正式签名，首次打开按发行版说明处理系统拦截。
