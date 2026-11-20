@@ -270,15 +270,22 @@ class _RailIconButtonState extends State<_RailIconButton> {
         child: OndraPressable(
           onTap: widget.onTap,
           radius: OndraRadius.pill,
-          child: Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hover ? const Color(0x0F000000) : Colors.transparent,
-              shape: BoxShape.circle,
+          // 命中区 44（触控最低标准）；视觉圆圈仍是 24。
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _hover ? const Color(0x0F000000) : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Glyph(widget.glyph, size: widget.glyphSize, color: s.ink80),
+              ),
             ),
-            child: Glyph(widget.glyph, size: widget.glyphSize, color: s.ink80),
           ),
         ),
       ),

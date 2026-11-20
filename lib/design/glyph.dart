@@ -96,6 +96,7 @@ class Glyph extends StatelessWidget {
 class GlyphButton extends StatefulWidget {
   const GlyphButton({
     super.key,
+    this.hitSize = -1,
     required this.glyph,
     required this.onTap,
     this.size = 28,
@@ -112,6 +113,10 @@ class GlyphButton extends StatefulWidget {
   final Color? color;
   final String? tooltip;
   final double radius;
+
+  /// 命中区边长；-1（默认）等于 [size]。触屏上的小图标键要给 44——
+  /// 视觉不变，只是把透明的命中层垫大。
+  final double hitSize;
 
   @override
   State<GlyphButton> createState() => _GlyphButtonState();
@@ -132,14 +137,20 @@ class _GlyphButtonState extends State<GlyphButton> {
         radius: widget.radius,
         scale: widget.size >= 32,
         child: Container(
-          width: widget.size,
-          height: widget.size,
+          width: widget.hitSize > 0 ? widget.hitSize : widget.size,
+          height: widget.hitSize > 0 ? widget.hitSize : widget.size,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: _hover ? const Color(0x0A000000) : Colors.transparent,
             borderRadius: BorderRadius.circular(widget.radius),
           ),
-          child: Glyph(widget.glyph, size: widget.glyphSize, color: color),
+          child: SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: Center(
+              child: Glyph(widget.glyph, size: widget.glyphSize, color: color),
+            ),
+          ),
         ),
       ),
     );

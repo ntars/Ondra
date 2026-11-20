@@ -16,6 +16,7 @@ class TimelineRail extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     this.width = 132,
+    this.horizontal = false,
   });
 
   /// index 0 是「现在」，其余是新到旧的快照。
@@ -25,9 +26,14 @@ class TimelineRail extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final double width;
 
+  /// 手机（<560dp）：竖排 132dp 的导轨没有生存空间（主区只剩 ~200），
+  /// 改为横排滚动条放在主区上方，点按逻辑与竖排一致。
+  final bool horizontal;
+
   @override
   Widget build(BuildContext context) {
     final items = _buildItems();
+    if (horizontal) return _buildHorizontal(items);
 
     return SizedBox(
       width: width,
@@ -86,6 +92,47 @@ class TimelineRail extends StatelessWidget {
     );
   }
 
+  Widget _buildHorizontal(List<_Item> items) {
+    return SizedBox(
+      height: 44,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            for (final item in items)
+              item.snapshotIndex == null
+                  ? Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 4),
+                      child: Text(
+                        item.header!,
+                        maxLines: 1,
+                        style: ondraText(
+                          10,
+                          color: TimelinePalette.inkDim,
+                          height: 1,
+                          spacing: 0.4,
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: _HoverTick(
+                        // 横排的命中块：44 宽 × 44 高（触控标准），
+                        // 点与标签横着排。
+                        height: 44,
+                        label: item.label,
+                        selected: item.snapshotIndex == selected,
+                        onTap: () => onSelect(item.snapshotIndex!),
+                        horizontal: true,
+                      ),
+                    ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 把「现在 + 每份快照」摊平成行，日期变化处插一个组头。
   List<_Item> _buildItems() {
     final out = <_Item>[];
@@ -128,12 +175,16 @@ class _HoverTick extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.horizontal = false,
   });
 
   final double height;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// 横排：点在左、标签在右，整块 44 宽起（触控标准）。
+  final bool horizontal;
 
   @override
   State<_HoverTick> createState() => _HoverTickState();
@@ -146,6 +197,56 @@ class _HoverTickState extends State<_HoverTick> {
   Widget build(BuildContext context) {
     final active = widget.selected || _hover;
     final dotSize = widget.selected ? 7.0 : 4.0;
+    if (widget.horizontal) {
+      // 横排 pill：整块 44×44 命中，点与 HH:MM 横排，选中态与竖排一致。
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: active
+                  ? TimelinePalette.ink.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 140),
+                  width: dotSize,
+                  height: dotSize,
+                  decoration: BoxDecoration(
+                    color: widget.selected
+                        ? Colors.white
+                        : TimelinePalette.ink
+                              .withValues(alpha: _hover ? 0.65 : 0.30),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  widget.label,
+                  style: ondraText(
+                    widget.selected ? 11.5 : 11,
+                    weight: widget.selected ? 500 : 330,
+                    color: active ? TimelinePalette.ink : TimelinePalette.inkSoft,
+                    height: 1,
+                  ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),

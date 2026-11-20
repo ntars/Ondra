@@ -75,7 +75,13 @@ class OndraSwitch extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: enabled ? () => onChanged!(!value) : null,
-        child: Opacity(
+        // 命中区垫到 44×24：轨道视觉 36×16 不变。整行 44 高会撑开
+        // 设置行（行内已有自己的最小高度），24 高足够手指落点。
+        child: SizedBox(
+          width: 44,
+          height: 24,
+          child: Center(
+            child: Opacity(
           opacity: enabled ? 1 : 0.45,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
@@ -115,9 +121,11 @@ class OndraSwitch extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
+          ),  // Center（命中区垫层）
+        ),  // Opacity
+      ),  // SizedBox（命中区）
+      ),  // GestureDetector
+    );  // MouseRegion
   }
 }
 
