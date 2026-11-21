@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: 取 apk
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -z "${{ inputs.apk_url }}" ]; then
             # latest 排除 prerelease，而本项目全是 prerelease——按 tag 直接取。
