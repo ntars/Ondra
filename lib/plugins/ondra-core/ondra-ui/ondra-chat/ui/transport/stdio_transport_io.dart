@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../../../../../../app/bundled_runtime.dart';
 import '../../../../../../app/runtime_seed.dart';
+import '../../../../../../app/login_shell_environment.dart';
 import '../chat_client.dart';
 import '../../../ondra-settings/ondra-models/ui/runtime_model_config.dart';
 import '../../../ondra-settings/ondra-models/ui/runtime_model_config_io.dart';
@@ -68,6 +69,10 @@ class StdioDshTransport implements DshTransport {
     this.modelId = 'group/ntars',
     this.provider = 'magpie',
     Map<String, String>? environment,
+
+    /// 是否继承登录 shell 环境（fixture 传 false：隔离环境不该被真实
+    /// rc 文件污染，10s 探测也会拖死测试）。
+    this.inheritLoginShellEnvironment = true,
     List<String> binaryArgs = const [],
     this.requestTimeout = const Duration(seconds: 30),
     this.turnTimeout = const Duration(minutes: 10),
@@ -76,7 +81,7 @@ class StdioDshTransport implements DshTransport {
     this.workingDirectory,
     this.previousClosed,
     String? resumeSessionId,
-  }) : environment = Map.unmodifiable(environment ?? Platform.environment),
+  })  : environment = Map.unmodifiable(environment ?? Platform.environment),
        binaryArgs = List.unmodifiable(binaryArgs),
        _sessionId = resumeSessionId;
 
@@ -86,6 +91,9 @@ class StdioDshTransport implements DshTransport {
 
   /// 提供时替代父进程环境，供子进程、profile 种子和日志共用。
   final Map<String, String> environment;
+
+  /// 是否继承登录 shell 环境。
+  final bool inheritLoginShellEnvironment;
   final List<String> binaryArgs;
   final Duration requestTimeout;
 
@@ -183,8 +191,28 @@ class StdioDshTransport implements DshTransport {
       if (seed.outcome != RuntimeSeedOutcome.alreadyPresent) {
         _log('profile seed: $seed');
       }
-      final config = modelConfig?.call();
+      // 登录 shell 环境继承（照抄官方 login-shell-environment 协议）：
+      // Dock/Finder 启动只继承会话管理器环境，用户在 rc 文件里的
+      // PATH/代理/模型变量内核子进程看不到。探测失败（超时/无 shell）
+      // 不拦启动，退回继承环境。
       var childEnvironment = environment;
+      if (!Platform.isWindows && inheritLoginShellEnvironment) {
+        try {
+          final shellEnv = await LoginShellEnvironment.read().timeout(
+            const Duration(seconds: 12),
+          );
+          if (shellEnv != null && shellEnv.isNotEmpty) {
+            childEnvironment = LoginShellEnvironment.merge(
+              environment,
+              shellEnv,
+            );
+            _log('login shell environment: +${shellEnv.length} vars');
+          }
+        } catch (_) {
+          // 探测挂了不该拦内核。
+        }
+      }
+      final config = modelConfig?.call();
       // 模型配置失败绝不拦内核启动（2026-11-21 用户反馈：不用 DeepSeek、
       // 换其他模型或网关时内核整个起不来）。内核没有模型也能跑——工具、
       // 记忆、对话协议都在；只有聊天需要模型。配置解析/密钥解析/补丁写
@@ -214,7 +242,7 @@ class StdioDshTransport implements DshTransport {
       _log('launch: $launch');
       final path = [
         File(launch.exe).parent.path,
-        environment['PATH'] ??
+        childEnvironment['PATH'] ??
             (Platform.isWindows ? '' : '/usr/bin:/bin:/usr/sbin:/sbin'),
       ].join(Platform.isWindows ? ';' : ':');
       final process = await Process.start(

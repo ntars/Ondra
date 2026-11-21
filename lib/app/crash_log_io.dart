@@ -65,9 +65,29 @@ class CrashLog {
         return text;
       }
 
+      // 官方 crash-report 结构：完整 error + 原因链 + 进程事实。
+      // 恢复对话框只显示末几行，文件存全量——排障时「第一次的现场」
+      // 连同当时的环境一起留档。
+      final causeChain = <String>[];
+      Object cause = error;
+      while (true) {
+        Object? inner;
+        try {
+          inner = (cause as dynamic).cause as Object?;
+        } catch (_) {
+          inner = null;
+        }
+        if (inner == null) break;
+        causeChain.add(redact('$inner'));
+        cause = inner;
+        if (causeChain.length > 8) break;
+      }
       file.writeAsStringSync(
         '${_stamp()} [$scope] v$ondraVersion\n'
-        '${redact('$error')}\n'
+        'error: ${redact('$error')}\n'
+        '${causeChain.isEmpty ? '' : 'cause chain:\n${causeChain.map((c) => '  - $c').join('\n')}\n'}'
+        'process: pid=$pid dart=${Platform.version} '
+        'os=${Platform.operatingSystem}-${Platform.operatingSystemVersion}\n'
         '${redact(stack ?? '')}\n'
         '${'-' * 60}\n',
         mode: FileMode.append,

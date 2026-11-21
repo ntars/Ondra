@@ -466,6 +466,7 @@ class _Fixture {
     // 预建隔离 profile，fixture 不加载真实内核或触发种子复制的权限操作。
     Directory('$kernelHome/profiles/ondra').createSync(recursive: true);
     return _transport = StdioDshTransport(
+      inheritLoginShellEnvironment: false,
       binary: node,
       binaryArgs: [
         File('test/support/stdio_protocol_fixture.mjs').absolute.path,
