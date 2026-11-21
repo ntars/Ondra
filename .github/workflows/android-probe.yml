@@ -99,13 +99,13 @@ jobs:
 
       - name: 收日志
         if: always()
+        timeout-minutes: 3
         run: |
           kill $LOGCAT_PID 2>/dev/null || true
           ADB=${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb
           # 过滤出值得看的：Flutter / Dart / AndroidRuntime 崩溃 / ANR / 应用进程
           grep -aiE "flutter|dart|AndroidRuntime|FATAL|ANR |ondra|Crash" logcat-full.txt > logcat-filtered.txt || true
           ${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb shell "ls -la /data/data/*ondra* 2>/dev/null; ls -la /data/local/tmp 2>/dev/null" || true
-          ${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb bugreport bugreport.zip || true
 
       - name: 上传日志
         uses: actions/upload-artifact@v4
