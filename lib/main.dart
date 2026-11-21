@@ -28,6 +28,26 @@ Future<void> main() async {
   // 报给谁、报什么、走不走网，是「隐私与安全」里的开关决定的；
   // 而那个开关默认是关的。本地留一份堆栈是底线——用户来问「为什么闪退」时，
   // 没有这份东西就只能猜。
+  // 构建期异常的可视化：release 下 Flutter 默认把异常 widget 画成一块
+  // 灰板——用户看到的仍是「白屏/灰屏」，没有任何线索。换成一张可读的
+  // 错误卡（本地日志照样写），崩溃至少会自己说话。
+  ErrorWidget.builder = (details) {
+    FlutterError.presentError(details);
+    _logCrash('ErrorWidget', details.exception, details.stack);
+    return ColoredBox(
+      color: const Color(0xFFFFF3F3),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Text(
+            '界面这一块没能画出来，已记录到本地日志。\n'
+            '${details.exception}',
+            style: const TextStyle(fontSize: 12, height: 1.4),
+          ),
+        ),
+      ),
+    );
+  };
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     _logCrash('FlutterError', details.exception, details.stack);
@@ -49,18 +69,31 @@ Future<void> main() async {
   // 桌面端在这里把窗口定成 960×600；web 上是空实现。
   await applyWindowGeometry();
 
+  // ── 首帧前的初始化：每一步独立兜底，任何一步失败界面照起 ──
+  // 安卓首启白屏（真机反馈）的教训：这些 await 若有任何一个抛出，
+  // 下面的 runApp 就不会执行——错误钩子只负责记录，main 会静默结束，
+  // 用户看到的就是一块永远白着的屏幕。初始化失败的正确姿势是降级
+  // （内核不可用/没有数据），不是整块白板。
+  Future<void> guarded(String name, Future<void> Function() step) async {
+    try {
+      await step();
+    } catch (error, stack) {
+      _logCrash('main/init:$name', error, stack);
+    }
+  }
+
   // 偏好在首帧之前读回来：字号与语言一旦晚一步，界面会先按默认值排一次版
   // 再重排，肉眼能看见一次抖。文件只有几百字节，同步读不会拖慢启动。
   settingsClient.load();
 
   // 运行时（Cordis 宿主）接通前，先把内置人设包读进来，首帧就有名字。
   // 接上运行时后这一行换成 personaClient.connect()，界面不用动。
-  await personaClient.load();
+  await guarded('personaClient.load', personaClient.load);
   // 插件清单读的是 `~/.ondra/dsh/profiles/ondra`，所以种子必须在它之前铺。
   // 装在包里的是**首次运行的种子**：目录已存在就原样不动，用户自己更新过的
   // 插件不会被包里的旧快照盖掉（见 lib/app/runtime_seed.dart）。
-  seedRuntimeProfile();
-  await pluginsClient.load();
+  await guarded('seedRuntimeProfile', () async => seedRuntimeProfile());
+  await guarded('pluginsClient.load', pluginsClient.load);
 
   // 模型基座先读回上一次的提供商与默认模型，再建传输层——
   // 顺序反了的话，传输层会拿着出厂默认选路，读完配置又得重连一次。
@@ -75,9 +108,12 @@ Future<void> main() async {
     chat: chatClient,
   );
   // 首帧不等内核：连接慢或失败都不该让窗口空着。
-  await runtimeBinding.start().timeout(
-    const Duration(seconds: 8),
-    onTimeout: () {},
+  await guarded(
+    'runtimeBinding.start',
+    () => runtimeBinding.start().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {},
+        ),
   );
 
   runApp(const OndraApp());
