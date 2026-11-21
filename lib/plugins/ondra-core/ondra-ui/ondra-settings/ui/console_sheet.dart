@@ -571,9 +571,12 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           for (var i = 0; i < entries.length; i++)
             _Row(
               title: entries[i].$2.id,
-              desc: entries[i].$2.contextWindow.isEmpty
-                  ? entries[i].$1.name
-                  : '${entries[i].$1.name} · 上下文 ${entries[i].$2.contextWindow}',
+              desc: _modelLine(entries[i].$1, entries[i].$2),
+              value: _providerState(entries[i].$1) == '密钥已配置' ||
+                      _providerState(entries[i].$1) == '本地' ||
+                      _providerState(entries[i].$1) == '网关'
+                  ? null
+                  : '未配置密钥',
               action: _SmallPill(
                 label: modelClient.isDefault(entries[i].$1, entries[i].$2)
                     ? '当前'
@@ -600,15 +603,33 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     ]);
   }
 
+  // 模型条目的描述行，字段与官方模型目录一致：
+  // 来源 · 上下文容量 · 输入类型（支持图片时标注）· 推理档位。
+  String _modelLine(OndraProvider p, OndraModelEntry m) {
+    final parts = <String>[p.name];
+    if (m.contextWindow.isNotEmpty) parts.add('上下文 ${m.contextWindow}');
+    if (m.inputs.contains('image')) parts.add('支持图片');
+    final thinking = m.reasoning.map((r) => r.level).toList();
+    if (thinking.length > 1 ||
+        (thinking.isNotEmpty && thinking.first != 'off')) {
+      parts.add('推理 ${thinking.join('/')}');
+    }
+    return parts.join(' · ');
+  }
+
   String _providerLine(OndraProvider p) {
     if (p.baseUrl.isEmpty) return '${p.category.label} · 地址未填写';
     return '${p.category.label} · ${p.baseUrl}';
   }
 
+  // 凭据状态与官方凭据 describe 语义对齐（configured / 未配置 / 不需要）：
+  // 本地部署与网关不校验密钥，状态恒为「不需要」——此前网关也显示
+  // 「密钥缺失」，用户被误导去填一个不该填的密钥。
   String _providerState(OndraProvider p) {
     if (p.baseUrl.isEmpty) return '待填地址';
     if (p.category == ProviderCategory.local) return '本地';
-    return p.keyConfigured ? '密钥已配置' : '密钥缺失';
+    if (p.category == ProviderCategory.gateway) return '网关';
+    return p.keyConfigured ? '密钥已配置' : '未配置密钥';
   }
 
   /// 第一步：选「模型从哪来」。
