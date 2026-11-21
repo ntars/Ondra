@@ -303,7 +303,10 @@ class PersonaStore {
       if (++count > maxEntries || (e is! Directory && e is! File)) {
         throw const FormatException('包条目过多或包含符号链接/特殊文件。');
       }
-      final rel = e.path.substring(path.length + 1);
+      // Windows 的 listSync 返回反斜杠路径——先归一成 / 再校验，否则
+      // 合法条目会被当成「含反斜杠」整包拒绝（alpha.10 审查：Windows 上
+      // 人设导入必失败）。
+      final rel = e.path.substring(path.length + 1).replaceAll('\\', '/');
       if (!seen.add(rel.toLowerCase()) ||
           rel.contains('\\') ||
           rel.contains(':') ||
