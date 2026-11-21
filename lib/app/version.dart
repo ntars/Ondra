@@ -18,7 +18,7 @@ const String ondraProductName = '空谷';
 const String ondraSlogan = '记得住，也帮得上';
 
 const String ondraVersion = '3.0.0-alpha';
-const String ondraBuild = '11';
+const String ondraBuild = '12';
 
 /// 「关于」里的一句话阶段说明。
 ///
