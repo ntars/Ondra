@@ -53,18 +53,20 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           script: |
             ADB=$ANDROID_HOME/platform-tools/adb
-            # 抓全量 logcat（崩溃 / Flutter / ActivityManager / Dart）到后台文件
-            $ADB logcat -c
-            $ADB logcat -v time > logcat-full.txt &
-            LOGCAT_PID=$!
             set -x
+            adb devices
+            adb wait-for-device
+            adb shell getprop sys.boot_completed
             $ADB install -r app-universal.apk
             PACKAGE=$($ADB shell pm list packages | grep -iE "ondra|ntars" | head -1 | sed 's/package://;s/\r//')
             echo "package: $PACKAGE"
-            echo "PACKAGE=$PACKAGE" >> $GITHUB_ENV
+            $ADB logcat -c
             $ADB shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
             sleep ${{ inputs.boot_wait }}
             $ADB shell "dumpsys activity activities | head -30" || true
+            $ADB shell "ps -A | head -40" || true
+            # 结束时一次性抓取（后台 logcat 与 action 的 shell 生命期冲突）
+            $ADB logcat -d -v time > logcat-full.txt
 
       - name: 收日志
         if: always()
