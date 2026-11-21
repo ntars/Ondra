@@ -27,11 +27,14 @@ jobs:
       - name: 取 apk
         run: |
           if [ -z "${{ inputs.apk_url }}" ]; then
-            URL=$(curl -sL https://api.github.com/repos/${{ github.repository }}/releases/latest \
-              | grep -oE '"browser_download_url": *"[^"]*android-universal[^"]*\.apk"' \
-              | head -1 | grep -oE 'https[^"]+')
+            # latest 排除 prerelease，而本项目全是 prerelease——按 tag 直接取。
+            URL=$(gh release view v3.0.0-alpha.10 --repo ${{ github.repository }} \
+              --json assets --jq '.assets[] | select(.name | contains("android-universal")) | .url')
+            gh release download v3.0.0-alpha.10 --repo ${{ github.repository }} \
+              --pattern "*android-universal*" --output app-universal.apk
           else
             URL='${{ inputs.apk_url }}'
+            curl -sL "$URL" -o app-universal.apk
           fi
           echo "apk: $URL"
           curl -sL "$URL" -o app-universal.apk
