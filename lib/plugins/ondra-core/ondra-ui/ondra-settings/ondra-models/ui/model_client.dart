@@ -21,7 +21,7 @@ class ModelClient extends ChangeNotifier {
     String? storePath,
     Future<String?> Function(String)? secretResolver,
     Future<KeychainSecret> Function(String, String)? secretWriter,
-  // ignore: prefer_initializing_formals, 对外参数名保持 storePath，私有字段不能当命名参数
+    // ignore: prefer_initializing_formals, 对外参数名保持 storePath，私有字段不能当命名参数
   }) : _storePath = storePath,
        _secretResolver =
            secretResolver ?? ((id) => Keychain.read(_keyName(id))),
@@ -118,56 +118,15 @@ class ModelClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 当前默认模型的运行时配置。选了什么就用什么——**不做任何自动回退**
+  /// （与 DeepSeek Harness 官方一致：密钥状态只是 UI 状态，缺密钥不换
+  /// 模型、不拦内核，发消息那一刻由内核如实报错）。配置解析失败时
+  /// transport 会跳过模型段照常启动内核，错误显示在聊天栏。
   RuntimeModelConfig currentRuntimeConfig() {
     final p = byId(defaultProviderId);
     final m = p?.models.where((m) => m.id == defaultModelId).firstOrNull;
     if (p == null || m == null) throw StateError('请先选择有效的默认模型');
-    final config = RuntimeModelConfig.from(p, m);
-    // 远端模型没有密钥（钥匙串 + 环境变量都没有）：不拦启动——回退到
-    // 第一个本机可用模型继续说话（2026-11-21 用户反馈：不填 DeepSeek
-    // 密钥聊天整个起不来）。回退原因显示在聊天栏，用户知道发生了什么。
-    if (!_modelUsable(p, config)) {
-      final fallback = _localFallback();
-      if (fallback != null) return fallback;
-    }
-    return config;
-  }
-
-  /// 远端模型是否已具备密钥：钥匙串状态或启动环境变量任一存在即算。
-  bool _modelUsable(OndraProvider p, RuntimeModelConfig config) {
-    if (config.isLoopback) return true;
-    if (p.category == ProviderCategory.local ||
-        p.category == ProviderCategory.gateway) {
-      return true;
-    }
-    if (p.keyConfigured) return true;
-    return (Platform.environment[config.apiKeyEnv] ?? '').trim().isNotEmpty;
-  }
-
-  /// 回退顺序：本机网关 magpie → 第一个 loopback/本地/网关 → null。
-  RuntimeModelConfig? _localFallback() {
-    for (final p in _providers) {
-      if (p.id == 'magpie') {
-        final m = p.models.firstOrNull;
-        if (m != null) {
-          try {
-            return RuntimeModelConfig.from(p, m);
-          } catch (_) {}
-        }
-      }
-    }
-    for (final p in _providers) {
-      if (p.category == ProviderCategory.local ||
-          p.category == ProviderCategory.gateway) {
-        final m = p.models.firstOrNull;
-        if (m != null) {
-          try {
-            return RuntimeModelConfig.from(p, m);
-          } catch (_) {}
-        }
-      }
-    }
-    return null;
+    return RuntimeModelConfig.from(p, m);
   }
 
   /// 不含 secret；替换已配置密钥也增加 revision，不能只看 keyConfigured。
