@@ -69,7 +69,7 @@ jobs:
           set -x
           $ADB install -r app-universal.apk 2>&1 | head -5 || true
           # 起模拟器（后台），日志到文件
-          /usr/local/lib/android/sdk/emulator/emulator -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on -no-snapshot &
+          ANDROID_AVD_HOME=$HOME/.config/.android/avd /usr/local/lib/android/sdk/emulator/emulator -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on -no-snapshot &
           for i in $(seq 1 60); do
             B=$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
             if [ "$B" = "1" ]; then echo "BOOTED at ${i}x5s"; break; fi
