@@ -60,7 +60,9 @@ jobs:
           ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}
           EMU=$ANDROID_HOME/emulator/emulator
           ADB=$ANDROID_HOME/platform-tools/adb
-          echo no | $EMU create avd -n probe -k "system-images;android-34;google_apis;x86_64" --device pixel_6
+          AVDM=$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager
+          echo no | $AVDM create avd -n probe -k "system-images;android-34;google_apis;x86_64" --device pixel_6
+          $AVDM list avd | head -6
           # -no-window 但保留 GPU swiftshader_indirect：Flutter 需要可用 GPU 栈
           $EMU -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on &
           echo "PID $!" > emulator.pid
