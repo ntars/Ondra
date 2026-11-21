@@ -425,6 +425,11 @@ const PROFILE_KERNEL_PKGS = (() => {
     const text = fs.readFileSync(p, 'utf8');
     for (const m of text.matchAll(/@deepseek-ai\/[A-Za-z0-9._-]+/g)) names.add(m[0]);
   }
+  // ondra-credentials 插件 import 官方凭据库（LocalCredentialProvider）：
+  // 它在官方 dsh package.json 的依赖里，但同样不出现在本仓任何
+  // package.json 或 profile 点名里——漏掉的后果是内核报
+  // "this composition mounts no credentials service"。
+  names.add('@deepseek-ai/dsh-credentials-local');
   return [...names].sort();
 })();
 
