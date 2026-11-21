@@ -315,6 +315,37 @@ class ChatClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 数据维护用的「内核停机协调」：彻底杀掉内核进程（sqlite 独占锁随
+  /// 进程释放），resume 时重连。DataMaintenance 在桌面启动序列里把这两
+  /// 个闭包接上——alpha.10 Windows 审查第 2 项：未注册时恢复/清空/导出
+  /// 全部被「未接入内核停机协调」拦下。
+  Future<void> pauseKernel() async {
+    _generation += 1;
+    _connectionGeneration += 1;
+    _transport.dispose();
+    _transport.stop();
+    _connected = false;
+    _busy = false;
+    _offlineReason = null;
+    notifyListeners();
+  }
+
+  Future<void> resumeKernel() async {
+    final generation = ++_connectionGeneration;
+    try {
+      await _transport.connect();
+      if (generation != _connectionGeneration) return;
+      _connected = true;
+      settingsClient.markConnected();
+      _offlineReason = null;
+    } catch (e) {
+      if (generation != _connectionGeneration) return;
+      _connected = false;
+      _offlineReason = '$e';
+    }
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _generation += 1;

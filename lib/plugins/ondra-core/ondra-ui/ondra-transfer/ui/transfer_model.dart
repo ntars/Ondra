@@ -149,6 +149,9 @@ class TransferFact {
     this.subject = '',
     this.archived = false,
     this.sealed = false,
+    this.revisions = 0,
+    this.oldText = '',
+    this.sourceRawId = '',
   });
 
   final String id;
@@ -162,6 +165,13 @@ class TransferFact {
 
   /// 封存：用户手动下架，与「归档」（沉底）是两回事。导出导入必须保真。
   final bool sealed;
+
+  /// 修订次数与上一版正文（alpha.10 审查：迁移后归零/丢失）。
+  final int revisions;
+  final String oldText;
+
+  /// 提炼来源的原文编号（迁移后丢失会导致溯源断链）。
+  final String sourceRawId;
 }
 
 /// 一条要导出的关联。

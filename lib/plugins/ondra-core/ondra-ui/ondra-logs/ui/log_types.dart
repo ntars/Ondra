@@ -27,7 +27,9 @@ extension LogKindSpec on LogKind {
   String get emptyHint => switch (this) {
     LogKind.dialog => '还没有对话，日志会随对话写入',
     LogKind.plugin => '没有插件调用记录',
-    LogKind.system => '系统运行正常，没有新事件',
+    // alpha.10 审查第 23 项：聊天断线记在 transport.log，这里没有条目
+    // 不等于「系统正常」——措辞收窄，别让来排查断线的用户误判。
+    LogKind.system => '系统页没有新事件；聊天连接状态见右侧聊天栏',
   };
 }
 

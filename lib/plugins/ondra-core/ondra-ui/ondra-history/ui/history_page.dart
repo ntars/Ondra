@@ -227,7 +227,12 @@ class _HistoryListState extends State<_HistoryList> {
       _when(item.updatedAt),
       '${item.messages} 句',
     ];
-    final dir = item.cwd.split('/').where((s) => s.isNotEmpty).lastOrNull;
+    // Windows 路径用反斜杠，只按 / 拆会把整条 `D:\示例\测试项目`
+    // 当成目录名（alpha.10 审查第 19 项）——两种分隔符都拆。
+    final dir = item.cwd
+        .split(RegExp(r'[/\\]'))
+        .where((s) => s.isNotEmpty)
+        .lastOrNull;
     if (dir != null && dir.isNotEmpty) parts.add(dir);
     return parts.join(' · ');
   }

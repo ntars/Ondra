@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:material_ui/material_ui.dart';
 
 import 'app/crash_log.dart';
+import 'app/data_maintenance.dart';
 import 'app/bundled_runtime.dart';
 import 'app/home_dir.dart';
 import 'app/ondra_app.dart';
@@ -115,6 +116,14 @@ Future<void> main() async {
           onTimeout: () {},
         ),
   );
+
+  // 数据维护（备份恢复/清空/迁移）需要先停内核再动用户数据——把聊天
+  // 客户端的停机协调接进 DataMaintenance。alpha.10 Windows 审查第 2 项：
+  // 未注册时这些入口全部被「未接入内核停机协调」拦下。
+  dataMaintenance
+    ..pause = chatClient.pauseKernel
+    ..resume = chatClient.resumeKernel
+    ..reload = () async => pluginsClient.load();
 
   runApp(const OndraApp());
 

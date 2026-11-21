@@ -480,5 +480,10 @@ String _editJson(String source, String key, Object? value) {
 String? debugProfileConfigFileOverride;
 File _patchFile() => File(
   debugProfileConfigFileOverride ??
-      '$ondraUserHome/.ondra/dsh/profiles/ondra/cordis.patch.yml',
+      '${_dshHome()}/profiles/ondra/cordis.patch.yml',
 );
+
+/// 内核实际使用的 DSH_HOME：优先 ONDRA_DSH_HOME（与传输层同一条规则，
+/// alpha.10 审查第 13 项：自定义内核目录时设置写到了默认目录）。
+String _dshHome() =>
+    Platform.environment['ONDRA_DSH_HOME'] ?? '$ondraUserHome/.ondra/dsh';

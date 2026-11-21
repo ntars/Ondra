@@ -8,7 +8,7 @@ const String _profile = 'ondra';
 
 File _patchFile() => File(
   debugProfileFileOverride ??
-      '$ondraUserHome/.ondra/dsh/profiles/$_profile/cordis.patch.yml',
+      '${Platform.environment['ONDRA_DSH_HOME'] ?? '$ondraUserHome/.ondra/dsh'}/profiles/$_profile/cordis.patch.yml',
 );
 
 /// 仅测试用，所有写测试必须指到隔离目录。

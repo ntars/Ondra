@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:archive/archive.dart';
 import 'dart:io';
+import '../../../../../app/desktop_picker.dart';
 
 import '../../../../../app/sqlite_cli.dart';
 import '../../ondra-backup/ui/backup_actions.dart'
@@ -131,7 +133,18 @@ class TransferEngine {
 
       final stamp = _stamp();
       final name = '$_prefix记忆-$stamp.${format.extension}';
-      final file = File('${out.path}/$name');
+      // 同一秒导出两次会撞名（时间戳只到秒）：有重名就在名字里加序号，
+      // 而不是把上一份悄悄覆盖掉（alpha.10 审查第 12 项）。
+      var target = File('${out.path}/$name');
+      var n = 2;
+      while (target.existsSync()) {
+        final dot = name.lastIndexOf('.');
+        final stem = dot > 0 ? name.substring(0, dot) : name;
+        final ext = dot > 0 ? name.substring(dot) : '';
+        target = File('${out.path}/$stem-$n$ext');
+        n++;
+      }
+      final file = target;
       final text = format == TransferFormat.markdown
           ? _markdownOf(facts, links)
           : _jsonOf(facts, links);
@@ -341,6 +354,23 @@ class TransferEngine {
             final relative = 'personas/$name';
             await _copyTree(pack, Directory('${staged.path}/$relative'));
             targets.add(relative);
+            // 内核读的是 user/personas/<slug>.skill.zip（PersonaStore.kernelRoot）：
+            // 只复制 UI 解压目录会让换机后的内核看不到人设（alpha.10 审查
+            // 第 14 项）。UI 目录里有 SKILL.md 就现场重打一份内核 ZIP；
+            // 导出目录里已有 .skill.zip 的也一并带上。
+            final kernelDir = Directory('${staged.path}/user/personas');
+            await kernelDir.create(recursive: true);
+            final existingZip = File('${pack.path}/$name.skill.zip');
+            if (existingZip.existsSync()) {
+              await existingZip.copy('${kernelDir.path}/$name.skill.zip');
+              targets.add('user/personas/$name.skill.zip');
+            } else if (File('${pack.path}/SKILL.md').existsSync()) {
+              final packed = await _packSkillZip(pack, name);
+              if (packed != null) {
+                await packed.copy('${kernelDir.path}/$name.skill.zip');
+                targets.add('user/personas/$name.skill.zip');
+              }
+            }
           }
         }
         final config = File('$path/人设配置.yml');
@@ -378,7 +408,9 @@ class TransferEngine {
         ok: true,
         message: '导入了 ${targets.length} 项人设与偏好，重启后生效。',
         path: path,
-        count: targets.length,
+        // kernel zip 是 UI 人设目录的伴随产物，不计入迁移条目数。
+        count: targets.where((t) => t.startsWith('personas/')).length +
+            targets.where((t) => !t.startsWith('personas/') && !t.startsWith('user/personas/')).length,
       );
     } finally {
       if (staged.existsSync()) await staged.delete(recursive: true);
@@ -570,12 +602,18 @@ class TransferEngine {
     }
 
     try {
-      final existing = await _query('select id, text from memory_fact');
+      // 去重键 = 正文 + 人物：同一句话 A 和 B 各说一遍是两条独立记忆，
+      // 只比正文会把 B 的记录吞掉（alpha.10 审查第 8 项）。
+      final existing = await _query('select id, text, subject from memory_fact');
+      String dedupeKey(String text, String subject) =>
+          '${text.trim()}\u{1}\u{1}${subject.trim()}';
       final byId = {
         for (final row in existing) _text(row['id']): _text(row['text']).trim(),
       };
       final byText = {
-        for (final row in existing) _text(row['text']).trim(): _text(row['id']),
+        for (final row in existing)
+          dedupeKey(_text(row['text']), _text(row['subject'])):
+              _text(row['id']),
       };
       final remapped = <String, String>{};
       final toWrite = <TransferFact>[];
@@ -583,13 +621,14 @@ class TransferEngine {
         if (byId.containsKey(f.id) && byId[f.id] != f.text.trim()) {
           return TransferResult.fail('记忆编号 ${f.id} 的内容冲突，整份导入已取消，未覆盖本机记忆。');
         }
-        final target = byText[f.text.trim()];
+        final key = dedupeKey(f.text, f.subject);
+        final target = byText[key];
         if (target != null) {
           remapped[f.id] = target;
         } else {
           toWrite.add(f);
           remapped[f.id] = f.id;
-          byText[f.text.trim()] = f.id;
+          byText[key] = f.id;
         }
         byId[f.id] = f.text.trim();
       }
@@ -629,31 +668,37 @@ class TransferEngine {
   // ── 系统面板 ────────────────────────────────────────────────────────────
 
   /// 让用户挑一个目录。走系统的选目录面板，不自己造文件浏览器。
+  /// Windows 也走系统面板（DesktopPicker，alpha.10 审查第 3 项：此处原来
+  /// 只调 macOS 的 osascript，代码页 936 的机器报「找不到指定的文件」）。
   Future<String?> pickDirectory(String prompt) async {
-    final r = await _osascript(
-      'POSIX path of (choose folder with prompt "$prompt")',
-    );
-    return r;
+    return DesktopPicker.pickDirectory(prompt);
   }
 
   /// 让用户挑一个文件。扩展名列表给空表示不限。
   Future<String?> pickFile(String prompt, List<String> extensions) async {
-    final spec = extensions.isEmpty
-        ? ''
-        : ' of type {${extensions.map((e) => '"$e"').join(', ')}}';
-    return _osascript('POSIX path of (choose file with prompt "$prompt"$spec)');
+    return DesktopPicker.pickFile(prompt: prompt);
   }
 
-  /// 在访达里选中导出的东西。用户刚写完一个文件，下一步一定是去找它。
+  /// 在系统文件管理器里选中导出的东西。用户刚写完一个文件，下一步一定是
+  /// 去找它。macOS 走 `open -R`；Windows 走 explorer /select。
   Future<TransferResult> reveal(String path) async {
     try {
-      final result = await Process.run('open', ['-R', path]);
-      if (result.exitCode != 0) {
-        return TransferResult.fail('打不开访达：${result.stderr}');
+      final List<String> args;
+      final String command;
+      if (Platform.isWindows) {
+        command = 'explorer';
+        args = ['/select,', path];
+      } else {
+        command = 'open';
+        args = ['-R', path];
       }
-      return TransferResult(ok: true, message: '已在访达中打开。', path: path);
+      final result = await Process.run(command, args);
+      if (result.exitCode != 0) {
+        return TransferResult.fail('打不开文件管理器：${result.stderr}');
+      }
+      return TransferResult(ok: true, message: '已在文件管理器中打开。', path: path);
     } catch (e) {
-      return TransferResult.fail('打不开访达：${_clean(e)}');
+      return TransferResult.fail('打不开文件管理器：${_clean(e)}');
     }
   }
 
@@ -661,7 +706,8 @@ class TransferEngine {
 
   Future<List<TransferFact>> _readFacts() async {
     final rows = await _query(
-      'select id, category, text, salience, created_at, subject, evidence, archived '
+      'select id, category, text, salience, created_at, subject, evidence, '
+      'archived, sealed, revisions, old_text, source_raw_id '
       'from memory_fact where text is not null and text <> \'\' '
       'order by created_at asc',
     );
@@ -678,6 +724,9 @@ class TransferEngine {
             evidence: _text(row['evidence']),
             archived: _int(row['archived']) == 1,
             sealed: _int(row['sealed']) == 1,
+            revisions: _int(row['revisions']),
+            oldText: _text(row['old_text']),
+            sourceRawId: _text(row['source_raw_id']),
           ),
     ];
   }
@@ -710,7 +759,14 @@ class TransferEngine {
 
   /// 跑一条查询，把 `-json` 输出解析成行列表。零行时 sqlite3 输出空串，不是 `[]`。
   Future<List<Map<String, dynamic>>> _query(String sql) async {
-    var r = await Process.run(_sqlite, ['-readonly', '-json', dbPath, sql]);
+    // 首次调用就显式 UTF-8（alpha.10 审查：常规查询按系统编码解码，代码页
+    // 936 下导出的中文是乱码、JSON 解析失败；备用查询反而是对的）。
+    var r = await Process.run(
+      _sqlite,
+      ['-readonly', '-json', dbPath, sql],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
     if (r.exitCode != 0) {
       // WAL 模式下 `-readonly` 需要能打开 `-wal` / `-shm`；这两个文件缺失
       // （刚被杀进程、或库是拷贝来的）时会报 CANTOPEN。这时退回 URI 只读，
@@ -776,7 +832,8 @@ class TransferEngine {
         ..write(
           'id, kind, category, channel, text, summary, subject, salience, '
           'arousal, stability_hours, stability_mult, times_said, hits, '
-          'revisions, created_at, last_seen_at, archived, sealed, evidence',
+          'revisions, created_at, last_seen_at, archived, sealed, evidence, '
+          'old_text, source_raw_id',
         )
         ..write(') values (')
         ..write(
@@ -794,12 +851,14 @@ class TransferEngine {
             _real(1),
             '0',
             '0',
-            '0',
+            '${f.revisions}',
             '${f.createdAt.millisecondsSinceEpoch}',
             '${f.createdAt.millisecondsSinceEpoch}',
             f.archived ? '1' : '0',
             f.sealed ? '1' : '0',
             f.evidence.isEmpty ? 'null' : _q(f.evidence),
+            f.oldText.isEmpty ? 'null' : _q(f.oldText),
+            f.sourceRawId.isEmpty ? 'null' : _q(f.sourceRawId),
           ].join(', '),
         )
         ..write(');\nupdate imported set facts = facts + changes();\n');
@@ -861,13 +920,16 @@ class TransferEngine {
           '${f.text.contains('\n') || f.text.contains('\r') ? ' text_b64=${base64Encode(utf8.encode(f.text))}' : ''}'
           '${f.subject.isEmpty ? '' : ' subject_b64=${base64Encode(utf8.encode(f.subject))}'}'
           '${f.evidence.isEmpty ? '' : ' evidence_b64=${base64Encode(utf8.encode(f.evidence))}'}'
-          '${f.archived ? ' archived=1' : ''} -->',
+          '${f.archived ? ' archived=1' : ''}'
+          '${f.sealed ? ' sealed=1' : ''}'
+          '${f.revisions > 0 ? ' revisions=${f.revisions}' : ''} -->',
         )
         ..writeln()
         ..writeln('- 类别：${f.category}')
         ..writeln('- 显著度：${f.salience.round()}')
         ..writeln('- 记录于：${_stampHuman(f.createdAt)}');
       if (f.archived) b.writeln('- 状态：已归档');
+      if (f.sealed) b.writeln('- 状态：已封存');
       final quote = _firstQuote(f.evidence);
       if (quote != null) b.writeln('- 原话：「$quote」');
       b
@@ -913,6 +975,9 @@ class TransferEngine {
             if (f.evidence.isNotEmpty) 'evidence': f.evidence,
             if (f.archived) 'archived': true,
             if (f.sealed) 'sealed': true,
+            if (f.revisions > 0) 'revisions': f.revisions,
+            if (f.oldText.isNotEmpty) 'oldText': f.oldText,
+            if (f.sourceRawId.isNotEmpty) 'sourceRawId': f.sourceRawId,
           },
       ],
       'links': [for (final l in links) l.toJson()],
@@ -962,6 +1027,8 @@ class TransferEngine {
                       _now().millisecondsSinceEpoch,
                 ),
           archived: meta['archived'] == '1',
+          sealed: meta['sealed'] == '1',
+          revisions: int.tryParse(meta['revisions'] ?? '') ?? 0,
           subject: meta['subject_b64'] == null
               ? ''
               : utf8.decode(base64Decode(meta['subject_b64']!)),
@@ -1020,6 +1087,9 @@ class TransferEngine {
           evidence: _text(item['evidence']),
           archived: item['archived'] == true || _int(item['archived']) == 1,
           sealed: item['sealed'] == true || _int(item['sealed']) == 1,
+          revisions: _int(item['revisions']),
+          oldText: _text(item['oldText']),
+          sourceRawId: _text(item['sourceRawId']),
         ),
       );
     }
@@ -1285,20 +1355,6 @@ class TransferEngine {
     return '${result.join('\n').trimRight()}\n';
   }
 
-  Future<String?> _osascript(String script) async {
-    final r = await Process.run('osascript', ['-e', script]);
-    if (r.exitCode != 0) {
-      if ('${r.stderr}'.contains('(-128)')) return null; // 用户取消，不是操作失败。
-      throw ProcessException(
-        'osascript',
-        const [],
-        '${r.stderr}'.trim(),
-        r.exitCode,
-      );
-    }
-    final path = '${r.stdout}'.trim();
-    return path.isEmpty ? null : path;
-  }
 
   Future<void> _copyTree(Directory from, Directory to) async {
     if (FileSystemEntity.isLinkSync(from.path)) {
@@ -1316,6 +1372,35 @@ class TransferEngine {
       } else {
         throw FileSystemException('人设包含符号链接或特殊文件', e.path);
       }
+    }
+  }
+
+  /// 把 UI 解压目录打包成内核认的 .skill.zip（archive 包，Dart 实现——
+  /// alpha.10 审查第 25 项：原打包走外部 python3，Windows 上必失败）。
+  Future<File?> _packSkillZip(Directory pack, String slug) async {
+    try {
+      final encoder = ZipEncoder();
+      final archive = Archive();
+      final files = pack
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .toList();
+      for (final f in files) {
+        final rel = f.path
+            .substring(pack.path.length + 1)
+            .replaceAll('\\', '/');
+        archive.addFile(
+          ArchiveFile(rel, f.lengthSync(), await f.readAsBytes()),
+        );
+      }
+      final bytes = encoder.encode(archive);
+      if (bytes.isEmpty) return null;
+      final tmp = await Directory.systemTemp.createTemp('ondra-pack-');
+      final out = File('${tmp.path}/$slug.skill.zip');
+      await out.writeAsBytes(bytes, flush: true);
+      return out;
+    } catch (_) {
+      return null;
     }
   }
 

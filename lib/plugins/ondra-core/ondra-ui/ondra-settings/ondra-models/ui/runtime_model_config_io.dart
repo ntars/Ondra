@@ -111,9 +111,13 @@ Future<void> writeRuntimeModelPatch({
 const _compose = r'''
 (async () => {
   const { createRequire } = require('node:module');
+  const { pathToFileURL } = require('node:url');
   const req = createRequire(process.argv[1]);
   const yaml = req('js-yaml');
-  const { applyEntryPatches } = await import(req.resolve('@deepseek-ai/cordis-plugin-include'));
+  // 动态 import 只接受 URL：Windows 盘符路径（C:\...）会被当成 URL 协议
+  // 报 ERR_UNSUPPORTED_ESM_URL_SCHEME——必须先转成 file:// URL（alpha.10
+  // Windows 审查第 1 项，聊天内核起不来的直接原因）。
+  const { applyEntryPatches } = await import(pathToFileURL(req.resolve('@deepseek-ai/cordis-plugin-include')).href);
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const data = JSON.parse(input);

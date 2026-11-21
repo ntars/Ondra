@@ -92,6 +92,14 @@ jobs:
           # Release 目录是裸 exe + 一堆 dll + data/，必须整目录一起带，
           # 少一个 dll 双击就起不来。
           $tag = "${{ github.ref_name }}".TrimStart('v')
+          # 附带 VC++ 运行库 DLL（alpha.10 审查第 26 项：缺库机器解压后
+          # 连应用都起不来——runner 的 System32 里有，压进包里兜底）。
+          Copy-Item C:/Windows/System32/MSVCP140.dll `
+            -Destination build/windows/x64/runner/Release/ -ErrorAction SilentlyContinue
+          Copy-Item C:/Windows/System32/VCRUNTIME140.dll `
+            -Destination build/windows/x64/runner/Release/ -ErrorAction SilentlyContinue
+          Copy-Item C:/Windows/System32/VCRUNTIME140_1.dll `
+            -Destination build/windows/x64/runner/Release/ -ErrorAction SilentlyContinue
           Compress-Archive -Path build/windows/x64/runner/Release/* `
             -DestinationPath "Ondra-$tag-windows-x64.zip"
       - uses: actions/upload-artifact@v4

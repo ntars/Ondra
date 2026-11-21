@@ -57,8 +57,20 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
   final target = '$home${sep}profiles$sep$ondraRuntimeProfileName';
 
   if (Directory(target).existsSync()) {
-    // 已有安装：不覆盖。用户的插件可能是自己更新过的版本，
-    // 用包里的旧快照盖回去等于把他们的更新吞掉。
+    // 已有安装：不覆盖已有内容（用户的插件可能是自己更新过的版本，
+    // 用包里的旧快照盖回去等于把他们的更新吞掉）。
+    //
+    // 但「目录存在」不证明「铺设完成」——alpha.10 审查第 30 项：首次
+    // 铺设中断留下的半套目录，永远停在半套。这里只做**补缺**：
+    // 源快照里有、目标里没有的文件补上；两边都有的不动。
+    try {
+      var filled = _fillMissing(Directory(runtime.profileDir), Directory(target));
+      if (filled > 0) {
+        return RuntimeSeedResult(RuntimeSeedOutcome.seeded, targetPath: target);
+      }
+    } on FileSystemException {
+      // 补缺失败不覆盖已有内容，保持 alreadyPresent。
+    }
     return RuntimeSeedResult(RuntimeSeedOutcome.alreadyPresent, targetPath: target);
   }
 
@@ -79,6 +91,26 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
 /// 不跟随链接的理由：pnpm 装的 profile 里 `node_modules/@ondra/*` 可能是指向
 /// 别处的链接。跟随会把目标内容整棵复制进来（体积翻倍且失去升级语义），
 /// 不复制又会丢包。原样搬过去才对。
+/// 只补目标里缺失的文件；两边都有的不覆盖。返回补上的文件数。
+int _fillMissing(Directory from, Directory to) {
+  var filled = 0;
+  for (final entity in from.listSync(followLinks: false)) {
+    final name = entity.path.split(Platform.pathSeparator).last;
+    final destination = '${to.path}${Platform.pathSeparator}$name';
+    if (entity is Directory) {
+      final child = Directory(destination);
+      if (!child.existsSync()) child.createSync(recursive: true);
+      filled += _fillMissing(entity, child);
+    } else if (entity is File) {
+      if (!File(destination).existsSync()) {
+        entity.copySync(destination);
+        filled++;
+      }
+    }
+  }
+  return filled;
+}
+
 void _copyTree(Directory from, Directory to) {
   to.createSync(recursive: true);
   for (final entity in from.listSync(followLinks: false)) {

@@ -65,7 +65,9 @@ Future<SessionSummary?> _readOne(File file) async {
       for (final entry in reader.entriesOf(json)) {
         if (entry.role != 'user') continue;
         messages++;
-        if (title.isEmpty) title = _tidy(entry.text);
+        if (title.isEmpty) {
+          title = entry.text.isEmpty ? '[图片]' : _tidy(entry.text);
+        }
       }
     }
   } catch (_) {
@@ -78,6 +80,10 @@ Future<SessionSummary?> _readOne(File file) async {
     id: id,
     title: title.isEmpty ? '空白会话' : title,
     messages: messages,
+    // 会话时间取「消息事件时间」与「文件时间」的较晚者：事件时间是会话
+    // 的真实活动时间；文件时间当不下限，防止复制/恢复链路丢时间戳后
+    // 会话被排到看不见的地方。复制刷新 mtime 导致旧会话排到「今天」的
+    // 审查反馈，改由快照恢复链路保留原始 mtime 解决。
     updatedAt: (lastEvent != null && lastEvent.isAfter(mtime))
         ? lastEvent
         : mtime,

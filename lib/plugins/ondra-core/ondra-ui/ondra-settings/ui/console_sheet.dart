@@ -841,7 +841,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       children: [
         _Row(
           title: '空谷 Ondra',
-          desc: '$ondraVersion · $ondraStage',
+          desc: '$ondraVersion+$ondraBuild · $ondraStage',
           action: _SmallPill(
             label: _checkingUpdate ? '检查中…' : '检查更新',
             onTap: _checkUpdates,
@@ -1456,7 +1456,7 @@ class _Header extends StatelessWidget {
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              pane.label,
+              t(pane.label),
               style: ondraText(20, weight: 500, color: s.ink, height: 1.4),
             ),
           ),
@@ -1487,7 +1487,7 @@ class _MobilePaneBar extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: _NavItem(
-                  label: p.label,
+                  label: t(p.label),
                   selected: pane == p,
                   onTap: () => onPane(p),
                 ),

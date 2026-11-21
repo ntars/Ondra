@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../../../../../app/desktop_picker.dart';
 
 import '../../../../../app/home_dir.dart';
 import '../../../../../app/data_maintenance.dart';
@@ -141,6 +142,17 @@ class BackupEngine {
             if (!sqlitePaths.contains(file.entry.path)) continue;
             final source = File('${staging.path}/${sources.length}.db');
             await source.writeAsBytes(file.bytes, flush: true);
+            // 保留会话/记忆文件的原修改时间（alpha.10 审查第 19 项：恢复
+            // 刷新 mtime 后旧会话在历史列表被排到「今天」）。zip 条目自带
+            // 原始时间，直接还给文件。
+            final ms = file.entry.modified;
+            if (ms > 0) {
+              // 恢复链路保留原修改时间（alpha.10 审查第 19 项）：否则旧
+              // 会话文件被刷新 mtime，历史列表里被排到「今天」。
+              await source.setLastModified(
+                DateTime.fromMillisecondsSinceEpoch(ms),
+              );
+            }
             final check = await Process.run(cli, [
               '-batch',
               '-bail',
@@ -309,26 +321,20 @@ class BackupEngine {
       final boundary = await _repository();
       final path = await boundary.check('backups', directory: true);
       await Directory(path).create(recursive: true);
-      final result = await Process.run('open', [path]);
+      final command = Platform.isWindows ? 'explorer' : 'open';
+      final args = Platform.isWindows ? <String>[path] : <String>[path];
+      final result = await Process.run(command, args);
       if (result.exitCode != 0) throw StateError('${result.stderr}');
-      return BackupOpResult(ok: true, message: '已在访达中打开 $root。');
+      return BackupOpResult(ok: true, message: '已在文件管理器中打开 $root。');
     } catch (e) {
       return BackupOpResult.failure('打不开目录：$e');
     }
   }
 
   Future<String?> pickDirectory(String prompt) async {
-    try {
-      final result = await Process.run('osascript', [
-        '-e',
-        'POSIX path of (choose folder with prompt ${jsonEncode(prompt)})',
-      ]);
-      if (result.exitCode != 0) return null;
-      final path = (result.stdout as String).trim();
-      return path.isEmpty ? null : path;
-    } catch (_) {
-      return null;
-    }
+    // Windows 也走系统面板（alpha.10 审查第 3 项：此处原来只调 osascript，
+    // 代码页 936 的机器上「找不到指定的文件」，页面把异常当取消处理）。
+    return DesktopPicker.pickDirectory(prompt);
   }
 
   Future<List<_Captured>> _scan(

@@ -1,0 +1,19 @@
+# Windows runner 跑全部测试：平台分支代码（Windows 密钥/自启/探测等）
+# 在 macOS 上只能验到源码层，这里的真 Windows 环境是最终验证。
+name: windows-test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter test
+        env:
+          ONDRA_TEST_HEADLESS: '1'

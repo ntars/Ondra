@@ -65,8 +65,61 @@ class Keychain {
   /// mac 用系统钥匙串；安卓没有可比的钥匙串，密钥退到**应用私有目录**的
   /// 文件（`/data/user/0/<包名>/…`，系统沙箱保证其他应用读不到，风险是
   /// 设备被 root）——「完全填不了」比「知情降级」更伤人，界面会如实说明。
-  /// Windows / Web 等其余平台保持如实拒绝。
-  static bool get supported => Platform.isMacOS || Platform.isAndroid;
+  /// Windows 用 DPAPI（当前用户级加密，PowerShell ProtectedData）+ 应用
+  /// 私有目录落盘——alpha.10 审查第 24 项：设置页无法保存云模型密钥。
+  /// Web 保持如实拒绝。
+  static bool get supported =>
+      Platform.isMacOS || Platform.isAndroid || Platform.isWindows;
+
+  static String get _winKeysDir =>
+      '$ondraUserHome/.ondra/keys';
+
+  /// DPAPI 调用统一走 PowerShell（工程零原生插件的既有约定）。
+  static Future<String?> _winDpapi({
+    required String mode,
+    required String path,
+  }) async {
+    // 与 DesktopPicker._runWin 同款：单行拼接 + UTF8 输出。
+    final String script;
+    if (mode == 'protect') {
+      script = '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; '
+          'Add-Type -AssemblyName System.Security | Out-Null; '
+          '\$b64 = [IO.File]::ReadAllText("${_escapePs(payloadPath)}"); '
+          '\$b = [Convert]::FromBase64String(\$b64); '
+          '\$e = [System.Security.Cryptography.ProtectedData]::Protect('
+          '\$b, \$null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser); '
+          '[Console]::Out.Write([Convert]::ToBase64String(\$e))';
+    } else {
+      script = '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; '
+          'Add-Type -AssemblyName System.Security | Out-Null; '
+          '\$e = [Convert]::FromBase64String('
+          '[IO.File]::ReadAllText("${_escapePs(path)}")); '
+          '\$b = [System.Security.Cryptography.ProtectedData]::Unprotect('
+          '\$e, \$null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser); '
+          '[Console]::Out.Write('
+          '[System.Text.Encoding]::UTF8.GetString(\$b))';
+    }
+    try {
+      final r = await Process.run(
+        'powershell',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+      );
+      if (r.exitCode != 0) return null;
+      final out = (r.stdout as String).trim();
+      return out.isEmpty ? null : out;
+    } catch (_) {
+      return null;
+    } finally {
+      final payloadFile = File(payloadPath);
+      if (await payloadFile.exists()) await payloadFile.delete();
+    }
+  }
+
+  static String _escapePs(String raw) => raw.replaceAll("'", "''");
+
+  static String get payloadPath => '$ondraUserHome/.ondra/keys/.payload.b64';
 
   /// 存在性查询的注入点。测试里换成 `() async => false`：
   /// widget 测试的时钟是 fake_async，`security` 子进程的定时器永远走不完，
@@ -91,6 +144,34 @@ class Keychain {
       return const KeychainSecret(
         ok: false,
         message: '这台机器上没有可用的密钥存储，密钥暂不支持保存。',
+      );
+    }
+    if (Platform.isWindows) {
+      if (key.trim().isEmpty) {
+        return const KeychainSecret(ok: false, message: '键名不能为空。');
+      }
+      final dir = Directory(_winKeysDir);
+      await dir.create(recursive: true);
+      final file = File('${dir.path}/${_safeKey(key)}.dpapi');
+      if (value.isEmpty) {
+        if (await file.exists()) await file.delete();
+        return const KeychainSecret(ok: true, message: '已清除。');
+      }
+      await File(payloadPath).writeAsString(
+        base64Encode(utf8.encode(value)),
+        flush: true,
+      );
+      final encoded = await _winDpapi(mode: 'protect', path: file.path);
+      if (encoded == null) {
+        return const KeychainSecret(
+          ok: false,
+          message: '写入 DPAPI 加密文件失败。',
+        );
+      }
+      await file.writeAsString(encoded, flush: true);
+      return const KeychainSecret(
+        ok: true,
+        message: '已保存（Windows DPAPI 当前用户加密）。',
       );
     }
     if (Platform.isAndroid) {
@@ -152,6 +233,11 @@ class Keychain {
   /// 读一条。读不到返回 null。
   static Future<String?> read(String key) async {
     if (!supported) return null;
+    if (Platform.isWindows) {
+      final file = File('$_winKeysDir/${_safeKey(key)}.dpapi');
+      if (!await file.exists()) return null;
+      return _winDpapi(mode: 'unprotect', path: file.path);
+    }
     if (Platform.isAndroid) {
       return _androidRead()[key];
     }
@@ -173,8 +259,28 @@ class Keychain {
     }
   }
 
+  /// 键名 → 安全文件名：只留字母数字与短横线，其余按其码点十六进制。
+  static String _safeKey(String key) {
+    final b = StringBuffer();
+    for (final c in key.codeUnits) {
+      final ch = String.fromCharCode(c);
+      if (RegExp(r'[A-Za-z0-9._-]').hasMatch(ch)) {
+        b.write(ch);
+      } else {
+        b.write(c <= 0xFFFF ? c.toRadixString(16).padLeft(4, '0') : 'u');
+      }
+    }
+    return b.toString();
+  }
+
   static Future<bool> erase(String key) async {
     if (!supported) return false;
+    if (Platform.isWindows) {
+      final file = File('$_winKeysDir/${_safeKey(key)}.dpapi');
+      if (!await file.exists()) return false;
+      await file.delete();
+      return true;
+    }
     if (Platform.isAndroid) {
       final data = _androidRead();
       if (!data.containsKey(key)) return false;

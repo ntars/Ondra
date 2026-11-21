@@ -47,6 +47,21 @@ class CrashLog {
         );
         // 用户主目录抹掉：堆栈里的绝对路径会带出用户名。
         if (home.isNotEmpty) text = text.replaceAll(home, '~');
+        // 常见密钥形态抹掉（alpha.10 审查第 16 项：设置承诺「路径、邮箱、
+        // 密钥」，崩溃日志此前只有前两类）。API key 的通用形状：
+        // sk- 前缀、Bearer 后接 token、32+ 位十六进制串。
+        text = text.replaceAllMapped(
+          RegExp(r'sk-[A-Za-z0-9_-]{16,}'),
+          (_) => '<key>',
+        );
+        text = text.replaceAllMapped(
+          RegExp(r'Bearer\s+[A-Za-z0-9._-]{16,}'),
+          (_) => 'Bearer <key>',
+        );
+        text = text.replaceAllMapped(
+          RegExp(r'\b[0-9a-fA-F]{32,}\b'),
+          (_) => '<hex>',
+        );
         return text;
       }
 

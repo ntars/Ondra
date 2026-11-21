@@ -87,7 +87,15 @@ Future<StatusSnapshot> loadStatus({
 
   final emotion = await _readEmotion(db.path);
 
-  final sinkRatio = raws <= 0 ? 0.0 : (facts / raws).clamp(0.0, 1.0);
+  // 沉淀比例：被事实引用的「不同原文数」除以原文总数。原来用事实总数
+  // 除原文总数——同一条原文提炼多条事实会重复计入分子，比例虚高
+  //（alpha.10 审查第 10 项：2 原文 1 引用显示 100%）。
+  final coveredRaws = await _safeCount(
+    db.path,
+    'select count(distinct source_raw_id) from memory_fact '
+    'where source_raw_id is not null',
+  );
+  final sinkRatio = raws <= 0 ? 0.0 : (coveredRaws / raws).clamp(0.0, 1.0);
   // 缺 sqlite3 时上面每一条都降级成了 0。0 看上去和「真的没有记忆」一样，
   // 所以这里必须换一句话说清楚——否则用户会以为库是空的。
   final sqliteMissing = ondraSqliteCli == null;
@@ -98,7 +106,12 @@ Future<StatusSnapshot> loadStatus({
     links: links,
     archived: archived,
     rawsLastDay: rawsLastDay,
-    note: sqliteMissing ? ondraSqliteMissingHint : '',
+    note: sqliteMissing
+        ? ondraSqliteMissingHint
+        : _queryErrors.isEmpty
+        ? ''
+        : '数据库读取异常（以下读数可能不是真实数据）：'
+            '${_queryErrors.take(3).join('；')}',
     sessions: sessions,
     plugins: plugins,
     dbBytes: _fileSize(db.path) + _fileSize('${db.path}-wal'),
@@ -345,14 +358,20 @@ int _fileSize(String path) {
   return f.existsSync() ? f.lengthSync() : 0;
 }
 
-/// 一张表读失败不该拖垮整页。返回 0 而不是抛出去：读不到与真的是 0，
-/// 在界面上都显示成「没有」，区别写在 `note` 里。
+/// 查询失败原因的收集器：读失败与「真的为零」必须区分——alpha.10 审查
+/// 第 9 项，库损坏时状态页把读数显示成零、错误说明为空，用户没法判断
+/// 自己的库到底是不是空的。
+final List<String> _queryErrors = <String>[];
+
+/// 一张表读失败不该拖垮整页。返回 0 而不是抛出去，但失败原因会被记下
+/// （`loadStatus` 汇总进 note）。
 Future<int> _safeCount(String dbPath, String sql) async {
   try {
     final rows = await _query(dbPath, sql);
     if (rows.isEmpty) return 0;
     return _int(rows.first.values.first);
-  } catch (_) {
+  } catch (e) {
+    _queryErrors.add('$e');
     return 0;
   }
 }

@@ -88,12 +88,16 @@ class PlatformActions {
     if (!canAutoLaunch) return null;
     if (probe != null) return probe!.autoLaunchEnabled();
     if (_isWindows) {
+      // reg.exe 的输出按系统 OEM 代码页编码（简体中文 = 936/GBK）：
+      // 强按 UTF-8 解会在错误输出上抛 FormatException（「错误」的 GBK
+      // 字节 B4EDCE F3 不是合法 UTF-8），alpha.10 审查第 4b 项。system
+      // 编码是 Dart 对 OEM 代码页的正确请求。
       final query = await Process.run('reg', [
         'query',
         _runKey,
         '/v',
         _runValueName,
-      ], stdoutEncoding: utf8, stderrEncoding: utf8);
+      ], stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
       if (query.exitCode != 0) return false;
       final out = (query.stdout as String);
       if (!out.contains(_executable)) {
@@ -134,11 +138,12 @@ class PlatformActions {
     // reg delete 不看路径，旧记录也能清干净。
     if (_isWindows) {
       final exe = _executable;
-      final dir = File(exe).parent.path;
       if (enabled) {
+        // 写完整 EXE 路径（alpha.10 审查第 4 项：原来只写目录加反斜杠，
+        // 读回检查完整 _executable 永远对不上，开 关 = 白开）。
         final add = await Process.run('reg', [
           'add', _runKey, '/v', _runValueName, '/t', 'REG_SZ',
-          '/d', '$dir\\', '/f',
+          '/d', exe, '/f',
         ], stdoutEncoding: utf8, stderrEncoding: utf8);
         return add.exitCode == 0;
       }

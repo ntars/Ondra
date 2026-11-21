@@ -342,8 +342,22 @@ class FeedbackStore {
   }
 
   Future<String?> _logTail() async {
+    // 三份日志都收（alpha.10 审查第 11 项：只找 ondra-code.log，启动故障
+    // 最直接的 transport.log 被漏掉，报告显示「没有可读取的日志」）。
+    final parts = <String>[];
+    for (final name in ['ondra-code.log', 'transport.log', 'crash.log']) {
+      final tail = await _singleLogTail('$home/logs/$name');
+      if (tail != null && tail.isNotEmpty) {
+        parts.add('===== $name =====\n$tail');
+      }
+    }
+    if (parts.isEmpty) return null;
+    return parts.join('\n\n');
+  }
+
+  Future<String?> _singleLogTail(String path) async {
     try {
-      final f = File('$home/logs/ondra-code.log');
+      final f = File(path);
       if (!await f.exists()) return null;
       final len = await f.length();
       const window = 32 * 1024;

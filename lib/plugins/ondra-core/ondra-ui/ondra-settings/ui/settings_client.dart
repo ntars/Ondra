@@ -63,6 +63,8 @@ class SettingsClient extends ChangeNotifier {
       if (spec.key == 'general.launchAtLogin' || _errors.containsKey(spec.key)) {
         continue;
       }
+      // 同第 15 项：只推用户真实改过的项。
+      if (readPref('$_prefix${spec.key}').isEmpty) continue;
       if (_profileNotReady || (!_connected && _needsRestart(spec.key))) {
         continue;
       }
@@ -98,6 +100,10 @@ class SettingsClient extends ChangeNotifier {
           _errors.containsKey(spec.key)) {
         continue;
       }
+      // alpha.10 审查第 15 项：启动同步只推「用户真实改过的项」——
+      // 没存过偏好的项不推（首启时推默认值 = 覆盖内核自带配置；升级时
+      // 推默认值 = 覆盖用户直接改过的内核配置）。
+      if (readPref('$_prefix${spec.key}').isEmpty) continue;
       // 启动同步的三个跳过条件（alpha.2 审查第 18 项）：
       // 1. profile 尚未 seed（首启场景）——写了也落空，等 seed 后重连；
       // 2. 内核离线且此项需要重启——写了状态也对不上，等连上后由

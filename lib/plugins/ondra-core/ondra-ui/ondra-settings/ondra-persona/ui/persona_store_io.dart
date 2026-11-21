@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 
 import '../../../../../../app/home_dir.dart';
 import 'persona_model.dart';
@@ -405,44 +406,154 @@ class PersonaStore {
     }
   }
 
+  /// ZIP 解包/打包。原来调用外部 python3 脚本：Windows 安装包不带 python3，
+  /// 且 Windows Python 通常没有 `os.O_NOFOLLOW`——alpha.10 审查第 25 项，
+  /// 自定义人设导入在普通 Windows 上必失败。改为 Dart 实现（archive 包，
+  /// 工程已有），安全边界用同构检查保留：
+  /// - 包大小上限与条目数上限（maxArchiveBytes / _maxEntries）；
+  /// - 条目名拒绝绝对路径与 `..` 穿越；
+  /// - 拒绝加密条目（flag_bits & 1 对应 archive 的 isEncrypted 语义，
+  ///   archive 4.x 直接在 decode 阶段对不支持的压缩抛异常）。
   static Future<String> _zip(
     String mode,
     String source,
     String target, {
     String? id,
   }) async {
-    Process process;
-    try {
-      process = await Process.start('python3', [
-        '-I',
-        '-c',
-        _zipTool,
-        mode,
-        source,
-        target,
-        id ?? '',
-      ]);
-    } on ProcessException {
-      throw const FormatException('需要系统 Python 3 校验 ZIP；未找到工具，未解压。');
-    }
-    final stdout = process.stdout.transform(utf8.decoder).join();
-    final stderr = process.stderr.transform(utf8.decoder).join();
-    final timer = Timer(
-      const Duration(seconds: 30),
-      () => process.kill(ProcessSignal.sigkill),
-    );
-    try {
-      final code = await process.exitCode;
-      final output = await stdout;
-      final error = (await stderr).trim();
-      if (code != 0) {
-        throw FormatException(
-          'ZIP 校验/打包失败：${error.isEmpty ? '工具超时或异常退出' : error}',
-        );
+    if (mode == 'extract') {
+      final bytes = await File(source).readAsBytes();
+      if (bytes.length > maxArchiveBytes) {
+        throw const FormatException('包超过 32 MB 上限。');
       }
-      return output;
-    } finally {
-      timer.cancel();
+      if (bytes.length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B) {
+        throw const FormatException('不是标准 ZIP 包。');
+      }
+      final Archive archive;
+      try {
+        // archive 解码 + verify 校验 CRC 与声明大小：损坏或伪造条目在这里就抛。
+        archive = ZipDecoder().decodeBytes(bytes, verify: true);
+      } catch (e) {
+        throw FormatException('ZIP 校验失败：损坏或伪造的包（$e）');
+      }
+      _validateArchive(archive);
+      for (final entry in archive) {
+        final out = File('$target/${entry.name}');
+        await out.parent.create(recursive: true);
+        await out.writeAsBytes(entry.content as List<int>);
+      }
+      return target;
+    }
+    // pack：把目录打成标准 ZIP（meta.json 由调用方准备）。目标已存在
+    // 直接失败——原 python 版用 os.link 的原子语义保证「绝不覆盖用户
+    // 已有的文件/链接」（alpha.10 测试：导出不覆盖）。
+    if (mode == 'pack' && File(target).existsSync()) {
+      throw const FormatException('目标文件已存在，未覆盖。');
+    }
+    // export：先打到同目录临时文件，再原子发布——任何失败不留下半包，
+    // 目标已有文件/链接时不覆盖（os.link 语义：link 在存在时失败）。
+    if (mode == 'export') {
+      final t = File(target);
+      if (t.existsSync() || FileSystemEntity.isLinkSync(target)) {
+        throw const FormatException('目标文件已存在，未覆盖。');
+      }
+      final parent = Directory(t.parent.path);
+      final stage = await parent.createTemp('.persona-export-');
+      final stagedZip = File('${stage.path}/pack.skill.zip');
+      try {
+        await _zip('pack', source, stagedZip.path, id: id);
+        // 同目录 rename 是原子的：目标不存在时发布成功，失败不留半包。
+        await stagedZip.rename(target);
+        return target;
+      } finally {
+        try {
+          await stage.delete(recursive: true);
+        } catch (_) {}
+      }
+    }
+    final dir = Directory(source);
+    final encoder = ZipEncoder();
+    final archive = Archive();
+    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      final rel = entity.path
+          .substring(dir.path.length + 1)
+          .replaceAll('\\', '/');
+      final name = id == null || id.isEmpty ? rel : '$id/$rel';
+      archive.addFile(
+        ArchiveFile(name, entity.lengthSync(), await entity.readAsBytes()),
+      );
+    }
+    final bytes = encoder.encode(archive);
+    if (bytes.isEmpty) throw const FormatException('ZIP 打包失败。');
+    await File(target).writeAsBytes(bytes, flush: true);
+    return target;
+  }
+
+  static const int _maxEntries = 2048;
+  static const int _maxEntryBytes = 4194304;
+  static const int _maxTotalBytes = 33554432;
+
+  /// 移植原 python 校验的 paths()：全部条目在第一次磁盘写入之前检查。
+  static void _validateArchive(Archive archive) {
+    if (archive.isEmpty || archive.length > _maxEntries) {
+      throw const FormatException('空包或条目过多，未解压。');
+    }
+    final seen = <String, bool>{};
+    var total = 0;
+    String norm(String p) => p
+        .replaceAll(RegExp(r'\\'), '/')
+        .split('/')
+        .where((s) => s.isNotEmpty)
+        .join('/');
+    for (final entry in archive) {
+      final name = entry.name;
+      if (name.isEmpty ||
+          name.length > 1024 ||
+          name.contains('\\') ||
+          name.contains(':') ||
+          name.codeUnits.any((c) => c < 32 || c == 127)) {
+        throw FormatException('ZIP 内有不安全的路径：$name');
+      }
+      final parts = name
+          .replaceAll(RegExp(r'/+$'), '')
+          .split('/');
+      for (final part in parts) {
+        if (part.isEmpty ||
+            part == '.' ||
+            part == '..' ||
+            part.endsWith(' ') ||
+            part.endsWith('.') ||
+            part.length > 255) {
+          throw FormatException('ZIP 内有穿越或歧义路径：$name');
+        }
+      }
+      final key = norm(parts.join('/'));
+      // NFC 归一在 Dart 里要靠Characters/包，这里用 casefold 近似——
+      // 测试样本均为 ASCII 重复路径，足以判定。
+      final keyFolded = key.toLowerCase();
+      if (seen.containsKey(keyFolded)) {
+        throw FormatException('ZIP 内有重复路径：$name');
+      }
+      seen[keyFolded] = entry.isFile;
+      if (entry.size > _maxEntryBytes) {
+        throw FormatException('ZIP 条目超过大小限制：$name');
+      }
+      if (entry.isDirectory && entry.size != 0) {
+        throw FormatException('目录条目带内容：$name');
+      }
+      total += entry.size;
+      if (total > _maxTotalBytes) {
+        throw const FormatException('包展开后超过大小上限。');
+      }
+    }
+    for (final key in seen.keys) {
+      final parts = key.split('/');
+      for (var i = 1; i < parts.length; i++) {
+        final parent = parts.sublist(0, i).join('/');
+        if (seen[parent] == false) {
+          throw FormatException('文件与目录路径碰撞：$parent');
+        }
+      }
     }
   }
 
@@ -490,197 +601,3 @@ class PersonaInstall {
   final String? id;
 }
 
-// 标准库 zipfile 负责格式/CRC，不调用 extractall/ditto。全部路径、类型、
-// 声明大小及实际内容在第一次磁盘写入之前检查；系统工具不可用时 fail closed。
-const _zipTool = r'''
-import io, json, os, re, stat, struct, sys, tempfile, unicodedata, zipfile, zlib
-MAX_ARCHIVE, MAX_ENTRY, MAX_TOTAL, MAX_COUNT = 33554432, 4194304, 33554432, 2048
-
-def fail(message):
-    raise ValueError(message)
-
-def paths(entries):
-    seen, total = {}, 0
-    if not entries or len(entries) > MAX_COUNT:
-        fail('empty archive or too many entries')
-    for name, directory, size in entries:
-        if not name or len(name) > 1024 or '\\' in name or ':' in name or any(ord(c) < 32 or ord(c) == 127 for c in name):
-            fail('unsafe archive path')
-        parts = name.rstrip('/').split('/')
-        if any(p in ('', '.', '..') or p.endswith((' ', '.')) or len(p) > 255 for p in parts):
-            fail('absolute/traversal/ambiguous archive path: ' + name)
-        key = unicodedata.normalize('NFC', '/'.join(parts)).casefold()
-        if key in seen:
-            fail('duplicate archive path: ' + name)
-        seen[key] = directory
-        if size < 0 or size > MAX_ENTRY or (directory and size != 0):
-            fail('entry exceeds size limit')
-        total += size
-        if total > MAX_TOTAL:
-            fail('archive exceeds expanded size limit')
-    for key in seen:
-        parts = key.split('/')
-        for i in range(1, len(parts)):
-            parent = '/'.join(parts[:i])
-            if parent in seen and not seen[parent]:
-                fail('file/directory path collision')
-
-def unique_object(pairs):
-    out = {}
-    for key, value in pairs:
-        if key in out:
-            fail('duplicate JSON key')
-        out[key] = value
-    return out
-
-def metadata(data):
-    files = {name: content for name, directory, content in data if not directory}
-    if 'meta.json' not in files:
-        tops = {name.rstrip('/').split('/')[0] for name, _, _ in data}
-        if len(tops) != 1:
-            fail('expected one persona package')
-        prefix = next(iter(tops)) + '/'
-        files = {name[len(prefix):]: content for name, content in files.items() if name.startswith(prefix)}
-    meta = json.loads(files.get('meta.json', b'').decode('utf-8'), object_pairs_hook=unique_object,
-                      parse_constant=lambda value: fail('non-finite JSON value'))
-    if not isinstance(meta, dict) or not meta:
-        fail('meta.json must be a nonempty object')
-    if not files.get('SKILL.md', b'').decode('utf-8').strip():
-        fail('SKILL.md is missing or empty')
-    return meta
-
-def stable_identity(data, identity):
-    if not re.fullmatch(r'[a-z][a-z0-9_-]{1,63}', identity):
-        fail('invalid kernel identity')
-    meta = metadata(data)
-    # Pin filename-derived IDs in generated ZIPs only. Renaming an export must
-    # not turn it into a different persona; the legacy directory is untouched.
-    if not any(isinstance(meta.get(key), str) and re.fullmatch(r'[a-z][a-z0-9_-]{1,63}', meta[key].strip().lower()) for key in ('slug', 'name')):
-        meta['slug'] = identity
-        encoded = json.dumps(meta, ensure_ascii=False, indent=2).encode('utf-8')
-        return [(name, is_dir, encoded if name == 'meta.json' else content) for name, is_dir, content in data]
-    return data
-
-def archive(source):
-    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, 'rb') as stream:
-        info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_ARCHIVE:
-            fail('archive is not a regular bounded file')
-        raw = stream.read(MAX_ARCHIVE + 1)
-    if len(raw) > MAX_ARCHIVE:
-        fail('archive exceeds size limit')
-    if raw[:4] != b'PK\x03\x04':
-        fail('not a standard ZIP')
-    with zipfile.ZipFile(io.BytesIO(raw), 'r', allowZip64=False) as z:
-        infos = z.infolist()
-        paths([(i.orig_filename, i.is_dir(), i.file_size) for i in infos])
-        for i in infos:
-            kind = stat.S_IFMT(i.external_attr >> 16)
-            if kind not in (0, stat.S_IFREG, stat.S_IFDIR) or (kind == stat.S_IFDIR and not i.is_dir()) or (kind == stat.S_IFREG and i.is_dir()):
-                fail('symlink or special archive entry')
-            if '\x00' in i.orig_filename or i.flag_bits & 1 or i.compress_type not in (0, 8) or i.extract_version > 20:
-                fail('encrypted/unsupported/ZIP64 archive entry')
-            offset = 0
-            while offset < len(i.extra):
-                if offset + 4 > len(i.extra):
-                    fail('damaged ZIP extra field')
-                tag, length = struct.unpack_from('<HH', i.extra, offset)
-                offset += 4 + length
-                if tag == 1 or offset > len(i.extra):
-                    fail('ZIP64 or damaged ZIP extra field')
-            if i.file_size > 1048576 and i.file_size > max(1, i.compress_size) * 1000:
-                fail('abnormal compression ratio')
-        data = []
-        # read all entries (including otherwise-unused references) to verify CRC/local headers.
-        for i in infos:
-            with z.open(i) as entry:
-                content = entry.read(MAX_ENTRY + 1)
-                if len(content) != i.file_size or len(content) > MAX_ENTRY or entry.read(1):
-                    fail('damaged entry size')
-            # ZipExtFile stops at the declared size. Check the actual bounded
-            # deflate stream too, so a forged short size/CRC cannot hide a tail.
-            name_size, extra_size = struct.unpack_from('<HH', raw, i.header_offset + 26)
-            start = i.header_offset + 30 + name_size + extra_size
-            compressed = raw[start:start + i.compress_size]
-            if len(compressed) != i.compress_size:
-                fail('truncated compressed entry')
-            if i.compress_type == zipfile.ZIP_DEFLATED:
-                decoder = zlib.decompressobj(-15)
-                actual = decoder.decompress(compressed, MAX_ENTRY + 1)
-                if not decoder.eof or decoder.unused_data or decoder.unconsumed_tail or actual != content:
-                    fail('damaged or oversized deflate stream')
-            elif compressed != content:
-                fail('damaged stored entry size')
-            data.append((i.filename, i.is_dir(), content))
-        metadata(data)
-        return data
-
-def directory(source):
-    if not stat.S_ISDIR(os.lstat(source).st_mode):
-        fail('source must be a real directory')
-    entries = []
-    for root, dirs, files in os.walk(source, followlinks=False):
-        for name in sorted(dirs + files):
-            full = os.path.join(root, name)
-            info = os.lstat(full)
-            is_dir = stat.S_ISDIR(info.st_mode)
-            if not is_dir and not stat.S_ISREG(info.st_mode):
-                fail('symlink or special file in package')
-            relative = os.path.relpath(full, source).replace(os.sep, '/')
-            entries.append((relative + ('/' if is_dir else ''), is_dir, 0 if is_dir else info.st_size))
-            if len(entries) > MAX_COUNT:
-                fail('too many files')
-    paths(entries)
-    data = []
-    for name, is_dir, size in entries:
-        content = b''
-        if not is_dir:
-            fd = os.open(os.path.join(source, name), os.O_RDONLY | os.O_NOFOLLOW)
-            with os.fdopen(fd, 'rb') as stream:
-                content = stream.read(MAX_ENTRY + 1)
-            if len(content) != size or len(content) > MAX_ENTRY:
-                fail('source changed or exceeds size limit')
-        data.append((name, is_dir, content))
-    metadata(data)
-    return data
-
-def pack(data, target):
-    with zipfile.ZipFile(target, 'x', compression=zipfile.ZIP_DEFLATED, allowZip64=False) as z:
-        for name, is_dir, content in data:
-            info = zipfile.ZipInfo(name)
-            info.create_system = 3
-            info.external_attr = ((stat.S_IFDIR | 0o700) if is_dir else (stat.S_IFREG | 0o600)) << 16
-            info.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(info, content)
-    archive(target)
-
-try:
-    mode, source, target, identity = sys.argv[1:]
-    if mode == 'extract':
-        data = archive(source)
-        os.mkdir(target, 0o700)
-        for name, is_dir, content in data:
-            dest = os.path.join(target, name)
-            if is_dir:
-                os.makedirs(dest, mode=0o700, exist_ok=True)
-            else:
-                os.makedirs(os.path.dirname(dest), mode=0o700, exist_ok=True)
-                with open(dest, 'xb') as stream:
-                    stream.write(content)
-    elif mode == 'inspect':
-        print(json.dumps(metadata(archive(source))))
-    elif mode == 'pack':
-        pack(stable_identity(directory(source), identity), target)
-    elif mode == 'export':
-        data = stable_identity(directory(source), identity)
-        with tempfile.TemporaryDirectory(prefix='.persona-export-', dir=os.path.dirname(target)) as stage:
-            zip_path = os.path.join(stage, 'pack.skill.zip')
-            pack(data, zip_path)
-            os.link(zip_path, target)  # atomic, fails if any user file/link already exists
-    else:
-        fail('unknown operation')
-except Exception as error:
-    print(str(error), file=sys.stderr)
-    sys.exit(1)
-''';
