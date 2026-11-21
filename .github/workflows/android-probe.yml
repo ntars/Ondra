@@ -43,71 +43,34 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: 配置 Java
-        uses: actions/setup-java@v4
+      - name: 安装并启动应用（模拟器由社区 action 管理）
+        uses: reactivecircus/android-emulator-runner@v2
         with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: 装 Android SDK 组件
-        run: |
-          ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64" > /dev/null
-
-      - name: 创建并启动模拟器
-        run: |
-          ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}
-          EMU=$ANDROID_HOME/emulator/emulator
-          ADB=$ANDROID_HOME/platform-tools/adb
-          AVDM=$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager
-          echo no | $AVDM create avd -n probe -k "system-images;android-34;google_apis;x86_64" --device pixel_6
-          $AVDM list avd | head -6
-          # -no-window 但保留 GPU swiftshader_indirect：Flutter 需要可用 GPU 栈
-          $EMU -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on &
-          echo "PID $!" > emulator.pid
-          $ADB wait-for-device
-          # 等 boot 完成（最多 5 分钟）
-          for i in $(seq 1 60); do
-            BOOT=$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            if [ "$BOOT" = "1" ]; then echo "boot completed at ${i}0s"; break; fi
-            sleep 10
-          done
-          $ADB shell getprop sys.boot_completed
-
-      - name: 安装并启动应用
-        run: |
-          ADB=${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb
-          # 抓全量 logcat（崩溃 / Flutter / ActivityManager / Dart）到后台文件
-          $ADB logcat -c
-          $ADB logcat -v time > logcat-full.txt &
-          LOGCAT_PID=$!
-          echo "LOGCAT_PID=$LOGCAT_PID" >> $GITHUB_ENV
-          set -x
-          $ADB install -r app-universal.apk
-          # 主进程名从 apk 的 manifest 解出来（不依赖硬编码）
-          PACKAGE=$($ADB shell pm list packages | grep -iE "ondra|ntars" | head -1 | sed 's/package://;s/\r//')
-          echo "PACKAGE=$PACKAGE" >> $GITHUB_ENV
-          echo "package: $PACKAGE"
-          $ADB shell am start -W -n "$PACKAGE/$(aapt dump badging app-universal.apk 2>/dev/null | grep "launchable-activity" | sed -E "s/.*name='([^']+)'.*/\1/" | head -1)" || \
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-no-output: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            ADB=$ANDROID_HOME/platform-tools/adb
+            # 抓全量 logcat（崩溃 / Flutter / ActivityManager / Dart）到后台文件
+            $ADB logcat -c
+            $ADB logcat -v time > logcat-full.txt &
+            LOGCAT_PID=$!
+            set -x
+            $ADB install -r app-universal.apk
+            PACKAGE=$($ADB shell pm list packages | grep -iE "ondra|ntars" | head -1 | sed 's/package://;s/\r//')
+            echo "package: $PACKAGE"
+            echo "PACKAGE=$PACKAGE" >> $GITHUB_ENV
             $ADB shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
-
-      - name: 观察启动
-        run: |
-          sleep ${{ inputs.boot_wait }}
-          # 再拉一次当前 Activity 与进程状态
-          ${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb shell "dumpsys activity activities | head -30" || true
-          ${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb shell "ps -A | head -40" || true
+            sleep ${{ inputs.boot_wait }}
+            $ADB shell "dumpsys activity activities | head -30" || true
 
       - name: 收日志
         if: always()
         timeout-minutes: 3
         run: |
-          kill $LOGCAT_PID 2>/dev/null || true
-          ADB=${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb
-          # 过滤出值得看的：Flutter / Dart / AndroidRuntime 崩溃 / ANR / 应用进程
           grep -aiE "flutter|dart|AndroidRuntime|FATAL|ANR |ondra|Crash" logcat-full.txt > logcat-filtered.txt || true
-          ${ANDROID_HOME:-/usr/local/lib/android/sdk}/platform-tools/adb shell "ls -la /data/data/*ondra* 2>/dev/null; ls -la /data/local/tmp 2>/dev/null" || true
 
       - name: 上传日志
         uses: actions/upload-artifact@v4
