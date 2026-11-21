@@ -48,31 +48,35 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: 安装并启动应用（模拟器由社区 action 管理）
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          force-no-output: true
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            ADB=/usr/local/lib/android/sdk/platform-tools/adb
-            set -x
-            $ADB devices
-            for i in $(seq 1 30); do
-              B=$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
-              if [ "$B" = "1" ]; then echo "BOOTED at ${i}"; break; fi
-              sleep 5
-            done
-            $ADB install -r app-universal.apk
-            $ADB logcat -c
-            $ADB shell monkey -p cn.ntars.ai -c android.intent.category.LAUNCHER 1 || \
-              $ADB shell monkey -p cn.ntars.ai -c android.intent.category.LAUNCHER 1
-            sleep ${{ inputs.boot_wait }}
-            $ADB shell "dumpsys activity activities | head -30" || true
-            $ADB shell "ps -A | grep -i ondra" || true
-            $ADB logcat -d -v time > logcat-full.txt
+      - name: 创建 AVD
+        run: |
+          AVDM=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager
+          echo no | $AVDM create avd -n probe -k "system-images;android-34;google_apis;x86_64" --device pixel_6
+          $AVDM list avd | head -6
+
+      - name: 起模拟器并抓日志（一体编排）
+        timeout-minutes: 20
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ADB=/usr/local/lib/android/sdk/platform-tools/adb
+          $ADB start-server
+          set -x
+          $ADB install -r app-universal.apk 2>&1 | head -5 || true
+          # 起模拟器（后台），日志到文件
+          /usr/local/lib/android/sdk/emulator/emulator -avd probe -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on -no-snapshot &
+          for i in $(seq 1 60); do
+            B=$($ADB shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
+            if [ "$B" = "1" ]; then echo "BOOTED at ${i}x5s"; break; fi
+            sleep 5
+          done
+          $ADB install -r app-universal.apk
+          $ADB logcat -c
+          $ADB shell monkey -p cn.ntars.ai -c android.intent.category.LAUNCHER 1
+          sleep ${{ inputs.boot_wait }}
+          $ADB shell "dumpsys activity activities | head -30" || true
+          $ADB shell "ps -A | grep -i ondra" || true
+          $ADB logcat -d -v time > logcat-full.txt
 
       - name: 收日志
         if: always()
