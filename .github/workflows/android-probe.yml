@@ -52,6 +52,7 @@ jobs:
           force-no-output: true
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           script: |
+            # action 不导出 ADB，自己设（上轮落到了 coreutils 的 install 上）。
             ADB=$ANDROID_HOME/platform-tools/adb
             set -x
             adb devices
