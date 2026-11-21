@@ -4,6 +4,9 @@ import '../../../ondra-settings/ondra-models/ui/runtime_model_config.dart';
 /// 浏览器里没有子进程，如实说明即可——不假装能连。
 class StdioDshTransport implements DshTransport {
   @override
+  String? get modelConfigError => null;
+
+  @override
   void dispose() {}
 
   /// 与桌面版同名同参：条件导出让两边共用一个构造签名，

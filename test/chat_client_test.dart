@@ -289,6 +289,8 @@ void main() {
 /// 一段超过横幅长度的回答。
 class _LongTransport implements DshTransport {
   @override
+  String? get modelConfigError => null;
+  @override
   void dispose() {}
   @override
   Future<void> connect() async {}
@@ -313,6 +315,8 @@ class _LongTransport implements DshTransport {
 
 /// 半路断掉的传输层。
 class _FailingTransport implements DshTransport {
+  @override
+  String? get modelConfigError => null;
   @override
   void dispose() {}
   @override
@@ -342,6 +346,8 @@ class _FailingTransport implements DshTransport {
 /// 插话场景必须这样：如果每一轮都等同一个 gate，第二句自己也会被挡住，
 /// 那就不是「插话能不能发出」，而是「桩写得对不对」了。
 class _GatedTransport implements DshTransport {
+  @override
+  String? get modelConfigError => null;
   @override
   void dispose() {}
   _GatedTransport(this.gate, {this.stallFirst = false});
@@ -392,6 +398,8 @@ class _ConnectingTransport extends _EchoTransport {
 }
 
 class _EchoTransport implements DshTransport {
+  @override
+  String? get modelConfigError => null;
   @override
   void dispose() {}
   @override

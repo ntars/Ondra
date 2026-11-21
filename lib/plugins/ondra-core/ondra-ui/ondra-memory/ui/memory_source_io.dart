@@ -94,8 +94,13 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
 }
 
 /// 跑一条查询，把 `-json` 输出解析成行列表。
+///
+/// `-readonly` 在 WAL 模式下需要能打开 `-wal`/`-shm`：内核进程活着时
+/// 这两个文件被锁，会报 CANTOPEN(14)（2026-11-21 真机复现：「读不到
+/// 记忆库」）。此时退回 URI 只读——宁可少一条刚落盘的，也不显示成
+/// 「读不到记忆库」。
 Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
-  final result = await Process.run(
+  var result = await Process.run(
       _sqlite,
       ['-readonly', '-json', dbPath, sql],
       // sqlite3 的 JSON 输出是 UTF-8；Windows 上不指定就是系统编码
@@ -103,6 +108,14 @@ Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
       stdoutEncoding: utf8,
       stderrEncoding: utf8,
     );
+  if (result.exitCode != 0) {
+    result = await Process.run(
+      _sqlite,
+      ['-json', 'file:$dbPath?mode=ro', sql],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+  }
   if (result.exitCode != 0) {
     throw ProcessException(
       _sqlite,

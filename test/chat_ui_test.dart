@@ -139,6 +139,8 @@ void main() {
 
 class _ControlledTransport implements DshTransport {
   @override
+  String? get modelConfigError => null;
+  @override
   void dispose() {}
   StreamController<String>? response;
   List<ChatAttachment> attachments = [];

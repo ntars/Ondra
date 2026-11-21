@@ -56,6 +56,13 @@ class _Turn {
 
 /// 通过自有子进程收发按行分帧的 SDK JSON-RPC。
 class StdioDshTransport implements DshTransport {
+  /// 本次连接的模型配置错误（缺密钥/配置无效）。非空时聊天栏提示
+  /// 「内核在跑，但当前模型不可用」，而不是让用户以为应用坏了。
+  String? _modelConfigError;
+
+  @override
+  String? get modelConfigError => _modelConfigError;
+
   StdioDshTransport({
     this.binary,
     this.modelId = 'group/ntars',
@@ -178,19 +185,29 @@ class StdioDshTransport implements DshTransport {
       }
       final config = modelConfig?.call();
       var childEnvironment = environment;
+      // 模型配置失败绝不拦内核启动（2026-11-21 用户反馈：不用 DeepSeek、
+      // 换其他模型或网关时内核整个起不来）。内核没有模型也能跑——工具、
+      // 记忆、对话协议都在；只有聊天需要模型。配置解析/密钥解析/补丁写
+      // 入失败时跳过模型段，内核照常起，聊天栏显示具体原因。
       if (config != null) {
-        childEnvironment = await config.resolveEnvironment(
-          environment,
-          secretResolver ?? (_) async => null,
-        );
-        _resolvedSecret = childEnvironment[config.apiKeyEnv];
-        _checkConnection(connection);
-        await writeRuntimeModelPatch(
-          dshHome: _dshHome,
-          model: config,
-          environment: environment,
-        );
-        _checkConnection(connection);
+        try {
+          childEnvironment = await config.resolveEnvironment(
+            environment,
+            secretResolver ?? (_) async => null,
+          );
+          _resolvedSecret = childEnvironment[config.apiKeyEnv];
+          _checkConnection(connection);
+          await writeRuntimeModelPatch(
+            dshHome: _dshHome,
+            model: config,
+            environment: environment,
+          );
+          _checkConnection(connection);
+        } catch (e) {
+          _log('模型配置未生效，内核仍启动：$e');
+          _modelConfigError = '$e';
+          childEnvironment = environment;
+        }
       }
       final launch = await _resolveLaunch();
       _checkConnection(connection);

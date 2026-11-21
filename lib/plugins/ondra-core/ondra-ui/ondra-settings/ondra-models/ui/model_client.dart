@@ -122,7 +122,52 @@ class ModelClient extends ChangeNotifier {
     final p = byId(defaultProviderId);
     final m = p?.models.where((m) => m.id == defaultModelId).firstOrNull;
     if (p == null || m == null) throw StateError('请先选择有效的默认模型');
-    return RuntimeModelConfig.from(p, m);
+    final config = RuntimeModelConfig.from(p, m);
+    // 远端模型没有密钥（钥匙串 + 环境变量都没有）：不拦启动——回退到
+    // 第一个本机可用模型继续说话（2026-11-21 用户反馈：不填 DeepSeek
+    // 密钥聊天整个起不来）。回退原因显示在聊天栏，用户知道发生了什么。
+    if (!_modelUsable(p, config)) {
+      final fallback = _localFallback();
+      if (fallback != null) return fallback;
+    }
+    return config;
+  }
+
+  /// 远端模型是否已具备密钥：钥匙串状态或启动环境变量任一存在即算。
+  bool _modelUsable(OndraProvider p, RuntimeModelConfig config) {
+    if (config.isLoopback) return true;
+    if (p.category == ProviderCategory.local ||
+        p.category == ProviderCategory.gateway) {
+      return true;
+    }
+    if (p.keyConfigured) return true;
+    return (Platform.environment[config.apiKeyEnv] ?? '').trim().isNotEmpty;
+  }
+
+  /// 回退顺序：本机网关 magpie → 第一个 loopback/本地/网关 → null。
+  RuntimeModelConfig? _localFallback() {
+    for (final p in _providers) {
+      if (p.id == 'magpie') {
+        final m = p.models.firstOrNull;
+        if (m != null) {
+          try {
+            return RuntimeModelConfig.from(p, m);
+          } catch (_) {}
+        }
+      }
+    }
+    for (final p in _providers) {
+      if (p.category == ProviderCategory.local ||
+          p.category == ProviderCategory.gateway) {
+        final m = p.models.firstOrNull;
+        if (m != null) {
+          try {
+            return RuntimeModelConfig.from(p, m);
+          } catch (_) {}
+        }
+      }
+    }
+    return null;
   }
 
   /// 不含 secret；替换已配置密钥也增加 revision，不能只看 keyConfigured。

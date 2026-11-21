@@ -144,7 +144,9 @@ class ChatClient extends ChangeNotifier {
       _connected = true;
       // 连接成功后允许设置层做启动同步（首次启动 profile 刚 seed 完的场景）。
       settingsClient.markConnected();
-      _offlineReason = null;
+      // 内核已连上但模型不可用（缺密钥等）：连接是好的，聊天栏显示模型
+      // 原因——与「内核起不来」区分开。
+      _offlineReason = _transport.modelConfigError;
     } catch (e) {
       if (generation != _connectionGeneration) return;
       _connected = false;
@@ -246,7 +248,9 @@ class ChatClient extends ChangeNotifier {
       _connected = true;
       // 连接成功后允许设置层做启动同步（首次启动 profile 刚 seed 完的场景）。
       settingsClient.markConnected();
-      _offlineReason = null;
+      // 内核已连上但模型不可用（缺密钥等）：连接是好的，聊天栏显示模型
+      // 原因——与「内核起不来」区分开。
+      _offlineReason = _transport.modelConfigError;
       answered = true;
       if (reply.text.isEmpty) {
         _messages.remove(reply);
@@ -460,6 +464,10 @@ abstract class DshTransport {
   /// [stop] 现在只中断当前轮，连接与进程保留（审查第 9 项）。
   void dispose() {}
 
+  /// 本次连接的模型配置错误（缺密钥/配置无效），null 表示模型正常。
+  /// 内核照常启动（模型不拦内核），聊天栏据此提示「当前模型不可用」。
+  String? get modelConfigError => null;
+
   /// 每一步模型调用的记账。内核不报（离线、适配器不支持）时就是空流，
   /// 界面因此显示「—」而不是 0——把「没测到」画成 0 是在编数据。
   Stream<StepUsage> get usage => const Stream.empty();
@@ -531,6 +539,9 @@ class ChatUsage {
 
 /// 未接内核时的占位实现：如实说明原因，不假装能对话。
 class UnavailableTransport implements DshTransport {
+  @override
+  String? get modelConfigError => null;
+
   const UnavailableTransport();
 
   @override
