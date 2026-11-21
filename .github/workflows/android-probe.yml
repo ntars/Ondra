@@ -48,6 +48,11 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: 装 Android SDK 组件
+        run: |
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64" > /dev/null
+
       - name: 创建 AVD
         run: |
           AVDM=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager
