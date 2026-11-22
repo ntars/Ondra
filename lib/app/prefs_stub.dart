@@ -1,18 +1,49 @@
-/// Web 端的偏好存储：只活在当前页面生命周期里。
+import 'package:web/web.dart' as web;
+
+/// Web 端的偏好存储：落在浏览器 `localStorage`，刷新后仍然记得设置。
 ///
-/// 不为它引 `package:web` / `localStorage`：Web 版目前只用于逐页核对排版，
-/// 刷新后回到默认值反而是想要的行为（每次都从同一状态开始看）。
-final Map<String, String> _memory = <String, String>{};
+/// 之前的实现只在内存里放一张表，刷新就回到默认——这是审计中的真实用户
+/// 场景缺口：选完主题/语言/引导状态后刷新，界面假装从未设置过。这里与
+/// `prefs_io.dart` 保持同一语义：空串代表删除键。
+const String _prefix = 'ondra:pref:';
 
-String readPref(String key, {String fallback = ''}) => _memory[key] ?? fallback;
+web.Storage get _storage => web.window.localStorage;
 
-void writePref(String key, String value) => _memory[key] = value;
+String readPref(String key, {String fallback = ''}) {
+  try {
+    final value = _storage.getItem('$_prefix$key');
+    return value ?? fallback;
+  } catch (_) {
+    // 隐私模式 / 禁用存储时退回默认值，不能让设置页或启动崩溃。
+    return fallback;
+  }
+}
+
+void writePref(String key, String value) {
+  final storageKey = '$_prefix$key';
+  try {
+    if (value.isEmpty) {
+      _storage.removeItem(storageKey);
+    } else {
+      _storage.setItem(storageKey, value);
+    }
+  } catch (_) {
+    // 写不进去只是这次不记住，不影响本次运行（与桌面版同语义）。
+  }
+}
 
 /// 与 `prefs_io.dart` 同名的重定向入口（接口同形的需要）。
 ///
-/// Web 端本来就只活在内存里，没有真实文件可污染；这个函数什么都不做，
-/// 只是为了 `flutter analyze` 分析条件导出两边时，调用点不会在另一边报错。
-/// 测试里若调它，行为与 io 版一致：清掉已记住的值。
+/// 清掉本应用写下的偏好键，供测试隔离使用；不会碰同源下其他站点数据。
 void setPrefHome(String? home) {
-  _memory.clear();
+  if (home == null) return;
+  const prefix = _prefix;
+  final keys = <String>[];
+  for (var i = 0; i < _storage.length; i++) {
+    final key = _storage.key(i);
+    if (key != null && key.startsWith(prefix)) keys.add(key);
+  }
+  for (final key in keys) {
+    _storage.removeItem(key);
+  }
 }

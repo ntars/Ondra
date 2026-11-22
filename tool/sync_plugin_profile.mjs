@@ -115,6 +115,22 @@ function collect(srcRoot) {
     files.set(f, full);
   }
 
+  // Exact-version compatibility grants live in profile-local compatibility.json.
+  // The bundled runtime pins dsh 0.2.1-rc.3 while profile plugins declare
+  // 0.2.2-rc.1 peers; without this file dsh disables the session/agent rows and
+  // every first launch fails with "sdk-jsonrpc-server did not activate".
+  // Keep the source's file when present, otherwise derive the grants from
+  // plugin manifests so a fresh profile snapshot is bootable by the bundled runtime.
+  const compatPath = path.join(srcRoot, 'compatibility.json');
+  if (fs.existsSync(compatPath)) {
+    files.set('compatibility.json', compatPath);
+  } else {
+    const grants = deriveVersionExemptions(srcRoot);
+    files.set('compatibility.json', {
+      buf: Buffer.from(`${JSON.stringify(grants, null, 2)}\n`, 'utf8'),
+    });
+  }
+
   const nm = path.join(srcRoot, 'node_modules', '@ondra');
   if (!fs.existsSync(nm)) {
     die(`源 profile 里没有 node_modules/@ondra：${srcRoot}`,
@@ -147,7 +163,8 @@ function collect(srcRoot) {
  */
 function rewriteRootManifest(raw) {
   const d = JSON.parse(raw);
-  const names = Object.keys(d.dependencies || {}).sort();
+  const names = d['x-ondra-snapshot']?.order
+    ?? Object.keys(d.dependencies || {}).sort();
   d.dependencies = {};
   d['x-ondra-snapshot'] = {
     note: '构建输入快照，由 tool/sync_plugin_profile.mjs 生成；'
@@ -156,6 +173,56 @@ function rewriteRootManifest(raw) {
     order: names,
   };
   return `${JSON.stringify(d, null, 2)}\n`;
+}
+
+/**
+ * Derive exact-version grants from plugin manifests.
+ *
+ * This runs at sync time only; runtime still reads a plain compatibility.json
+ * copied into the profile seed. Only exact dsh peer/dependency versions are
+ * granted, against the runtime version this repository bundles.
+ */
+function deriveVersionExemptions(srcRoot) {
+  const runtimeVersion = bundledRuntimeVersion();
+  const grants = {};
+  const nm = path.join(srcRoot, 'node_modules');
+  for (const scope of ['@ondra', '@deepseek-ai']) {
+    const base = path.join(nm, scope);
+    if (!fs.existsSync(base)) continue;
+    for (const dir of fs.readdirSync(base)) {
+      const manifestPath = path.join(base, dir, 'package.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      let manifest;
+      try {
+        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      } catch {
+        continue;
+      }
+      const requirements = { ...manifest.dependencies, ...manifest.peerDependencies };
+      for (const [name, version] of Object.entries(requirements)) {
+        if (!name.startsWith('@deepseek-ai/dsh-') || typeof version !== 'string') continue;
+        if (!/^[0-9]/.test(version)) continue;
+        grants[`${name}@${version}`] = [runtimeVersion];
+      }
+    }
+  }
+  return Object.fromEntries(Object.keys(grants).sort().map((key) => [key, grants[key]]));
+}
+
+/** Read the pinned runtime version from the packaged dsh manifest, if available. */
+function bundledRuntimeVersion() {
+  const candidates = [
+    path.join(REPO, 'runtime', 'macos-arm64', 'dsh', 'package.json'),
+    path.join(REPO, 'runtime', 'windows-x64', 'dsh', 'package.json'),
+    path.join(REPO, 'runtime', 'linux-x64', 'dsh', 'package.json'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const version = JSON.parse(fs.readFileSync(candidate, 'utf8')).version;
+      if (version) return version;
+    } catch { /* try next platform */ }
+  }
+  die('无法确定随包 dsh 版本', '请先跑一次 tool/assemble_runtime.mjs，再同步 plugin-profile。');
 }
 
 const README = `# plugin-profile（构建输入快照）
@@ -180,6 +247,7 @@ const README = `# plugin-profile（构建输入快照）
 | \`cordis.yml\` | 装配层根（内容是一个空列表，树由 patch 组合而来） |
 | \`cordis.patch.yml\` | 真正的装配描述：哪 77 个插件、什么顺序、什么参数 |
 | \`package.json\` | \`dsh.profile.bundles\` 是装配起点；\`dependencies\` 已清空（见文件内注释） |
+| \`compatibility.json\` | 精确版本豁免：让 0.2.2-rc.1 的插件在随包 dsh 0.2.1-rc.3 上装载 |
 | \`node_modules/@ondra/*\` | 77 个插件包，只保留 \`package.json\` 与 \`lib/\` |
 
 裁剪掉的：\`src/\`（TypeScript 源码）、\`.map\`/\`.md\`/\`.tsbuildinfo\`。

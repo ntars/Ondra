@@ -20,6 +20,7 @@
 | `cordis.yml` | 装配层根（内容是一个空列表，树由 patch 组合而来） |
 | `cordis.patch.yml` | 真正的装配描述：哪 77 个插件、什么顺序、什么参数 |
 | `package.json` | `dsh.profile.bundles` 是装配起点；`dependencies` 已清空（见文件内注释） |
+| `compatibility.json` | 精确版本豁免：让 0.2.2-rc.1 的插件在随包 dsh 0.2.1-rc.3 上装载 |
 | `node_modules/@ondra/*` | 77 个插件包，只保留 `package.json` 与 `lib/` |
 
 裁剪掉的：`src/`（TypeScript 源码）、`.map`/`.md`/`.tsbuildinfo`。

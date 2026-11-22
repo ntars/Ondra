@@ -11,7 +11,7 @@
   },
   "x-ondra-snapshot": {
     "note": "构建输入快照，由 tool/sync_plugin_profile.mjs 生成；插件包以实体形式在 node_modules/@ondra 下，不要在此执行 install",
-    "packages": 77,
+    "packages": 79,
     "order": [
       "@ondra/cordis-plugin-desktop-bridge",
       "@ondra/cordis-plugin-ondra-absence",
@@ -20,6 +20,7 @@
       "@ondra/cordis-plugin-ondra-breath",
       "@ondra/cordis-plugin-ondra-clock",
       "@ondra/cordis-plugin-ondra-config-schema",
+      "@ondra/cordis-plugin-ondra-credentials",
       "@ondra/cordis-plugin-ondra-crisis",
       "@ondra/cordis-plugin-ondra-data-migrate",
       "@ondra/cordis-plugin-ondra-dialogue",
@@ -87,6 +88,7 @@
       "@ondra/cordis-plugin-ondra-store-sqlite",
       "@ondra/cordis-plugin-ondra-tts",
       "@ondra/cordis-plugin-ondra-tts-gate",
+      "@ondra/cordis-plugin-ondra-turn-control",
       "@ondra/cordis-plugin-ondra-vision",
       "@ondra/cordis-plugin-ondra-window",
       "@ondra/cordis-plugin-ondra-worldbook"

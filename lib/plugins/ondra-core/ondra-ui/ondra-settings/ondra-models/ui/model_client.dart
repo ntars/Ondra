@@ -23,10 +23,8 @@ class ModelClient extends ChangeNotifier {
     Future<KeychainSecret> Function(String, String)? secretWriter,
     // ignore: prefer_initializing_formals, 对外参数名保持 storePath，私有字段不能当命名参数
   }) : _storePath = storePath,
-       _secretResolver =
-           secretResolver ?? ((id) => Keychain.read(_keyName(id))),
-       _secretWriter =
-           secretWriter ?? ((id, key) => Keychain.write(_keyName(id), key)) {
+       _secretResolver = secretResolver ?? ((ref) => Keychain.read(ref)),
+       _secretWriter = secretWriter ?? ((ref, key) => Keychain.write(ref, key)) {
     _providers = [
       // 本机网关：Magpie（/Applications/magpie.app）监听 127.0.0.1:3425，
       // 一个端口转发多家模型（实测目录里 14 个，含 deepseek / glm / minimax / hy4）。
@@ -184,7 +182,7 @@ class ModelClient extends ChangeNotifier {
         continue; // 本地与网关不校验密钥，状态恒为「不需要」。
       }
       unawaited(
-        Keychain.exists(_keyName(p.id)).then((ok) {
+        Keychain.exists(credentialRefOf(p)).then((ok) {
           if (p.keyConfigured == ok) return;
           p.keyConfigured = ok;
           notifyListeners();
@@ -210,8 +208,31 @@ class ModelClient extends ChangeNotifier {
     }
   }
 
-  /// 钥匙串里密钥项的名字。一处约定，写入与删除都用它。
-  static String _keyName(String providerId) => 'provider.$providerId.key';
+  /// 密钥在 `.credentials.yaml` 里的**引用名**，与内核同源。
+  ///
+  /// 内核侧 `llm-pi-ai` 是按 `provider.apiKeyEnv` 去 `ctx.credentials.resolve(ref)`
+  /// 找密钥的，而官方 `dsh-credentials-local` 只接受 POSIX 标识符
+  /// （`REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/`）。这里以前用
+  /// `provider.<id>.key`（含点号）当引用名，两个后果同时成立：
+  ///
+  /// 1. 官方解析器读到含点号的键会直接抛 TypeError，整份凭据文件被拒；
+  /// 2. 即便写得进去，内核按 `apiKeyEnv` 找的是另一个名字，永远读不到。
+  ///
+  /// 所以引用名必须就是 `apiKeyEnv`——一处命名，两边都认。空 `apiKeyEnv`
+  /// 时按 `RuntimeModelConfig` 的同一条规则兜底，保证写与读用同一个名字。
+  static String credentialRefOf(OndraProvider p) => p.apiKeyEnv.isEmpty
+      ? 'ONDRA_UI_${p.id.replaceAll('-', '_').toUpperCase()}_API_KEY'
+      : p.apiKeyEnv;
+
+  /// 按提供商 id 取引用名；提供商已不存在时返回 null（不凭空造名字）。
+  String? _refOf(String providerId) {
+    final p = byId(providerId);
+    return p == null ? null : credentialRefOf(p);
+  }
+
+  /// 旧的键名（`provider.<id>.key`）。只用于一次性迁移：
+  /// 老版本把密钥存在这个名下，改成 apiKeyEnv 之后要能读回旧值。
+  static String legacyKeyName(String providerId) => 'provider.$providerId.key';
 
   Map<String, dynamic> _providerToJson(OndraProvider p) => {
     'id': p.id,
@@ -289,13 +310,24 @@ class ModelClient extends ChangeNotifier {
   ///
   /// UI 的「填写 / 更换」与自定义表单都走这一个入口；`keyConfigured` 由
   /// 写入结果驱动，不靠界面自己置位。
+  ///
+  /// 引用名取自 `apiKeyEnv`（见 [credentialRefOf]）：内核按同一个名字解析，
+  /// 存进去才算真的存进去。
   Future<String?> writeProviderKey(String providerId, String key) async {
-    final r = await _secretWriter(providerId, key);
+    final ref = _refOf(providerId);
+    if (ref == null) return '提供商不存在';
+    final r = await _secretWriter(ref, key);
     if (!r.ok) return r.message;
     final p = byId(providerId);
     if (p != null) {
       p.keyConfigured = key.isNotEmpty;
       _keyRevisions[providerId] = (_keyRevisions[providerId] ?? 0) + 1;
+      // 新名字写成功了，就把老名字下的旧值清掉：留着等于同一把密钥
+      // 在文件里存两份，改一处另一处还是旧的（而且旧名官方读不了）。
+      if (key.isNotEmpty) {
+        final legacy = legacyKeyName(providerId);
+        if (legacy != ref) unawaited(Keychain.erase(legacy));
+      }
       notifyListeners();
     }
     return null;
@@ -462,8 +494,14 @@ class ModelClient extends ChangeNotifier {
   Future<String?> removeProvider(String id) async {
     final p = byId(id);
     if (p == null || p.builtIn) return '内置提供商不能删除';
-    if (p.keyConfigured || await Keychain.exists(_keyName(id))) {
-      if (!await Keychain.erase(_keyName(id))) return '密钥删除失败，已保留提供商';
+    final ref = credentialRefOf(p);
+    final legacy = legacyKeyName(id);
+    if (p.keyConfigured || await Keychain.exists(ref)) {
+      if (!await Keychain.erase(ref)) return '密钥删除失败，已保留提供商';
+    }
+    // 老名字下的残留一并清掉，否则删了提供商、密钥还留在文件里。
+    if (legacy != ref && await Keychain.exists(legacy)) {
+      await Keychain.erase(legacy);
     }
     _providers = _providers.where((e) => e.id != id).toList();
     p.keyConfigured = false;
@@ -480,7 +518,25 @@ class ModelClient extends ChangeNotifier {
             : Platform.environment[p.apiKeyEnv]);
   }
 
-  Future<String?> readProviderSecret(String id) => _secretResolver(id);
+  /// 读密钥。先按 `apiKeyEnv` 读；读不到再试老键名（`provider.<id>.key`），
+  /// 命中就顺手搬过来并删掉旧条目——老版本存下的密钥不该因为改了命名就失效。
+  ///
+  /// 注入的 `_secretResolver` 收到的是**引用名**（`apiKeyEnv`），与默认实现
+  /// `Keychain.read` 的语义一致；这里按 id 解析出引用名再问它。
+  Future<String?> readProviderSecret(String id) async {
+    final p = byId(id);
+    if (p == null) return null;
+    final ref = credentialRefOf(p);
+    final hit = await _secretResolver(ref);
+    if (hit != null && hit.isNotEmpty) return hit;
+    final legacy = legacyKeyName(id);
+    if (legacy == ref) return null;
+    final old = await Keychain.readLegacy(legacy);
+    if (old == null || old.isEmpty) return null;
+    final migrated = await _secretWriter(ref, old);
+    if (migrated.ok) await Keychain.erase(legacy);
+    return old;
+  }
 
   String? updateProviderProtocol(String id, String protocol) {
     if (!RuntimeModelConfig.protocols.contains(protocol)) return '不支持的 API 协议';

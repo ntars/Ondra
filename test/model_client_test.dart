@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/app/keychain.dart';
 import 'package:ondra/app/notifier_io.dart';
+import 'package:ondra/app/prefs.dart';
 import 'package:ondra/main.dart' show ModelRuntimeBinding;
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/chat_client.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/stdio_transport.dart';
@@ -13,6 +14,8 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/model_client.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/model_types.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/probe_io.dart';
+import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ui/profile_config_io.dart';
+import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ui/settings_client.dart';
 
 void main() {
   late Directory home;
@@ -168,6 +171,86 @@ void main() {
     }
   });
 
+  test('密钥引用名就是 apiKeyEnv，与内核解析用的名字同源', () async {
+    // 内核侧 llm-pi-ai 按 provider.apiKeyEnv 去 credentials.resolve(ref) 找密钥，
+    // 官方 provider 只接受 POSIX 标识符。若壳用 provider.<id>.key 存，
+    // 两个后果同时成立：官方解析器整份拒收 + 内核按另一个名字永远读不到。
+    final written = <String, String>{};
+    final keyed = ModelClient(
+      storePath: '${home.path}/refs/models.json',
+      secretResolver: (ref) async => written[ref],
+      secretWriter: (ref, key) async {
+        written[ref] = key;
+        return const KeychainSecret(ok: true, message: 'ok');
+      },
+    );
+    try {
+      final deepseek = keyed.byId('deepseek')!;
+      expect(deepseek.apiKeyEnv, 'DEEPSEEK_API_KEY');
+      expect(ModelClient.credentialRefOf(deepseek), 'DEEPSEEK_API_KEY');
+
+      await keyed.writeProviderKey('deepseek', 'sk-x');
+      expect(written.keys, contains('DEEPSEEK_API_KEY'));
+      expect(written.keys, isNot(contains('provider.deepseek.key')));
+      expect(
+        RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(written.keys.first),
+        isTrue,
+      );
+      expect(await keyed.readProviderSecret('deepseek'), 'sk-x');
+    } finally {
+      keyed.dispose();
+    }
+  });
+
+  test('apiKeyEnv 为空的提供商按同一条兜底规则生成引用名', () {
+    final p = OndraProvider(
+      id: 'my-free-model',
+      name: 'f',
+      category: ProviderCategory.free,
+      baseUrl: 'https://example.com/v1',
+      models: [OndraModelEntry(id: 'm')],
+    );
+    expect(
+      ModelClient.credentialRefOf(p),
+      'ONDRA_UI_MY_FREE_MODEL_API_KEY',
+    );
+  });
+
+  test('旧密钥只在旧存储中时，读一次后迁到新引用并清掉旧键', () async {
+    // 这里同时守住两个真实故障：老用户升级后密钥突然失效；以及把含点号的
+    // provider.<id>.key 写回官方 .credentials.yaml 导致整份文件被拒。
+    final legacy = ModelClient.legacyKeyName('deepseek');
+    final written = <String, String>{};
+    final erased = <String>[];
+    final keyed = ModelClient(
+      storePath: '${home.path}/migration/models.json',
+      secretResolver: (ref) async => written[ref],
+      secretWriter: (ref, key) async {
+        written[ref] = key;
+        return const KeychainSecret(ok: true, message: 'ok');
+      },
+    );
+    final originalReadLegacy = Keychain.readLegacyProbe;
+    final originalErase = Keychain.eraseProbe;
+    Keychain.readLegacyProbe = (key) async => key == legacy ? 'sk-old' : null;
+    Keychain.eraseProbe = (key) async {
+      erased.add(key);
+      return true;
+    };
+    try {
+      expect(await keyed.readProviderSecret('deepseek'), 'sk-old');
+      expect(written['DEEPSEEK_API_KEY'], 'sk-old');
+      expect(erased, contains(legacy));
+      expect(written.keys, isNot(contains(legacy)));
+      expect(await keyed.readProviderSecret('deepseek'), 'sk-old');
+      expect(erased.where((k) => k == legacy).length, 1);
+    } finally {
+      keyed.dispose();
+      Keychain.readLegacyProbe = originalReadLegacy;
+      Keychain.eraseProbe = originalErase;
+    }
+  });
+
   test('受管段保留其它字节和禁用项、复用 pi-ai 实例、安全编码并幂等替换', () async {
     final dir = Directory('${home.path}/dsh/profiles/ondra')
       ..createSync(recursive: true);
@@ -279,6 +362,70 @@ void main() {
       await binding.dispose();
       chat.dispose();
       Notifier.debugOperatingSystemOverride = oldNotifier;
+    }
+  });
+
+  test('重连成功后消解「待内核重载」标记，失败则保留', () async {
+    // 这条守的是一个真实的死结：写入配置时标 restartRequired，而消解它的
+    // 唯一入口是 markKernelApplied。如果装配层不在重连时调用它，设置页那句
+    // 「有配置待内核重载」就永久挂着——每改一次多积一条，用户永远清不掉。
+    final enabled = <bool>[];
+    final transports = <_BindingTransport>[];
+    final chat = ChatClient();
+    // 装配层操作的是全局单例，另建一个实例不会与它共享标记。
+    final settings = settingsClient;
+    debugProfileConfigFileOverride =
+        '${home.path}/profiles/ondra/cordis.patch.yml';
+    File(debugProfileConfigFileOverride!)
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        '- insert:\n    - id: ondra-tts\n      name: plugin-tts\n',
+      );
+    setPrefHome(home.path);
+    settings.load();
+
+    final binding = ModelRuntimeBinding(
+      models: client,
+      chat: chat,
+      createTransport: (previous) {
+        final next = _BindingTransport(previous, failOpen: enabled.removeAt(0));
+        transports.add(next);
+        return next;
+      },
+    );
+    final oldNotifier = Notifier.debugOperatingSystemOverride;
+    Notifier.debugOperatingSystemOverride = 'test';
+    try {
+      // 第一次连上：把配置写进装配层，标记应当出现。
+      enabled.add(false);
+      await binding.start();
+      expect(await settings.set('voice.tts', true), isTrue);
+      expect(settings.restartRequiredKeys, contains('voice.tts'));
+
+      // 一次失败的重连不能把标记误清掉。
+      enabled.add(true);
+      client.updateProviderAddress('magpie', 'http://localhost:9911/v1');
+      await _settle(transports);
+      expect(chat.connected, isFalse);
+      expect(settings.restartRequiredKeys, contains('voice.tts'));
+
+      // 成功的重连才算内核真的读了这份配置。
+      enabled.add(false);
+      client.updateProviderAddress('magpie', 'http://localhost:9912/v1');
+      await _settle(transports);
+      expect(chat.connected, isTrue);
+      expect(settings.restartRequired, isFalse);
+    } finally {
+      for (final t in transports) {
+        if (!t.closeGate.isCompleted) t.closeGate.complete();
+      }
+      await binding.dispose();
+      chat.dispose();
+      // 单例不能 dispose：同一进程里后面的测试还要用它。
+      settings.reloadFromDisk();
+      Notifier.debugOperatingSystemOverride = oldNotifier;
+      debugProfileConfigFileOverride = null;
+      setPrefHome(null);
     }
   });
 
@@ -427,9 +574,23 @@ void main() {
   });
 }
 
+/// 让装配层的重连有机会跑完：它要等旧进程关闭、再开新进程，
+/// 全部走微任务与 Future，单帧 `Duration.zero` 不够。
+Future<void> _settle(List<_BindingTransport> transports) async {
+  for (var i = 0; i < 8; i++) {
+    await Future<void>.delayed(Duration.zero);
+    for (final t in transports) {
+      if (t.closeStarted && !t.closeGate.isCompleted) t.closeGate.complete();
+    }
+  }
+}
+
 class _BindingTransport extends StdioDshTransport {
-  _BindingTransport(this.previous);
+  _BindingTransport(this.previous, {this.failOpen = false});
   final Future<void>? previous;
+
+  /// `true` 时 `connect()` 抛错，用来模拟「内核没起来」。
+  final bool failOpen;
   final closeGate = Completer<void>();
   final output = StreamController<String>();
   bool opened = false;
@@ -441,6 +602,7 @@ class _BindingTransport extends StdioDshTransport {
   @override
   Future<void> connect() async {
     await previous;
+    if (failOpen) throw StateError('内核启动失败');
     opened = true;
   }
 

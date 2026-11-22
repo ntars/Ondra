@@ -184,6 +184,12 @@ class ModelRuntimeBinding {
     _applying = true;
     _lastAttempt = models.runtimeFingerprint;
     models.reportRuntimeState(pending: true, applying: true);
+    // 这一轮连线之前写进装配层的配置，就是这个新内核会读到的配置。
+    // 记下快照，连上之后交给 markKernelApplied —— 否则设置页上那句
+    // 「有配置待内核重载」永远不会消：写入时标了 restartRequired，而
+    // 消解这个标记的唯一入口（markKernelApplied）在 lib/ 里没有调用点，
+    // 只有测试在调。用户每改一次设置就积一条，永久挂着。
+    final bootConfiguration = settingsClient.captureKernelConfiguration();
     try {
       final previousClosed = _transport?.close();
       final next =
@@ -198,6 +204,8 @@ class ModelRuntimeBinding {
       // 先同步换到带 barrier 的传输，重连期间新发送也只能等旧进程退出。
       chat.useTransport(next);
       await chat.connect();
+      // 连上了才算内核真的读了那份配置；没连上就保留待重载标记。
+      if (chat.connected) settingsClient.markKernelApplied(bootConfiguration);
       models.reportRuntimeState(
         pending: !chat.connected || _lastAttempt != models.runtimeFingerprint,
         applying: false,

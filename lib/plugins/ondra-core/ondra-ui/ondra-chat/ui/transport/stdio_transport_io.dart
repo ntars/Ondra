@@ -100,6 +100,9 @@ class StdioDshTransport implements DshTransport {
   /// 整轮硬上限，不是首 token 上限；本地长推理可由调用方进一步调高。
   final Duration turnTimeout;
   final RuntimeModelConfig Function()? modelConfig;
+
+  /// 按提供商 id 解析密钥。装配层传 `modelClient.readProviderSecret`：
+  /// 那一层知道 id → 引用名（`apiKeyEnv`）的映射，传输层不该重复这套规则。
   final Future<String?> Function(String providerId)? secretResolver;
   final String? workingDirectory;
   final Future<void>? previousClosed;

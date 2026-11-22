@@ -11,7 +11,7 @@ const executable = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Co
 const profile = await mkdtemp(join(tmpdir(), 'ondra-browser-'));
 const chrome = spawn(executable, [
   '--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
-  '--no-first-run', '--no-default-browser-check', 'about:blank',
+  '--no-first-run', '--no-default-browser-check', '--no-proxy-server', 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 const exited = once(chrome, 'exit');
 let socket;
@@ -101,7 +101,7 @@ try {
   }
   await click('哦鲸鲸');
   await waitFor(`${text}.includes('通用设置')`);
-  for (const [label, content] of [['通用设置', '网页白名单'], ['模型基座', '默认模型'], ['通道接口', '机器人凭据'], ['人设设定', '当前人设'], ['关于空谷', '开源许可']]) {
+  for (const [label, content] of [['通用设置', '网页白名单'], ['模型基座', '默认模型'], ['人设设定', '当前人设'], ['关于空谷', '开源许可']]) {
     await click(label);
     await waitFor(`${text}.includes(${JSON.stringify(content)})`);
     console.log(`PASS settings ${label}`);

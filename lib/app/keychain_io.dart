@@ -74,52 +74,149 @@ class Keychain {
 
   /// 内核 DSH_HOME 与桌面壳共用一个目录（transport 的 _dshHome 同源）。
   static String get _dshHome =>
+      debugDshHomeOverride ??
       Platform.environment['ONDRA_DSH_HOME'] ??
       '$ondraUserHome/.ondra/dsh';
+
+  /// 测试用的目录重定向。
+  ///
+  /// `Platform.environment` 是进程级且只读的，测试里改不了；没有这个口子，
+  /// 「写 refs 会不会抹掉 records」这件事就只能靠手工跑一次验证——而它
+  /// 会在用户真实的凭据文件上悄悄发生。
+  static String? debugDshHomeOverride;
+
+  /// 迁移路径的测试注入点，与 `keychain_stub.dart` 同形。
+  ///
+  /// 生产永远走真实旧钥匙串；测试里替换它才能验证「读一次旧密钥、写新
+  /// 引用、删旧键」这一整条升级路径，而不会碰用户钥匙串。
+  static Future<String?> Function(String key)? readLegacyProbe;
+
+  /// 删除路径的测试注入点，与 `keychain_stub.dart` 同形。
+  static Future<bool> Function(String key)? eraseProbe;
 
   static File get _credentialsFile =>
       File('$_dshHome/.credentials.yaml');
 
   /// 读全部 refs。空文件/不存在 → 空表。
-  static Map<String, String> _readRefs() {
+  static Map<String, String> _readRefs() => _parse(_credentialsText()).refs;
+
+  /// 读文件原文；不存在返回空串。
+  ///
+  /// 必须整份读进来再写回：同一个文件里还有内核写的 `records:` 段
+  /// （`client-connection/browser-session` 这类授权记录）。以前只按行扫出
+  /// `refs:` 再整份重写，等于把 `records:` 连同内核的会话授权一起抹掉——
+  /// 用户保存一次模型密钥，浏览器端的登录态就没了，而且两边都不报错。
+  static String _credentialsText() {
     final f = _credentialsFile;
-    if (!f.existsSync()) return {};
+    if (!f.existsSync()) return '';
+    try {
+      return f.readAsStringSync();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// 从整份文档里只摘出 `refs:` 段。
+  ///
+  /// 缩进固定两格：与官方 `dsh-credentials-local` 写出的布局一致（它用
+  /// YAML 序列化，顶层键零缩进、二级键两格）。
+  static ({Map<String, String> refs}) _parse(String text) {
     final refs = <String, String>{};
     var inRefs = false;
-    for (final line in f.readAsLinesSync()) {
+    for (final line in text.split('\n')) {
       if (line.trim().isEmpty) continue;
-      if (line.trim() == 'refs:') {
+      if (line == 'refs:') {
         inRefs = true;
         continue;
       }
       if (!inRefs) continue;
-      // refs 下的二级缩进条目：  KEY: value
-      final m = RegExp(r'^  ([^:]+): ?(.*)$').firstMatch(line);
+      final m = RegExp(r'^  (\S+): ?(.*)$').firstMatch(line);
       if (m == null) {
-        // 退出 refs 段（回到一级键）
+        // 退出 refs 段（回到零缩进的顶层键，或遇到 `records:`）。
         if (!line.startsWith('  ')) inRefs = false;
         continue;
       }
-      refs[m.group(1)!.trim()] = m.group(2)!.trim();
+      final value = _unquote(m.group(2)!.trim());
+      if (value.isNotEmpty) refs[m.group(1)!.trim()] = value;
     }
-    return refs;
+    return (refs: refs);
   }
 
-  /// 写全部 refs（0600；YAML 值含特殊字符时加引号）。
+  /// 去掉写入时加的引号，让读回来的值与写进去的值逐字节相等。
+  static String _unquote(String raw) {
+    if (raw.length < 2) return raw;
+    if (raw.startsWith("'") && raw.endsWith("'")) {
+      return raw.substring(1, raw.length - 1).replaceAll("''", "'");
+    }
+    if (raw.startsWith('"') && raw.endsWith('"')) {
+      // 写侧只在含特殊字符时用单引号，双引号只会来自内核/手工编辑。
+      return raw.substring(1, raw.length - 1);
+    }
+    return raw;
+  }
+
+  /// 写 refs 段，**保留文档里其它段与注释**。
+  ///
+  /// 只替换 `refs:` 那一块（到下一个顶层键为止），`records:` 与文件里
+  /// 任何别的内容原样留在原位。这是与官方 provider 共用一个文件的前提：
+  /// 它随时可能写 `records:`，我们不能每次保存密钥都把它清空。
   static void _writeRefs(Map<String, String> refs) {
     final f = _credentialsFile;
     f.parent.createSync(recursive: true);
     String quote(String v) =>
         RegExp(r'^[A-Za-z0-9._/@+-]+$').hasMatch(v) ? v : "'${v.replaceAll("'", "''")}'";
-    final b = StringBuffer('version: 1\nrefs:\n');
+
+    final block = StringBuffer('refs:\n');
     if (refs.isEmpty) {
-      b.write('  {}\n');
+      block.write('  {}\n');
     } else {
       for (final e in refs.entries) {
-        b.write('  ${e.key}: ${quote(e.value)}\n');
+        block.write('  ${e.key}: ${quote(e.value)}\n');
       }
     }
-    f.writeAsStringSync(b.toString(), flush: true);
+
+    final before = _credentialsText();
+    // 空文件/只有空白：写成一份最小合法文档。
+    if (before.trim().isEmpty) {
+      f.writeAsStringSync('version: 1\n$block', flush: true);
+    } else {
+      final lines = before.split('\n');
+      var start = -1;
+      var end = lines.length;
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i] == 'refs:') {
+          start = i;
+          break;
+        }
+      }
+      if (start < 0) {
+        // 没有 refs 段：插到 version 之后（官方布局里 version 在最前）。
+        var at = 0;
+        for (var i = 0; i < lines.length; i++) {
+          if (lines[i].trim() == 'version: 1') {
+            at = i + 1;
+            break;
+          }
+        }
+        lines.insertAll(at, block.toString().trimRight().split('\n'));
+        f.writeAsStringSync(lines.join('\n'), flush: true);
+      } else {
+        // 找 refs 段的结束：下一个零缩进的非空行。
+        for (var i = start + 1; i < lines.length; i++) {
+          if (lines[i].trim().isEmpty) continue;
+          if (!lines[i].startsWith('  ')) {
+            end = i;
+            break;
+          }
+        }
+        final next = [
+          ...lines.sublist(0, start),
+          ...block.toString().trimRight().split('\n'),
+          ...lines.sublist(end),
+        ];
+        f.writeAsStringSync(next.join('\n'), flush: true);
+      }
+    }
     try {
       Process.runSync('chmod', ['600', f.path]);
     } catch (_) {
@@ -143,7 +240,22 @@ class Keychain {
   }
 
 
+  /// 读旧存储（macOS 钥匙串）里某一条，供 ModelClient 做一次性迁移。
+  ///
+  /// 这里刻意返回「文件里没有、但旧钥匙串里有」的值：普通 [read] 会把迁移
+  /// 结果写回文件，而迁移流程要自己决定何时写、何时删旧记录。其它平台没有
+  /// 旧存储，返回 null。
+  static Future<String?> readLegacy(String key) async {
+    final probe = readLegacyProbe;
+    if (probe != null) return probe(key);
+    if (!supported || !Platform.isMacOS) return null;
+    final hit = _migrateLegacy(key);
+    return hit == null || hit.isEmpty ? null : hit;
+  }
+
   static Future<bool> erase(String key) async {
+    final probe = eraseProbe;
+    if (probe != null) return probe(key);
     if (!supported) return false;
     final refs = _readRefs();
     if (!refs.containsKey(key)) return false;

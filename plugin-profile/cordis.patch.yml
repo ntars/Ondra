@@ -241,6 +241,12 @@
     #   name: '@ondra/cordis-plugin-ondra-store-memory'
     - id: ondra-turn-control
       name: '@ondra/cordis-plugin-ondra-turn-control'
+    # 凭据服务：挂官方 dsh-credentials-local 到 ctx.credentials。
+    # 少了它，内核侧 ctx.get('credentials') 是 undefined，pi-ai 退回环境变量
+    # 查找——桌面壳存进 .credentials.yaml 的模型密钥永远不生效，而且两边
+    # 都不报错（聊天栏只说「缺少密钥」）。
+    - id: ondra-credentials
+      name: '@ondra/cordis-plugin-ondra-credentials'
     - id: ondra-tts
       name: '@ondra/cordis-plugin-ondra-tts'
     - id: ondra-tts-gate

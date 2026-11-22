@@ -881,6 +881,31 @@ class _RailComposerState extends State<_RailComposer> {
     super.dispose();
   }
 
+  /// 在光标处插入一个换行（⇧ / ⌥ + Enter）。
+  ///
+  /// 不用 `onSubmitted` 那条路：它只给整段文本，拿不到光标位置。这里按
+  /// selection 自己插，插完把光标放到换行之后——否则连按两下会把文字
+  /// 倒着接在开头。
+  void _insertNewline() {
+    final value = _controller.value;
+    final selection = value.selection;
+    final text = value.text;
+    if (!selection.isValid) {
+      _controller.text = '$text\n';
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+      return;
+    }
+    final next =
+        '${text.substring(0, selection.start)}\n'
+        '${text.substring(selection.end)}';
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: selection.start + 1),
+    );
+  }
+
   void _submit() {
     final text = _controller.text.trim();
     final hasAttachments = chatClient.attachments.isNotEmpty;
@@ -888,6 +913,12 @@ class _RailComposerState extends State<_RailComposer> {
     // 生成期间不拦：交给 chatClient 按「繁忙时的发送行为」处理
     // （排队 / 插话）。这里再拦一次，那两个设置就永远轮不到生效。
     if (text.isEmpty && !hasAttachments) return;
+    // 焦点要留住。回车发送走的是 TextInputAction.send 这条路，
+    // 而框架对 send/done/go/next/previous/search 一律
+    // `_finalizeEditing(..., shouldUnfocus: true)`——提交完就主动收走焦点。
+    // 不补这一句的话，发完第一条输入框就失焦，用户接着打字一个字也进不去
+    // （得先点一下输入框），在实际使用里很像「发一条就卡住」。
+    if (!_focus.hasFocus) _focus.requestFocus();
     if (chatClient.maintenance) {
       widget.onSend(text);
       return;
@@ -1005,9 +1036,21 @@ class _RailComposerState extends State<_RailComposer> {
               // 「回车发送」关掉时，回车只换行；发送交给 ⌘ Enter。
               // 两种模式都保留 ⌘ Enter 作为发送键——它是 macOS 上的肌肉记忆，
               // 关掉回车发送的人往往正是想用这个组合。
+              //
+              // ⇧ Enter / ⌥ Enter 在「回车发送」开着时是**换行**：那条路上
+              // 输入框的 textInputAction 是 send，回车直接被当成「发出去了」，
+              // 想在消息里分一行都做不到。这里把它们接回换行语义——官方
+              // 桌面端与各家聊天软件都是这个约定，代码里原先只有注释提到，
+              // 没有绑定，等于说了没做。
               bindings: <ShortcutActivator, VoidCallback>{
                 const SingleActivator(LogicalKeyboardKey.enter, meta: true):
                     _submit,
+                if (_enterSend) ...{
+                  const SingleActivator(LogicalKeyboardKey.enter, shift: true):
+                      _insertNewline,
+                  const SingleActivator(LogicalKeyboardKey.enter, alt: true):
+                      _insertNewline,
+                },
               },
               child: TextField(
                 controller: _controller,

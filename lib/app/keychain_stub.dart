@@ -22,6 +22,21 @@ class Keychain {
   /// 这不是测试专用的后门，而是「同一份契约的两个实现」必须同形。
   static Future<bool> Function(String key) existsProbe = (_) async => false;
 
+  /// 目录重定向，与 `keychain_io.dart` 同名同形。
+  ///
+  /// 理由同上：两个实现必须接口完全一致，否则调用点在另一边会报
+  /// 「没有这个 setter」。浏览器里没有任何落盘位置，这个值恒被忽略。
+  static String? debugDshHomeOverride;
+  /// 与桌面实现同形：浏览器没有旧钥匙串，恒为「无」。
+  static Future<String?> readLegacy(String key) async => null;
+
+  /// 与桌面实现同名同形的迁移探针；stub 里恒不会被生产调用。
+  static Future<String?> Function(String key)? readLegacyProbe;
+
+  /// 与桌面实现同名同形的删除探针；stub 里恒不会被生产调用。
+  static Future<bool> Function(String key)? eraseProbe;
+
+
   static Future<KeychainSecret> write(String key, String value) async =>
       const KeychainSecret(
         ok: false,
@@ -30,7 +45,11 @@ class Keychain {
 
   static Future<String?> read(String key) async => null;
 
-  static Future<bool> erase(String key) async => false;
+  static Future<bool> erase(String key) async {
+    final probe = eraseProbe;
+    if (probe != null) return probe(key);
+    return false;
+  }
 
   /// 只回答「有没有」，不取值：界面需要显示「已填写 / 未填写」，
   /// 而把密钥读回内存再丢掉没有任何用处。

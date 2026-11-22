@@ -20,6 +20,8 @@ dependencies:
     sdk: flutter
   material_ui: ^1.11.0
   flutter_svg: ^2.4.0
+  # Web 偏好持久化需要 package:web 的 localStorage API；pubspec.lock 已有该传递依赖。
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:

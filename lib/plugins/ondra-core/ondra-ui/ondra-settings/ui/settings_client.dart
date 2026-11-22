@@ -40,9 +40,20 @@ class SettingsClient extends ChangeNotifier {
   Set<String> get restartRequiredKeys => Set.unmodifiable(_restart);
   bool get restartRequired => _restart.isNotEmpty;
 
-  /// 启动时内核 profile 是否已就位。seed 在 main.dart 里发生在 load()
-  /// 之后（首启场景），profile 未就位时启动同步写了也落空。
-  final bool _profileNotReady = false;
+  /// 「启动期内核 profile 是否还没就位」——刻意恒为 false，不是漏写。
+  ///
+  /// 这里曾经有个同名常量配合下面两处 `_profileNotReady ||` 判断，注释说
+  /// 「profile 未就位就跳过，写了也落空」。但跳过意味着**静默**：用户明明
+  /// 存过偏好，装配层却缺文件，界面一声不响，等于告诉他设置生效了。
+  ///
+  /// 真实语义应该是：profile 缺失时写入**必然失败**，那就让它失败，并让
+  /// `applicationErrors` 如实显示「profile 尚未初始化或不存在」——用户看得见、
+  /// 能修（重装/重连会 seed）。seed 完成后 `markConnected()` →
+  /// `_runStartupSync()` 会自动补推，错误随之消解。
+  ///
+  /// 所以判定条件保留为「永不跳过」；两个 `_profileNotReady ||` 分支留在原处
+  /// 是为了将来真有「必须等就位」的场景，改这里一处即可。
+  static const bool _profileNotReady = false;
 
   /// 内核是否已连接。离线时跳过启动同步——写了内核也读不到，状态会对不上。
   bool _connected = false;

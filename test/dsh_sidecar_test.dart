@@ -22,23 +22,41 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/stdio_
 /// 本测试只验证**协议链路**（能起进程、能握手、能收到 turn/end）。
 void main() {
   final binary = Platform.environment['ONDRA_DSH_BIN'] ?? 'dsh';
+  // `which` under runInShell sees the login PATH while Process.start does not
+  // necessarily use that shell. Pass the absolute path to both so a detected
+  // executable is the exact one we launch.
+  var resolvedBinary = binary.contains(Platform.pathSeparator) || File(binary).existsSync()
+      ? binary
+      : _which(binary) ?? binary;
 
   Future<bool> dshAvailable() async {
+    if (File(resolvedBinary).existsSync()) return true;
     final which = await Process.run('which', [binary], runInShell: true);
-    return which.exitCode == 0;
+    if (which.exitCode != 0) return false;
+    final path = which.stdout.toString().trim();
+    if (path.isEmpty) return false;
+    // A login shell may find a `dsh` that the test process cannot exec (for
+    // example a shell alias/function). Treat it as available only when the
+    // transport's absolute launch path really exists.
+    if (File(path).existsSync()) {
+      resolvedBinary = path;
+      return true;
+    }
+    return false;
   }
 
   test('dsh sidecar：initialize 握手成功，一轮对话能正常收尾', () async {
     if (!await dshAvailable()) {
       // 用标记而非 fail：没装 dsh 的机器跑全量测试不该红。
       markTestSkipped('未找到 $binary（npm i -g @deepseek-ai/dsh）');
+      return;
     }
 
     // magpie 路由的 apiKeyEnv 只要求「非空」（patch 注释里的占位约定）；
     // pi-ai 在 prompt 时解析凭据，环境里没有就报 MISSING_CREDENTIAL。
     // 这里给占位值，同时守住「告警/缺凭据不许冒充错误」的判定。
     final transport = StdioDshTransport(
-      binary: binary,
+      binary: resolvedBinary,
       environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
     );
     await transport.connect();
@@ -60,10 +78,11 @@ void main() {
   test('ChatClient 挂上真实 transport 后不再是离线态', () async {
     if (!await dshAvailable()) {
       markTestSkipped('未找到 $binary');
+      return;
     }
     final client = ChatClient(
       transport: StdioDshTransport(
-        binary: binary,
+        binary: resolvedBinary,
         environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
       ),
     );
@@ -80,13 +99,15 @@ void main() {
   test('经 magpie 路由能拿回正文与用量', () async {
     if (!await dshAvailable()) {
       markTestSkipped('未找到 $binary');
+      return;
     }
     if (!await _magpieListening()) {
       markTestSkipped('magpie 未在 127.0.0.1:3425 监听（/Applications/magpie.app）');
+      return;
     }
 
     final transport = StdioDshTransport(
-      binary: binary,
+      binary: resolvedBinary,
       environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
     );
     final usages = <StepUsage>[];
@@ -107,6 +128,17 @@ void main() {
     await sub.cancel();
     transport.stop();
   }, timeout: const Timeout(Duration(minutes: 3)));
+}
+
+/// Resolve an executable from PATH without relying on a shell/subprocess.
+String? _which(String name) {
+  final path = Platform.environment['PATH']?.split(Platform.pathSeparator) ?? const [];
+  for (final dir in path) {
+    if (dir.isEmpty) continue;
+    final candidate = '$dir${Platform.pathSeparator}$name';
+    if (File(candidate).existsSync()) return candidate;
+  }
+  return null;
 }
 
 /// magpie 是否在本机环回上听着。1 秒超时——它是本机服务，不该等。
