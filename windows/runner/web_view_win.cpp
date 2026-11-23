@@ -449,7 +449,7 @@ class OndraWebViewHost::View {
     const HRESULT request = view->CapturePreview(
         COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, stream.Get(),
         Microsoft::WRL::Callback<
-            Microsoft::WRL::ICoreWebView2CapturePreviewCompletedHandler>(
+            ICoreWebView2CapturePreviewCompletedHandler>(
                 [this, captured_view, capture_id](HRESULT error) -> HRESULT {
                   // 只有成功完成才发布帧；失败让本轮等待超时，不写入半张 PNG。
                   if (SUCCEEDED(error)) {
