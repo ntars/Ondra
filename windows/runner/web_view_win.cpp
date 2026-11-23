@@ -204,9 +204,6 @@ static const FlutterDesktopPixelBuffer* EmptyPixels(size_t width,
 
 class OndraWebViewHost::View {
  public:
-  void HandleCall(const flutter::MethodCall<flutter::EncodableValue>& call,
-                  std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
-
   View(flutter::BinaryMessenger* messenger,
        FlutterDesktopTextureRegistrarRef textures, int64_t id,
        const flutter::EncodableMap& params, HWND parent_window)
@@ -319,9 +316,8 @@ class OndraWebViewHost::View {
 #endif
   }
 
-  void HandleCall(
-      const flutter::MethodCall<flutter::EncodableValue>& call,
-      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  void HandleCall(const flutter::MethodCall<flutter::EncodableValue>& call,
+                  std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     if (call.method_name() == "start") {
 #ifdef ONDRA_WEBVIEW2_AVAILABLE
       if (!started_ && !stopped_) {
@@ -572,8 +568,6 @@ class OndraWebViewHost::View {
     return true;
   }
 
-  void HandleCall(const flutter::MethodCall<flutter::EncodableValue>& call,
-#ifdef ONDRA_WEBVIEW2_AVAILABLE
   void InitializeWebView() {
     using namespace Microsoft::WRL;
     HRESULT hr = CreateCoreWebView2EnvironmentWithOptions(
@@ -696,7 +690,6 @@ class OndraWebViewHost::View {
                 "WebView2 环境初始化失败，请安装 WebView2 运行时");
     }
   }
-#endif  // ONDRA_WEBVIEW2_AVAILABLE (InitializeWebView)
 
 #ifdef ONDRA_WEBVIEW2_AVAILABLE
   HRESULT OnNavigation(ICoreWebView2NavigationStartingEventArgs* args) {
