@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../../../../../app/bundled_runtime.dart';
+import '../../../../../../app/home_dir.dart';
 import '../../../../../../app/runtime_seed.dart';
 import '../../../../../../app/login_shell_environment.dart';
 import '../chat_client.dart';
@@ -36,6 +37,7 @@ class _Connection {
   StreamSubscription<String>? lines;
   StreamSubscription<String>? stderr;
   String? stderrLast;
+  final stderrTail = <String>[];
   Object? failure;
   bool opening = true;
   bool closing = false;
@@ -134,6 +136,10 @@ class StdioDshTransport implements DshTransport {
       final value = environment[key];
       if (value != null && value.isNotEmpty) return value;
     }
+    // 安卓进程没有 HOME/USERPROFILE，但 seed 写进的是 ondraUserHome；
+    // 传输层必须认同一个目录，否则内核去 cwd（`/`）找 profile，必然报
+    // 「profile does not exist」。桌面仍然优先 HOME，这里只补安卓。
+    if (Platform.isAndroid) return ondraUserHome;
     return Directory.current.path;
   }
 
@@ -231,7 +237,14 @@ class StdioDshTransport implements DshTransport {
           await writeRuntimeModelPatch(
             dshHome: _dshHome,
             model: config,
-            environment: environment,
+            // 安卓的 model patch 也要起随包 node 子进程；不给
+            // LD_LIBRARY_PATH 会因找不到 libcares.so 静默跳过整段模型
+            // 配置，随后 initialize 报 ondra-ui-* provider 不存在。
+            environment: {
+              ...environment,
+              if (Platform.isAndroid)
+                'LD_LIBRARY_PATH': ondraBundledRuntime?.libDir ?? '',
+            },
           );
           _checkConnection(connection);
         } catch (e) {
@@ -298,6 +311,13 @@ class StdioDshTransport implements DshTransport {
               final text = line.trim();
               if (text.isNotEmpty && !_isWarningNoise(text)) {
                 connection.stderrLast = _redact(text);
+                // 只保留最后一行会把真正的错误淹没：Node 崩溃前常先打印
+                // 版本横幅（如 `Node.js v26.13.1`），UI 只剩下这一句，
+                // 用户和排障日志都看不到根因。保留一个短尾窗。
+                connection.stderrTail.add(_redact(text));
+                if (connection.stderrTail.length > 8) {
+                  connection.stderrTail.removeAt(0);
+                }
                 _log('stderr: ${_redact(text)}');
               }
             },
@@ -315,11 +335,14 @@ class StdioDshTransport implements DshTransport {
       );
       unawaited(
         process.exitCode.then((code) {
-          final detail = connection.stderrLast;
+          // 优先展示最后一行看起来像异常/错误的信息；否则退到整个尾部。
+          final detail = _errorDetail(connection.stderrTail) ??
+              connection.stderrLast;
           _disconnect(
             connection,
             StateError(
-              '内核进程已退出（exit $code）${detail == null ? '' : '：$detail'}',
+              '内核进程已退出（exit $code）'
+              '${detail == null ? '' : '：$detail'}',
             ),
           );
         }),
@@ -731,4 +754,21 @@ class StdioDshTransport implements DshTransport {
       connection.pending.remove(id);
     }
   }
+}
+
+/// 从 stderr 尾部挑出最适合展示给用户的一行。
+///
+/// Node 的崩溃输出以版本横幅收尾（例如 `Node.js v26.13.1`），直接取
+/// 最后一行会丢掉真正的原因。这里只做展示层筛选：不隐藏 stderr，
+/// transport.log 仍保存完整尾部。
+String? _errorDetail(List<String> lines) {
+  for (final line in lines.reversed) {
+    if (RegExp(
+      r'^(Error|TypeError|ReferenceError|RangeError|SyntaxError|FATAL|Fatal|Unhandled|No usable|Bad state|内核|dsh:|node:|.*Error:)',
+      caseSensitive: false,
+    ).hasMatch(line)) {
+      return line;
+    }
+  }
+  return null;
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
@@ -109,7 +109,27 @@ try {
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await waitFor(`!${text}.includes('通用设置')`);
+  const onboardingPref = await evaluate(`localStorage.getItem('ondra:pref:onboardingDone')`);
+  assert(['true', '1'].includes(onboardingPref), `onboarding preference was not persisted: ${onboardingPref}`);
+  await call('Page.reload', { ignoreCache: true });
+  await delay(1500);
+  assert(!(await evaluate(text)).includes('欢迎使用 空谷'), 'welcome overlay returned after reload');
+  await evaluate('document.querySelector("flt-semantics-placeholder").click()');
+  await waitFor(`${text}.includes('状态面板')`);
+  console.log('PASS preference persistence + no welcome overlay after reload');
+  await click('哦鲸鲸');
+  await waitFor(`${text}.includes('通用设置')`);
+  for (const [label, content] of [['通用设置', '网页白名单'], ['模型基座', '默认模型'], ['人设设定', '当前人设'], ['关于空谷', '开源许可']]) {
+    await click(label);
+    await waitFor(`${text}.includes(${JSON.stringify(content)})`);
+    console.log(`PASS settings after reload ${label}`);
+  }
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await waitFor(`!${text}.includes('通用设置')`);
   const snapshot = await evaluate(text);
+  // `flutter clean` 会删掉 build/reports；smoke 不该因为目录不存在而失败。
+  await mkdir(resolve('build/reports'), { recursive: true });
   await writeFile(resolve('build/reports/browser-smoke.txt'), snapshot);
   const screenshot = await call('Page.captureScreenshot', { format: 'png' });
   await writeFile(resolve('build/reports/browser-smoke.png'), Buffer.from(screenshot.data, 'base64'));

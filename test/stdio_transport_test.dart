@@ -258,6 +258,11 @@ void main() {
   test('初始化异常退出立即结清 pending，重连成功', () async {
     final transport = fixture.transport(scenario: 'exit-initialize-once');
     await expectLater(transport.connect(), throwsA(stateError('exit 23')));
+    expect(
+      transport.lastError,
+      contains('内核进程已退出（exit 23）：fixture initialization crash'),
+      reason: 'Node 版本横幅不能把真正的 stderr 错误挤出提示',
+    );
     expect(await transport.send('ok').toList(), ['reply:ok']);
     expect(fixture.requests('initialize'), hasLength(2));
   });

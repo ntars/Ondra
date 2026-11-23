@@ -31,13 +31,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- 真机白屏（alpha.10 反馈）：Impeller 在部分真机 GPU（Mali/Adreno 旧
-             驱动）上有首帧渲染黑/白屏的已知问题，模拟器（OpenGLES+swiftshader）
-             又复现不出来。回退到 Skia GLES——成熟稳定，性能足够本应用。
-             桌面端不受影响（此开关只作用于 Android shell）。 -->
-        <meta-data
-            android:name="io.flutter.embedding.android.EnableImpeller"
-            android:value="false" />
+        <!-- 2026-11-23 BlueStacks 真机场景验收：Flutter 3.50 已移除 Android
+             的 Skia GL 后端，强制 `EnableImpeller=false` 会让平台 View 的
+             RenderThread 在 `requireGlContext()` 断言 `!grContext.get()` 失败
+             （SIGABRT），表现为首帧品牌屏卡住。保留 Flutter 3.50 默认的
+             Impeller（Vulkan）后端，兼容桌面模拟器与 Android 13 设备。 -->
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

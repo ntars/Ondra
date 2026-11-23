@@ -47,6 +47,25 @@ android {
             }
         }
     }
+    // 安卓内核闭包是 zip，aapt2 默认会压缩它；AssetManager.openFd 需要
+    // 未压缩的 asset 才能拿到真实文件描述符。显式排除这个文件的压缩，
+    // 让 Dart 侧按 offset/length 直接读 APK asset。
+    androidResources {
+        // node 的 N-API 插件必须来自真实文件。aapt2 会把 assets 里的 .so
+        // 当原生库处理，但插件在 zip 里、扩展名是 .node；aapt2 默认仍会
+        // 压缩它，解压到私有目录后才能 dlopen。这里保持 zip 与 .node 都不压缩。
+        noCompress += listOf("ondra-dsh.zip", "node")
+    }
+
+    // node 二进制伪装成 libnode.so，必须真的落到 nativeLibraryDir 才能
+    // exec（Android 10+ 禁止从数据目录执行）。AGP 8 默认直接从 APK 映射
+    // 原生库、目录里是空的，内核探测会找不到解释器而退回不存在的 dsh。
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = if (keystoreProperties.isNotEmpty()) {

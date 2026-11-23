@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
@@ -49,8 +50,61 @@ class MainActivity : FlutterActivity() {
             "ondra/native",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "nativeLibraryDir" -> result.success(applicationInfo.nativeLibraryDir)
+                // BlueStacks（Android 13 x86_64 宿主）把 ARM 原生库放在
+                // lib/arm64 而不是 lib/arm64-v8a；nativeLibraryDir 实际指向
+                // 后者的空目录。内核解释器是 arm64，显式纠正到真实目录。
+                "nativeLibraryDir" -> {
+                    val reported = applicationInfo.nativeLibraryDir
+                    // 只在模拟器把 arm64 库放进 lib/arm64、而系统报告的
+                    // lib/arm64-v8a 为空时才纠正；真实设备通常以报告目录
+                    // 为准，无条件改写会导致找不到 libnode.so。
+                    val alternate = reported.replace(
+                        "lib/arm64-v8a", "lib/arm64", ignoreCase = true,
+                    )
+                    val actual = when {
+                        alternate != reported &&
+                            !File(reported, "libnode.so").exists() &&
+                            File(alternate, "libnode.so").exists() -> alternate
+                        else -> reported
+                    }
+                    result.success(actual)
+                }
                 else -> result.notImplemented()
+            }
+        }
+
+        // ── 原生 assets 读取通道 ────────────────────────────────────────
+        // Flutter 的 rootBundle 只映射 flutter_assets/，安卓内核闭包则是
+        // 按原生 asset 打进 APK 根的 assets/ondra-dsh.zip。不在 pubspec
+        // 声明它，避免桌面/Web 构建多打一份 15MB；用 AssetManager 读取。
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "ondra/assets",
+        ).setMethodCallHandler { call, result ->
+            if (call.method != "read") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val name = call.arguments as? String
+            if (name.isNullOrEmpty() || name.contains("..")) {
+                result.error("invalid-name", "asset name must be relative", null)
+                return@setMethodCallHandler
+            }
+            try {
+                // ZIP 已在 Gradle 里排除压缩；按字节流整块交给 Dart，避免
+                // 猜测 /proc/self/fd 的编号（Kotlin 属性返回的是对象）。
+                assets.open(name).use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                    }
+                    result.success(output.toByteArray())
+                }
+            } catch (e: Exception) {
+                result.error("asset-read-failed", e.message, null)
             }
         }
 

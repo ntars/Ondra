@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data' show Uint8List;
 
 import 'package:archive/archive.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 
 import 'android_native.dart';
-import 'version.dart';
 import 'home_dir.dart';
 
 /// 一份随包运行时的三个入口路径。
@@ -121,7 +122,7 @@ String? _androidLibDirCache;
 
 /// 安卓运行时探测：闭包解压 + libnode.so 就位即返回。
 OndraBundledRuntime? _androidRuntime() {
-  final dshEntry = File('$_androidRuntimeDir/dsh/lib/bin.js');
+  final dshEntry = File('$_androidRuntimeDir/lib/bin.js');
   final libDir = _androidLibDirCache;
   if (!dshEntry.existsSync() || libDir == null) return null;
   final node = File('$libDir/libnode.so');
@@ -139,46 +140,101 @@ OndraBundledRuntime? _androidRuntime() {
 }
 
 /// 启动序列调用（安卓专属，其他平台空操作）：把 assets 里的内核闭包
-/// 解压到应用私有目录。幂等——MANIFEST 记录「应用构建号 + 包字节数」，
-/// 没变就跳过（省去每次启动 14MB 的解压）；变了（升级 APK）整体重铺。
+/// 解压到应用私有目录。幂等——MANIFEST 记录 APK 内 zip 的 SHA-256，
+/// 没变就跳过（省去每次启动 14MB 的解压）；变了（升级 APK 或重建产物）
+/// 整体重铺。只比对 `ondraBuild` 会让「构建号没动但 zip 重新生成」的
+/// 安装包沿用旧目录，典型症状就是升级后仍报 profile 不存在。
 ///
 /// 为什么不直接从 assets 跑：node 的模块解析、dsh 的会话库都要真实
 /// 文件路径，assets 是只读的内存映射。
 Future<void> initAndroidRuntimeAssets() async {
   if (!Platform.isAndroid) return;
   _androidLibDirCache = await androidNativeLibDir();
-  const asset = 'assets/ondra-dsh.zip';
   final zipDir = Directory(_androidRuntimeDir);
   final manifestFile = File('$_androidRuntimeDir/MANIFEST');
-  const expected = 'build=$ondraBuild';
-  if (manifestFile.existsSync() &&
-      manifestFile.readAsStringSync().trim() == expected) {
-    return; // 已经解压过，同一份构建。
-  }
+  final flockPath = '$_androidRuntimeDir/node_modules/@deepseek-ai/node-addon-system/lib/flock.js';
   try {
-    final data = await rootBundle.load(asset);
-    final archive = ZipDecoder().decodeBytes(data.buffer.asUint8List());
-    if (zipDir.existsSync()) {
-      zipDir.deleteSync(recursive: true);
+    // Gradle 把 `app/src/main/assets` 原样放进 APK 根的 assets/，而
+    // rootBundle 只映射 Flutter 自己的 flutter_assets/。这个闭包不放在
+    // pubspec 里——否则桌面/Web 构建要么找不到文件，要么多打 15MB 副本。
+    // 走 AssetManager 读的同一份原生打包产物。
+    const channel = MethodChannel('ondra/assets');
+    final bytes = await channel.invokeMethod<Uint8List>(
+      'read',
+      'ondra-dsh.zip',
+    );
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('APK 里没有 assets/ondra-dsh.zip');
     }
-    zipDir.createSync(recursive: true);
-    var files = 0;
-    for (final entry in archive) {
-      if (entry.isFile) {
-        final out = File('${zipDir.path}/${entry.name}');
-        out.createSync(recursive: true);
-        out.writeAsBytesSync(entry.content as List<int>);
-        files++;
-      } else {
-        Directory('${zipDir.path}/${entry.name}').createSync(recursive: true);
-      }
+    final expected = '${sha256.convert(bytes)}\n';
+    // 旧 MANIFEST 只写了 build=；旧目录也可能在解压中途被杀掉，留下
+    // MANIFEST 缺失但有半份文件的残骸。两种情况都整体重铺。
+    if (manifestFile.existsSync() &&
+        manifestFile.readAsStringSync().startsWith(expected) &&
+        _androidRuntimeLayoutComplete(zipDir)) {
+      // 老版本已经解压过同一份 APK，但那时没有这段补丁；不要因为跳过
+      // 解压就把它漏掉。
+      _patchAndroidFlockPlatform(flockPath);
+      return; // 已经解压过，同一份 zip。
     }
-    manifestFile.writeAsStringSync('$expected\nfiles=$files\n', flush: true);
+    final archive = ZipDecoder().decodeBytes(bytes);
+    await _extractArchive(archive, zipDir, manifestFile, expected);
+    // 上游 flock.js 的平台白名单只有 linux/darwin，但 Android 内核一样有
+    // flock(2)。这里补一个 android 分支，避免每次会话写入都被判为平台不支持。
+    // 幂等标记先查，引擎升级后锚点变了就跳过，不让启动失败。
+    _patchAndroidFlockPlatform(flockPath);
   } on Exception {
     // 解压失败（存储满、通道缺）：如实清空 MANIFEST，探测会返回 null，
     // 界面按「内核不可用」处理——好过半解压的残骸被当成完整闭包。
     if (manifestFile.existsSync()) manifestFile.deleteSync();
   }
+}
+
+/// MANIFEST 丢失时不能完全相信目录里的文件：上次解压被系统杀掉会
+/// 留下半份闭包，而缺失的常常正是 `profile/package.json` 这种启动
+/// 必需文件。用几个入口文件当完整性代理，成本只有几次 stat。
+bool _androidRuntimeLayoutComplete(Directory zipDir) => [
+      'lib/bin.js',
+      'profile/package.json',
+      'profile/cordis.yml',
+      'node_modules/@deepseek-ai/dsh-app-boot/package.json',
+    ].every((name) => File('${zipDir.path}/$name').existsSync());
+
+void _patchAndroidFlockPlatform(String path) {
+  const guard = "if (platform !== 'linux' && platform !== 'darwin') {";
+  const patched = "if (platform !== 'linux' && platform !== 'darwin' && platform !== 'android') {";
+  const marker = "&& platform !== 'android'";
+  final file = File(path);
+  if (!file.existsSync()) return;
+  final source = file.readAsStringSync();
+  if (source.contains(marker) || !source.contains(guard)) return;
+  file.writeAsStringSync(source.replaceFirst(guard, patched), flush: true);
+}
+
+/// 把 APK asset 里的 zip 解压到应用私有目录。MANIFEST 只在全部写完后落盘，
+/// 中途失败不会让半份闭包被当成可用版本。
+Future<void> _extractArchive(
+  Archive archive,
+  Directory zipDir,
+  File manifestFile,
+  String expected,
+) async {
+  if (zipDir.existsSync()) {
+    zipDir.deleteSync(recursive: true);
+  }
+  zipDir.createSync(recursive: true);
+  var files = 0;
+  for (final entry in archive) {
+    if (entry.isFile) {
+      final out = File('${zipDir.path}/${entry.name}');
+      out.createSync(recursive: true);
+      out.writeAsBytesSync(entry.content as List<int>);
+      files++;
+    } else {
+      Directory('${zipDir.path}/${entry.name}').createSync(recursive: true);
+    }
+  }
+  manifestFile.writeAsStringSync('$expected\nfiles=$files\n', flush: true);
 }
 
 /// 在 `base` 下挑一个可用的平台目录。

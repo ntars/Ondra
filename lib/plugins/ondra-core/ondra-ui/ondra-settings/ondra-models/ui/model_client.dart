@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
 import '../../../../../../app/home_dir.dart';
 import '../../../../../../app/keychain.dart';
+import '../../../../../../app/platform_env.dart';
 import 'model_types.dart';
 import 'runtime_model_config.dart';
 
@@ -24,9 +25,11 @@ class ModelClient extends ChangeNotifier {
     // ignore: prefer_initializing_formals, 对外参数名保持 storePath，私有字段不能当命名参数
   }) : _storePath = storePath,
        _secretResolver = secretResolver ?? ((ref) => Keychain.read(ref)),
-       _secretWriter = secretWriter ?? ((ref, key) => Keychain.write(ref, key)) {
+       _secretWriter =
+           secretWriter ?? ((ref, key) => Keychain.write(ref, key)) {
     _providers = [
-      // 本机网关：Magpie（/Applications/magpie.app）监听 127.0.0.1:3425，
+      // 网关地址：本机 Magpie 默认监听 127.0.0.1:3425；虚拟机的共享网络地址
+      // 由启动侧通过 ONDRA_MAGPIE_BASE_URL 指向宿主机可达的端口转发。
       // 一个端口转发多家模型（实测目录里 14 个，含 deepseek / glm / minimax / hy4）。
       // 它不校验密钥，但内核那边的 pi-ai 路由要求凭据非空，所以
       // apiKeyEnv 只是个占位引用——值由启动侧注入，配置文件里不出现密钥。
@@ -34,7 +37,12 @@ class ModelClient extends ChangeNotifier {
         id: 'magpie',
         name: 'Magpie 本地网关',
         category: ProviderCategory.gateway,
-        baseUrl: 'http://127.0.0.1:3425/v1',
+        // 127.0.0.1 只在运行 Magpie 的宿主机上成立。若应用运行在虚拟机或
+        // 容器里，应通过 ONDRA_MAGPIE_BASE_URL 指向宿主机可达的网关地址。
+        // 已有 models.json 时仍保留用户配置，不被环境变量覆盖。
+        baseUrl:
+            ondraPlatformEnv('ONDRA_MAGPIE_BASE_URL') ??
+            'http://127.0.0.1:3425/v1',
         apiKeyEnv: 'MAGPIE_API_KEY',
         builtIn: true,
         models: [
@@ -515,7 +523,7 @@ class ModelClient extends ChangeNotifier {
     return await readProviderSecret(id) ??
         (p == null || p.apiKeyEnv.isEmpty
             ? null
-            : Platform.environment[p.apiKeyEnv]);
+            : ondraPlatformEnv(p.apiKeyEnv));
   }
 
   /// 读密钥。先按 `apiKeyEnv` 读；读不到再试老键名（`provider.<id>.key`），

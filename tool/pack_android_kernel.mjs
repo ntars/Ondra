@@ -157,6 +157,7 @@ async function main() {
     'libssl.so',
     'libicui18n.so',
     'libicuuc.so',
+    'libicudata.so',
     'libc++_shared.so',
   ];
 
@@ -181,20 +182,43 @@ async function main() {
         const dest = path.join(JNILIBS, f);
         if (fs.existsSync(dest)) continue; // 同名库取第一个包的
         fs.copyFileSync(src, dest);
+        // 依赖库的 NEEDED / SONAME 也可能带 .so.79 这类版本后缀；APK 不收
+        // 这些文件，原地改短，与 node 本体的处理保持一致。SONAME 也必须改：
+        // linker 会拿 verneed 里的库名与候选库的 SONAME 精确匹配。
+        run('python3', [path.join(REPO, 'tool', 'patch_android_needed.py'), dest]);
         manifest.push(`${f} ← ${name} ${info.version}`);
       }
     }
   }
 
-  // 3) 闭包 → assets/ondra-dsh.tar.gz。裁掉各平台 prebuilds 与
+  // 3) 闭包 → assets/ondra-dsh.zip。裁掉各平台 prebuilds 与
   //    原生模块产物：安卓上没有对应编译件，留着只会撑大 APK。
+  //    例外：build_android_addons.sh 产出的 Android arm64 绑定必须保留，
+  //    它们是 dsh 启动期访问 Node 内部模块与 flock 会话锁的硬依赖。
   let pruned = 0;
   const orig = path.join(tmp, 'closure-src');
   fs.cpSync(closure, orig, { recursive: true });
+  const addonRoot = path.resolve(process.env.ONDRA_ANDROID_ADDONS || path.join(REPO, 'build', 'android-addons'));
+  if (!fs.existsSync(addonRoot)) {
+    die('缺少 Android arm64 原生绑定',
+      '先执行 bash tool/build_android_addons.sh');
+  }
+  const androidPackages = [
+    'node-addon-require-builtin-android-arm64',
+    '@deepseek-ai/node-addon-system-android-arm64',
+  ];
+  for (const name of androidPackages) {
+    const src = path.join(addonRoot, name);
+    if (!fs.existsSync(src)) die(`原生绑定目录不存在：${src}`);
+    fs.cpSync(src, path.join(orig, 'node_modules', name), { recursive: true });
+  }
   const pruneDirs = [];
+  // 安卓专用绑定是刻意打进来的；修剪规则不能把它们的 .node 一起删掉。
+  const keepAddonPath = (p) => androidPackages.some((name) => p.includes(`/node_modules/${name}/`));
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, entry.name);
+      if (keepAddonPath(p)) continue;
       if (entry.isDirectory()) {
         if (entry.name === 'prebuilds' || entry.name === 'prebuilt') {
           pruneDirs.push(p);
@@ -213,6 +237,19 @@ async function main() {
   };
   walk(orig);
   for (const p of pruneDirs) fs.rmSync(p, { recursive: true, force: true });
+  // dsh 的 profile 模板必须叫 cordis.yml；plugin-profile 仓库快照在
+  // 本机装配时可能只有 cordis.patch.yml（叠加层），单独用它会报
+  // `profile "ondra" does not exist`。补一份与插件快照合成后的基文件。
+  const packagedProfile = path.join(orig, 'profile', 'cordis.yml');
+  if (!fs.existsSync(packagedProfile)) {
+    const pluginProfile = path.join(REPO, 'plugin-profile', 'cordis.yml');
+    if (!fs.existsSync(pluginProfile)) {
+      die('闭包 profile 里没有 cordis.yml',
+        '先确认 plugin-profile/cordis.yml 存在，或手工提供 profile 基文件');
+    }
+    fs.copyFileSync(pluginProfile, packagedProfile);
+    manifest.push('cordis.yml ← plugin-profile/cordis.yml');
+  }
   // 不能用 .tar.gz：aapt2 会把 assets 里的 .gz 透明解压（APK 里变成
   // 解压后的 .tar，体积翻 7 倍）。zip 无此待遇，且 archive 包解码最简单。
   const zipDest = path.join(ASSETS, 'ondra-dsh.zip');

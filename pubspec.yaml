@@ -16,6 +16,8 @@ dependencies:
   path_provider: ^2.1.5
   # 安卓端解压内核闭包（assets/ondra-dsh.zip → 应用私有目录）。
   archive: ^4.0.0
+  # 安卓端校验 APK 内内核 zip 的字节指纹，决定私有目录是否需要重铺。
+  crypto: ^3.0.8
   flutter:
     sdk: flutter
   material_ui: ^1.11.0

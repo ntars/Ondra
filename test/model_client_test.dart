@@ -106,7 +106,7 @@ void main() {
     loaded.dispose();
   });
 
-  test('secret resolver 优先于环境；仅 loopback 可无密钥，远端本地类别也拒绝', () async {
+  test('secret resolver 优先于环境；gateway 可无密钥，其他远端类别拒绝', () async {
     final p = client.byId('magpie')!;
     var config = client.currentRuntimeConfig();
     expect(
@@ -121,6 +121,18 @@ void main() {
       }, (_) async => null))['MAGPIE_API_KEY'],
       'environment',
     );
+    expect(
+      (await config.resolveEnvironment(
+        {},
+        (_) async => null,
+      ))['MAGPIE_API_KEY'],
+      'ondra-local-loopback',
+    );
+    // 虚拟机/容器里的网关通常是宿主机地址，部署方已控制可达性；
+    // 不能因为不是 loopback 就误判为“忘了配密钥”。
+    p.baseUrl = 'http://10.211.55.2:3425/v1';
+    p.category = ProviderCategory.gateway;
+    config = client.currentRuntimeConfig();
     expect(
       (await config.resolveEnvironment(
         {},
@@ -210,10 +222,7 @@ void main() {
       baseUrl: 'https://example.com/v1',
       models: [OndraModelEntry(id: 'm')],
     );
-    expect(
-      ModelClient.credentialRefOf(p),
-      'ONDRA_UI_MY_FREE_MODEL_API_KEY',
-    );
+    expect(ModelClient.credentialRefOf(p), 'ONDRA_UI_MY_FREE_MODEL_API_KEY');
   });
 
   test('旧密钥只在旧存储中时，读一次后迁到新引用并清掉旧键', () async {
@@ -494,7 +503,11 @@ void main() {
     ]) {
       expect(client.updateProviderAddress('magpie', address), isNotNull);
     }
-    expect(client.byId('magpie')!.baseUrl, 'http://127.0.0.1:3425/v1');
+    expect(
+      client.byId('magpie')!.baseUrl,
+      Platform.environment['ONDRA_MAGPIE_BASE_URL'] ??
+          'http://127.0.0.1:3425/v1',
+    );
   });
 
   test('保存失败可见而不是宣称已落盘', () {

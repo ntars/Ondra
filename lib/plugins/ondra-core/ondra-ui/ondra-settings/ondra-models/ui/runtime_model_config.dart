@@ -9,6 +9,7 @@ class RuntimeModelConfig {
     this.modelId,
     this.apiKeyEnv,
     this.isLoopback,
+    this.providerCategory,
     this._profileJson,
   );
 
@@ -71,6 +72,7 @@ class RuntimeModelConfig {
       model.id,
       env,
       isLoopbackHost(url.host),
+      provider.category,
       jsonEncode(profile),
     );
   }
@@ -140,6 +142,7 @@ class RuntimeModelConfig {
   final String modelId;
   final String apiKeyEnv;
   final bool isLoopback;
+  final ProviderCategory providerCategory;
   final String _profileJson;
   String get route => 'ondra-ui-$providerId';
   String get fingerprint => '$route/$_profileJson';
@@ -156,7 +159,11 @@ class RuntimeModelConfig {
       secret = environment[apiKeyEnv];
     }
     if (secret == null || secret.trim().isEmpty) {
-      if (!isLoopback) throw StateError('当前远端模型缺少密钥：请填写钥匙串密钥或 $apiKeyEnv');
+      // 网关类 provider 由部署方控制可达性，允许无密钥占位；真正的远端
+      // 模型仍要求显式凭据，避免把“忘了配密钥”伪装成可连接。
+      if (!isLoopback && providerCategory != ProviderCategory.gateway) {
+        throw StateError('当前远端模型缺少密钥：请填写钥匙串密钥或 $apiKeyEnv');
+      }
       secret = 'ondra-local-loopback';
     }
     return {...environment, apiKeyEnv: secret};
