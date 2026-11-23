@@ -122,6 +122,7 @@ Future<void> main() async {
   // 未注册时这些入口全部被「未接入内核停机协调」拦下。
   dataMaintenance
     ..pause = chatClient.pauseKernel
+    ..closeTransport = chatClient.closeTransport
     ..resume = chatClient.resumeKernel
     ..reload = () async => pluginsClient.load();
 

@@ -145,9 +145,12 @@ class TransferEngine {
         n++;
       }
       final file = target;
+      // 导出的是完整记忆库快照：原文表存着事实引用的完整说话记录，
+      // 只带 facts 会让换机后的 source_raw_id 变成悬空编号。
+      final rawTexts = await _readRawTexts();
       final text = format == TransferFormat.markdown
           ? _markdownOf(facts, links)
-          : _jsonOf(facts, links);
+          : _jsonOf(facts, links, rawTexts);
 
       await file.writeAsString(text, flush: true);
 
@@ -558,6 +561,7 @@ class TransferEngine {
         return _importFacts(
           _factsFromJson(decoded),
           links: _linksFromJson(decoded),
+          rawTexts: _rawsFromJson(decoded),
           source: file.path,
         );
       }
@@ -591,6 +595,7 @@ class TransferEngine {
   Future<TransferResult> _importFacts(
     List<TransferFact> facts, {
     List<TransferLink> links = const [],
+    List<Map<String, Object?>> rawTexts = const [],
     required String source,
   }) async {
     if (facts.isEmpty) {
@@ -617,6 +622,7 @@ class TransferEngine {
       };
       final remapped = <String, String>{};
       final toWrite = <TransferFact>[];
+      final stateUpdates = <TransferFact>[];
       for (final f in facts) {
         if (byId.containsKey(f.id) && byId[f.id] != f.text.trim()) {
           return TransferResult.fail('记忆编号 ${f.id} 的内容冲突，整份导入已取消，未覆盖本机记忆。');
@@ -625,6 +631,25 @@ class TransferEngine {
         final target = byText[key];
         if (target != null) {
           remapped[f.id] = target;
+          stateUpdates.add(
+            TransferFact(
+              id: target,
+              category: f.category,
+              text: f.text,
+              salience: f.salience,
+              createdAt: f.createdAt,
+              evidence: f.evidence,
+              subject: f.subject,
+              archived: f.archived,
+              sealed: f.sealed,
+              revisions: f.revisions,
+              oldText: f.oldText,
+              sourceRawId: f.sourceRawId,
+              timesSaid: f.timesSaid,
+              hits: f.hits,
+              lastSeenAt: f.lastSeenAt,
+            ),
+          );
         } else {
           toWrite.add(f);
           remapped[f.id] = f.id;
@@ -644,9 +669,12 @@ class TransferEngine {
       }
       final guard = await backupCreate();
       if (!guard.ok) return TransferResult.fail('写前备份失败，未写库：${guard.message}');
-      final result = await _exec(_insertSql(toWrite, links, remapped));
+      final result = await _exec(
+        _insertSql(toWrite, links, remapped, rawTexts, stateUpdates),
+      );
       final written = _int(result['facts']);
       final linked = _int(result['links']);
+      final raws = _int(result['raws']);
       final skipped = facts.length - toWrite.length;
       final unwritten = toWrite.length - written;
       return TransferResult(
@@ -655,6 +683,7 @@ class TransferEngine {
             '导入 $written 条记忆、$linked 条关联，$skipped 条重复记忆跳过；'
             '${unwritten == 0 ? '' : '$unwritten 条被数据库规则忽略；'}'
             '${links.length == linked ? '' : '${links.length - linked} 条关联未新增；'}'
+            '${raws == 0 ? '' : '$raws 条原文随行；'}'
             '记忆库现有 ${result['total']} 条。',
         path: source,
         count: written,
@@ -707,7 +736,8 @@ class TransferEngine {
   Future<List<TransferFact>> _readFacts() async {
     final rows = await _query(
       'select id, category, text, salience, created_at, subject, evidence, '
-      'archived, sealed, revisions, old_text, source_raw_id '
+      'archived, sealed, revisions, old_text, source_raw_id, '
+      'times_said, hits, last_seen_at '
       'from memory_fact where text is not null and text <> \'\' '
       'order by created_at asc',
     );
@@ -727,6 +757,9 @@ class TransferEngine {
             revisions: _int(row['revisions']),
             oldText: _text(row['old_text']),
             sourceRawId: _text(row['source_raw_id']),
+            timesSaid: _int(row['times_said']),
+            hits: _int(row['hits']),
+            lastSeenAt: _int(row['last_seen_at']),
           ),
     ];
   }
@@ -749,6 +782,41 @@ class TransferEngine {
           surreal: _int(row['surreal']),
         ),
     ];
+  }
+
+  Future<List<Map<String, Object?>>> _readRawTexts() async {
+    final rows = await _query(
+      'select id, turn_id, role, text, created_at, meta from memory_raw '
+      'order by created_at asc',
+    );
+    return [
+      for (final row in rows)
+        {
+          'id': _text(row['id']),
+          'turnId': _text(row['turn_id']),
+          'role': _text(row['role']),
+          'text': _text(row['text']),
+          'createdAt': _int(row['created_at']),
+          if (_text(row['meta']).isNotEmpty) 'meta': _text(row['meta']),
+        },
+    ];
+  }
+
+  List<Map<String, Object?>> _rawsFromJson(Object? decoded) {
+    if (decoded is! Map || decoded['memory_raw'] is! List) return const [];
+    final out = <Map<String, Object?>>[];
+    for (final item in (decoded['memory_raw'] as List)) {
+      if (item is! Map || _text(item['id']).isEmpty) continue;
+      out.add({
+        'id': _text(item['id']),
+        'turnId': _text(item['turnId']),
+        'role': _text(item['role']),
+        'text': _text(item['text']),
+        'createdAt': _int(item['createdAt']),
+        if (_text(item['meta']).isNotEmpty) 'meta': _text(item['meta']),
+      });
+    }
+    return out;
   }
 
   Future<int> _count(String sql) async {
@@ -819,12 +887,14 @@ class TransferEngine {
   String _insertSql(
     List<TransferFact> facts,
     List<TransferLink> links,
-    Map<String, String> remapped,
-  ) {
+    Map<String, String> remapped, [
+    List<Map<String, Object?>> rawTexts = const [],
+    List<TransferFact> stateUpdates = const [],
+  ]) {
     final b = StringBuffer(
       'pragma foreign_keys=on;\nbegin immediate;\n'
-      'create temp table imported(facts integer, links integer);\n'
-      'insert into imported values(0, 0);\n',
+      'create temp table imported(facts integer, links integer, raws integer);\n'
+      'insert into imported values(0, 0, 0);\n',
     );
     for (final f in facts) {
       b
@@ -849,11 +919,11 @@ class TransferEngine {
             _real(0.5),
             _real(24),
             _real(1),
-            '0',
-            '0',
+            '${f.timesSaid}',
+            '${f.hits}',
             '${f.revisions}',
             '${f.createdAt.millisecondsSinceEpoch}',
-            '${f.createdAt.millisecondsSinceEpoch}',
+            '${f.lastSeenAt > 0 ? f.lastSeenAt : f.createdAt.millisecondsSinceEpoch}',
             f.archived ? '1' : '0',
             f.sealed ? '1' : '0',
             f.evidence.isEmpty ? 'null' : _q(f.evidence),
@@ -862,6 +932,39 @@ class TransferEngine {
           ].join(', '),
         )
         ..write(');\nupdate imported set facts = facts + changes();\n');
+    }
+    // 目标库已有同文同人的事实时不插新行，但封存/修订/溯源与使用记录
+    // 仍要由这份导出同步；否则两台都已用过的电脑永远停在各自旧状态。
+    for (final f in stateUpdates) {
+      final seen = f.lastSeenAt > 0
+          ? f.lastSeenAt
+          : f.createdAt.millisecondsSinceEpoch;
+      b
+        ..write('update memory_fact set ')
+        ..write('sealed=${f.sealed ? 1 : 0}, ')
+        ..write('revisions=${f.revisions}, ')
+        ..write('old_text=${f.oldText.isEmpty ? 'null' : _q(f.oldText)}, ')
+        ..write('source_raw_id=${f.sourceRawId.isEmpty ? 'null' : _q(f.sourceRawId)}, ')
+        ..write('times_said=${f.timesSaid}, hits=${f.hits}, ')
+        ..write('last_seen_at=$seen where id=${_q(f.id)};\n');
+    }
+    for (final raw in rawTexts) {
+      b
+        ..write(
+          'insert or ignore into memory_raw '
+          '(id, turn_id, role, text, created_at, meta) values (',
+        )
+        ..write(
+          [
+            _q(_text(raw['id'])),
+            _q(_text(raw['turnId'])),
+            _q(_text(raw['role'])),
+            _q(_text(raw['text'])),
+            '${_int(raw['createdAt'])}',
+            _text(raw['meta']).isEmpty ? 'null' : _q(_text(raw['meta'])),
+          ].join(', '),
+        )
+        ..write(');\nupdate imported set raws = raws + changes();\n');
     }
     for (final link in links) {
       final from = remapped[link.from] ?? link.from;
@@ -879,7 +982,7 @@ class TransferEngine {
       b.writeln('update imported set links = links + changes();');
     }
     b.write(
-      'commit;\nselect facts, links, (select count(*) from memory_fact) as total from imported;\n',
+      'commit;\nselect facts, links, raws, (select count(*) from memory_fact) as total from imported;\n',
     );
     return b.toString();
   }
@@ -915,6 +1018,10 @@ class TransferEngine {
           '<!-- ondra:memory id=${f.id} category=${f.category} '
           'salience=${_real(f.salience)} '
           'created_at=${f.createdAt.millisecondsSinceEpoch}'
+          ' times_said=${f.timesSaid} hits=${f.hits}'
+          ' last_seen_at=${f.lastSeenAt}'
+          '${f.oldText.isEmpty ? '' : ' old_text_b64=${base64Encode(utf8.encode(f.oldText))}'}'
+          '${f.sourceRawId.isEmpty ? '' : ' source_raw_id_b64=${base64Encode(utf8.encode(f.sourceRawId))}'}'
           ' id_b64=${base64Encode(utf8.encode(f.id))}'
           ' category_b64=${base64Encode(utf8.encode(f.category))}'
           '${f.text.contains('\n') || f.text.contains('\r') ? ' text_b64=${base64Encode(utf8.encode(f.text))}' : ''}'
@@ -958,7 +1065,11 @@ class TransferEngine {
     return b.toString();
   }
 
-  String _jsonOf(List<TransferFact> facts, List<TransferLink> links) {
+  String _jsonOf(
+    List<TransferFact> facts,
+    List<TransferLink> links, [
+    List<Map<String, Object?>> rawTexts = const [],
+  ]) {
     final body = <String, Object?>{
       'format': 'ondra.memory',
       'version': 1,
@@ -978,9 +1089,13 @@ class TransferEngine {
             if (f.revisions > 0) 'revisions': f.revisions,
             if (f.oldText.isNotEmpty) 'oldText': f.oldText,
             if (f.sourceRawId.isNotEmpty) 'sourceRawId': f.sourceRawId,
+            if (f.timesSaid > 0) 'timesSaid': f.timesSaid,
+            if (f.hits > 0) 'hits': f.hits,
+            if (f.lastSeenAt > 0) 'lastSeenAt': f.lastSeenAt,
           },
       ],
       'links': [for (final l in links) l.toJson()],
+      if (rawTexts.isNotEmpty) 'memory_raw': rawTexts,
     };
     return const JsonEncoder.withIndent('  ').convert(body);
   }
@@ -1001,13 +1116,16 @@ class TransferEngine {
         body.clear();
         return;
       }
-      // 「关联」那一节是表格，不是记忆。
-      if (t == '关联' || t == '空谷记忆') {
+      // 只有没有正规记忆编号的章节才是表格/标题。若标题本身就是一条
+      // 记忆（例如用户真的记了「关联」「空谷记忆」），不能整条丢掉。
+      final meta = _metaOf(body.toString());
+      if ((t == '关联' || t == '空谷记忆') &&
+          meta['id'] == null &&
+          meta['id_b64'] == null) {
         title = null;
         body.clear();
         return;
       }
-      final meta = _metaOf(body.toString());
       out.add(
         TransferFact(
           id: meta['id_b64'] == null
@@ -1035,6 +1153,15 @@ class TransferEngine {
           evidence: meta['evidence_b64'] == null
               ? ''
               : utf8.decode(base64Decode(meta['evidence_b64']!)),
+          oldText: meta['old_text_b64'] == null
+              ? ''
+              : utf8.decode(base64Decode(meta['old_text_b64']!)),
+          sourceRawId: meta['source_raw_id_b64'] == null
+              ? ''
+              : utf8.decode(base64Decode(meta['source_raw_id_b64']!)),
+          timesSaid: int.tryParse(meta['times_said'] ?? '') ?? 0,
+          hits: int.tryParse(meta['hits'] ?? '') ?? 0,
+          lastSeenAt: int.tryParse(meta['last_seen_at'] ?? '') ?? 0,
         ),
       );
       title = null;
@@ -1090,6 +1217,9 @@ class TransferEngine {
           revisions: _int(item['revisions']),
           oldText: _text(item['oldText']),
           sourceRawId: _text(item['sourceRawId']),
+          timesSaid: _int(item['timesSaid']),
+          hits: _int(item['hits']),
+          lastSeenAt: _int(item['lastSeenAt']),
         ),
       );
     }

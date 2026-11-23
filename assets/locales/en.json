@@ -18,6 +18,7 @@
   "外观": "Appearance",
   "主题": "Theme",
   "跟随 macOS 外观自动切换": "Follows the macOS appearance",
+  "跟随系统外观自动切换": "Follows the system appearance",
   "不随系统，固定使用此模式": "Fixed to this mode, ignores system",
   "浅色": "Light",
   "深色": "Dark",

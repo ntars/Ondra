@@ -167,6 +167,23 @@ void main() {
     expect(await _read('user/beichen/notes/a.md'), '改坏了');
   });
 
+  test('恢复把快照里的修改时间还给会话文件', () async {
+    final old = DateTime(2026, 10, 1, 9, 30);
+    final session = File(
+      '${tmp.path}/dsh/sessions/project/s1/session.v4.jsonl',
+    );
+    await session.setLastModified(old);
+    final created = await engine.create();
+    await session.setLastModified(DateTime(2026, 11, 22));
+    expect((await engine.restore(created.snapshotId!)).ok, isTrue);
+    final restored = await session.stat();
+    expect(
+      restored.modified.toUtc(),
+      old.toUtc(),
+      reason: '旧会话恢复后必须保留旧 mtime，否则历史列表会把它排到今天',
+    );
+  });
+
   test('恢复不删快照外多出来的文件', () async {
     final older = await engine.create();
     await _write('user/beichen/new.md', '这段时间新写的');

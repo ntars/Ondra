@@ -152,6 +152,9 @@ class TransferFact {
     this.revisions = 0,
     this.oldText = '',
     this.sourceRawId = '',
+    this.timesSaid = 0,
+    this.hits = 0,
+    this.lastSeenAt = 0,
   });
 
   final String id;
@@ -172,6 +175,11 @@ class TransferFact {
 
   /// 提炼来源的原文编号（迁移后丢失会导致溯源断链）。
   final String sourceRawId;
+
+  /// 使用记录：换机不该把「说过几次、被命中几次、最近何时出现」清零。
+  final int timesSaid;
+  final int hits;
+  final int lastSeenAt;
 }
 
 /// 一条要导出的关联。

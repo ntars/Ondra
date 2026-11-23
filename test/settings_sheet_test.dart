@@ -79,4 +79,22 @@ void main() {
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('深色'), findsNothing);
   }, variant: desktopFormFactor);
+
+  testWidgets('从侧栏角色入口打开设置时直接落成人设页', (tester) async {
+    tester.view.physicalSize = const Size(2400, 1560);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const OndraApp());
+    await tester.pump(const Duration(milliseconds: 900));
+
+    final st = ShellScope.of(tester.element(find.byType(OndraChassis)));
+    st.settingsPane = ShellPane.persona;
+    st.settingsOpen = true;
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('人设包'), findsOneWidget);
+    expect(find.text('外观'), findsNothing);
+  }, variant: desktopFormFactor);
 }

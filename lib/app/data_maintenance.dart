@@ -4,6 +4,7 @@ class DataMaintenance extends ChangeNotifier {
   Future<void> Function()? pause;
   Future<void> Function()? resume;
   Future<void> Function()? reload;
+  Future<void> Function()? closeTransport;
   bool _locked = false;
   bool _offline = false;
 
@@ -23,6 +24,9 @@ class DataMaintenance extends ChangeNotifier {
     try {
       await stop();
       stopped = true;
+      // 停机回调可能只完成同步 dispose/stop；传输层另有可等待的 close()，
+      // 不在这里等子进程真退出，恢复/清空就会和内核一起抢数据库/会话文件。
+      await closeTransport?.call();
       _offline = true;
       try {
         return await action();

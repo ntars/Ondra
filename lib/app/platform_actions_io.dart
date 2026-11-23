@@ -1,4 +1,3 @@
-import 'dart:convert' show utf8;
 import 'dart:io';
 
 import 'package:flutter/services.dart'
@@ -141,15 +140,18 @@ class PlatformActions {
       if (enabled) {
         // 写完整 EXE 路径（alpha.10 审查第 4 项：原来只写目录加反斜杠，
         // 读回检查完整 _executable 永远对不上，开 关 = 白开）。
+        // reg.exe 的成功提示在中文 Windows 上是 GBK（「操作成功完成」），
+        // 强按 UTF-8 解会抛 FormatException，明明写成功却报告失败。
+        // 和查询路径一样按系统 OEM 代码页解码；退出码才是操作结果。
         final add = await Process.run('reg', [
           'add', _runKey, '/v', _runValueName, '/t', 'REG_SZ',
           '/d', exe, '/f',
-        ], stdoutEncoding: utf8, stderrEncoding: utf8);
+        ], stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
         return add.exitCode == 0;
       }
       final del = await Process.run('reg', [
         'delete', _runKey, '/v', _runValueName, '/f',
-      ], stdoutEncoding: utf8, stderrEncoding: utf8);
+      ], stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
       return del.exitCode == 0;
     }
     try {

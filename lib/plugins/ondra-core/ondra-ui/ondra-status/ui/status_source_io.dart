@@ -34,6 +34,9 @@ Future<StatusSnapshot> loadStatus({
   final resolveHome = home ?? ondraUserHome;
   final root = '$resolveHome/.ondra';
   final db = File('$root/user/ondra.db');
+  // 每次查询都从零开始收集。全局列表只追加会让上一次读损坏库的
+  // 错误跟着用户一辈子——修好库后状态页还像坏着一样。
+  _queryErrors.clear();
 
   final backups = await _backupStats();
   final boot = await _bootDigest(root);

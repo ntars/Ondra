@@ -111,6 +111,7 @@ class StdioDshTransport implements DshTransport {
   String? _resolvedSecret;
 
   /// 不扩充 DshTransport 接口，现有 mocks 无需实现；装配层换实例前必须 await。
+  @override
   Future<void> close() async {
     stop();
     await _retired;
@@ -628,6 +629,9 @@ class StdioDshTransport implements DshTransport {
   /// 最近一次 stop 的取消流程完成信号；send 前等待它，避免把新消息排进
   /// 一个即将被杀死的内核的 inbox 里。
   Future<void>? _turnSettled;
+
+  @override
+  bool get isConnected => _connection?.failure == null;
 
   /// 发 `session/query` 执行内核命令 `/cancel-turn`（白名单内——stdio
   /// 协议没有 session/cancel 方法，命令系统是唯一的 agent 级中断通道）。

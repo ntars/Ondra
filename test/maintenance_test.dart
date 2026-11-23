@@ -66,6 +66,8 @@ void main() {
     put('dsh/sessions/project/id/session.v4.jsonl', 'session');
     put('user/ondra.db', 'database');
     put('prefs.json', '{}');
+    put('models.json', '{"providers":[]}');
+    put('personas/custom/SKILL.md', 'persona');
     put('dsh/profiles/ondra/cordis.patch.yml', 'profile');
     put('cache/cache.txt', 'cache');
     final out = Directory('${tmp.path}/out')..createSync();
@@ -78,6 +80,14 @@ void main() {
     );
     expect(Directory('${result.path}/dsh/profiles').existsSync(), isFalse);
     expect(Directory('${result.path}/cache').existsSync(), isFalse);
+    expect(
+      File('${result.path}/models.json').readAsStringSync(),
+      '{"providers":[]}',
+    );
+    expect(
+      File('${result.path}/personas/custom/SKILL.md').readAsStringSync(),
+      'persona',
+    );
   }, skip: !Platform.isMacOS);
 
   test('无法证明内核离线时所有活动清理和裸导出均拒绝', () async {

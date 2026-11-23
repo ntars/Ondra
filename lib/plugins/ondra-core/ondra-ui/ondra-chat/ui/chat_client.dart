@@ -273,9 +273,18 @@ class ChatClient extends ChangeNotifier {
       if (stale()) return;
       _messages.remove(reply);
       answered = false;
-      _connected = false;
-      _offlineReason = '$e';
-      _messages.add(ChatMessage(role: ChatRole.system, text: '$e'));
+      // 一轮模型/网络异常不等于内核断线。把它同时写进离线原因和
+      // 聊天记录会让同一条错误显示两遍，还给出不该有的「重连」。
+      // 只有传输层明确报告连接断开时才更新在线状态；同一条连接错误
+      // 已经在传输层通知过，不再往聊天记录里塞第二份。
+      final disconnected = !_transport.isConnected;
+      if (disconnected) {
+        _connected = false;
+        _offlineReason = '$e';
+      }
+      if (disconnected || (_offlineReason ?? '') != '$e') {
+        _messages.add(ChatMessage(role: ChatRole.system, text: '$e'));
+      }
       // 出错也要说：用户可能已经切走了，回来只看到一条红色的系统消息
       // 而不知道是几分钟前就发生了。
       OndraNotify.tell('这一轮没走通', '$e');
@@ -332,6 +341,14 @@ class ChatClient extends ChangeNotifier {
     _busy = false;
     _offlineReason = null;
     notifyListeners();
+  }
+
+  /// 数据维护写入前等待当前内核进程真正退出。
+  ///
+  /// `pauseKernel` 只做同步 dispose/stop；StdioDshTransport 的子进程在
+  /// 后台收敛，数据库和会话文件可能仍被占用。这里调用可选的可等待关闭。
+  Future<void> closeTransport() async {
+    await _transport.close();
   }
 
   Future<void> resumeKernel() async {
@@ -464,9 +481,16 @@ abstract class DshTransport {
   /// [stop] 现在只中断当前轮，连接与进程保留（审查第 9 项）。
   void dispose() {}
 
+  /// 可等待的彻底关停。维护操作用它确认子进程退出；不支持的传输层留空。
+  Future<void> close() async => dispose();
+
   /// 本次连接的模型配置错误（缺密钥/配置无效），null 表示模型正常。
   /// 内核照常启动（模型不拦内核），聊天栏据此提示「当前模型不可用」。
   String? get modelConfigError => null;
+
+  /// 本轮异常是否意味着内核连接本身已断开。默认按「断开了」保守处理；
+  /// 真正持有连接的传输层会返回连接的实时状态。
+  bool get isConnected => false;
 
   /// 每一步模型调用的记账。内核不报（离线、适配器不支持）时就是空流，
   /// 界面因此显示「—」而不是 0——把「没测到」画成 0 是在编数据。
@@ -569,7 +593,13 @@ class UnavailableTransport implements DshTransport {
   void stop() {}
 
   @override
+  Future<void> close() async => dispose();
+
+  @override
   Stream<StepUsage> get usage => const Stream.empty();
+
+  @override
+  bool get isConnected => false;
 }
 
 /// 全局客户端。装配时由 `ondra-dsh` 插件换掉传输层。

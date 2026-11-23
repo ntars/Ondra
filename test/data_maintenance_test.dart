@@ -40,6 +40,27 @@ void main() {
     expect(maintenance.offline, isFalse);
   });
 
+  test('子进程 close 未完成时不允许动用户数据', () async {
+    final maintenance = DataMaintenance();
+    addTearDown(maintenance.dispose);
+    final exited = Completer<void>();
+    final events = <String>[];
+    maintenance.pause = () async => events.add('stop');
+    maintenance.closeTransport = () async {
+      events.add('close');
+      await exited.future;
+    };
+    maintenance.resume = () async => events.add('resume');
+    final operation = maintenance.run(() async {
+      events.add('write');
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(events, ['stop', 'close']);
+    exited.complete();
+    await operation;
+    expect(events, ['stop', 'close', 'write', 'resume']);
+  });
+
   test('停机失败不执行写入，也不启动第二个内核', () async {
     final maintenance = DataMaintenance();
     addTearDown(maintenance.dispose);

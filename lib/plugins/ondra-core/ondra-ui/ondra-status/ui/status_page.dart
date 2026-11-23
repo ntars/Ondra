@@ -28,7 +28,19 @@ class _StatusPageState extends State<StatusPage> {
   @override
   void initState() {
     super.initState();
+    chatClient.addListener(_onChatChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    chatClient.removeListener(_onChatChanged);
+    super.dispose();
+  }
+
+  /// 统计变化发生在整轮回答结束之后。只听在线灯会让卡片停在聊天前。
+  void _onChatChanged() {
+    if (!chatClient.busy) _load();
   }
 
   Future<void> _load() async {
@@ -62,6 +74,11 @@ class _StatusPageState extends State<StatusPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (snap != null && snap.note.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _Pending(label: snap.note),
+            ),
           _Overview(snapshot: snap),
           const SizedBox(height: 12),
           OndraPanel(
@@ -73,7 +90,7 @@ class _StatusPageState extends State<StatusPage> {
                 if (snap == null)
                   const _Pending(label: '正在读数')
                 else if (snap.metrics.isEmpty)
-                  _Pending(label: snap.note.isEmpty ? '还没有读数' : snap.note)
+                  const _Pending(label: '还没有读数')
                 else
                   for (final m in snap.metrics) _MetricRow(reading: m),
               ],

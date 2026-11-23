@@ -75,18 +75,18 @@ Future<SessionSummary?> _readOne(File file) async {
   }
 
   if (id.isEmpty) return null;
-  final mtime = file.statSync().modified;
+  // 会话时间取「消息事件时间」与「最近一条消息的时间」二者中的较晚者，
+  // 不再用文件 mtime 做下限：复制/恢复刷新 mtime 会把 10 月的会话排到今天。
+  final lastMessage = reader.lastMessageAt;
+  final latest = [lastEvent, lastMessage].nonNulls.fold<DateTime?>(
+    null,
+    (acc, t) => acc == null || t.isAfter(acc) ? t : acc,
+  );
   return SessionSummary(
     id: id,
     title: title.isEmpty ? '空白会话' : title,
     messages: messages,
-    // 会话时间取「消息事件时间」与「文件时间」的较晚者：事件时间是会话
-    // 的真实活动时间；文件时间当不下限，防止复制/恢复链路丢时间戳后
-    // 会话被排到看不见的地方。复制刷新 mtime 导致旧会话排到「今天」的
-    // 审查反馈，改由快照恢复链路保留原始 mtime 解决。
-    updatedAt: (lastEvent != null && lastEvent.isAfter(mtime))
-        ? lastEvent
-        : mtime,
+    updatedAt: latest ?? file.statSync().modified,
     cwd: cwd,
   );
 }
@@ -114,6 +114,7 @@ Stream<Map> _readEvents(File file) async* {
 class _MessageReader {
   final _seenIds = <(String, String)>{};
   final _seenEvents = <(String, int)>{};
+  DateTime? lastMessageAt;
 
   Iterable<HistoryEntry> entriesOf(Map event) sync* {
     final type = event['type'];
@@ -133,7 +134,10 @@ class _MessageReader {
       for (final message in inserted) {
         if (message is! Map || message['role'] != 'user') continue;
         final entry = _entryOf(message, 'user');
-        if (entry != null) yield entry;
+        if (entry != null) {
+          _noteTime(event, message);
+          yield entry;
+        }
       }
     } else {
       // v4 的 user/message 直接以 data 作为消息；兼容包在 message 里的写法。
@@ -146,6 +150,16 @@ class _MessageReader {
         type == 'user/message' ? 'user' : 'assistant',
       );
       if (entry != null) yield entry;
+      if (entry != null) _noteTime(event, message);
+    }
+  }
+
+  /// 消息事件自带的时间优先；没有时间时用文件里事件的 time 兜底。
+  void _noteTime(Map event, Map message) {
+    final raw = message['createdAt'] ?? message['timestamp'] ?? event['time'];
+    final time = _timeOf(raw);
+    if (time != null && (lastMessageAt == null || time.isAfter(lastMessageAt!))) {
+      lastMessageAt = time;
     }
   }
 

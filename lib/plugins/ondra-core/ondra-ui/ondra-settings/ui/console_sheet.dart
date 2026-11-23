@@ -77,7 +77,18 @@ enum _Pane {
 }
 
 class _ConsoleSheetState extends State<ConsoleSheet> {
-  _Pane _pane = _Pane.general;
+  late _Pane _pane;
+
+  @override
+  void initState() {
+    super.initState();
+    _pane = switch (widget.initialPane) {
+      ShellPane.model => _Pane.model,
+      ShellPane.persona => _Pane.persona,
+      ShellPane.about => _Pane.about,
+      ShellPane.general || null => _Pane.general,
+    };
+  }
 
   /// 模型基座的三层子态：选分类 → 选预设 → 编辑。
   /// 官方把编辑做成卡片里的展开态，这里用同一层内的「下钻 + 返回」表达。
@@ -88,6 +99,16 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   /// 「开源许可」是否展开。放在这一层而不是 `_Row` 里，是因为许可文本要
   /// 跨多行铺开，和一行标题不是同一种排版。
   bool _licenseOpen = false;
+
+  /// 主题说明只描述这台机器真正跟随的系统，不把 macOS 写到 Windows 上。
+  static String _themeDesc(BuildContext context) {
+    if (ShellScope.of(context).themeMode != ThemeMode.system) {
+      return '不随系统，固定使用此模式';
+    }
+    return defaultTargetPlatform == TargetPlatform.macOS
+        ? '跟随 macOS 外观自动切换'
+        : '跟随系统外观自动切换';
+  }
 
   // 开关状态不在页面里：一切取值走 settingsClient（ondra-settings 的投影），
   // 页面自己不再保存任何设置值。
@@ -417,9 +438,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         // 不会先闪一帧浅色再切过去。
         _Row(
           title: '主题',
-          desc: ShellScope.of(context).themeMode == ThemeMode.system
-              ? '跟随 macOS 外观自动切换'
-              : '不随系统，固定使用此模式',
+          desc: _themeDesc(context),
           action: const _ThemePicker(),
         ),
         _specRow('general.language'),
@@ -1558,7 +1577,7 @@ class _NavPane extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 1),
           child: _NavItem(
-            label: p.label,
+            label: t(p.label),
             selected: pane == p,
             onTap: () => onPane(p),
           ),

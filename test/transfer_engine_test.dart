@@ -115,6 +115,55 @@ void main() {
     expect(after.facts, 3, reason: '导两次不该变成六条');
   });
 
+  test('Markdown 特殊标题与记忆使用记录往返，不丢整条记忆', () async {
+    await _sql(
+      engine.dbPath,
+      "update memory_fact set times_said=8, hits=3, "
+      "last_seen_at=created_at+60000, sealed=1, revisions=3, "
+      "old_text='喜欢绿色', source_raw_id='r-1' where id='m-a8f1fdb5c240';",
+    );
+    final out = await Directory('${tmp.path}/roundtrip').create();
+    final exported = await engine.exportMemory(
+      out.path,
+      TransferFormat.markdown,
+    );
+    final otherDir = await Directory('${tmp.path}/other-md').create();
+    final other = TransferEngine(home: otherDir.path, now: () => fixedNow);
+    await _seedDb(other.dbPath, withRows: false);
+    final imported = await other.importPath(exported.path!);
+    expect(imported.ok, isTrue, reason: imported.message);
+    expect(imported.count, 3, reason: '「关联」「空谷记忆」标题不能被整段跳过');
+
+    final json = await other.exportMemory(out.path, TransferFormat.json);
+    final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
+    final restored = (data['facts'] as List).cast<Map<String, dynamic>>()
+        .firstWhere((f) => f['id'] == 'm-a8f1fdb5c240');
+    expect(restored['sealed'], true);
+    expect(restored['revisions'], 3);
+    expect(restored['oldText'], '喜欢绿色');
+    expect(restored['sourceRawId'], 'r-1');
+    expect(restored['timesSaid'], 8);
+    expect(restored['hits'], 3);
+  });
+
+  test('JSON 迁移带回原文表，事实的原文编号不再悬空', () async {
+    final out = await Directory('${tmp.path}/json-raw').create();
+    final exported = await engine.exportMemory(out.path, TransferFormat.json);
+    final otherDir = await Directory('${tmp.path}/other-raw').create();
+    final other = TransferEngine(home: otherDir.path, now: () => fixedNow);
+    await _seedDb(other.dbPath, withRows: false);
+    final imported = await other.importPath(exported.path!);
+    expect(imported.ok, isTrue, reason: imported.message);
+    expect(imported.message, contains('2 条原文随行'));
+    final snap = await other.load();
+    expect(snap.raws, 2);
+
+    final data = jsonDecode(File(exported.path!).readAsStringSync()) as Map;
+    final raws = (data['memory_raw'] as List).cast<Map<String, dynamic>>();
+    expect(raws.first['id'], 'r-1');
+    expect(raws.first['text'], '我叫小林');
+  });
+
   test('手写的 Markdown 也能导入：没有注释的段落当成一条新记忆', () async {
     final file = File('${tmp.path}/手写.md');
     await file.writeAsString('''

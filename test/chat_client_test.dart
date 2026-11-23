@@ -289,6 +289,8 @@ void main() {
 /// 一段超过横幅长度的回答。
 class _LongTransport implements DshTransport {
   @override
+  bool get isConnected => true;
+  @override
   String? get modelConfigError => null;
   @override
   void dispose() {}
@@ -310,11 +312,16 @@ class _LongTransport implements DshTransport {
   void stop() {}
 
   @override
+  Future<void> close() async {}
+
+  @override
   Stream<StepUsage> get usage => const Stream.empty();
 }
 
 /// 半路断掉的传输层。
 class _FailingTransport implements DshTransport {
+  @override
+  bool get isConnected => true;
   @override
   String? get modelConfigError => null;
   @override
@@ -337,6 +344,9 @@ class _FailingTransport implements DshTransport {
   void stop() {}
 
   @override
+  Future<void> close() async {}
+
+  @override
   Stream<StepUsage> get usage => const Stream.empty();
 }
 
@@ -346,6 +356,8 @@ class _FailingTransport implements DshTransport {
 /// 插话场景必须这样：如果每一轮都等同一个 gate，第二句自己也会被挡住，
 /// 那就不是「插话能不能发出」，而是「桩写得对不对」了。
 class _GatedTransport implements DshTransport {
+  @override
+  bool get isConnected => true;
   @override
   String? get modelConfigError => null;
   @override
@@ -378,6 +390,9 @@ class _GatedTransport implements DshTransport {
   void stop() {}
 
   @override
+  Future<void> close() async {}
+
+  @override
   Stream<StepUsage> get usage => const Stream.empty();
 }
 
@@ -399,6 +414,8 @@ class _ConnectingTransport extends _EchoTransport {
 
 class _EchoTransport implements DshTransport {
   @override
+  bool get isConnected => true;
+  @override
   String? get modelConfigError => null;
   @override
   void dispose() {}
@@ -419,6 +436,9 @@ class _EchoTransport implements DshTransport {
 
   @override
   void stop() {}
+
+  @override
+  Future<void> close() async {}
 
   @override
   Stream<StepUsage> get usage => const Stream.empty();

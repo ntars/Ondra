@@ -100,17 +100,25 @@ class LlamaClient extends ChangeNotifier {
     // 与 Unix 固定路径，失败提示还是 brew install）。where.exe 是 cmd 的
     // 标准工具，PATH 里装了 llama-server.exe 一定能找到。
     if (Platform.isWindows) {
-      final where = await Process.run('where', ['llama-server.exe'],
-          stdoutEncoding: utf8, stderrEncoding: utf8);
-      if (where.exitCode == 0) {
-        final first = (where.stdout as String)
-            .split('\n')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .firstOrNull;
-        if (first != null && await File(first).exists()) {
-          return _binary = first;
+      // where.exe 在中文 Windows 上用系统 OEM 代码页输出「找不到…」；按
+      // UTF-8 解码会抛 FormatException，把已经扫到的 GGUF 列表一起毁掉。
+      // 这里只关心退出码和路径，交给系统编码并兜住解码/启动异常。
+      try {
+        final where = await Process.run('where', ['llama-server.exe'],
+            stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
+        if (where.exitCode == 0) {
+          final first = (where.stdout as String)
+              .split('\n')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .firstOrNull;
+          if (first != null && await File(first).exists()) {
+            return _binary = first;
+          }
         }
+      } catch (_) {
+        // 没有 where / 输出解码失败都只意味着「没有本机服务端」，
+        // 不能让模型目录列表跟着失败。
       }
     }
     for (final shell in ['/bin/zsh', '/bin/bash']) {

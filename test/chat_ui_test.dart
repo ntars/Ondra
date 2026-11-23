@@ -139,6 +139,8 @@ void main() {
 
 class _ControlledTransport implements DshTransport {
   @override
+  bool get isConnected => true;
+  @override
   String? get modelConfigError => null;
   @override
   void dispose() {}
@@ -163,6 +165,9 @@ class _ControlledTransport implements DshTransport {
     response?.close();
     response = null;
   }
+
+  @override
+  Future<void> close() async {}
 
   @override
   void resetSession() {}

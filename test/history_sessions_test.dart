@@ -256,7 +256,7 @@ void main() {
     expect(summary.title, '第一句');
   });
 
-  test('摘要跨项目按最后活动倒序，支持秒、毫秒、ISO 并保留 mtime 下限', () async {
+  test('摘要跨项目按最后活动倒序，支持秒、毫秒与 ISO 事件时间', () async {
     final old = DateTime.utc(2000);
     final latest = DateTime.utc(2024);
     final middle = DateTime.utc(2023);
@@ -294,17 +294,14 @@ void main() {
 
     final summaries = await readSessions(dshHome: dshHome);
     expect(summaries.map((s) => s.id), [
-      'mtime',
       'milliseconds',
       'iso',
       'seconds',
+      'mtime',
     ]);
-    expect(summaries.map((s) => s.updatedAt.toUtc()), [
-      DateTime.utc(2025),
-      latest,
-      middle,
-      earlier,
-    ]);
+    // 复制刷新 mtime 不能把 10 月的旧会话排到今天；没有事件时间时才
+    // 退回文件时间。
+    expect(summaries.last.updatedAt.toUtc(), DateTime.utc(2000));
     expect(
       summaries.every((s) => s.title == '空白会话' && s.messages == 0),
       isTrue,

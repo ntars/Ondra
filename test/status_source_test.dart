@@ -150,6 +150,8 @@ values ('main', '{"valence":-0.4,"arousal":0.7}', '["有点低落"]', '{}', 'cal
 
 class _ConnectedTransport implements DshTransport {
   @override
+  bool get isConnected => true;
+  @override
   String? get modelConfigError => null;
   @override
   void dispose() {}
@@ -164,6 +166,9 @@ class _ConnectedTransport implements DshTransport {
 
   @override
   void stop() {}
+
+  @override
+  Future<void> close() async {}
 
   @override
   void resetSession() {}

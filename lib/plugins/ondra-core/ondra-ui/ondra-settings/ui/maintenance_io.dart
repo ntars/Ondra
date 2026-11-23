@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+
 import '../../../../../app/desktop_picker.dart';
 import '../../../../../app/home_dir.dart';
 
@@ -32,10 +34,15 @@ class OndraMaintenance {
     'user',
     'sessions',
     'dsh/sessions',
+    'personas',
     'storages',
   ];
 
-  static const List<String> _exportFiles = ['prefs.json', 'avatar.png'];
+  static const List<String> _exportFiles = [
+    'prefs.json',
+    'models.json',
+    'avatar.png',
+  ];
 
   /// 清空范围。比导出范围大：用户说「清空全部数据」就是要它真的空，
   /// 留着 sessions 或 storages 会让「清空」这个词变成假的。
@@ -384,7 +391,13 @@ class OndraMaintenance {
     out.add(
       PermissionStatus(
         name: '启动本机内核（子进程）',
-        granted: await _canSpawn(),
+        // Linux/macOS 才用 `/bin/echo` 探针；Windows 没有这个路径，
+        // 探不到就报 false 会让已经跑起来的内核被说成「未授权」。
+        granted: Platform.isWindows
+            ? true
+            : Platform.isLinux || Platform.isMacOS
+            ? await _canSpawn()
+            : null,
         detail: '需要执行 dsh 与 node',
       ),
     );
@@ -396,10 +409,12 @@ class OndraMaintenance {
       ),
     );
     out.add(
-      const PermissionStatus(
+      PermissionStatus(
         name: '通知',
         granted: null,
-        detail: '由 macOS 通知中心管理，可在系统设置里单独关闭',
+        detail: defaultTargetPlatform == TargetPlatform.macOS
+            ? '由 macOS 通知中心管理，可在系统设置里单独关闭'
+            : '由系统通知设置管理，可在系统设置里单独关闭',
       ),
     );
     return out;

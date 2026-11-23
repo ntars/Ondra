@@ -27,6 +27,7 @@ class StdioDshTransport implements DshTransport {
     Duration turnTimeout = const Duration(minutes: 10),
   });
 
+  @override
   Future<void> close() async {}
   String? get sessionId => null;
 
@@ -54,4 +55,7 @@ class StdioDshTransport implements DshTransport {
 
   @override
   Stream<StepUsage> get usage => const Stream.empty();
+
+  @override
+  bool get isConnected => false;
 }

@@ -192,7 +192,12 @@ class BackupEngine {
           if (source != null) {
             await _sqliteRestore(boundary, writing, source);
           } else {
-            await _writeAtomic(boundary, writing, file.bytes);
+            await _writeAtomic(
+              boundary,
+              writing,
+              file.bytes,
+              modified: file.entry.modified,
+            );
           }
           written++;
           writing = null;
@@ -799,8 +804,9 @@ class BackupEngine {
   Future<void> _writeAtomic(
     _Boundary boundary,
     String rel,
-    List<int> bytes,
-  ) async {
+    List<int> bytes, {
+    int? modified,
+  }) async {
     final target = File(await boundary.check(rel));
     await target.parent.create(recursive: true);
     await boundary.check(rel);
@@ -811,6 +817,14 @@ class BackupEngine {
       await file.writeAsBytes(bytes, flush: true);
       await boundary.check(rel);
       await file.rename(target.path);
+      // zip 条目带着快照时的 mtime；恢复后必须还给文件，否则旧会话在
+      // 历史列表里被排到「今天」。只对备份/恢复链路传这个参数，普通
+      // 配置写入不该被改时间。
+      if (modified != null && modified > 0) {
+        await target.setLastModified(
+          DateTime.fromMillisecondsSinceEpoch(modified),
+        );
+      }
     } finally {
       await staging.delete(recursive: true);
     }
