@@ -28,12 +28,15 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  test('清空包含真实 dsh/sessions 且保留人设、头像和所有 profile', () async {
+  test('清空会话与缓存，但保留内核人设包、头像和所有 profile', () async {
     for (final name in [
       'user/ondra.db',
+      'user/personas/Hero.skill.zip',
       'sessions/old.json',
       'dsh/sessions/project/id/session.v4.jsonl',
       'storages/cache.json',
+      'cache/model.bin',
+      'tmp/render.tmp',
       'prefs.json',
       'personas/custom/SKILL.md',
       'profiles/keep.yml',
@@ -45,11 +48,19 @@ void main() {
     }
     final result = await maintenance.wipeAll();
     expect(result.ok, isTrue, reason: result.message);
-    for (final name in ['user', 'sessions', 'dsh/sessions', 'storages']) {
+    for (final name in [
+      'sessions',
+      'dsh/sessions',
+      'storages',
+      'cache',
+      'tmp',
+    ]) {
       expect(Directory('$root/$name').existsSync(), isFalse);
     }
+    expect(File('$root/user/ondra.db').existsSync(), isFalse);
     expect(File('$root/prefs.json').existsSync(), isFalse);
     for (final name in [
+      'user/personas/Hero.skill.zip',
       'personas/custom/SKILL.md',
       'profiles/keep.yml',
       'dsh/profiles/ondra/cordis.patch.yml',
@@ -59,7 +70,48 @@ void main() {
       expect(File('$root/$name').readAsStringSync(), 'data');
     }
     expect(maintenance.lastWipe(), isNotNull);
-    expect(result.message, contains('5 个文件'));
+    expect(result.message, contains('7 个文件'));
+  });
+
+  test('清空只保留内核配置的人设子目录', () async {
+    for (final name in [
+      'user/ondra.db',
+      'user/custom-personas/Hero.skill.zip',
+      'user/personas/should-not-survive.zip',
+    ]) {
+      put(name);
+    }
+    final custom = OndraMaintenance(
+      home: root,
+      dataIsOffline: () => true,
+      personaSubdir: 'custom-personas',
+    );
+    final result = await custom.wipeAll();
+    expect(result.ok, isTrue, reason: result.message);
+    expect(
+      File('$root/user/custom-personas/Hero.skill.zip').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('$root/user/personas/should-not-survive.zip').existsSync(),
+      isFalse,
+    );
+    expect(File('$root/user/ondra.db').existsSync(), isFalse);
+  });
+
+  test('清空时按内核 profile 的 user-subdir 保留人设', () async {
+    put('user/ondra.db');
+    put('user/heroes/Hero.skill.zip');
+    final configured = OndraMaintenance(
+      home: root,
+      dataIsOffline: () => true,
+      profileConfigReader: (section, key) =>
+          section == 'persona-loader' && key == 'user-subdir' ? 'heroes' : null,
+    );
+    final result = await configured.wipeAll();
+    expect(result.ok, isTrue, reason: result.message);
+    expect(File('$root/user/heroes/Hero.skill.zip').existsSync(), isTrue);
+    expect(File('$root/user/ondra.db').existsSync(), isFalse);
   });
 
   test('导出包含真实会话，不含保留的装配层和缓存', () async {

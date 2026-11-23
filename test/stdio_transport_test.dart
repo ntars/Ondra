@@ -319,6 +319,7 @@ void main() {
     final transport = fixture.transport(
       scenario: 'hang-initialize-once',
       requestTimeout: const Duration(milliseconds: 180),
+      startupTimeout: const Duration(seconds: 2),
     );
     await expectLater(transport.connect(), throwsA(isA<TimeoutException>()));
     expect(transport.lastError, contains('initialize'));
@@ -329,6 +330,7 @@ void main() {
   test('prompt 请求超时明确失败，不静默成功，重启后 resume', () async {
     final transport = fixture.transport(
       requestTimeout: const Duration(milliseconds: 180),
+      startupTimeout: const Duration(seconds: 3),
     );
     await expectLater(
       transport.send('hang-prompt'),
@@ -451,6 +453,51 @@ void main() {
     );
     expect(transport.lastError, isNull, reason: 'Node 警告不能冒充失败');
   });
+
+  test('close 先发 shutdown 并等进程落盘退出，再释放连接', () async {
+    final transport = fixture.transport(shutdownDelayMs: 450);
+    await transport.send('final').drain<void>();
+
+    final closeAt = DateTime.now();
+    await transport.close();
+    final elapsed = DateTime.now().difference(closeAt);
+
+    expect(fixture.requests('shutdown'), hasLength(1));
+    expect(fixture.liveProcesses, isEmpty);
+    expect(
+      elapsed,
+      greaterThanOrEqualTo(const Duration(milliseconds: 300)),
+      reason: 'shutdown 应答后仍需等待内核自己写完会话再退出',
+    );
+  });
+
+  test('stop 只中断本轮，不触发内核 shutdown', () async {
+    final transport = fixture.transport();
+    await transport.send('first').drain<void>();
+    transport.stop();
+    expect(await transport.send('history').toList(), ['first']);
+    expect(fixture.requests('shutdown'), isEmpty);
+  });
+
+  test('内核拒绝 shutdown 时仍强制退出连接', () async {
+    final transport = fixture.transport(scenario: 'fail-shutdown');
+    await transport.connect();
+    await transport.close();
+    expect(fixture.requests('shutdown'), hasLength(1));
+    expect(fixture.liveProcesses, isEmpty);
+  });
+
+  test('shutdown 无应答时按 closeTimeout 兜底终止', () async {
+    final transport = fixture.transport(
+      scenario: 'hang-shutdown',
+      closeTimeout: const Duration(milliseconds: 180),
+    );
+    await transport.connect();
+    final close = transport.close();
+    await expectLater(close, completes);
+    expect(fixture.requests('shutdown'), hasLength(1));
+    expect(fixture.liveProcesses, isEmpty);
+  });
 }
 
 class _Fixture {
@@ -465,7 +512,10 @@ class _Fixture {
     int exitDelayMs = 0,
     String? dshHome,
     Duration requestTimeout = const Duration(seconds: 3),
+    Duration? startupTimeout,
     Duration turnTimeout = const Duration(seconds: 3),
+    Duration closeTimeout = const Duration(seconds: 3),
+    int shutdownDelayMs = 0,
   }) {
     final kernelHome = dshHome ?? '${home.path}/.ondra/dsh';
     // 预建隔离 profile，fixture 不加载真实内核或触发种子复制的权限操作。
@@ -488,9 +538,12 @@ class _Fixture {
         'FIXTURE_SCENARIO': scenario,
         'FIXTURE_MARKER': 'isolated',
         'FIXTURE_EXIT_DELAY_MS': '$exitDelayMs',
+        'FIXTURE_SHUTDOWN_DELAY_MS': '$shutdownDelayMs',
       },
       requestTimeout: requestTimeout,
+      startupTimeout: startupTimeout,
       turnTimeout: turnTimeout,
+      closeTimeout: closeTimeout,
     );
   }
 
@@ -541,6 +594,19 @@ class _Fixture {
       }
       previous = trace[i]['pid'] as int;
     }
+  }
+
+  Set<int> get liveProcesses {
+    final trace = records;
+    final started = trace
+        .where((record) => record['event'] == 'start')
+        .map((record) => record['pid'] as int)
+        .toSet();
+    final exited = trace
+        .where((record) => record['event'] == 'exit')
+        .map((record) => record['pid'] as int)
+        .toSet();
+    return started.difference(exited);
   }
 
   Future<void> dispose() async {

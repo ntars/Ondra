@@ -2,7 +2,12 @@
 ///
 /// 与 `maintenance_io.dart` 导出同名同形的类，页面只 import 这一行。
 class OndraMaintenance {
-  OndraMaintenance({String? home, bool Function()? dataIsOffline});
+  OndraMaintenance({
+    String? home,
+    bool Function()? dataIsOffline,
+    String? personaSubdir,
+    String? Function(String section, String key)? profileConfigReader,
+  });
 
   final String home = '';
 

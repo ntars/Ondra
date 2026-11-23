@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:ondra/app/notifier_io.dart';
 import 'package:ondra/app/platform_actions_io.dart';
 import 'package:ondra/app/prefs.dart';
@@ -62,6 +63,52 @@ void main() {
     File('${tmp.path}/.ondra/prefs.json').deleteSync();
     await client.reloadFromDisk();
     expect(client.boolean('voice.tts'), isFalse);
+  });
+
+  test('首启无偏好时把旧 profile 的朗读默认关对齐为界面默认', () async {
+    patch.writeAsStringSync(
+      '- insert:\n'
+      '    - id: ondra-tts\n'
+      '      name: tts\n'
+      '      config:\n'
+      '        enable: true\n',
+    );
+
+    client.load();
+
+    expect(client.boolean('voice.tts'), isFalse);
+    expect(readProfileConfigField('tts', 'enable'), 'false');
+    expect(client.stateOf('voice.tts'), SettingApplyState.restartRequired);
+    expect(readPref('settings.voice.tts'), isEmpty);
+  });
+
+  test('用户保存过朗读偏好时不覆盖其值', () async {
+    seed();
+    writePref('settings.voice.tts', 'true');
+    writeProfileConfigField('tts', 'enable', true);
+
+    client.load();
+
+    expect(client.boolean('voice.tts'), isTrue);
+    expect(readProfileConfigField('tts', 'enable'), 'true');
+  });
+
+  test('新 profile 出厂值是关时，无偏好也不二次改写', () async {
+    patch.writeAsStringSync(
+      '- insert:\n'
+      '    - id: ondra-tts\n'
+      '      name: tts\n'
+      '      config:\n'
+      '        enable: false\n',
+    );
+    final original = patch.readAsStringSync();
+
+    client.load();
+
+    expect(client.boolean('voice.tts'), isFalse);
+    expect(readProfileConfigField('tts', 'enable'), 'false');
+    expect(client.stateOf('voice.tts'), SettingApplyState.unverified);
+    expect(patch.readAsStringSync(), original);
   });
 
   test('prefs 写失败保留旧值/不执行平台动作，并能重试真实意图', () async {
@@ -284,5 +331,58 @@ void main() {
     await Notifier.show(title: 'second', body: 'body');
     expect(Notifier.probe!.sent, hasLength(2));
     expect(Notifier.probe!.sent.first.sound, isFalse);
+  });
+
+  test('Windows 通知走原生通道并以系统接受为成功', () async {
+    Notifier.probe = null;
+    Notifier.debugOperatingSystemOverride = 'windows';
+    final messages = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('ondra/notify'), (
+          call,
+        ) async {
+          messages.add(call);
+          return call.arguments is Map && call.arguments['title'] == 'ok';
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(const MethodChannel('ondra/notify'), null),
+    );
+
+    expect(
+      await Notifier.tryShow(title: 'ok', body: 'done', sound: false),
+      isTrue,
+    );
+    expect((messages.single.arguments as Map)['sound'], isFalse);
+    expect(await Notifier.tryShow(title: 'no', body: 'not sent'), isFalse);
+    expect(Notifier.lastError, contains('没有送达'));
+  });
+
+  test('Windows 阻止睡眠走原生通道并对拒绝如实失败', () async {
+    PlatformActions.probe = null;
+    PlatformActions.debugOperatingSystemOverride = 'windows';
+    final calls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('ondra/platform'), (
+          call,
+        ) async {
+          calls.add(call.method);
+          if (call.method == 'beginPreventSleep') {
+            throw PlatformException(code: 'denied', message: 'denied');
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('ondra/platform'),
+            null,
+          ),
+    );
+
+    expect(PlatformActions.canPreventSleep, isTrue);
+    expect(await PlatformActions.beginPreventSleep(), isFalse);
+    await PlatformActions.endPreventSleep();
+    expect(calls, ['beginPreventSleep', 'endPreventSleep']);
   });
 }

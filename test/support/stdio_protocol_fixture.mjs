@@ -77,6 +77,19 @@ lines.on('line', line => {
     else initialize();
     return;
   }
+  if (method === 'shutdown') {
+    trace('shutdown');
+    if (scenario === 'fail-shutdown') {
+      fail(id, 'shutdown rejected');
+      return;
+    }
+    if (scenario === 'hang-shutdown') return;
+    result(id, {});
+    // A real SDK kernel flushes its final session state after replying and
+    // before exiting. Keep a small gap so tests can prove `close()` waits.
+    setTimeout(() => process.exit(0), Number(process.env.FIXTURE_SHUTDOWN_DELAY_MS ?? 0));
+    return;
+  }
   if (!initialized) {
     fail(id, 'initialize must complete first');
     return;

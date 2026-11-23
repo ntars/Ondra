@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import '../../../../../app/desktop_picker.dart';
 
 import '../../../../../app/home_dir.dart';
@@ -153,17 +154,20 @@ class BackupEngine {
                 DateTime.fromMillisecondsSinceEpoch(ms),
               );
             }
-            final check = await Process.run(cli, [
-              '-batch',
-              '-bail',
-              '-readonly',
-              source.path,
-              'PRAGMA integrity_check;',
-            ],
-            // sqlite3 的输出与错误是 UTF-8；Windows 的 ACP=936 会按 GBK
-            // 误解（见 maintenance/审查第 20 项），三处都显式声明。
-            stdoutEncoding: utf8,
-            stderrEncoding: utf8,);
+            final check = await Process.run(
+              cli,
+              [
+                '-batch',
+                '-bail',
+                '-readonly',
+                source.path,
+                'PRAGMA integrity_check;',
+              ],
+              // sqlite3 的输出与错误是 UTF-8；Windows 的 ACP=936 会按 GBK
+              // 误解（见 maintenance/审查第 20 项），三处都显式声明。
+              stdoutEncoding: utf8,
+              stderrEncoding: utf8,
+            );
             if (check.exitCode != 0 || '${check.stdout}'.trim() != 'ok') {
               throw StateError(
                 'SQLite 恢复副本完整性检查失败：${file.entry.path} '
@@ -450,30 +454,36 @@ class BackupEngine {
       final snapshot = File('${staging.path}/snapshot.db');
       // .backup 调用 sqlite3_backup API，包含已提交但尚未 checkpoint 的 WAL。
       // -readonly 禁止修改源库；不用 immutable，它会忽略活动 WAL。
-      final result = await Process.run(cli, [
-        '-batch',
-        '-bail',
-        '-readonly',
-        '-cmd',
-        '.timeout 5000',
-        path,
-        '.backup ${jsonEncode(snapshot.path)}',
-      ],
-      stdoutEncoding: utf8,
-      stderrEncoding: utf8,);
+      final result = await Process.run(
+        cli,
+        [
+          '-batch',
+          '-bail',
+          '-readonly',
+          '-cmd',
+          '.timeout 5000',
+          path,
+          '.backup ${jsonEncode(snapshot.path)}',
+        ],
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+      );
       if (result.exitCode != 0) {
         throw StateError('SQLite 一致性备份失败：${result.stderr}');
       }
       // 副本可能继承 WAL 标志。仅在临时副本上切回 DELETE，导出的单文件
       // 才能在没有 -wal/-shm、甚至只读介质上独立打开。
-      final check = await Process.run(cli, [
-        '-batch',
-        '-bail',
-        snapshot.path,
-        'PRAGMA journal_mode=DELETE; PRAGMA integrity_check;',
-      ],
-      stdoutEncoding: utf8,
-      stderrEncoding: utf8,);
+      final check = await Process.run(
+        cli,
+        [
+          '-batch',
+          '-bail',
+          snapshot.path,
+          'PRAGMA journal_mode=DELETE; PRAGMA integrity_check;',
+        ],
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+      );
       if (check.exitCode != 0 || '${check.stdout}'.trim() != 'delete\nok') {
         throw StateError('SQLite 副本完整性检查失败：${check.stderr} ${check.stdout}');
       }
@@ -544,16 +554,19 @@ class BackupEngine {
     // .restore 调用 sqlite3_backup API，在目标库事务内恢复。让 SQLite 自己
     // 协调 WAL/SHM/journal，不 rename 主库、不手工删除残留日志。异常占锁时报错，
     // 上层保留存底及已完成数量；维护独占不是绕过数据库锁的理由。
-    final result = await Process.run(cli, [
-      '-batch',
-      '-bail',
-      '-cmd',
-      '.timeout 1000',
-      target.path,
-      '.restore ${jsonEncode(source)}',
-    ],
-    stdoutEncoding: utf8,
-    stderrEncoding: utf8,);
+    final result = await Process.run(
+      cli,
+      [
+        '-batch',
+        '-bail',
+        '-cmd',
+        '.timeout 1000',
+        target.path,
+        '.restore ${jsonEncode(source)}',
+      ],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
     if (result.exitCode != 0) {
       throw StateError('SQLite 恢复失败：$rel ${result.stderr}');
     }

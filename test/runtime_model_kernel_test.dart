@@ -28,8 +28,11 @@ void main() {
       // 先手动铺种子，再往 patch 追加过滤链关闭段：connect 时 seed 见目录
       // 已存在会跳过，受管段按标记拼在文件末尾，两边互不干扰。
       final seed = seedRuntimeProfile(dshHome: '${home.path}/.ondra/dsh');
-      expect(seed.outcome, RuntimeSeedOutcome.seeded,
-          reason: '本测试要求已经装配的 bundled DSH');
+      expect(
+        seed.outcome,
+        RuntimeSeedOutcome.seeded,
+        reason: '本测试要求已经装配的 bundled DSH',
+      );
       File(
         '${home.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml',
       ).writeAsStringSync(
@@ -38,7 +41,8 @@ void main() {
         "    - id: ondra-filter-chain\n"
         "      name: '@ondra/cordis-plugin-ondra-filter-chain'\n"
         "      config:\n"
-        "        enable: false\n");
+        "        enable: false\n",
+      );
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final requests =
           <({String path, String? auth, Map<String, dynamic> body})>[];
@@ -73,7 +77,10 @@ void main() {
         final response = request.response;
         liveResponses.add(response);
         response.headers.contentType = ContentType(
-          'text', 'event-stream', charset: 'utf-8');
+          'text',
+          'event-stream',
+          charset: 'utf-8',
+        );
         response.headers.set('cache-control', 'no-cache');
         void chunk(Map<String, Object?> value) =>
             response.write('data: ${jsonEncode(value)}\n\n');
@@ -178,11 +185,11 @@ void main() {
         final second = requests
             .map((r) => r.body['messages'] as List)
             .lastWhere((m) {
-          final j = jsonEncode(m);
-          // 评审插件的 prompt 也引用助手回复（含 second-turn 字样），
-          // 用它的固定开场白排除掉。
-          return j.contains('second-turn') && !j.contains('对话回复的评审');
-        });
+              final j = jsonEncode(m);
+              // 评审插件的 prompt 也引用助手回复（含 second-turn 字样），
+              // 用它的固定开场白排除掉。
+              return j.contains('second-turn') && !j.contains('对话回复的评审');
+            });
         expect(jsonEncode(second), contains('「first-turn」'));
         final interrupted = expectLater(
           transport.send('stall-turn').toList(),
@@ -199,12 +206,12 @@ void main() {
         // stop-resume 后：恢复的会话里必须还留着第二轮的内容。
         // requests.last 可能是评审插件的打分请求（只含 resume-turn），
         // 所以同样排除评审 prompt 再找主对话请求。
-        final resumed = requests.map((r) => r.body['messages'] as List).lastWhere(
-              (m) {
-                final j = jsonEncode(m);
-                return j.contains('second-turn') && !j.contains('对话回复的评审');
-              },
-            );
+        final resumed = requests
+            .map((r) => r.body['messages'] as List)
+            .lastWhere((m) {
+              final j = jsonEncode(m);
+              return j.contains('second-turn') && !j.contains('对话回复的评审');
+            });
         expect(jsonEncode(resumed), contains('「second-turn」'));
         // 两消息的后台提炼请求是异步发出的：轮询等它出现（最多 10 秒），
         // 避免主流程太快结束时提炼还没发生。
@@ -227,11 +234,14 @@ void main() {
           final messages = request.body['messages'] as List;
           // 预算分三档：评审插件 200（它也是两条 messages），
           // 后台提炼 1200（同样两条），主对话 4096。按内容区分而不是按条数。
-          final isReview =
-              jsonEncode(messages).contains('对话回复的评审');
+          final isReview = jsonEncode(messages).contains('对话回复的评审');
           expect(
             request.body['max_tokens'] ?? request.body['max_completion_tokens'],
-            isReview ? 200 : messages.length == 2 ? 1200 : 4096,
+            isReview
+                ? 200
+                : messages.length == 2
+                ? 1200
+                : 4096,
           );
           expect(request.body['reasoning_effort'], 'high');
         }
@@ -249,12 +259,18 @@ void main() {
         // 与 main 一样跨实例换配置：旧实例完全退出才允许新实例 resume 同一会话。
         provider.baseUrl = 'http://127.0.0.1:${server.port}/changed/v1';
         // local 保留模型 ID，覆盖 SDK resume 沿用旧 reasoningEffort 的分支。
-        if (category != ProviderCategory.local) entry.id = 'changed-${category.name}';
+        if (category != ProviderCategory.local) {
+          entry.id = 'changed-${category.name}';
+        }
         entry.maxTokens = '2K';
         entry.reasoning = [];
         final changed = RuntimeModelConfig.from(provider, entry);
         switched = StdioDshTransport(
-          environment: {'HOME': home.path, 'PATH': '/usr/bin:/bin', 'DSH_TELEMETRY': '0'},
+          environment: {
+            'HOME': home.path,
+            'PATH': '/usr/bin:/bin',
+            'DSH_TELEMETRY': '0',
+          },
           workingDirectory: home.path,
           modelConfig: () => changed,
           secretResolver: (_) async => 'replacement-test-secret',
@@ -265,24 +281,39 @@ void main() {
           (await switched.send('switch-turn').toList()).join(),
           contains('「switch-turn」'),
         );
-        final afterSwitch = requests.where((r) => r.path == '/changed/v1/chat/completions').toList();
+        final afterSwitch = requests
+            .where((r) => r.path == '/changed/v1/chat/completions')
+            .toList();
         expect(afterSwitch, isNotEmpty);
-        final chatRequest = afterSwitch.firstWhere((r) => (r.body['messages'] as List).length > 2);
+        final chatRequest = afterSwitch.firstWhere(
+          (r) => (r.body['messages'] as List).length > 2,
+        );
         expect(chatRequest.auth, 'Bearer replacement-test-secret');
         expect(chatRequest.body['model'], changed.modelId);
-        expect(chatRequest.body['max_tokens'] ?? chatRequest.body['max_completion_tokens'], 2048);
+        expect(
+          chatRequest.body['max_tokens'] ??
+              chatRequest.body['max_completion_tokens'],
+          2048,
+        );
         expect(chatRequest.body['reasoning_effort'], isNull);
-        expect(jsonEncode(chatRequest.body['messages']), contains('「first-turn」'));
+        expect(
+          jsonEncode(chatRequest.body['messages']),
+          contains('「first-turn」'),
+        );
         await switched.close();
         final sessions = Directory('${home.path}/.ondra/dsh/sessions')
-            .listSync(recursive: true).whereType<File>()
-            .where((file) => file.path.endsWith('.jsonl')).toList();
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.jsonl'))
+            .toList();
         expect(sessions, isNotEmpty);
         final history = sessions.map((file) => file.readAsStringSync()).join();
         expect(history, contains('「first-turn」'));
         expect(history, contains('「resume-turn」'));
         expect(history, contains('「switch-turn」'));
-        final updatedPatch = File('${home.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml').readAsStringSync();
+        final updatedPatch = File(
+          '${home.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml',
+        ).readAsStringSync();
         expect(updatedPatch, contains('"reasoningEfforts":false'));
         expect(updatedPatch, isNot(contains('replacement-test-secret')));
       } catch (_) {

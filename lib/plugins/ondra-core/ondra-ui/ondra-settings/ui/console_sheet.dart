@@ -442,6 +442,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
           action: const _ThemePicker(),
         ),
         _specRow('general.language'),
+        _specRow('general.fontFamily'),
         _specRow('general.fontSize', showDivider: false),
       ],
     ),
@@ -591,7 +592,8 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
             _Row(
               title: entries[i].$2.id,
               desc: _modelLine(entries[i].$1, entries[i].$2),
-              value: _providerState(entries[i].$1) == '密钥已配置' ||
+              value:
+                  _providerState(entries[i].$1) == '密钥已配置' ||
                       _providerState(entries[i].$1) == '本地' ||
                       _providerState(entries[i].$1) == '网关'
                   ? null
@@ -872,7 +874,6 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
       ],
     );
   }
-
 
   // ── 关于空谷（隐私 / 反馈已并入） ──────────────────────────────────────────
 
@@ -1412,7 +1413,6 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     final flat = text.replaceAll('\n', ' ');
     return flat.length <= max ? flat : '${flat.substring(0, max)}…';
   }
-
 
   /// 填写凭据。AppID 走偏好，密钥走钥匙串，两者校验规则不同：
   /// AppID 是纯数字，密钥是 32 位十六进制以上的串——但这里**不强制**，
@@ -3234,11 +3234,7 @@ class _AvatarEditorState extends State<_AvatarEditor> {
     // 的是「点了没反应」，会以为是卡死。用户取消则一声不吭。
     if (!avatarStore.pickerSupported) {
       if (mounted) {
-        OndraToast.show(
-          context,
-          '这台系统还没有接入头像选择，换头像需要桌面版。',
-          ok: false,
-        );
+        OndraToast.show(context, '这台系统还没有接入头像选择，换头像需要桌面版。', ok: false);
       }
       return;
     }

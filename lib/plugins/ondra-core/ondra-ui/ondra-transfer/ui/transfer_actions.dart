@@ -11,8 +11,10 @@ import 'transfer_model.dart';
 
 typedef TransferLoader = Future<TransferSnapshot> Function();
 
-typedef TransferExportMemory =
-    Future<TransferResult> Function(String dir, TransferFormat format);
+typedef TransferExportMemory = Future<TransferResult> Function(
+  String dir,
+  TransferFormat format,
+);
 
 typedef TransferExportBundle = Future<TransferResult> Function(String dir);
 
@@ -22,25 +24,22 @@ typedef TransferImport = Future<TransferResult> Function(String path);
 
 typedef TransferPickDirectory = Future<String?> Function(String prompt);
 
-typedef TransferPickFile =
-    Future<String?> Function(String prompt, List<String> extensions);
+typedef TransferPickFile = Future<String?> Function(
+  String prompt,
+  List<String> extensions,
+);
 
 typedef TransferReveal = Future<TransferResult> Function(String path);
 
 TransferLoader transferLoader = transferEngine.load;
-TransferExportMemory transferExportMemory = (dir, format) => dataMaintenance.run(
-  () => transferEngine.exportMemory(dir, format),
-);
-TransferExportBundle transferExportBundle = (dir) => dataMaintenance.run(
-  () => transferEngine.exportBundle(dir),
-);
-TransferExportArchive transferExportArchive = (dir) => dataMaintenance.run(
-  () => transferEngine.exportArchive(dir),
-);
-TransferImport transferImport = (path) => dataMaintenance.run(
-  () => transferEngine.importPath(path),
-  refresh: true,
-);
+TransferExportMemory transferExportMemory = (dir, format) =>
+    dataMaintenance.run(() => transferEngine.exportMemory(dir, format));
+TransferExportBundle transferExportBundle = (dir) =>
+    dataMaintenance.run(() => transferEngine.exportBundle(dir));
+TransferExportArchive transferExportArchive = (dir) =>
+    dataMaintenance.run(() => transferEngine.exportArchive(dir));
+TransferImport transferImport = (path) =>
+    dataMaintenance.run(() => transferEngine.importPath(path), refresh: true);
 TransferPickDirectory transferPickDirectory = transferEngine.pickDirectory;
 TransferPickFile transferPickFile = transferEngine.pickFile;
 TransferReveal transferReveal = transferEngine.reveal;

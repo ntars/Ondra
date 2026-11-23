@@ -41,11 +41,7 @@ class OndraStarField extends StatelessWidget {
 }
 
 class _StarPainter extends CustomPainter {
-  _StarPainter({
-    required this.parallax,
-    required this.seed,
-    required this.dim,
-  });
+  _StarPainter({required this.parallax, required this.seed, required this.dim});
 
   final double parallax;
   final int seed;
@@ -70,7 +66,11 @@ class _StarPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [TimelinePalette.voidTop, TimelinePalette.voidMid, TimelinePalette.voidBottom],
+          colors: [
+            TimelinePalette.voidTop,
+            TimelinePalette.voidMid,
+            TimelinePalette.voidBottom,
+          ],
           stops: [0, 0.55, 1],
         ).createShader(rect),
     );

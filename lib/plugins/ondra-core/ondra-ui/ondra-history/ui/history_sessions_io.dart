@@ -66,7 +66,7 @@ Future<SessionSummary?> _readOne(File file) async {
         if (entry.role != 'user') continue;
         messages++;
         if (title.isEmpty) {
-          title = entry.text.isEmpty ? '[图片]' : _tidy(entry.text);
+          title = _tidy(entry.displayText);
         }
       }
     }
@@ -158,7 +158,8 @@ class _MessageReader {
   void _noteTime(Map event, Map message) {
     final raw = message['createdAt'] ?? message['timestamp'] ?? event['time'];
     final time = _timeOf(raw);
-    if (time != null && (lastMessageAt == null || time.isAfter(lastMessageAt!))) {
+    if (time != null &&
+        (lastMessageAt == null || time.isAfter(lastMessageAt!))) {
       lastMessageAt = time;
     }
   }
@@ -171,12 +172,13 @@ class _MessageReader {
       return null;
     }
     final text = _contentTextOf(message['content']);
-    if (text.trim().isEmpty) return null;
+    final hasImage = _contentHasImage(message['content']);
+    if (text.trim().isEmpty && !hasImage) return null;
     final id = message['id'];
     if (id is String && id.isNotEmpty && !_seenIds.add((role, id))) {
       return null;
     }
-    return HistoryEntry(role: role, text: text);
+    return HistoryEntry(role: role, text: text, hasImage: hasImage);
   }
 }
 
@@ -225,7 +227,7 @@ Future<List<HistoryEntry>> readSessionMessages(
   return out;
 }
 
-/// content 是字符串直接用；是块列表就拼出 text 段（图片块没有正文可拼）。
+/// content 是字符串直接用；是块列表就拼出 text 段。
 String _contentTextOf(Object? content) {
   if (content is String) return content;
   if (content is List) {
@@ -238,6 +240,18 @@ String _contentTextOf(Object? content) {
     return buf.toString();
   }
   return '';
+}
+
+/// 图片块本身没有可读正文，但它让「纯图片消息」仍然是一条真实消息。
+bool _contentHasImage(Object? content) {
+  if (content is! List) return false;
+  for (final part in content) {
+    if (part is Map &&
+        (part['type'] == 'image' || part['type'] == 'image_url')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// 按 id 找会话文件。逐层扫目录与 [readSessions] 同一个口径；

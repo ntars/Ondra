@@ -178,9 +178,10 @@ void main() {
       'general.notify',
       'general.notifySound',
       'about.channel',
-      // 语言与字号：落点是界面自身（载入哪份语言包 / 会话正文的排版系数）。
+      // 语言、字体与字号：落点是界面自身。
       // 它们不进 settings.json，但拨了立刻看得见——不算「只影响界面」。
       'general.language',
+      'general.fontFamily',
       'general.fontSize',
     ]) {
       expect(
@@ -318,6 +319,7 @@ void main() {
       'tts': {
         'enable',
         'provider',
+        'sapi-voice',
         'preset',
         'voice',
         'rate',

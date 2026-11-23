@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/app/bundled_runtime.dart';
 import 'package:ondra/app/runtime_seed.dart';
@@ -21,10 +23,16 @@ void main() {
       }
       final r = runtime!;
 
-      expect(File(r.nodePath).existsSync(), isTrue,
-          reason: 'node 应存在于 ${r.nodePath}');
-      expect(File(r.dshEntry).existsSync(), isTrue,
-          reason: 'dsh 入口应存在于 ${r.dshEntry}');
+      expect(
+        File(r.nodePath).existsSync(),
+        isTrue,
+        reason: 'node 应存在于 ${r.nodePath}',
+      );
+      expect(
+        File(r.dshEntry).existsSync(),
+        isTrue,
+        reason: 'dsh 入口应存在于 ${r.dshEntry}',
+      );
       expect(r.dshEntry, endsWith('${Platform.pathSeparator}bin.js'));
 
       // 三者必须同源：混用「包里的 node + 系统装的 dsh」是没法排障的状态。
@@ -38,10 +46,16 @@ void main() {
       }
       final r = runtime!;
 
-      expect(r.rootDir, contains('${Platform.operatingSystem}-'),
-          reason: '目录名要与 uname 对齐（macos-arm64 / linux-x64 …）');
-      expect(r.rootDir, isNot(contains('..')),
-          reason: '路径里的 ../ 会让错误提示看起来像拼接出错');
+      expect(
+        r.rootDir,
+        contains('${Platform.operatingSystem}-'),
+        reason: '目录名要与 uname 对齐（macos-arm64 / linux-x64 …）',
+      );
+      expect(
+        r.rootDir,
+        isNot(contains('..')),
+        reason: '路径里的 ../ 会让错误提示看起来像拼接出错',
+      );
       expect(r.rootDir, isNot(contains('//')));
     });
 
@@ -91,18 +105,24 @@ void main() {
     test('再调一次不再复制（幂等）', () {
       if (runtime == null) markTestSkipped('没有 runtime/ 产物');
 
-      expect(seedRuntimeProfile(dshHome: tempHome.path).outcome,
-          RuntimeSeedOutcome.seeded);
-      expect(seedRuntimeProfile(dshHome: tempHome.path).outcome,
-          RuntimeSeedOutcome.alreadyPresent);
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.alreadyPresent,
+      );
     });
 
     test('用户已有安装时不覆盖——插件更新不能被包里的旧快照吞掉', () {
       if (runtime == null) markTestSkipped('没有 runtime/ 产物');
 
       // 先铺一份
-      expect(seedRuntimeProfile(dshHome: tempHome.path).outcome,
-          RuntimeSeedOutcome.seeded);
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
 
       // 模拟「用户自己更新过插件」：改掉一个文件
       final marker = File(
@@ -113,8 +133,57 @@ void main() {
       final again = seedRuntimeProfile(dshHome: tempHome.path);
 
       expect(again.outcome, RuntimeSeedOutcome.alreadyPresent);
-      expect(marker.readAsStringSync(), '# 用户自己的版本\n',
-          reason: '目标是「用户装的那份优先」，不是「包里那份优先」');
+      expect(
+        marker.readAsStringSync(),
+        '# 用户自己的版本\n',
+        reason: '目标是「用户装的那份优先」，不是「包里那份优先」',
+      );
+    });
+
+    test('用户改过的文件保留，未被改动的随包旧文件会被新快照升级', () {
+      if (runtime == null) markTestSkipped('没有 runtime/ 产物');
+
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
+      final installed = File(
+        '${tempHome.path}/profiles/$ondraRuntimeProfileName/package.json',
+      );
+      final generated = File('${runtime!.profileDir}/package.json');
+      // 模拟旧发行包留下的、用户没改过的同名文件。
+      installed.writeAsStringSync('{"old":true}\n');
+      final target = '${tempHome.path}/profiles/$ondraRuntimeProfileName';
+      final manifestFile = File('$target/.ondra-seed.json');
+      final manifest =
+          jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+      (manifest['files'] as Map<String, dynamic>)['package.json'] = sha256
+          .convert(installed.readAsBytesSync())
+          .toString();
+      manifestFile.writeAsStringSync(jsonEncode(manifest));
+      // 用户手改过的另一个文件必须保留。
+      final userFile = File(
+        '${tempHome.path}/profiles/$ondraRuntimeProfileName/cordis.yml',
+      )..writeAsStringSync('# user override\n');
+
+      final result = seedRuntimeProfile(dshHome: tempHome.path);
+
+      expect(result.outcome, RuntimeSeedOutcome.seeded);
+      expect(
+        installed.readAsStringSync(),
+        generated.readAsStringSync(),
+        reason: '仍与上次随包种子一致的文件应被新版替换',
+      );
+      expect(userFile.readAsStringSync(), '# user override\n');
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.alreadyPresent,
+      );
+      expect(
+        userFile.readAsStringSync(),
+        '# user override\n',
+        reason: '升级其他文件不能把用户改过的文件重新记成随包所有',
+      );
     });
   });
 }

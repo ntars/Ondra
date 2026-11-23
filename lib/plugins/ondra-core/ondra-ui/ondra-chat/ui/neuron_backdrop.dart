@@ -43,11 +43,7 @@ class OndraNeuronBackdrop extends StatelessWidget {
 }
 
 class _NeuronPainter extends CustomPainter {
-  _NeuronPainter({
-    required this.line,
-    required this.node,
-    required this.seed,
-  });
+  _NeuronPainter({required this.line, required this.node, required this.seed});
 
   final Color line;
   final Color node;

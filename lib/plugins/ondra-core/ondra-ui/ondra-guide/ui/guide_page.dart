@@ -102,13 +102,10 @@ class _TopicRowState extends State<_TopicRow> {
                     width: 20,
                     child: Text(
                       '${widget.index + 1}',
-                      style: ondraText(
-                        12,
-                        color: s.ink25,
-                        height: 18 / 12,
-                      ).copyWith(
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                      style: ondraText(12, color: s.ink25, height: 18 / 12)
+                          .copyWith(
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                     ),
                   ),
                   Expanded(
@@ -140,7 +137,11 @@ class _TopicRowState extends State<_TopicRow> {
                 alignment: Alignment.topCenter,
                 child: widget.open
                     ? Padding(
-                        padding: const EdgeInsets.only(left: 20, top: 6, right: 24),
+                        padding: const EdgeInsets.only(
+                          left: 20,
+                          top: 6,
+                          right: 24,
+                        ),
                         child: Text(
                           t.body,
                           style: ondraText(12, color: s.ink60, height: 19 / 12),
@@ -164,32 +165,38 @@ class _Topic {
 }
 
 /// 桌面讲三栏，手机讲单列+抽屉——同一页两套文案，按形态取。
-List<_Topic> get _currentTopics => ondraIsMobile ? _topicsMobile : _topicsDesktop;
+List<_Topic> get _currentTopics =>
+    ondraIsMobile ? _topicsMobile : _topicsDesktop;
 
 const List<_Topic> _topicsDesktop = [
   _Topic(
     title: '三栏分别是什么',
-    body: '左栏是目录与入口，中栏是当前这一项的内容，右栏是跟 TA 说话的地方。'
+    body:
+        '左栏是目录与入口，中栏是当前这一项的内容，右栏是跟 TA 说话的地方。'
         '右栏可以随时折叠，折叠后中栏会变宽；左栏收起时，左上角会出现一颗圆角按钮把它拉回来。',
   ),
   _Topic(
     title: '怎么开始一次对话',
-    body: '直接在右栏底部输入，回车发送。对话与「记忆」是两件事：聊天记录留在历史对话里，'
+    body:
+        '直接在右栏底部输入，回车发送。对话与「记忆」是两件事：聊天记录留在历史对话里，'
         '值得长期记住的东西才会沉成记忆点。',
   ),
   _Topic(
     title: '记忆是怎么形成的',
-    body: '你说过的偏好、定下来的事，会被写成记忆点；反复出现的做法会沉成偏好。'
+    body:
+        '你说过的偏好、定下来的事，会被写成记忆点；反复出现的做法会沉成偏好。'
         '记忆星图把它们画成一张网，越常一起出现的东西，连线越粗。',
   ),
   _Topic(
     title: '插件决定 TA 能做什么',
-    body: '插件是空谷的手：读网页、看日历、检索文件，都要靠插件。'
+    body:
+        '插件是空谷的手：读网页、看日历、检索文件，都要靠插件。'
         '权限逐项授予，关掉一个插件不会影响已经产生的对话与记忆。',
   ),
   _Topic(
     title: '数据在谁手里',
-    body: '全部在本机。对话框里的每次调用、每条记忆、每份备份都只写本地磁盘；'
+    body:
+        '全部在本机。对话框里的每次调用、每条记忆、每份备份都只写本地磁盘；'
         '导入导出走明文，你可以随时把一切带走。',
   ),
 ];
@@ -198,12 +205,14 @@ const List<_Topic> _topicsDesktop = [
 const List<_Topic> _topicsMobile = [
   _Topic(
     title: '界面长什么样',
-    body: '跟 TA 说话的对话是主界面；左上角的按钮打开抽屉，里面是状态面板、'
+    body:
+        '跟 TA 说话的对话是主界面；左上角的按钮打开抽屉，里面是状态面板、'
         '记忆星图、备份这些功能页——选一项就会盖住对话，用页面左上角的返回键回来。',
   ),
   _Topic(
     title: '怎么开始一次对话',
-    body: '直接在底部输入框打字，回车发送。对话与「记忆」是两件事：聊天记录留在历史对话里，'
+    body:
+        '直接在底部输入框打字，回车发送。对话与「记忆」是两件事：聊天记录留在历史对话里，'
         '值得长期记住的东西才会沉成记忆点。',
   ),
 ];

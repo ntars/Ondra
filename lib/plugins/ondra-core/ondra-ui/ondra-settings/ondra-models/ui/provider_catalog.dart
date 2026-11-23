@@ -26,7 +26,11 @@ const List<OndraProviderPreset> officialPresets = [
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     models: [
       OndraModelPreset('deepseek-chat', contextWindow: '128K', maxTokens: '8K'),
-      OndraModelPreset('deepseek-reasoner', contextWindow: '128K', maxTokens: '64K'),
+      OndraModelPreset(
+        'deepseek-reasoner',
+        contextWindow: '128K',
+        maxTokens: '64K',
+      ),
     ],
     note: '官方直连，按 token 计费',
   ),
@@ -37,8 +41,18 @@ const List<OndraProviderPreset> officialPresets = [
     baseUrl: 'https://api.openai.com/v1',
     apiKeyEnv: 'OPENAI_API_KEY',
     models: [
-      OndraModelPreset('gpt-4o', contextWindow: '128K', maxTokens: '16K', image: true),
-      OndraModelPreset('gpt-4o-mini', contextWindow: '128K', maxTokens: '16K', image: true),
+      OndraModelPreset(
+        'gpt-4o',
+        contextWindow: '128K',
+        maxTokens: '16K',
+        image: true,
+      ),
+      OndraModelPreset(
+        'gpt-4o-mini',
+        contextWindow: '128K',
+        maxTokens: '16K',
+        image: true,
+      ),
     ],
     note: '官方直连',
   ),
@@ -49,7 +63,12 @@ const List<OndraProviderPreset> officialPresets = [
     baseUrl: 'https://api.anthropic.com',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     models: [
-      OndraModelPreset('claude-sonnet-4', contextWindow: '200K', maxTokens: '32K', image: true),
+      OndraModelPreset(
+        'claude-sonnet-4',
+        contextWindow: '200K',
+        maxTokens: '32K',
+        image: true,
+      ),
     ],
     note: '走 Anthropic Messages 协议',
   ),
@@ -83,7 +102,12 @@ const List<OndraProviderPreset> officialPresets = [
     apiKeyEnv: 'DASHSCOPE_API_KEY',
     models: [
       OndraModelPreset('qwen-plus', contextWindow: '128K', maxTokens: '8K'),
-      OndraModelPreset('qwen-vl-max', contextWindow: '32K', maxTokens: '4K', image: true),
+      OndraModelPreset(
+        'qwen-vl-max',
+        contextWindow: '32K',
+        maxTokens: '4K',
+        image: true,
+      ),
     ],
     note: '走 DashScope 的兼容模式',
   ),
@@ -174,11 +198,12 @@ const List<OndraProviderPreset> gatewayPresets = [
 ];
 
 /// 某一类下的预设。自定义 API 没有预设——它的「预设」就是那张空表单。
-List<OndraProviderPreset> presetsOf(ProviderCategory category) => switch (category) {
-  ProviderCategory.official => officialPresets,
-  ProviderCategory.partner => beichenPresets,
-  ProviderCategory.free => freePresets,
-  ProviderCategory.local => localPresets,
-  ProviderCategory.gateway => gatewayPresets,
-  ProviderCategory.custom => const [],
-};
+List<OndraProviderPreset> presetsOf(ProviderCategory category) =>
+    switch (category) {
+      ProviderCategory.official => officialPresets,
+      ProviderCategory.partner => beichenPresets,
+      ProviderCategory.free => freePresets,
+      ProviderCategory.local => localPresets,
+      ProviderCategory.gateway => gatewayPresets,
+      ProviderCategory.custom => const [],
+    };

@@ -122,9 +122,8 @@ class OndraRegistry {
         .toList(growable: false);
   }
 
-  static List<OndraModule> byGroup(OndraGroup group) => available
-      .where((m) => m.group == group)
-      .toList(growable: false);
+  static List<OndraModule> byGroup(OndraGroup group) =>
+      available.where((m) => m.group == group).toList(growable: false);
 
   static OndraModule? byId(String id) {
     for (final m in available) {

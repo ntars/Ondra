@@ -14,8 +14,10 @@
 - 安卓 nativeLibraryDir：`lib/app/android_native.dart` + `MainActivity.kt`
 
 voice 插件注释里说的「发声交给 ondra-flutter」指的是这个预留位——
-在 TTS 执行端落到 Flutter 平台通道之前，内核侧由旧拆分件 ondra-tts 的
-macOS `say` 路径承担（见 profile 种子里的 cordis-plugin-ondra-tts）。
+在 TTS 执行端落到 Flutter 平台通道之前，内核侧由旧拆分件 ondra-tts 承担
+（见 profile 种子里的 cordis-plugin-ondra-tts）：macOS 用系统 `say`，
+Windows 用系统 SAPI（PowerShell 调 .NET `System.Speech`，无额外 CLI），
+另有可选的本机 GPT-SoVITS 与 Edge TTS。合成总开关默认关闭，与界面一致。
 
 谁要往这里放代码：先删掉这段说明，补 plugin.json 的 `provides`，
 然后在 profile（`plugin-profile/cordis.patch.yml`）点名。

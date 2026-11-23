@@ -61,7 +61,7 @@ final Map<String, List<OndraSettingTarget>> ondraSettingTargets = {
   // 而用户完全不会把这件事和「界面语言」联系起来。
   //
   // 语音识别语言现在单独一项（`voice.asrLanguage`），两者互不影响。
-  // 字号只影响界面，没有内核字段——它不在表里，界面据此标注。
+  // 字号与字体只影响界面，没有内核字段——它们不在表里，由界面自身接线。
 
   // ── 对话 ────────────────────────────────────────────────────────────────
   // 「允许空谷记住」= 要不要把对话里的东西提炼成记忆点。内核里这件事是
@@ -224,6 +224,7 @@ const Set<String> _platformWiredKeys = {
   // 立刻看得见变化——不在这里算上，界面会在它们下面写「只影响界面」。
   'general.language',
   'general.fontSize',
+  'general.fontFamily',
   'dialog.busySend',
   'dialog.enterSend',
   'logs.usageDetail',

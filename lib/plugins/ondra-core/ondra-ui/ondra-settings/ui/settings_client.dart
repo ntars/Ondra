@@ -4,6 +4,8 @@ import '../../../../../app/i18n.dart';
 import '../../../../../app/notifier.dart';
 import '../../../../../app/platform_actions.dart';
 import '../../../../../app/prefs.dart';
+import '../../../../../design/tokens.dart';
+import 'profile_config.dart';
 import './settings_spec.dart';
 import './settings_targets.dart';
 
@@ -71,7 +73,8 @@ class SettingsClient extends ChangeNotifier {
 
   void _runStartupSync() {
     for (final spec in ondraSettingSpecs) {
-      if (spec.key == 'general.launchAtLogin' || _errors.containsKey(spec.key)) {
+      if (spec.key == 'general.launchAtLogin' ||
+          _errors.containsKey(spec.key)) {
         continue;
       }
       // 同第 15 项：只推用户真实改过的项。
@@ -83,6 +86,7 @@ class SettingsClient extends ChangeNotifier {
     }
     _notify();
   }
+
   bool get applying => _states.containsValue(SettingApplyState.applying);
   String? errorFor(String key) => _errors[key];
   SettingApplyState stateOf(String key) =>
@@ -96,16 +100,23 @@ class SettingsClient extends ChangeNotifier {
   void load() {
     if (_loaded || _disposed) return;
     _loaded = true;
+    // 文件里没存、或存了非法值时都回默认，不能把上一进程/上一次重载的
+    // 字体状态留在全局排版里。
+    setOndraFontChoice('misans');
     for (final spec in ondraSettingSpecs) {
       final raw = readPref('$_prefix${spec.key}');
       if (raw.isEmpty) continue;
       final parsed = _decode(spec, raw);
       if (_valid(spec, parsed)) {
         _values[spec.key] = parsed;
+        if (spec.key == 'general.fontFamily') {
+          setOndraFontChoice(parsed as String);
+        }
       } else {
         _fail(spec.key, '已存设置取值无效，未应用');
       }
     }
+    _alignLegacyKernelDefaults();
     for (final spec in ondraSettingSpecs) {
       if (spec.key == 'general.launchAtLogin' ||
           _errors.containsKey(spec.key)) {
@@ -128,6 +139,26 @@ class SettingsClient extends ChangeNotifier {
     }
     _restoreAutoLaunch();
     _notify();
+  }
+
+  /// 旧版随包 profile 的 TTS 出厂默认是开，而界面这一版默认关闭。
+  /// 只对齐「用户从未保存过该偏好、profile 也仍是 true」的组合：用户
+  /// 自己写过的配置优先，不在这里覆盖。
+  ///
+  /// 当前 profile 出厂值已经改成 false；这段迁移仍要留着——覆盖升级时，
+  /// 用户目录里的旧 `cordis.patch.yml` 不会被新包替换，那里仍写着 true。
+  /// 写入后下一次内核启动按界面默认关闭。
+  void _alignLegacyKernelDefaults() {
+    const key = 'voice.tts';
+    if (readPref('$_prefix$key').isNotEmpty) return;
+    if (readProfileConfigField('tts', 'enable') != 'true') return;
+    final result = writeProfileConfigFieldResult('tts', 'enable', false);
+    if (!result.ok) return;
+    _values[key] = false;
+    _states[key] = result.changed
+        ? SettingApplyState.restartRequired
+        : SettingApplyState.applied;
+    if (result.changed) _restart.add(key);
   }
 
   Future<void> reloadFromDisk() async {
@@ -272,6 +303,9 @@ class SettingsClient extends ChangeNotifier {
           : SettingApplyState.applied;
     } else {
       _success(key, value);
+    }
+    if (key == 'general.fontFamily') {
+      setOndraFontChoice('$value');
     }
     return Future.value(true);
   }

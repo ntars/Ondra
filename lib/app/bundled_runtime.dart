@@ -17,4 +17,5 @@
 /// 而不是打出一个双击后连不上内核的安装包。
 library;
 
-export 'bundled_runtime_stub.dart' if (dart.library.io) 'bundled_runtime_io.dart';
+export 'bundled_runtime_stub.dart'
+    if (dart.library.io) 'bundled_runtime_io.dart';

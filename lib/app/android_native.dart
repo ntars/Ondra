@@ -6,5 +6,4 @@
 /// `nativeLibraryDir` 只有原生侧（ApplicationInfo）知道，所以要一条通道。
 library;
 
-export 'android_native_stub.dart'
-    if (dart.library.io) 'android_native_io.dart';
+export 'android_native_stub.dart' if (dart.library.io) 'android_native_io.dart';

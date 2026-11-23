@@ -41,7 +41,10 @@ void main() {
     PlatformActions.probe = const PlatformActionsProbe();
   });
 
-  Future<void> pumpMobile(WidgetTester tester, {Size size = const Size(393, 852)}) async {
+  Future<void> pumpMobile(
+    WidgetTester tester, {
+    Size size = const Size(393, 852),
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -155,10 +158,6 @@ void main() {
     final back = find.byTooltip('返回对话');
     expect(back, findsOneWidget);
     final center = tester.getCenter(back);
-    expect(
-      center.dy,
-      greaterThan(59),
-      reason: '返回键被状态栏压住了（dy=${center.dy}）',
-    );
+    expect(center.dy, greaterThan(59), reason: '返回键被状态栏压住了（dy=${center.dy}）');
   }, variant: mobileFormFactor);
 }

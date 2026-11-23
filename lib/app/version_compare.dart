@@ -42,7 +42,11 @@ int versionCompare(String a, String b) {
       i < parts.length ? (int.tryParse(parts[i]) ?? 0) : 0,
   ];
   final m = pre == null ? null : RegExp(r'(\d+)$').firstMatch(pre);
-  return (numbers: numbers, pre: pre, preNum: m == null ? null : int.parse(m[1]!));
+  return (
+    numbers: numbers,
+    pre: pre,
+    preNum: m == null ? null : int.parse(m[1]!),
+  );
 }
 
 int _preRank(String pre) {

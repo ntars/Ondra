@@ -37,11 +37,7 @@ class OndraToast {
 
   static OverlayEntry? _current;
 
-  static void show(
-    BuildContext context,
-    String text, {
-    bool ok = true,
-  }) {
+  static void show(BuildContext context, String text, {bool ok = true}) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
     _current?.remove();
@@ -115,7 +111,9 @@ class _ToastLayerState extends State<_ToastLayer> {
               constraints: const BoxConstraints(maxWidth: 520),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
               decoration: BoxDecoration(
-                color: s.dark ? const Color(0xFF2A2E36) : const Color(0xFF1C1F28),
+                color: s.dark
+                    ? const Color(0xFF2A2E36)
+                    : const Color(0xFF1C1F28),
                 borderRadius: BorderRadius.circular(OndraRadius.pill),
                 boxShadow: const [
                   BoxShadow(
@@ -260,7 +258,10 @@ class OndraDialog extends StatelessWidget {
                       style: ondraText(12.5, color: s.ink60, height: 19 / 12.5),
                     ),
                   ],
-                  if (content != null) ...[const SizedBox(height: 14), content!],
+                  if (content != null) ...[
+                    const SizedBox(height: 14),
+                    content!,
+                  ],
                 ],
               ),
             ),
@@ -305,10 +306,7 @@ class _DialogLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _DialogScope(
-      close: onDone,
-      child: _buildStack(context),
-    );
+    return _DialogScope(close: onDone, child: _buildStack(context));
   }
 
   Widget _buildStack(BuildContext context) {

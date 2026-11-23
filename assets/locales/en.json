@@ -81,7 +81,7 @@
   "允许读取屏幕": "Allow reading the screen",
   "插件需要时才能截取当前窗口": "Plugins may capture the current window when needed",
   "日志脱敏": "Redact logs",
-  "写日志前去掉路径、邮箱、密钥等敏感片段": "Strip paths, emails and keys before writing logs",
+  "写日志前去掉邮箱和密钥；用户目录路径始终匿名化": "Strip emails and keys before writing logs; user home paths are always anonymized",
   "API Key 存放": "API key storage",
   "密钥只进系统钥匙串，不写进任何配置文件": "Keys go only into the system keychain, never into config files",
   "系统钥匙串": "System keychain",

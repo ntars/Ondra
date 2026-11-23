@@ -114,7 +114,7 @@ Future<StatusSnapshot> loadStatus({
         : _queryErrors.isEmpty
         ? ''
         : '数据库读取异常（以下读数可能不是真实数据）：'
-            '${_queryErrors.take(3).join('；')}',
+              '${_queryErrors.take(3).join('；')}',
     sessions: sessions,
     plugins: plugins,
     dbBytes: _fileSize(db.path) + _fileSize('${db.path}-wal'),

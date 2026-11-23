@@ -101,7 +101,9 @@ class _ShellState extends State<_Shell> {
     final s = OndraSkin.of(context);
     final module =
         OndraRegistry.byId(st.activeId) ??
-        (OndraRegistry.available.isEmpty ? null : OndraRegistry.available.first);
+        (OndraRegistry.available.isEmpty
+            ? null
+            : OndraRegistry.available.first);
     final page = module == null
         ? const _NoModuleView()
         : KeyedSubtree(
@@ -133,7 +135,9 @@ class _ShellState extends State<_Shell> {
       color: ondraHasNativeGlass ? Colors.transparent : s.shell,
       child: Stack(
         children: [
-          widget.compact ? _CompactBody(page: content) : _WideBody(page: content),
+          widget.compact
+              ? _CompactBody(page: content)
+              : _WideBody(page: content),
           if (st.settingsOpen)
             Positioned.fill(
               child: ConsoleSheet(
@@ -148,9 +152,7 @@ class _ShellState extends State<_Shell> {
           // 用 State 而不是 Navigator——退出是「回到刚才那一页」，不是「返回」。
           if (st.timelineOpen)
             Positioned.fill(
-              child: TimelineStage(
-                onClose: () => st.timelineOpen = false,
-              ),
+              child: TimelineStage(onClose: () => st.timelineOpen = false),
             ),
         ],
       ),
@@ -366,9 +368,10 @@ class _WideSplit extends StatelessWidget {
     // 沉浸才不是「一张 280 宽的图被拉大」。
     final railLayout = math.max(rail, OndraAmbientRail.width);
     // 沉浸程度：0 = 第三栏，1 = 整页。只喂给分界线与神经元底纹。
-    final focusAmount = ((rail - OndraAmbientRail.width) /
-            math.max(paperWidth - OndraAmbientRail.width, 1.0))
-        .clamp(0.0, 1.0);
+    final focusAmount =
+        ((rail - OndraAmbientRail.width) /
+                math.max(paperWidth - OndraAmbientRail.width, 1.0))
+            .clamp(0.0, 1.0);
 
     return Stack(
       children: [
@@ -526,26 +529,29 @@ class _MobileBody extends StatelessWidget {
     final lightShell = s.shell.computeLuminance() > 0.5;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        statusBarIconBrightness: lightShell ? Brightness.dark : Brightness.light,
+        statusBarIconBrightness: lightShell
+            ? Brightness.dark
+            : Brightness.light,
         statusBarBrightness: lightShell ? Brightness.light : Brightness.dark,
-        systemNavigationBarIconBrightness:
-            lightShell ? Brightness.dark : Brightness.light,
+        systemNavigationBarIconBrightness: lightShell
+            ? Brightness.dark
+            : Brightness.light,
       ),
       child: PopScope<Object?>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (st.timelineOpen) {
-          st.timelineOpen = false;
-        } else if (st.settingsOpen) {
-          st.settingsPane = null;
-          st.settingsOpen = false;
-        } else if (st.mobilePageOpen) {
-          st.closeMobilePage();
-        } else if (st.sidebarOpen) {
-          st.sidebarOpen = false;
-        }
-      },
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (st.timelineOpen) {
+            st.timelineOpen = false;
+          } else if (st.settingsOpen) {
+            st.settingsPane = null;
+            st.settingsOpen = false;
+          } else if (st.mobilePageOpen) {
+            st.closeMobilePage();
+          } else if (st.sidebarOpen) {
+            st.sidebarOpen = false;
+          }
+        },
         child: _MobileBodyInner(st: st, s: s),
       ),
     );
@@ -560,9 +566,11 @@ class _MobileBodyInner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
-    final module = OndraRegistry.byId(st.activeId) ??
-        (OndraRegistry.available.isEmpty ? null : OndraRegistry.available.first);
+    final module =
+        OndraRegistry.byId(st.activeId) ??
+        (OndraRegistry.available.isEmpty
+            ? null
+            : OndraRegistry.available.first);
     final page = module == null
         ? const _NoModuleView()
         : KeyedSubtree(
@@ -623,7 +631,8 @@ class _MobileBodyInner extends StatelessWidget {
             ),
 
           // 第三层：侧边抽屉。导航就是桌面那条左栏，宽度按屏宽收窄。
-          if (st.sidebarOpen) _MobileDrawer(topInset: top, onClose: () => st.sidebarOpen = false),
+          if (st.sidebarOpen)
+            _MobileDrawer(topInset: top, onClose: () => st.sidebarOpen = false),
 
           // 抽屉入口。功能页盖着时用页面自己的返回键，这里就不再画一颗，
           // 否则左上角会出现两个按钮，一个返回聊天、一个开抽屉，含义打架。
@@ -661,8 +670,8 @@ class _MobileBodyInner extends StatelessWidget {
               ),
             ),
         ],
-      ),  // Stack
-    );  // ColoredBox（壳底色）
+      ), // Stack
+    ); // ColoredBox（壳底色）
   }
 }
 
@@ -702,7 +711,9 @@ class _MobilePageLayer extends StatelessWidget {
                   child: Text(
                     OndraI18nScope.translate(
                       context,
-                      OndraRegistry.byId(ShellScope.of(context).activeId)?.label ?? '',
+                      OndraRegistry.byId(ShellScope.of(context).activeId)
+                              ?.label ??
+                          '',
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -831,7 +842,9 @@ class _CompactBody extends StatelessWidget {
     return Stack(
       children: [
         // 紧凑形态同样落在纸上：纸的 4px 缝是整窗的层，不该因为窄窗口就消失。
-        Positioned.fill(child: _Paper(child: ClipRect(child: page))),
+        Positioned.fill(
+          child: _Paper(child: ClipRect(child: page)),
+        ),
         // 紧凑形态下两颗浮键都放在左上角一行里：右栏是聊天窗口，永远在场，
         // 它的入口不能跟着页面有无助手声明时隐时现。
         if (!st.sidebarOpen || !st.railOpen)

@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../plugins/ondra-core/ondra-ui/ui/registry.dart';
 import '../plugins/ondra-core/ondra-ui/ui/shell_state.dart';
+import '../plugins/ondra-core/ondra-ui/ondra-settings/ui/settings_client.dart';
 import '../design/avatar.dart';
 import '../design/form_factor.dart';
 import '../design/theme.dart';
@@ -42,22 +43,19 @@ String _debugInitialId() {
   return OndraRegistry.initialId;
 }
 
-bool _debugSettings() =>
-    kIsWeb && Uri.base.queryParameters['settings'] == '1';
+bool _debugSettings() => kIsWeb && Uri.base.queryParameters['settings'] == '1';
 
 /// 调试入口：`?timeline=1` 直接推开时间线。
 ///
 /// 这一屏要用真实快照才看得出排版，而它藏在「备份还原 → 进入时间线」两步
 /// 之后；核对版式时不该每次都点两下。
-bool _debugTimeline() =>
-    kIsWeb && Uri.base.queryParameters['timeline'] == '1';
+bool _debugTimeline() => kIsWeb && Uri.base.queryParameters['timeline'] == '1';
 
 /// 调试入口：`?boot=hold` 让启动屏停住不切主壳，用来核对这一屏的排版。
 ///
 /// 平时它只活 700ms，截图工具几乎不可能刚好抓到；留一个显式的「停住」开关，
 /// 比为了截图去改时长安全得多。
-bool _debugBootHold() =>
-    kIsWeb && Uri.base.queryParameters['boot'] == 'hold';
+bool _debugBootHold() => kIsWeb && Uri.base.queryParameters['boot'] == 'hold';
 
 /// 主题模式：用户的选择（启动时从偏好文件读回），`ONDRA_THEME` / `?theme=`
 /// 可在核对时临时覆盖，避免为了看一眼深色去改设置。
@@ -129,54 +127,66 @@ class _OndraAppState extends State<OndraApp> {
         // 不受中间 `const` 影响）。这里再监听一次是为了让应用根自己
         // 也重建，`MaterialApp` 的 `locale` 之类的参数能跟着更新。
         child: AnimatedBuilder(
-          animation: Listenable.merge([_state, OndraI18n.instance]),
+          animation: Listenable.merge([
+            _state,
+            OndraI18n.instance,
+            settingsClient,
+          ]),
           builder: (context, _) {
-          return MaterialApp(
-            title: ondraAppName,
-            debugShowCheckedModeBanner: false,
-            // 明暗跟系统走。皮肤的取值不靠「把浅色调暗」，而是
-            // `OndraSkin.darkSkin` 里那套独立的角色名（面层更深、字更浅）——
-            // 同一份代码在两种模式下读同一批角色，页面里不需要任何 if。
-            theme: ondraTheme(Brightness.light),
-            darkTheme: ondraTheme(Brightness.dark),
-            // 浅色 / 深色 / 跟随系统三选一，选过就记住（`~/.ondra/prefs.json`）。
-            themeMode: _themeMode(_state.themeMode),
-            // 亮度同步给两处：
-            // 1. 原生窗口——磨砂玻璃是 AppKit 画的，只认 NSAppearance，
-            //    不传这一下会出现「纸深、玻璃浅」的错层；
-            // 2. 排版光学层——深色下白字光渗会发胀，[ondraText] 要按亮度减细
-            //    字重。它必须在各页面 build 之前落定，所以同步点放在这里，
-            //    而不是每个页面各自判断 brightness。
-            builder: (context, child) {
-              final dark = Theme.of(context).brightness == Brightness.dark;
-              OndraOptics.sync(dark: dark);
-              applyWindowBrightness(dark: dark);
-              // 系统字号上限收到 1.3x：全站是写死的 fontSize + 大量固定
-              // 高度容器（侧栏项 32、日志时间列 58、用量条 26），2x 会有
-              // 成片的裁字与溢出。1.3 是「明显放大但仍放得下」的边界；
-              // 真正要做到 2x 无裁切需要整套布局改成自适应高度，单列。
-              final media = MediaQuery.of(context);
-              return MediaQuery(
-                data: media.copyWith(
-                  textScaler: media.textScaler.clamp(
-                    minScaleFactor: 1,
-                    maxScaleFactor: 1.3,
+            return MaterialApp(
+              title: ondraAppName,
+              debugShowCheckedModeBanner: false,
+              // 明暗跟系统走。皮肤的取值不靠「把浅色调暗」，而是
+              // `OndraSkin.darkSkin` 里那套独立的角色名（面层更深、字更浅）——
+              // 同一份代码在两种模式下读同一批角色，页面里不需要任何 if。
+              theme: ondraTheme(Brightness.light),
+              darkTheme: ondraTheme(Brightness.dark),
+              // 浅色 / 深色 / 跟随系统三选一，选过就记住（`~/.ondra/prefs.json`）。
+              themeMode: _themeMode(_state.themeMode),
+              // 亮度同步给两处：
+              // 1. 原生窗口——磨砂玻璃是 AppKit 画的，只认 NSAppearance，
+              //    不传这一下会出现「纸深、玻璃浅」的错层；
+              // 2. 排版光学层——深色下白字光渗会发胀，[ondraText] 要按亮度减细
+              //    字重。它必须在各页面 build 之前落定，所以同步点放在这里，
+              //    而不是每个页面各自判断 brightness。
+              builder: (context, child) {
+                final dark = Theme.of(context).brightness == Brightness.dark;
+                OndraOptics.sync(dark: dark);
+                applyWindowBrightness(dark: dark);
+                // 系统字号上限收到 1.3x：全站是写死的 fontSize + 大量固定
+                // 高度容器（侧栏项 32、日志时间列 58、用量条 26），2x 会有
+                // 成片的裁字与溢出。1.3 是「明显放大但仍放得下」的边界；
+                // 真正要做到 2x 无裁切需要整套布局改成自适应高度，单列。
+                final media = MediaQuery.of(context);
+                return MediaQuery(
+                  data: media.copyWith(
+                    textScaler: media.textScaler.clamp(
+                      minScaleFactor: 1,
+                      maxScaleFactor: 1.3,
+                    ),
                   ),
+                  child: child ?? const SizedBox.shrink(),
+                );
+              },
+              // 必须有一层 Material：否则 Text 会继承 WidgetsApp 的「错误文字样式」
+              // （红字 + 黄色双下划线），所有未显式声明 decoration 的文本都会被污染。
+              //
+              // 这一层是全 `const` 的，语言切换照样能穿透——因为译文的变化不走
+              // 「父传子」那条会被 `const` 短路的路径，而是由外层 `OndraI18nScope`
+              // 直接投递给每个读过译文的 element。见 `i18n.dart` 的说明。
+              // 字体是全局排版，不像语言可以逐条在 build 里读取。换字体时
+              // 用 key 让整棵树重新排版一次；壳层状态与聊天数据都在全局
+              // client 里，不会因重挂丢失。
+              home: KeyedSubtree(
+                key: ValueKey(
+                  'font-${settingsClient.choice('general.fontFamily')}',
                 ),
-                child: child ?? const SizedBox.shrink(),
-              );
-            },
-            // 必须有一层 Material：否则 Text 会继承 WidgetsApp 的「错误文字样式」
-            // （红字 + 黄色双下划线），所有未显式声明 decoration 的文本都会被污染。
-            //
-            // 这一层是全 `const` 的，语言切换照样能穿透——因为译文的变化不走
-            // 「父传子」那条会被 `const` 短路的路径，而是由外层 `OndraI18nScope`
-            // 直接投递给每个读过译文的 element。见 `i18n.dart` 的说明。
-            home: const Material(
-              type: MaterialType.transparency,
-              child: _BootGate(),
-            ),
-          );
+                child: const Material(
+                  type: MaterialType.transparency,
+                  child: _BootGate(),
+                ),
+              ),
+            );
           },
         ),
       ),
@@ -186,9 +196,9 @@ class _OndraAppState extends State<OndraApp> {
 
 /// 启动屏 → 主壳。
 ///
-/// main() 在 `runApp` 之前已经把人设、模型基座与内核连接全部做完
-/// （内核连接带 8 秒超时兜底，失败不拦启动），所以这里等的只是
-/// 品牌动画的最短时长，不是数据。`?boot=hold` 用于截图核对。
+/// `main()` 只把首帧必需的数据准备好；人设、插件与内核连接全部在首帧
+/// 之后异步进行。这里等的只是品牌动画的最短时长，绝不会等内核。
+/// `?boot=hold` 用于截图核对。
 class _BootGate extends StatefulWidget {
   const _BootGate();
 
@@ -204,7 +214,7 @@ class _BootGateState extends State<_BootGate> {
   void initState() {
     super.initState();
     // 700ms 是产品时长（品牌动画的下限）；`?boot=hold` 时改成 10 分钟，
-    // 只为截图核对。数据就绪发生在 runApp 之前，见类注释。
+    // 只为截图核对。这里不等待任何外部进程，见类注释。
     final hold = _debugBootHold();
     _timer = Timer(Duration(milliseconds: hold ? 600000 : 700), () {
       if (mounted) setState(() => _ready = true);

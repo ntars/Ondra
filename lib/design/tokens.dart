@@ -74,7 +74,9 @@ class OndraColor {
   /// `--miclaw-color-background/surface/surface-muted/surface-inset`。
   static const surface = Color(0xFFFFFFFF);
   static const page = Color(0xFFFFFFFF); // 内容区
-  static const sidebar = Color(0xFFF6F7FA); // 侧栏（Web 兜底）/ 参考 --miclaw-color-background
+  static const sidebar = Color(
+    0xFFF6F7FA,
+  ); // 侧栏（Web 兜底）/ 参考 --miclaw-color-background
   static const rail = Color(0xFFF4F7FA); // 右栏（对齐参考应用的 copilot 底色 #f4f7fa）
 
   /// 侧栏毛玻璃的**边缘**（只此一条，没有叠色）。
@@ -90,7 +92,9 @@ class OndraColor {
   /// Web 没有原生玻璃，才退回不透明的 [sidebar] 实色。
   static const glassEdge = Color(0x6BFFFFFF);
   static const interconnect = Color(0xFFFBFBFB); // 设备互联 / 小米互传内容底
-  static const splash = Color(0xFFF6F7FA); // 启动屏兜底实色（参考 --miclaw-glass-background-solid）
+  static const splash = Color(
+    0xFFF6F7FA,
+  ); // 启动屏兜底实色（参考 --miclaw-glass-background-solid）
 
   /// 启动屏的玻璃层：参考 `--miclaw-splash-glass-background: rgba(246,246,246,.85)`
   /// 叠 `blur(40px) saturate(1.2)`。Flutter 里没有 backdrop-filter，
@@ -219,10 +223,27 @@ class OndraWeight {
   static const strong = 600;
 }
 
-/// 内嵌字体族名。仓库不带字体文件时，这个家族没有注册任何字形，
-/// 渲染层会沿 [ondraFontFallback] 往下找——所以它始终是常量，
-/// 不需要按「装没装上」切换。装载逻辑见 `font_face.dart`。
-const String ondraFontFamily = 'MiSans';
+/// 用户选中的抽象字体族。存的是 `general.fontFamily` 的稳定值，
+/// 而不是某个平台的具体字体名：同一个选择在 Windows 与 macOS 上要落到
+/// 各自系统自带的中文字体，不能把「微软雅黑」硬编码给 macOS。
+String _ondraFontChoice = 'misans';
+
+String get ondraFontChoice => _ondraFontChoice;
+
+bool setOndraFontChoice(String choice) {
+  if (!['misans', 'sans', 'serif', 'kai'].contains(choice)) return false;
+  _ondraFontChoice = choice;
+  return true;
+}
+
+/// 主字体族。`misans` 用随包字体；其余选项显式点名系统中文字体，
+/// 缺字体时仍沿 [ondraFontFallback] 回退。
+String get ondraFontFamily => switch (_ondraFontChoice) {
+  'sans' => 'Microsoft YaHei',
+  'serif' => 'Songti SC',
+  'kai' => 'Kaiti SC',
+  _ => 'MiSans',
+};
 
 /// 字体回退链：内嵌 MiSans 只收了界面用字，生僻字、符号与
 /// 仓库未附带字体文件的情况都靠这条链兜住。
@@ -230,13 +251,34 @@ const String ondraFontFamily = 'MiSans';
 /// 顺序按「目标平台默认中文字体」排：macOS 的苹方、iOS 的冬青黑、
 /// Windows 的微软雅黑、Linux 的思源黑。**这是唯一真源**，主题层与
 /// [ondraText] 都引用它，不要在别处再抄一份。
-const List<String> ondraFontFallback = [
-  'PingFang SC',
-  'Hiragino Sans GB',
-  'Microsoft YaHei',
-  'Noto Sans CJK SC',
-  'Source Han Sans SC',
-];
+List<String> get ondraFontFallback {
+  final common = <String>[
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    'Noto Sans CJK SC',
+    'Source Han Sans SC',
+  ];
+  final preferred = switch (_ondraFontChoice) {
+    'sans' => ['Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC'],
+    'serif' => [
+      'Songti SC',
+      'SimSun',
+      'Noto Serif CJK SC',
+      'Source Han Serif SC',
+    ],
+    'kai' => ['Kaiti SC', 'KaiTi', 'STKaiti', 'Noto Serif CJK SC'],
+    _ => const <String>[],
+  };
+  return [
+    ...preferred.where((font) => font != ondraFontFamily),
+    ...common.where(
+      (font) => font != ondraFontFamily && !preferred.contains(font),
+    ),
+    if (_ondraFontChoice == 'serif') 'Noto Sans CJK SC',
+    if (_ondraFontChoice == 'kai') 'Noto Sans CJK SC',
+  ];
+}
 
 /// 统一的文字构造：字号 / 字重 / 行高 / 字距。
 ///

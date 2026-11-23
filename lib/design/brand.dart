@@ -92,7 +92,9 @@ class OndraAppTile extends StatelessWidget {
             side: BorderSide(color: s.lineCard),
           ),
         ),
-        child: Center(child: OndraMark(size: size * 0.6, color: s.ink)),
+        child: Center(
+          child: OndraMark(size: size * 0.6, color: s.ink),
+        ),
       ),
     );
   }

@@ -27,6 +27,7 @@ class Keychain {
   /// 理由同上：两个实现必须接口完全一致，否则调用点在另一边会报
   /// 「没有这个 setter」。浏览器里没有任何落盘位置，这个值恒被忽略。
   static String? debugDshHomeOverride;
+
   /// 与桌面实现同形：浏览器没有旧钥匙串，恒为「无」。
   static Future<String?> readLegacy(String key) async => null;
 
@@ -36,12 +37,8 @@ class Keychain {
   /// 与桌面实现同名同形的删除探针；stub 里恒不会被生产调用。
   static Future<bool> Function(String key)? eraseProbe;
 
-
   static Future<KeychainSecret> write(String key, String value) async =>
-      const KeychainSecret(
-        ok: false,
-        message: '浏览器预览里没有系统钥匙串，请在桌面端填写。',
-      );
+      const KeychainSecret(ok: false, message: '浏览器预览里没有系统钥匙串，请在桌面端填写。');
 
   static Future<String?> read(String key) async => null;
 

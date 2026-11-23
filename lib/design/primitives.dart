@@ -82,50 +82,44 @@ class OndraSwitch extends StatelessWidget {
           height: 24,
           child: Center(
             child: Opacity(
-          opacity: enabled ? 1 : 0.45,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            width: 36,
-            height: 16,
-            decoration: BoxDecoration(
-              color: value ? OndraColor.accentDeep : s.fill,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  left: value ? 13.5 : 1.5,
-                  top: 1.5,
-                  child: Container(
-                    width: 21,
-                    height: 13,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6.5),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x0D000000),
-                          blurRadius: 1,
-                        ),
-                        BoxShadow(
-                          color: Color(0x0D000000),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                  ),
+              opacity: enabled ? 1 : 0.45,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOut,
+                width: 36,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: value ? OndraColor.accentDeep : s.fill,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
-            ),
-          ),
-          ),  // Center（命中区垫层）
-        ),  // Opacity
-      ),  // SizedBox（命中区）
-      ),  // GestureDetector
-    );  // MouseRegion
+                child: Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 160),
+                      curve: Curves.easeOut,
+                      left: value ? 13.5 : 1.5,
+                      top: 1.5,
+                      child: Container(
+                        width: 21,
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6.5),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x0D000000), blurRadius: 1),
+                            BoxShadow(color: Color(0x0D000000), blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ), // Center（命中区垫层）
+          ), // Opacity
+        ), // SizedBox（命中区）
+      ), // GestureDetector
+    ); // MouseRegion
   }
 }
 
@@ -155,7 +149,12 @@ class OndraSection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
                 title!,
-                style: ondraText(13, weight: 400, color: s.ink60, height: 18 / 13),
+                style: ondraText(
+                  13,
+                  weight: 400,
+                  color: s.ink60,
+                  height: 18 / 13,
+                ),
               ),
             ),
           ),
@@ -280,11 +279,7 @@ class OndraSettingRow extends StatelessWidget {
     }
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: s.fillHover,
-        child: content,
-      ),
+      child: InkWell(onTap: onTap, hoverColor: s.fillHover, child: content),
     );
   }
 }
@@ -834,7 +829,9 @@ class _OndraScrollFadeState extends State<OndraScrollFade> {
           // 所以这里按位置正序、透明度倒序取。
           for (var i = 0; i < _stops.length; i++) {
             stops.add(1 - f + f * _stops[i]);
-            colors.add(Color.fromRGBO(0, 0, 0, _alphas[_alphas.length - 1 - i]));
+            colors.add(
+              Color.fromRGBO(0, 0, 0, _alphas[_alphas.length - 1 - i]),
+            );
           }
         }
         // 两端都不淡出时渐变只剩一个色标；补齐成一段常量黑，
@@ -911,7 +908,11 @@ class OndraEmptyState extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(iconSize / 2),
               ),
-              child: Icon(icon, size: iconSize * 0.42, color: OndraColor.accent),
+              child: Icon(
+                icon,
+                size: iconSize * 0.42,
+                color: OndraColor.accent,
+              ),
             ),
             const SizedBox(height: OndraSpace.x5),
             ConstrainedBox(
@@ -921,7 +922,12 @@ class OndraEmptyState extends StatelessWidget {
                   Text(
                     title,
                     textAlign: TextAlign.center,
-                    style: ondraText(17, weight: 500, color: s.ink, height: 23 / 17),
+                    style: ondraText(
+                      17,
+                      weight: 500,
+                      color: s.ink,
+                      height: 23 / 17,
+                    ),
                   ),
                   if (desc != null) ...[
                     const SizedBox(height: 4),

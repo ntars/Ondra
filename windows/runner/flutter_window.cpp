@@ -5,11 +5,15 @@
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
 #include <flutter_windows.h>
+#include <shlobj.h>
 #include <windows.h>
+#include <shellapi.h>
+#include <string>
 
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "web_view_win.h"
 
 namespace {
 
@@ -23,6 +27,13 @@ namespace {
 constexpr int kMinWindowWidth = 960;
 constexpr int kMinWindowHeight = 600;
 
+// Keeps the Windows sleep assertion alive for exactly as long as Flutter
+// claims the preventSleep setting. `ES_SYSTEM_REQUIRED` resets Windows' idle
+// timer; re-arming it once a minute is the documented way to hold the system
+// awake without changing the user's power plan.
+constexpr UINT_PTR kPreventSleepTimerId = 0x4F4E4452;  // "ONDR"
+constexpr UINT kPreventSleepIntervalMs = 60 * 1000;
+
 void ApplyDarkTitleBar(HWND hwnd, bool dark) {
   BOOL value = dark ? TRUE : FALSE;
   // DWMWA_USE_IMMERSIVE_DARK_MODE 的号在 SDK 里是 20（1809 时代是 19）。
@@ -35,6 +46,136 @@ void ApplyDarkTitleBar(HWND hwnd, bool dark) {
     constexpr DWORD kLegacy = 19;
     DwmSetWindowAttribute(hwnd, kLegacy, &value, sizeof(value));
   }
+}
+
+}  // namespace
+
+namespace {
+
+// Windows toast notifications without a packaged MSIX identity. The shell
+// accepts a registered AppUserModelID plus a temporary shortcut in the Start
+// menu; creating it once per process keeps later notifications cheap.
+constexpr wchar_t kAppUserModelId[] = L"com.ntars.ondra";
+constexpr wchar_t kShortcutName[] = L"Ondra.lnk";
+
+std::wstring Utf8ToWide(const std::string& text) {
+  if (text.empty()) return {};
+  const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                       text.data(),
+                                       static_cast<int>(text.size()), nullptr,
+                                       0);
+  if (size <= 0) return {};
+  std::wstring result(size, L'\0');
+  MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(),
+                      static_cast<int>(text.size()), result.data(), size);
+  return result;
+}
+
+std::wstring PowerShellLiteral(const std::wstring& value) {
+  std::wstring out = L"'";
+  for (wchar_t c : value) {
+    if (c == L'\'') out += L"''";
+    else out += c;
+  }
+  out += L'\'';
+  return out;
+}
+
+bool EnsureToastShortcut() {
+  wchar_t app_data[MAX_PATH] = {};
+  if (FAILED(SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, app_data))) {
+    return false;
+  }
+  // Windows binds a toast to the process AppUserModelID, not to the EXE path.
+  // Set it on every launch: a stale shortcut from an older build must not make
+  // notifications disappear silently (alpha.15 notification regression).
+  if (FAILED(SetCurrentProcessExplicitAppUserModelID(kAppUserModelId))) {
+    return false;
+  }
+  const std::wstring shortcut =
+      std::wstring(app_data) + L"\\Microsoft\\Windows\\Start Menu\\Programs\\" +
+      kShortcutName;
+  if (GetFileAttributesW(shortcut.c_str()) != INVALID_FILE_ATTRIBUTES) {
+    return true;
+  }
+
+  wchar_t exe[MAX_PATH] = {};
+  GetModuleFileNameW(nullptr, exe, MAX_PATH);
+  const std::wstring script =
+      L"$ws = New-Object -ComObject WScript.Shell; "
+      L"$s = $ws.CreateShortcut(" +
+      PowerShellLiteral(shortcut) +
+      L"); $s.TargetPath = " + PowerShellLiteral(exe) +
+      L"; $s.Save()";
+
+  SHELLEXECUTEINFOW info = {};
+  info.cbSize = sizeof(info);
+  info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+  info.lpVerb = L"open";
+  info.lpFile = L"powershell.exe";
+  info.lpParameters = script.c_str();
+  info.nShow = SW_HIDE;
+  if (!ShellExecuteExW(&info)) return false;
+  if (info.hProcess) {
+    WaitForSingleObject(info.hProcess, 5000);
+    CloseHandle(info.hProcess);
+  }
+  if (GetFileAttributesW(shortcut.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    return false;
+  }
+  return true;
+}
+
+bool ShowToast(const std::wstring& title, const std::wstring& body,
+               bool sound) {
+  if (!EnsureToastShortcut()) return false;
+  // Windows toast XML uses XML escaping; the PowerShell side only handles
+  // quoting, so replace the five XML characters here.
+  auto xml_escape = [](const std::wstring& text) {
+    std::wstring out;
+    out.reserve(text.size());
+    for (wchar_t c : text) {
+      switch (c) {
+        case L'&': out += L"&amp;"; break;
+        case L'<': out += L"&lt;"; break;
+        case L'>': out += L"&gt;"; break;
+        case L'"': out += L"&quot;"; break;
+        case L'\'': out += L"&apos;"; break;
+        default: out += c; break;
+      }
+    }
+    return out;
+  };
+  const std::wstring audio =
+      sound ? L"<audio src=\"ms-winsoundevent:Notification.Default\" />"
+            : L"<audio silent=\"true\" />";
+  const std::wstring xml =
+      L"<toast><visual><binding template=\"ToastGeneric\"><text>" +
+      xml_escape(title) + L"</text><text>" + xml_escape(body) +
+      L"</text></binding></visual>" + audio + L"</toast>";
+  const std::wstring script =
+      L"[Windows.UI.Notifications.ToastNotificationManager, Windows.UI."
+      L"Notifications, ContentType = WindowsRuntime] | Out-Null; "
+      L"$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; "
+      L"$xml.LoadXml(" +
+      PowerShellLiteral(xml) +
+      L"); $toast = [Windows.UI.Notifications.ToastNotification]::new($xml); "
+      L"[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(" +
+      PowerShellLiteral(kAppUserModelId) + L").Show($toast)";
+
+  SHELLEXECUTEINFOW info = {};
+  info.cbSize = sizeof(info);
+  info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+  info.lpVerb = L"open";
+  info.lpFile = L"powershell.exe";
+  info.lpParameters = script.c_str();
+  info.nShow = SW_HIDE;
+  if (!ShellExecuteExW(&info)) return false;
+  if (info.hProcess) {
+    WaitForSingleObject(info.hProcess, 5000);
+    CloseHandle(info.hProcess);
+  }
+  return true;
 }
 
 }  // namespace
@@ -89,9 +230,84 @@ bool FlutterWindow::OnCreate() {
         result->Success();
       });
 
+  platform_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "ondra/platform",
+          &flutter::StandardMethodCodec::GetInstance());
+  platform_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name().compare("beginPreventSleep") == 0) {
+          begin_prevent_sleep();
+          result->Success(true);
+          return;
+        }
+        if (call.method_name().compare("endPreventSleep") == 0) {
+          end_prevent_sleep();
+          result->Success();
+          return;
+        }
+        result->NotImplemented();
+      });
+
+  notify_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "ondra/notify",
+          &flutter::StandardMethodCodec::GetInstance());
+  notify_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+             result) {
+        if (call.method_name().compare("show") != 0) {
+          result->NotImplemented();
+          return;
+        }
+        const auto* args =
+            std::get_if<flutter::EncodableMap>(call.arguments());
+        if (args == nullptr) {
+          result->Error("bad-arguments", "notification arguments missing");
+          return;
+        }
+        auto string_arg = [args](const char* key) -> std::wstring {
+          const auto it = args->find(flutter::EncodableValue(key));
+          if (it == args->end()) return {};
+          if (const auto* text = std::get_if<std::string>(&it->second)) {
+            return Utf8ToWide(*text);
+          }
+          return {};
+        };
+        bool sound = true;
+        const auto sound_it = args->find(flutter::EncodableValue("sound"));
+        if (sound_it != args->end()) {
+          if (const auto* value = std::get_if<bool>(&sound_it->second)) {
+            sound = *value;
+          }
+        }
+        const bool shown = ShowToast(string_arg("title"), string_arg("body"),
+                                     sound);
+        if (!shown) {
+          result->Error("notify-failed", "Windows toast backend unavailable");
+          return;
+        }
+        result->Success(true);
+      });
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
+
+  // WebView2 纹理后端：在通知/睡眠/外观通道之后注册，互不干扰。
+  // 纹理 registrar 属于 engine。FlutterEngine 的底层 C 句柄是私有成员，
+  // 但 GetRegistrarForPlugin 返回的 registrar 也持有同一 engine；通过它取
+  // FlutterDesktopRegistrarGetTextureRegistrar 才是 Flutter 3.50 公开 API。
+  auto registrar =
+      flutter_controller_->engine()->GetRegistrarForPlugin("ondra/webview");
+  if (registrar != nullptr) {
+    web_view_host_ = std::make_unique<OndraWebViewHost>(
+        flutter_controller_->engine()->messenger(),
+        FlutterDesktopRegistrarGetTextureRegistrar(registrar), GetHandle());
+  }
 
   // Flutter can complete the first frame before the "show window" callback is
   // registered. The following call ensures a frame is pending to ensure the
@@ -102,12 +318,32 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  end_prevent_sleep();
+  web_view_host_.reset();
+  notify_channel_.reset();
+  platform_channel_.reset();
   appearance_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
 
   Win32Window::OnDestroy();
+}
+
+void FlutterWindow::begin_prevent_sleep() {
+  SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+  if (prevent_sleep_timer_ == 0) {
+    prevent_sleep_timer_ = SetTimer(GetHandle(), kPreventSleepTimerId,
+                                    kPreventSleepIntervalMs, nullptr);
+  }
+}
+
+void FlutterWindow::end_prevent_sleep() {
+  if (prevent_sleep_timer_ != 0) {
+    KillTimer(GetHandle(), kPreventSleepTimerId);
+    prevent_sleep_timer_ = 0;
+  }
+  SetThreadExecutionState(ES_CONTINUOUS);
 }
 
 void FlutterWindow::SetWindowAppearance(bool dark) {
@@ -137,6 +373,19 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   if (message == WM_DWMCOLORIZATIONCOLORCHANGED && appearance_forced_) {
     ApplyDarkTitleBar(hwnd, appearance_dark_);
     return 0;
+  }
+
+  if (message == WM_TIMER && wparam == kPreventSleepTimerId) {
+    SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+    return 0;
+  }
+
+  if (message == WM_SIZE && web_view_host_ != nullptr) {
+    RECT client = {};
+    ::GetClientRect(hwnd, &client);
+    web_view_host_->OnParentWindowResized(
+        hwnd, static_cast<int>(client.right - client.left),
+        static_cast<int>(client.bottom - client.top));
   }
 
   // 最小尺寸：按 DPI 缩放后再钳住，否则高分屏上 960 物理像素只有 640 逻辑宽，

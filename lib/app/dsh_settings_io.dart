@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'home_dir.dart';
 
 /// 桌面端的内核配置桥：直接读写 `settings.json`。

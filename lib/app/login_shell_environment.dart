@@ -55,8 +55,9 @@ class LoginShellEnvironment {
     for (final entry in parts.sublist(first + 1, last)) {
       final separator = entry.indexOf('=');
       if (separator > 0) {
-        variables[entry.substring(0, separator)] =
-            entry.substring(separator + 1);
+        variables[entry.substring(0, separator)] = entry.substring(
+          separator + 1,
+        );
       }
     }
     return variables;

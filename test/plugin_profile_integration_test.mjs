@@ -26,6 +26,8 @@ fs.cpSync(path.join(repo, 'plugin-profile'), profile, { recursive: true });
 fs.symlinkSync(path.join(sdk, 'node_modules', '@deepseek-ai'), path.join(profile, 'node_modules', '@deepseek-ai'), 'dir');
 const pluginPath = name => path.join(profile, 'node_modules', '@ondra', `cordis-plugin-ondra-${name}`, 'lib', 'index.js');
 const patch = fs.readFileSync(path.join(profile, 'cordis.patch.yml'), 'utf8');
+const libUrl = (pkg, name) => pathToFileURL(path.join(profile, 'node_modules', '@ondra', pkg, 'lib', name)).href;
+const ttsLib = name => libUrl('cordis-plugin-ondra-tts', name);
 const contexts = [];
 after(async () => {
     for (const ctx of contexts.reverse()) await ctx.fiber.dispose();
@@ -62,6 +64,111 @@ function idle(ctx, agent) { agentEvents(ctx, agent).emit('agent/status', { statu
 const body = assembly => joinContextSections(renderContextSections(assembly));
 async function collect(stream) { const chunks = []; for await (const chunk of stream) chunks.push(chunk); return chunks; }
 function assembled(chunks) { const a = new BlockAssembler(); for (const chunk of chunks) a.push(chunk); return a; }
+
+// TTS 插件的纯函数回归：这棵 profile 是出包输入，插件源码树不在本仓。
+// 用真实装配层路径导入编译产物，防止「只改了工具、忘了同步 profile」。
+test('tts snapshot registers Windows SAPI as a built-in system engine', async () => {
+    const tts = await import(ttsLib('index.js'));
+    const configLayers = await import(libUrl('cordis-plugin-ondra-config-schema', 'layers.js'));
+    assert.ok(tts.ENGINE_NAMES.includes('windows-sapi'));
+    assert.equal(tts.DEFAULT_CONFIG.enable, false);
+    assert.ok(tts.PROVIDER_VALUES.includes('windows-sapi'));
+    assert.equal(tts.completeConfig({ enable: true, provider: 'windows-sapi' }).provider, 'windows-sapi');
+
+    const sapi = await import(ttsLib('branches/windows-sapi.js'));
+    assert.equal(sapi.sapiRateOf(0.1), 1);
+    assert.equal(sapi.sapiRateOf(-0.5), -5);
+    assert.equal(sapi.sapiVolumeOf('low'), 60);
+    assert.equal(sapi.sapiVolumeOf('normal'), 100);
+    const script = sapi.sapiScript({
+        textPath: "C:\\a's.txt", outPath: 'C:\\out.wav', voice: "O'Brien", rate: 2, volume: 60,
+    });
+    assert.match(script, /ReadAllText\('C:\\a''s\.txt'\)/);
+    assert.match(script, /SelectVoice\('O''Brien'\)/);
+
+    const exec = await import(ttsLib('exec.js'));
+    const found = exec.resolvePowerShell(
+        'win32', { SystemRoot: 'C:\\Windows', PATH: '' }, p => p.endsWith('powershell.exe'),
+    );
+    assert.equal(found, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+    assert.equal(exec.resolvePowerShell('darwin', { SystemRoot: 'C:\\Windows' }, () => true), undefined);
+    const encoded = exec.encodedPowerShell('中文');
+    assert.equal(Buffer.from(encoded, 'base64').toString('utf16le'), '中文');
+
+    assert.match(patch, new RegExp(
+        "- id: ondra-tts\\n\\s+name: '@ondra/cordis-plugin-ondra-tts'\\n"
+        + '(?:\\s+#[^\\n]*\\n)*\\s+config:\\n\\s+enable: false',
+    ));
+
+    // 出厂层必须能被用户层覆盖，否则「设置 → 朗读回复」打开后永远不生效。
+    let section;
+    const noop = () => {};
+    const log = { info: noop, warn: noop, error: noop, debug: noop };
+    const schema = {
+        register(decl) { section = decl; return noop; },
+        resolve(id, layers) { return configLayers.resolveSection(section, layers); },
+    };
+    const ctx = {
+        get(key) { return key === 'ondra-config-schema' ? schema : undefined; },
+        logger() { return log; },
+        effect(effect) { effect(); },
+        provide() { return noop; },
+    };
+    tts.apply(ctx, { enable: false });
+    assert.equal(configLayers.resolveSection(section, { factory: { enable: false } }).values.enable, false);
+    assert.equal(configLayers.resolveSection(section, {
+        factory: { enable: false }, user: { enable: true },
+    }).values.enable, true);
+});
+
+test('tts Windows SAPI engine synthesizes WAV and removes the text file', async () => {
+    const os = await import('node:os');
+    const sapi = await import(ttsLib('branches/windows-sapi.js'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ondra-sapi-'));
+    try {
+        const outPath = path.join(dir, 'wav.wav');
+        const calls = [];
+        const engine = new sapi.WindowsSapiEngine({
+            platform: 'win32',
+            powershell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+            voice: '',
+            timeoutMs: 15000,
+            exec: async (command, args, options) => {
+                calls.push({ command, args, options, text: fs.readFileSync(`${outPath}.txt`, 'utf8') });
+                fs.writeFileSync(outPath, Buffer.from('RIFFfake'));
+                return { ok: true, code: 0, stdout: '', stderr: '', timedOut: false };
+            },
+        });
+        assert.equal(engine.present, true);
+        assert.equal(engine.configured, true);
+        const result = await engine.synth({
+            text: '中文（含引号"）', outPath,
+            voice: 'zh-CN-XiaoxiaoNeural', rate: 0.1, volume: 'low',
+        });
+        assert.deepEqual(result, { ok: true, reason: 'ok', ext: 'wav', rateApplied: true, voice: '' });
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].text, '中文（含引号"）');
+        assert.equal(calls[0].args[0], '-NoProfile');
+    assert.equal(calls[0].args[2], '-EncodedCommand');
+        assert.equal(fs.existsSync(`${outPath}.txt`), false);
+
+        const failure = new sapi.WindowsSapiEngine({
+            platform: 'win32',
+            powershell: 'powershell.exe',
+            voice: 'Not Installed',
+            timeoutMs: 15000,
+            exec: async () => ({
+                ok: false, code: 1, stdout: '', stderr: 'SelectVoice: voice not installed', timedOut: false,
+            }),
+        });
+        const failed = await failure.synth({ text: '测试', outPath, voice: 'x', rate: 0, volume: 'normal' });
+        assert.equal(failed.reason, 'voice-unknown');
+        assert.equal(fs.existsSync(`${outPath}.txt`), false);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 async function* textStream(text) {
     yield { type: 'block-start', index: 0, blockType: 'text' };
     yield { type: 'text-delta', index: 0, text: text.slice(0, 5) };

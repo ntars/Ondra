@@ -89,7 +89,12 @@ class _OnboardingLayer extends StatelessWidget {
             children: [
               Text(
                 '欢迎使用 $ondraProductName',
-                style: ondraText(17, weight: 600, color: s.ink, height: 24 / 17),
+                style: ondraText(
+                  17,
+                  weight: 600,
+                  color: s.ink,
+                  height: 24 / 17,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -99,16 +104,10 @@ class _OnboardingLayer extends StatelessWidget {
               const SizedBox(height: 18),
               const _Point(
                 title: '对话在右栏',
-                body: '内核随应用自带，打开就能说话，不需要安装任何东西。',
+                body: '应用自带对话内核；开始聊天前，需要在“模型基座”配置可用的模型或网关。',
               ),
-              const _Point(
-                title: '记得住',
-                body: '聊过的内容会沉淀成记忆星图，在左栏随时回看。',
-              ),
-              const _Point(
-                title: '随时可查',
-                body: '历史对话、备份还原、导入导出都收在左侧一列里。',
-              ),
+              const _Point(title: '记得住', body: '聊过的内容会沉淀成记忆星图，在左栏随时回看。'),
+              const _Point(title: '随时可查', body: '历史对话、备份还原、导入导出都收在左侧一列里。'),
               const SizedBox(height: 20),
               OndraPressable(
                 onTap: onFinish,
@@ -167,7 +166,12 @@ class _Point extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: ondraText(12.5, weight: 500, color: s.ink, height: 18 / 12.5),
+                  style: ondraText(
+                    12.5,
+                    weight: 500,
+                    color: s.ink,
+                    height: 18 / 12.5,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(

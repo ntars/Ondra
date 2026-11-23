@@ -22,10 +22,8 @@ class HistoryPage extends StatelessWidget {
         barrierColor: Colors.black.withValues(alpha: 0.32),
         transitionDuration: const Duration(milliseconds: 160),
         pageBuilder: (_, _, _) => const _HistoryOverlay(),
-        transitionsBuilder: (_, animation, _, child) => FadeTransition(
-          opacity: animation,
-          child: child,
-        ),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -58,7 +56,11 @@ class _HistoryOverlay extends StatelessWidget {
             color: s.surface,
             borderRadius: BorderRadius.circular(OndraRadius.modal),
             boxShadow: const [
-              BoxShadow(color: Color(0x2E000000), blurRadius: 48, offset: Offset(0, 16)),
+              BoxShadow(
+                color: Color(0x2E000000),
+                blurRadius: 48,
+                offset: Offset(0, 16),
+              ),
               BoxShadow(color: Color(0x2E000000), spreadRadius: 1),
             ],
           ),
@@ -145,9 +147,7 @@ class _HistoryListState extends State<_HistoryList> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _loading
-                        ? '~/.ondra/dsh/sessions'
-                        : '在右栏说第一句话，会话就会出现在这里。',
+                    _loading ? '~/.ondra/dsh/sessions' : '在右栏说第一句话，会话就会出现在这里。',
                     style: ondraText(11, color: s.ink25, height: 16 / 11),
                   ),
                 ],
@@ -162,32 +162,40 @@ class _HistoryListState extends State<_HistoryList> {
               child: OndraPressable(
                 onTap: () => _openSession(_items[i]),
                 child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                decoration: BoxDecoration(
-                  // 选中是 6% 灰底 + 加粗，不用颜色区分：单色界面里
-                  // 「重」比「色」更稳，也不会和状态色打架。
-                  color: _hover == i ? s.fillHover : Colors.transparent,
-                  borderRadius: BorderRadius.circular(OndraRadius.md),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    // 选中是 6% 灰底 + 加粗，不用颜色区分：单色界面里
+                    // 「重」比「色」更稳，也不会和状态色打架。
+                    color: _hover == i ? s.fillHover : Colors.transparent,
+                    borderRadius: BorderRadius.circular(OndraRadius.md),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _items[i].title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ondraText(
+                          13,
+                          weight: 500,
+                          color: s.ink,
+                          height: 18 / 13,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _subtitleOf(_items[i]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ondraText(11, color: s.ink40, height: 15 / 11),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _items[i].title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: ondraText(13, weight: 500, color: s.ink, height: 18 / 13),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _subtitleOf(_items[i]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: ondraText(11, color: s.ink40, height: 15 / 11),
-                    ),
-                  ],
-                ),
-              ),
               ),
             ),
           ],
@@ -208,14 +216,10 @@ class _HistoryListState extends State<_HistoryList> {
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.32),
         transitionDuration: const Duration(milliseconds: 160),
-        pageBuilder: (_, _, _) => _SessionDetailOverlay(
-          title: item.title,
-          entries: entries,
-        ),
-        transitionsBuilder: (_, animation, _, child) => FadeTransition(
-          opacity: animation,
-          child: child,
-        ),
+        pageBuilder: (_, _, _) =>
+            _SessionDetailOverlay(title: item.title, entries: entries),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -223,10 +227,7 @@ class _HistoryListState extends State<_HistoryList> {
   /// 副标题：什么时候 · 几句 · 哪个目录。
   /// 「几句」是**用户消息条数**，不是轮数也不是事件数——数错了就成了假信息。
   String _subtitleOf(SessionSummary item) {
-    final parts = <String>[
-      _when(item.updatedAt),
-      '${item.messages} 句',
-    ];
+    final parts = <String>[_when(item.updatedAt), '${item.messages} 句'];
     // Windows 路径用反斜杠，只按 / 拆会把整条 `D:\示例\测试项目`
     // 当成目录名（alpha.10 审查第 19 项）——两种分隔符都拆。
     final dir = item.cwd
@@ -242,7 +243,8 @@ class _HistoryListState extends State<_HistoryList> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final day = DateTime(t.year, t.month, t.day);
-    final hm = '${t.hour.toString().padLeft(2, '0')}:'
+    final hm =
+        '${t.hour.toString().padLeft(2, '0')}:'
         '${t.minute.toString().padLeft(2, '0')}';
     if (day == today) return '今天 $hm';
     if (today.difference(day).inDays == 1) return '昨天 $hm';
@@ -271,7 +273,11 @@ class _SessionDetailOverlay extends StatelessWidget {
             color: s.surface,
             borderRadius: BorderRadius.circular(OndraRadius.modal),
             boxShadow: const [
-              BoxShadow(color: Color(0x2E000000), blurRadius: 48, offset: Offset(0, 16)),
+              BoxShadow(
+                color: Color(0x2E000000),
+                blurRadius: 48,
+                offset: Offset(0, 16),
+              ),
               BoxShadow(color: Color(0x2E000000), spreadRadius: 1),
             ],
           ),
@@ -290,11 +296,20 @@ class _SessionDetailOverlay extends StatelessWidget {
                             title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: ondraText(14, weight: 500, color: s.ink, height: 20 / 14),
+                            style: ondraText(
+                              14,
+                              weight: 500,
+                              color: s.ink,
+                              height: 20 / 14,
+                            ),
                           ),
                           Text(
                             entries.isEmpty ? '' : '${entries.length} 条消息',
-                            style: ondraText(11, color: s.ink40, height: 15 / 11),
+                            style: ondraText(
+                              11,
+                              color: s.ink40,
+                              height: 15 / 11,
+                            ),
                           ),
                         ],
                       ),
@@ -368,7 +383,7 @@ class _EntryBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(OndraRadius.md),
             ),
             child: Text(
-              e.text,
+              e.displayText,
               style: ondraText(12.5, color: s.ink85, height: 19 / 12.5),
             ),
           ),

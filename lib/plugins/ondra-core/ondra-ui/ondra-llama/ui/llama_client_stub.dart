@@ -2,7 +2,11 @@ import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
 /// 一个已下载的本地模型。
 class LlamaModel {
-  const LlamaModel({required this.name, required this.path, required this.sizeBytes});
+  const LlamaModel({
+    required this.name,
+    required this.path,
+    required this.sizeBytes,
+  });
 
   final String name;
   final String path;
@@ -31,7 +35,10 @@ class LlamaClient extends ChangeNotifier {
   String? get error => '浏览器预览不能起本机进程；请在桌面构建里部署本地模型';
 
   Future<void> refresh() async {}
-  Future<String?> download(String url, {void Function(double progress)? onProgress}) async => error;
+  Future<String?> download(
+    String url, {
+    void Function(double progress)? onProgress,
+  }) async => error;
   Future<String?> start(LlamaModel model, {int port = 8080}) async => error;
   Future<void> stop() async {}
 }

@@ -136,7 +136,8 @@ void main() {
 
     final json = await other.exportMemory(out.path, TransferFormat.json);
     final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
-    final restored = (data['facts'] as List).cast<Map<String, dynamic>>()
+    final restored = (data['facts'] as List)
+        .cast<Map<String, dynamic>>()
         .firstWhere((f) => f['id'] == 'm-a8f1fdb5c240');
     expect(restored['sealed'], true);
     expect(restored['revisions'], 3);
@@ -162,6 +163,44 @@ void main() {
     final raws = (data['memory_raw'] as List).cast<Map<String, dynamic>>();
     expect(raws.first['id'], 'r-1');
     expect(raws.first['text'], '我叫小林');
+  });
+
+  test('目标已有同文事实时，重新导入会同步封存、修订与使用记录', () async {
+    final input = File('${tmp.path}/duplicate-state.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {
+              'id': 'remote-id',
+              'category': 'person',
+              'text': '用户名叫小林。',
+              'subject': null,
+              'sealed': true,
+              'revisions': 3,
+              'oldText': '喜欢绿色',
+              'sourceRawId': 'r-1',
+              'timesSaid': 8,
+              'hits': 3,
+              'lastSeenAt': 1700000060000,
+            },
+          ],
+        }),
+      );
+    final result = await engine.importPath(input.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(result.skipped, 1);
+    final json = await engine.exportMemory(tmp.path, TransferFormat.json);
+    final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
+    final restored = (data['facts'] as List)
+        .cast<Map<String, dynamic>>()
+        .firstWhere((f) => f['text'] == '用户名叫小林。');
+    expect(restored['sealed'], isTrue);
+    expect(restored['revisions'], 3);
+    expect(restored['oldText'], '喜欢绿色');
+    expect(restored['sourceRawId'], 'r-1');
+    expect(restored['timesSaid'], 8);
+    expect(restored['hits'], 3);
+    expect(restored['lastSeenAt'], 1700000060000);
   });
 
   test('手写的 Markdown 也能导入：没有注释的段落当成一条新记忆', () async {
@@ -375,6 +414,121 @@ void main() {
       jsonDecode(File('${other.dataRoot}/prefs.json').readAsStringSync()),
       {'themeMode': 'dark', 'language': 'en'},
     );
+  });
+
+  test('自定义 DSH_HOME 时会话、配置和内核人设 ZIP 都走实际目录', () async {
+    final customHome = await Directory('${tmp.path}/custom-home').create();
+    final customDsh = await Directory('${tmp.path}/custom-dsh').create();
+    await _seedDb('${customHome.path}/.ondra/user/ondra.db');
+    final engine = TransferEngine(
+      home: customHome.path,
+      dshHome: customDsh.path,
+      dataIsOffline: () => true,
+      now: () => fixedNow,
+    );
+
+    final session = Directory(
+      '${customDsh.path}/sessions/project/session-custom',
+    )..createSync(recursive: true);
+    File('${session.path}/session.v4.jsonl').writeAsStringSync('{}\n');
+    final defaultSession = Directory(
+      '${customHome.path}/.ondra/dsh/sessions/project/default-session',
+    )..createSync(recursive: true);
+    File('${defaultSession.path}/session.v4.jsonl').writeAsStringSync('{}\n');
+
+    final profile = File('${customDsh.path}/profiles/ondra/cordis.patch.yml');
+    profile.parent.createSync(recursive: true);
+    profile.writeAsStringSync('''
+- insert:
+    - id: ondra-persona-loader
+      name: '@ondra/cordis-plugin-ondra-persona-loader'
+      config:
+        userSubdir: heroes
+    - id: ondra-privacy
+      name: '@ondra/cordis-plugin-ondra-privacy'
+      config:
+        approval-mode: supervised
+''');
+    final defaultProfile = File(
+      '${customHome.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml',
+    );
+    defaultProfile.parent.createSync(recursive: true);
+    defaultProfile.writeAsStringSync('default profile must stay untouched\n');
+
+    expect((await engine.load()).sessions, 1);
+
+    final bundle = Directory('${tmp.path}/custom-bundle')..createSync();
+    final pack = Directory('${bundle.path}/personas/hero')
+      ..createSync(recursive: true);
+    File('${pack.path}/SKILL.md').writeAsStringSync('hero persona');
+    File('${bundle.path}/人设配置.yml').writeAsStringSync('''
+- id: ondra-persona-loader
+  name: '@ondra/cordis-plugin-ondra-persona-loader'
+  config:
+    userSubdir: heroes
+    bundledDir: content/personas/bundled
+''');
+
+    final imported = await engine.importPath(bundle.path);
+    expect(imported.ok, isTrue, reason: imported.message);
+    expect(
+      File('${customHome.path}/.ondra/user/heroes/hero.skill.zip').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${customHome.path}/.ondra/user/personas/hero.skill.zip')
+          .existsSync(),
+      isFalse,
+    );
+    expect(
+      profile.readAsStringSync(),
+      contains('bundledDir: content/personas/bundled'),
+    );
+    expect(
+      defaultProfile.readAsStringSync(),
+      'default profile must stay untouched\n',
+    );
+
+    final out = Directory('${tmp.path}/custom-export')..createSync();
+    final exported = await engine.exportBundle(out.path);
+    expect(exported.ok, isTrue, reason: exported.message);
+    expect(
+      File('${exported.path!}/人设配置.yml').readAsStringSync(),
+      contains('bundledDir: content/personas/bundled'),
+    );
+  });
+
+  test('非法 userSubdir 不越界，内核人设 ZIP 回退到 personas', () async {
+    final customHome = await Directory('${tmp.path}/fallback-home').create();
+    final customDsh = await Directory('${tmp.path}/fallback-dsh').create();
+    await _seedDb('${customHome.path}/.ondra/user/ondra.db');
+    final profile = File('${customDsh.path}/profiles/ondra/cordis.patch.yml');
+    profile.parent.createSync(recursive: true);
+    profile.writeAsStringSync('''
+- insert:
+    - id: ondra-persona-loader
+      name: '@ondra/cordis-plugin-ondra-persona-loader'
+      config:
+        user-subdir: ../outside
+''');
+    final engine = TransferEngine(
+      home: customHome.path,
+      dshHome: customDsh.path,
+      dataIsOffline: () => true,
+    );
+    final bundle = Directory('${tmp.path}/fallback-bundle')..createSync();
+    final pack = Directory('${bundle.path}/personas/hero')
+      ..createSync(recursive: true);
+    File('${pack.path}/SKILL.md').writeAsStringSync('hero persona');
+
+    final imported = await engine.importPath(bundle.path);
+    expect(imported.ok, isTrue, reason: imported.message);
+    expect(
+      File('${customHome.path}/.ondra/user/personas/hero.skill.zip')
+          .existsSync(),
+      isTrue,
+    );
+    expect(Directory('${customHome.path}/outside').existsSync(), isFalse);
   });
 
   test('非法人设配置不留下已写入的偏好或头像', () async {

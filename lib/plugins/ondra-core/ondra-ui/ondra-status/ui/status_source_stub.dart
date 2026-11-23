@@ -4,7 +4,10 @@ import 'status_types.dart';
 ///
 /// 「浏览器里看不到本机文件」是**环境事实**，不是「空谷现在很空」。
 /// 两者的区别决定用户是去聊两句，还是去打开桌面版，所以这句必须说出来。
-Future<StatusSnapshot> loadStatus({DateTime Function()? now, String? home}) async {
+Future<StatusSnapshot> loadStatus({
+  DateTime Function()? now,
+  String? home,
+}) async {
   return const StatusSnapshot(
     facts: 0,
     raws: 0,

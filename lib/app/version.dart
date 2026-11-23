@@ -11,6 +11,7 @@
 /// 界面里的品牌锁定用短名「空谷」——两栏侧栏只有 200 宽，全名会把菜单挤窄。
 const String ondraAppName = '空谷 Ondra';
 const String ondraProductName = '空谷';
+
 /// 开机语：一句话说清空谷是什么。
 ///
 /// 刻意不写「AI 助手 / 智能助理」：那是所有产品都会写的词，写上去等于没写。

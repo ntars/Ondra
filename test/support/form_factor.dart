@@ -27,9 +27,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// 各做一次设置与还原（见 `flutter_test/src/widget_tester.dart` 的
 /// `TargetPlatformVariant.setUp/tearDown`），顺序正确，而且会把平台名写进
 /// 测试描述里，失败时一眼看得出跑的是哪个平台。
-final TestVariant desktopFormFactor =
-    TargetPlatformVariant.only(TargetPlatform.macOS);
+final TestVariant desktopFormFactor = TargetPlatformVariant.only(
+  TargetPlatform.macOS,
+);
 
 /// 手机形态的声明，给手机布局的测试用。
-final TestVariant mobileFormFactor =
-    TargetPlatformVariant.only(TargetPlatform.iOS);
+final TestVariant mobileFormFactor = TargetPlatformVariant.only(
+  TargetPlatform.iOS,
+);

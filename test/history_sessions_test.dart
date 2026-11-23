@@ -193,7 +193,7 @@ void main() {
           _message('user', ' \n '),
           _message('user', [
             {'type': 'image', 'url': 'ignored'},
-          ]),
+          ], source: 'runtime-context'),
         ],
       }),
       _event('assistant/message', {'message': _message('tool', '角色不符')}),
@@ -216,6 +216,37 @@ void main() {
     final summary = (await readSessions(dshHome: dshHome)).single;
     expect(summary.messages, 1);
     expect(summary.title, '真正的问题');
+  });
+
+  test('纯图片用户消息保留为历史条目并显示图片占位', () async {
+    await writeSession('image-only', [
+      _event('agent/inbox/spliced', {
+        'inserted': [
+          _message(
+            'user',
+            [
+              {'type': 'image', 'url': 'data:image/png;base64,AAAA'},
+            ],
+            id: 'u-image',
+            source: 'user',
+          ),
+        ],
+      }, seq: 1),
+      _event('assistant/message', {
+        'message': _message('assistant', '收到图片', id: 'a-image'),
+      }, seq: 2),
+    ]);
+
+    final entries = await readSessionMessages('image-only', dshHome: dshHome);
+    expect(entries, hasLength(2));
+    expect(entries.first.role, 'user');
+    expect(entries.first.text, isEmpty);
+    expect(entries.first.hasImage, isTrue);
+    expect(entries.first.displayText, '[图片]');
+
+    final summary = (await readSessions(dshHome: dshHome)).single;
+    expect(summary.title, '[图片]');
+    expect(summary.messages, 1);
   });
 
   test('坏 JSON、错误字段、越界时间和末尾半截行不吞掉后续有效消息', () async {

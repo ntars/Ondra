@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'version.dart';
 import 'home_dir.dart';
+import 'prefs.dart';
 
 /// 把一次崩溃写进 `~/.ondra/logs/crash.log`。
 ///
@@ -25,10 +26,35 @@ class CrashLog {
   /// 单个文件的上限。堆栈一般 2–8KB，256KB 能放几十次。
   static const int _maxBytes = 256 * 1024;
 
+  /// 设置页里 `privacy.redactLogs` 的持久化键。
+  ///
+  /// 不 import `SettingsClient`：`main.dart` 在 `runApp` 前就会调用
+  /// `CrashLog`，而设置客户端又依赖配置和平台动作，两条初始化链相交会形成
+  /// 循环，也会把崩溃记录器绑到一整棵 UI 依赖上。这里只读同一份 prefs
+  /// 键；读取失败、文件损坏或值不是明确的 `false` 时都按开启处理。
+  static const String _redactPrefsKey = 'settings.privacy.redactLogs';
+
   static String get _dir {
-    final home = ondraUserHome;
+    final home = debugHomeOverride ?? ondraUserHome;
     return '$home/.ondra/logs';
   }
+
+  /// 用户是否要求对崩溃日志做敏感信息脱敏。
+  ///
+  /// 默认必须是安全的：没有保存过偏好（首启）、prefs 损坏、读不到文件，
+  /// 或写成 `0`/`no` 之类无法识别的值时，只能把它当作「开启」。唯一
+  /// 关闭脱敏的证据是设置页明确保存的字符串 `false`。
+  static bool get _redactEnabled {
+    try {
+      return readPref(_redactPrefsKey, fallback: 'true').trim().toLowerCase() !=
+          'false';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// 聚焦测试的重定向点；生产代码始终为 null，日志落在真实用户目录。
+  static String? debugHomeOverride;
 
   /// 记一次崩溃。任何时候都不抛——记录崩溃的代码自己崩掉毫无意义。
   static void write(String scope, Object error, StackTrace? stack) {
@@ -36,20 +62,24 @@ class CrashLog {
       final dir = Directory(_dir);
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final file = _rotateIfNeeded(dir);
-      final home = ondraUserHome;
+      final home = debugHomeOverride ?? ondraUserHome;
+      final extendedRedaction = _redactEnabled;
       String redact(Object raw) {
         var text = '$raw';
-        // 邮箱整段抹掉（alpha.2 审查第 14 项：脱敏开关之外，崩溃日志
-        // 本身也不该留可识别信息——它是排障材料，不是档案）。
+        // 隐私基线不随开关关闭：堆栈里的绝对路径会带出用户名和本机目录，
+        // 崩溃日志只需要定位代码，不需要暴露「谁在哪台机器上运行」。
+        if (home.isNotEmpty) text = text.replaceAll(home, '~');
+        // 开关关闭时保留其余原文，便于本地排障；路径基线仍然执行。
+        if (!extendedRedaction) return text;
+        // 邮箱整段抹掉。它与下面的密钥规则一样属于设置页承诺的扩展脱敏；
+        // 关闭开关意味着用户明确接受本地日志保留这些内容。
         text = text.replaceAllMapped(
           RegExp('[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}'),
           (_) => '<email>',
         );
-        // 用户主目录抹掉：堆栈里的绝对路径会带出用户名。
-        if (home.isNotEmpty) text = text.replaceAll(home, '~');
-        // 常见密钥形态抹掉（alpha.10 审查第 16 项：设置承诺「路径、邮箱、
-        // 密钥」，崩溃日志此前只有前两类）。API key 的通用形状：
-        // sk- 前缀、Bearer 后接 token、32+ 位十六进制串。
+        // 常见密钥形态：API key 的通用形状是 sk- 前缀、Bearer 后接 token、
+        // 32+ 位十六进制串。alpha.15 审查：开关必须真正控制这段处理，不能
+        // 一边显示「日志脱敏」一边无论开关如何都执行同一套固定规则。
         text = text.replaceAllMapped(
           RegExp(r'sk-[A-Za-z0-9_-]{16,}'),
           (_) => '<key>',

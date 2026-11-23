@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 
 import '../../../../../app/desktop_picker.dart';
 import '../../../../../app/home_dir.dart';
+import 'profile_config.dart';
 
 /// 应用级维护动作：导出全部数据、清空全部数据、清缓存、查系统权限。
 ///
@@ -16,11 +18,25 @@ import '../../../../../app/home_dir.dart';
 ///
 /// 两件事的后果都比「做一份备份」重，所以单独一层，调用点也各自确认。
 class OndraMaintenance {
-  OndraMaintenance({String? home, this.dataIsOffline})
-    : home = home ?? _defaultHome();
+  OndraMaintenance({
+    String? home,
+    this.dataIsOffline,
+    String? personaSubdir,
+    String? Function(String section, String key)? profileConfigReader,
+  }) : home = home ?? _defaultHome(),
+       _personaSubdirOverride = personaSubdir,
+       // 注入 home 的离线工具与测试不应顺手读真实用户目录的 profile；
+       // 生产环境不传 home，按内核实际配置解析自定义 user-subdir。
+       _readConfig =
+           profileConfigReader ??
+           (home == null ? readProfileConfigField : _noConfig);
 
   final String home;
   final bool Function()? dataIsOffline;
+  final String? _personaSubdirOverride;
+  final String? Function(String section, String key) _readConfig;
+
+  static String? _noConfig(String section, String key) => null;
 
   bool get _offline => dataIsOffline?.call() ?? maintenanceDataIsOffline(home);
 
@@ -51,16 +67,61 @@ class OndraMaintenance {
   /// **不删 `personas/`**：用户装的人设包算用户资产，但它属于「设置」不属于
   /// 「记忆与会话」；设置页的清空动作在文案里写的是「删掉记忆与会话」。
   static const List<String> _wipeTrees = [
-    'user',
     'sessions',
     'dsh/sessions',
     'storages',
+    // 清空承诺会删掉设备缓存；cache/ 与 tmp/ 是可重建的临时物，
+    // 不能留到下一位使用者仍然看到旧缓存。
+    'cache',
+    'tmp',
   ];
 
   static const List<String> _wipeFiles = ['prefs.json'];
 
   /// 缓存范围。只碰这两个目录，别的都不动。
   static const List<String> _cacheTrees = ['cache', 'tmp'];
+
+  /// 内核人设 ZIP 实际所在的用户子目录。默认 `personas`，但
+  /// `persona-loader.user-subdir` 可以改成别的名字；清空时只保留这一个
+  /// 子目录，不能把整个 `user/` 移走（alpha.15 审查：清空会拆散人设包）。
+  String get _personaSubdir {
+    final raw =
+        _personaSubdirOverride ??
+        _readConfig('persona-loader', 'user-subdir') ??
+        _readConfig('persona-loader', 'userSubdir');
+    final value = raw?.trim();
+    // 与内核 loader 同一口径：空值、穿越和路径分隔符都回默认值。
+    if (value == null ||
+        value.isEmpty ||
+        value == '.' ||
+        value == '..' ||
+        value.contains('/') ||
+        value.contains(r'\') ||
+        value.contains('\x00')) {
+      return 'personas';
+    }
+    return value;
+  }
+
+  /// 清空目标。`user/` 不整体移走：只移其中除人设子目录以外的顶层条目。
+  List<String> _wipeTargets(String personaSubdir) {
+    final targets = <String>[..._wipeTrees, ..._wipeFiles];
+    final users = Directory('$home/user');
+    if (FileSystemEntity.typeSync(users.path, followLinks: false) ==
+        FileSystemEntityType.directory) {
+      for (final entry in users.listSync(followLinks: false)) {
+        final name = _leafName(entry.path);
+        if (name == personaSubdir) continue;
+        targets.add('user/$name');
+      }
+    }
+    return targets;
+  }
+
+  static String _leafName(String path) {
+    final normalized = path.replaceAll(r'\', '/');
+    return normalized.substring(normalized.lastIndexOf('/') + 1);
+  }
 
   /// 让用户挑一个导出目录。取消返回 null。
   ///
@@ -198,7 +259,8 @@ class OndraMaintenance {
   Future<void> _copyTree(Directory src, Directory dest) async {
     await dest.create(recursive: true);
     await for (final entity in src.list(followLinks: false)) {
-      final target = '${dest.path}/${entity.uri.pathSegments.where((s) => s.isNotEmpty).last}';
+      final target =
+          '${dest.path}/${entity.uri.pathSegments.where((s) => s.isNotEmpty).last}';
       if (entity is Directory) {
         await _copyTree(entity, Directory(target));
       } else if (entity is File) {
@@ -225,11 +287,14 @@ class OndraMaintenance {
     try {
       var removedFiles = 0;
       var removedBytes = 0;
+      final personaSubdir = _personaSubdir;
       if (FileSystemEntity.isLinkSync(home) ||
-          FileSystemEntity.isLinkSync('$home/.wiped')) {
+          FileSystemEntity.isLinkSync('$home/.wiped') ||
+          FileSystemEntity.isLinkSync('$home/user') ||
+          FileSystemEntity.isLinkSync('$home/user/$personaSubdir')) {
         throw const FileSystemException('数据根或清空记录是符号链接，拒绝清空');
       }
-      final targets = [..._wipeTrees, ..._wipeFiles];
+      final targets = _wipeTargets(personaSubdir);
       // 列举和检查必须先于任何删除。拒绝符号链接，避免把保留目录或外部目录删掉。
       for (final name in targets) {
         var path = home;

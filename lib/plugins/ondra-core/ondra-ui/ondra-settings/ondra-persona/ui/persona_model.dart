@@ -87,7 +87,7 @@ OndraPersona parsePersona({
       storageSlug ??
       ((declaredSlug?.isNotEmpty ?? false)
           ? declaredSlug!
-          : _basename(assetDir));
+          : personaBasename(assetDir));
   if (!isSafePersonaSlug(slug)) {
     throw const FormatException('人设目录名不合法。');
   }
@@ -158,7 +158,11 @@ String? resolvePersonaId(Map<String, dynamic> meta, String archiveStem) {
   return null;
 }
 
-String _basename(String path) {
-  final i = path.lastIndexOf('/');
-  return i < 0 ? path : path.substring(i + 1);
+/// 路径最后一级。Windows 的 `Directory.listSync()` 返回反斜杠路径，
+/// 只按 `/` 切会把整条绝对路径当成目录名（alpha.15 审查：自定义人设
+/// 装好后枚举为空、重新选择时报「没有这个人设包」）。这里两种分隔符都认。
+String personaBasename(String path) {
+  final normalized = path.replaceAll(r'\', '/');
+  final i = normalized.lastIndexOf('/');
+  return i < 0 ? normalized : normalized.substring(i + 1);
 }

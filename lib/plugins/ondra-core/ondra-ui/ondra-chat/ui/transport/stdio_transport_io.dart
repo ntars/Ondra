@@ -77,13 +77,15 @@ class StdioDshTransport implements DshTransport {
     this.inheritLoginShellEnvironment = true,
     List<String> binaryArgs = const [],
     this.requestTimeout = const Duration(seconds: 30),
+    this.startupTimeout,
     this.turnTimeout = const Duration(minutes: 10),
+    this.closeTimeout = const Duration(seconds: 5),
     this.modelConfig,
     this.secretResolver,
     this.workingDirectory,
     this.previousClosed,
     String? resumeSessionId,
-  })  : environment = Map.unmodifiable(environment ?? Platform.environment),
+  }) : environment = Map.unmodifiable(environment ?? Platform.environment),
        binaryArgs = List.unmodifiable(binaryArgs),
        _sessionId = resumeSessionId;
 
@@ -99,8 +101,21 @@ class StdioDshTransport implements DshTransport {
   final List<String> binaryArgs;
   final Duration requestTimeout;
 
+  /// 进程启动与 `initialize` 握手的独立超时。
+  ///
+  /// 普通请求的 [requestTimeout] 往往很短（测试用 180ms 验证“明确失败”），
+  /// 但同一时限套在冷启动上会把 Node 启动慢一点误报成初始化超时。
+  /// 不传时沿用 [requestTimeout]，保持既有行为。
+  final Duration? startupTimeout;
+
   /// 整轮硬上限，不是首 token 上限；本地长推理可由调用方进一步调高。
   final Duration turnTimeout;
+
+  /// 正常关闭时等待内核 `shutdown` 应答及其落盘退出的时间上限。
+  ///
+  /// 超时后仍走强制终止，关闭流程不能无限挂着；该值独立于普通请求和
+  /// 冷启动超时，测试可缩短以便验证超时兜底。
+  final Duration closeTimeout;
   final RuntimeModelConfig Function()? modelConfig;
 
   /// 按提供商 id 解析密钥。装配层传 `modelClient.readProviderSecret`：
@@ -113,7 +128,26 @@ class StdioDshTransport implements DshTransport {
   /// 不扩充 DshTransport 接口，现有 mocks 无需实现；装配层换实例前必须 await。
   @override
   Future<void> close() async {
-    stop();
+    final connection = _connection;
+    if (connection == null) {
+      await _retired;
+      return;
+    }
+    // 正在生成时先走 stop 的中断逻辑；只有空闲的健康连接能在关闭前要求
+    // 内核自行落盘退出。直接调用 stop() 会把空闲连接标成失败，随后清理
+    // 路径只能硬杀，这正是快速换模型丢最后一句的窗口。
+    if (_active != null || connection.opening || connection.failure != null) {
+      stop();
+      await _retired;
+      return;
+    }
+    // Keep the connection visible to `_call(connection, 'shutdown')`; the
+    // response handler checks that it still belongs to the live transport.
+    await _close(connection, graceful: true);
+    if (identical(_connection, connection)) {
+      _connection = null;
+      _retired = connection.closed.future;
+    }
     await _retired;
   }
 
@@ -277,8 +311,7 @@ class StdioDshTransport implements DshTransport {
           // 安卓：node 的动态依赖（openssl/icu/…）全在 nativeLibraryDir，
           // bionic linker 只看 LD_LIBRARY_PATH 与自己的默认路径。
           if (Platform.isAndroid)
-            'LD_LIBRARY_PATH':
-                ondraBundledRuntime?.libDir ?? '',
+            'LD_LIBRARY_PATH': ondraBundledRuntime?.libDir ?? '',
         },
         workingDirectory: workingDirectory,
         includeParentEnvironment: false,
@@ -337,8 +370,8 @@ class StdioDshTransport implements DshTransport {
       unawaited(
         process.exitCode.then((code) {
           // 优先展示最后一行看起来像异常/错误的信息；否则退到整个尾部。
-          final detail = _errorDetail(connection.stderrTail) ??
-              connection.stderrLast;
+          final detail =
+              _errorDetail(connection.stderrTail) ?? connection.stderrLast;
           _disconnect(
             connection,
             StateError(
@@ -355,7 +388,7 @@ class StdioDshTransport implements DshTransport {
         'model': config?.modelId ?? modelId,
         // 推理能力/默认档位由受管 profile 提供。SDK 的 adapterDefaults 投影
         // 会在 resume 时重新解析，不能给非推理模型硬传 reasoningEffort: off。
-      });
+      }, timeout: startupTimeout);
       _checkConnection(connection);
       final sessionId = _sessionId;
       if (sessionId != null) {
@@ -414,14 +447,16 @@ class StdioDshTransport implements DshTransport {
         // 上一次 stop 的取消流程（命令往返 + idle 等待/兜底重启）还没走完：
         // 期间不占 _active——兜底断连的 finish 不能误伤这条还没开始的轮次；
         // settle 后要么 idle（消息立即执行），要么走重启后的新连接。
-        unawaited(settled.whenComplete(() {
-          if (_active != null || turn.done) {
-            turn.finish(StateError('已有一轮对话正在生成'));
-            return;
-          }
-          _active = turn;
-          unawaited(_send(turn, text, attachments));
-        }));
+        unawaited(
+          settled.whenComplete(() {
+            if (_active != null || turn.done) {
+              turn.finish(StateError('已有一轮对话正在生成'));
+              return;
+            }
+            _active = turn;
+            unawaited(_send(turn, text, attachments));
+          }),
+        );
         return;
       }
       if (_active != null) {
@@ -693,18 +728,48 @@ class StdioDshTransport implements DshTransport {
     if (!connection.opening) unawaited(_close(connection));
   }
 
-  Future<void> _close(_Connection connection) async {
+  Future<void> _close(_Connection connection, {bool graceful = false}) async {
     if (connection.closing) return connection.closed.future;
     connection.closing = true;
     try {
       final process = connection.process;
       if (process != null) {
-        process.kill();
-        try {
-          await process.exitCode.timeout(const Duration(seconds: 2));
-        } on TimeoutException {
-          process.kill(ProcessSignal.sigkill);
-          await process.exitCode;
+        // The SDK answers `shutdown` before disposing the root runtime; the
+        // response alone is not enough. Wait for the process to exit so
+        // session writes can drain, then fall back to the hard kill below.
+        // Broken or already-disconnected connections skip the graceful path.
+        var shutdownAccepted = false;
+        var exited = false;
+        if (graceful && connection.failure == null) {
+          try {
+            await _call(
+              connection,
+              'shutdown',
+              const {},
+              timeout: closeTimeout,
+            );
+            shutdownAccepted = true;
+          } catch (_) {
+            // Older/custom kernels may not implement `shutdown`.
+          }
+        }
+        if (shutdownAccepted) {
+          try {
+            await process.exitCode.timeout(closeTimeout);
+            exited = true;
+          } on TimeoutException {
+            // A kernel that accepted shutdown but failed to exit still must
+            // not keep the next model runtime from opening the same database.
+          }
+        }
+        if (!exited) {
+          process.kill();
+          try {
+            await process.exitCode.timeout(const Duration(seconds: 2));
+          } on TimeoutException {
+            process.kill(ProcessSignal.sigkill);
+            await process.exitCode;
+          }
         }
         try {
           await process.stdin.close();
@@ -723,8 +788,9 @@ class StdioDshTransport implements DshTransport {
   Future<RpcFrame> _call(
     _Connection connection,
     String method,
-    Map<String, dynamic> params,
-  ) async {
+    Map<String, dynamic> params, {
+    Duration? timeout,
+  }) async {
     _checkConnection(connection);
     final process = connection.process;
     if (process == null) throw StateError('内核未连接');
@@ -733,10 +799,11 @@ class StdioDshTransport implements DshTransport {
     connection.pending[id] = completer;
     try {
       // 先订阅 future，再写管道，避免同步写入失败遗留未处理的 completer。
+      final limit = timeout ?? requestTimeout;
       final response = completer.future.timeout(
-        requestTimeout,
+        limit,
         onTimeout: () {
-          throw TimeoutException('内核请求超时（$method）', requestTimeout);
+          throw TimeoutException('内核请求超时（$method）', limit);
         },
       );
       try {

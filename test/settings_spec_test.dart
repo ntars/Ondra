@@ -20,7 +20,7 @@ void main() {
     const used = [
       // 通用设置
       // permissions/focusMute 已移除（见 settings_spec 注释）。
-      'general.language', 'general.fontSize',
+      'general.language', 'general.fontFamily', 'general.fontSize',
       'general.launchAtLogin', 'general.preventSleep',
       'general.notify', 'general.notifySound',
       // 人设设定（对话 / 记忆 / 数据 / 语音）

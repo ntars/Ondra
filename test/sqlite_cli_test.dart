@@ -48,7 +48,10 @@ void main() {
     final snapshot = await loadMemorySnapshot();
 
     expect(snapshot.facts, isEmpty);
-    expect(snapshot.note, contains('sqlite3'),
-        reason: '缺工具这件事必须说出来；安静地空着会被当成「没有记忆」');
+    expect(
+      snapshot.note,
+      contains('sqlite3'),
+      reason: '缺工具这件事必须说出来；安静地空着会被当成「没有记忆」',
+    );
   });
 }

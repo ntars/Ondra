@@ -109,16 +109,12 @@ class _LlamaPanelState extends State<LlamaPanel> {
               title: '运行状态',
               children: [
                 _Line(
-                  title: c.running
-                      ? (c.starting ? '启动中…' : '运行中')
-                      : '未运行',
+                  title: c.running ? (c.starting ? '启动中…' : '运行中') : '未运行',
                   desc: c.running
                       ? '${c.runningModel ?? '模型'} · 127.0.0.1:${c.port}'
                       : '选一个本地模型启动，地址会自动填回上面',
                   value: c.running ? 'PID ${c.pidLabel}' : null,
-                  action: c.running
-                      ? _Link(label: '停止', onTap: c.stop)
-                      : null,
+                  action: c.running ? _Link(label: '停止', onTap: c.stop) : null,
                   showDivider: c.lastLine != null,
                 ),
                 if (c.lastLine != null)
@@ -179,9 +175,15 @@ class _LlamaPanelState extends State<LlamaPanel> {
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                            ),
                             hintText: 'https://…/model.gguf',
-                            hintStyle: ondraText(11, color: s.ink25, height: 18 / 11),
+                            hintStyle: ondraText(
+                              11,
+                              color: s.ink25,
+                              height: 18 / 11,
+                            ),
                           ),
                         ),
                       ),
@@ -205,7 +207,9 @@ class _LlamaPanelState extends State<LlamaPanel> {
                             value: c.progress == 0 ? null : c.progress,
                             minHeight: 4,
                             backgroundColor: s.fill,
-                            valueColor: const AlwaysStoppedAnimation(OndraColor.accent),
+                            valueColor: const AlwaysStoppedAnimation(
+                              OndraColor.accent,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -226,7 +230,11 @@ class _LlamaPanelState extends State<LlamaPanel> {
                 padding: const EdgeInsets.only(left: 4),
                 child: Text(
                   _error!,
-                  style: ondraText(11, color: OndraColor.danger, height: 16 / 11),
+                  style: ondraText(
+                    11,
+                    color: OndraColor.danger,
+                    height: 16 / 11,
+                  ),
                 ),
               ),
             ],
@@ -258,7 +266,13 @@ class _Group extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           child: Text(
             title,
-            style: ondraText(11, weight: 600, color: s.ink40, height: 14 / 11, spacing: 0.3),
+            style: ondraText(
+              11,
+              weight: 600,
+              color: s.ink40,
+              height: 14 / 11,
+              spacing: 0.3,
+            ),
           ),
         ),
         Container(
@@ -266,7 +280,10 @@ class _Group extends StatelessWidget {
             color: s.fill,
             borderRadius: BorderRadius.circular(OndraRadius.lg),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
         ),
       ],
     );
@@ -326,12 +343,12 @@ class _Line extends StatelessWidget {
           ),
           if (value != null) ...[
             const SizedBox(width: 12),
-            Text(value!, style: ondraText(12, color: s.ink45, height: 18 / 12)),
+            Text(
+              value!,
+              style: ondraText(12, color: s.ink45, height: 18 / 12),
+            ),
           ],
-          if (action != null) ...[
-            const SizedBox(width: 12),
-            action!,
-          ],
+          if (action != null) ...[const SizedBox(width: 12), action!],
         ],
       ),
     );
@@ -348,7 +365,9 @@ class _Link extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = OndraSkin.of(context);
     return MouseRegion(
-      cursor: onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      cursor: onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
       child: GestureDetector(
         onTap: onTap,
         child: Text(

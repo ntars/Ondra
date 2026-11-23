@@ -150,10 +150,7 @@ class TimelineRail extends StatelessWidget {
       }
       final t = snap.createdAt;
       out.add(
-        _Item(
-          snapshotIndex: i,
-          label: '${_two(t.hour)}:${_two(t.minute)}',
-        ),
+        _Item(snapshotIndex: i, label: '${_two(t.hour)}:${_two(t.minute)}'),
       );
     }
     return out;
@@ -226,20 +223,26 @@ class _HoverTickState extends State<_HoverTick> {
                   decoration: BoxDecoration(
                     color: widget.selected
                         ? Colors.white
-                        : TimelinePalette.ink
-                              .withValues(alpha: _hover ? 0.65 : 0.30),
+                        : TimelinePalette.ink.withValues(
+                            alpha: _hover ? 0.65 : 0.30,
+                          ),
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 5),
                 Text(
                   widget.label,
-                  style: ondraText(
-                    widget.selected ? 11.5 : 11,
-                    weight: widget.selected ? 500 : 330,
-                    color: active ? TimelinePalette.ink : TimelinePalette.inkSoft,
-                    height: 1,
-                  ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                  style:
+                      ondraText(
+                        widget.selected ? 11.5 : 11,
+                        weight: widget.selected ? 500 : 330,
+                        color: active
+                            ? TimelinePalette.ink
+                            : TimelinePalette.inkSoft,
+                        height: 1,
+                      ).copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                 ),
               ],
             ),
@@ -269,12 +272,16 @@ class _HoverTickState extends State<_HoverTick> {
                     decoration: BoxDecoration(
                       color: widget.selected
                           ? Colors.white
-                          : TimelinePalette.ink.withValues(alpha: _hover ? 0.65 : 0.30),
+                          : TimelinePalette.ink.withValues(
+                              alpha: _hover ? 0.65 : 0.30,
+                            ),
                       shape: BoxShape.circle,
                       boxShadow: widget.selected
                           ? [
                               BoxShadow(
-                                color: TimelinePalette.glow.withValues(alpha: 0.9),
+                                color: TimelinePalette.glow.withValues(
+                                  alpha: 0.9,
+                                ),
                                 blurRadius: 8,
                               ),
                             ]
@@ -289,14 +296,17 @@ class _HoverTickState extends State<_HoverTick> {
                   widget.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: ondraText(
-                    widget.selected ? 11.5 : 11,
-                    weight: widget.selected ? 500 : 330,
-                    color: active ? TimelinePalette.ink : TimelinePalette.inkSoft,
-                    height: 15 / 11.5,
-                  ).copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                  style:
+                      ondraText(
+                        widget.selected ? 11.5 : 11,
+                        weight: widget.selected ? 500 : 330,
+                        color: active
+                            ? TimelinePalette.ink
+                            : TimelinePalette.inkSoft,
+                        height: 15 / 11.5,
+                      ).copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                 ),
               ),
             ],

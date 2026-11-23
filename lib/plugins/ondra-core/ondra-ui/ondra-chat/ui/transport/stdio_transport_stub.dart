@@ -25,6 +25,7 @@ class StdioDshTransport implements DshTransport {
     String? resumeSessionId,
     Duration requestTimeout = const Duration(seconds: 30),
     Duration turnTimeout = const Duration(minutes: 10),
+    Duration closeTimeout = const Duration(seconds: 5),
   });
 
   @override

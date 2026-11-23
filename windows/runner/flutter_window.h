@@ -6,8 +6,10 @@
 #include <flutter/flutter_view_controller.h>
 #include <flutter/method_channel.h>
 
+#include <cstdint>
 #include <memory>
 
+#include "web_view_win.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -32,6 +34,11 @@ class FlutterWindow : public Win32Window {
   // 不接这一下，切到深色后是「深色画布 + 亮白色标题栏」，比不切还难看。
   void SetWindowAppearance(bool dark);
 
+  // `ondra/platform` 的 Windows 睡眠断言。timer 让 ES_SYSTEM_REQUIRED
+  // 持续被重新武装；窗口销毁时无条件撤掉，避免留下系统级状态。
+  void begin_prevent_sleep();
+  void end_prevent_sleep();
+
   // The project to run.
   flutter::DartProject project_;
 
@@ -41,6 +48,16 @@ class FlutterWindow : public Win32Window {
   // The `ondra/window` method channel.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       appearance_channel_;
+
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      platform_channel_;
+
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      notify_channel_;
+
+  std::unique_ptr<::OndraWebViewHost> web_view_host_;
+
+  UINT_PTR prevent_sleep_timer_ = 0;
 
   // Dart 有没有**明确指定**过明暗。
   //

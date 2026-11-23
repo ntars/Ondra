@@ -6,7 +6,9 @@ import 'tokens.dart';
 /// 全局主题。只承担「基础色 + 无涟漪 + 字体族」，
 /// 具体排版一律由页面用 [ondraText] 显式给出，避免主题层藏隐形样式。
 ThemeData ondraTheme(Brightness brightness) {
-  final s = brightness == Brightness.dark ? OndraSkin.darkSkin : OndraSkin.light;
+  final s = brightness == Brightness.dark
+      ? OndraSkin.darkSkin
+      : OndraSkin.light;
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,

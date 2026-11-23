@@ -37,7 +37,11 @@ Future<void> writeRuntimeModelPatch({
   if (runtime == null) throw StateError('应用模型配置需要随包 DSH 运行时');
   final file = File('$dshHome/profiles/ondra/cordis.patch.yml');
   final bytes = await file.readAsBytes();
-  final bom = bytes.length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf;
+  final bom =
+      bytes.length >= 3 &&
+      bytes[0] == 0xef &&
+      bytes[1] == 0xbb &&
+      bytes[2] == 0xbf;
   final original = '${bom ? '\ufeff' : ''}${utf8.decode(bytes)}';
   final parts = splitRuntimeModelPatch(original);
   final process = await Process.start(

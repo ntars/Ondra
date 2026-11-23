@@ -17,7 +17,11 @@ const List<OndraProviderPreset> beichenPresets = [
     apiKeyEnv: 'PARTNER_API_KEY',
     models: [
       OndraModelPreset('partner-chat', contextWindow: '128K', maxTokens: '8K'),
-      OndraModelPreset('partner-reasoner', contextWindow: '128K', maxTokens: '32K'),
+      OndraModelPreset(
+        'partner-reasoner',
+        contextWindow: '128K',
+        maxTokens: '32K',
+      ),
     ],
     note: '地址与模型名按合作方给的目录填；换一家改这个文件即可',
   ),

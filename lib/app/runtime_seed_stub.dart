@@ -1,12 +1,7 @@
 /// 浏览器里没有子进程，也就没有 profile 要铺。
 library;
 
-enum RuntimeSeedOutcome {
-  noBundledRuntime,
-  alreadyPresent,
-  seeded,
-  failed,
-}
+enum RuntimeSeedOutcome { noBundledRuntime, alreadyPresent, seeded, failed }
 
 class RuntimeSeedResult {
   const RuntimeSeedResult(this.outcome, {this.targetPath, this.error});

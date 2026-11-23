@@ -249,6 +249,10 @@
       name: '@ondra/cordis-plugin-ondra-credentials'
     - id: ondra-tts
       name: '@ondra/cordis-plugin-ondra-tts'
+      # 出厂默认与界面「朗读回复」一致：关闭。用户层在 settings.json 里
+      # 显式 enable=true 时仍会盖过这一层（四层合并 factory < user）。
+      config:
+        enable: false
     - id: ondra-tts-gate
       name: '@ondra/cordis-plugin-ondra-tts-gate'
     - id: ondra-vision

@@ -95,12 +95,19 @@ void main() {
       final placeholder = RegExp(r'\{(\w+)\}');
       for (final e in table.entries) {
         if (e.key.startsWith('_')) continue;
-        final inKey = placeholder.allMatches(e.key).map((m) => m.group(1)).toSet();
-        final inVal = placeholder.allMatches(e.value).map((m) => m.group(1)).toSet();
+        final inKey = placeholder
+            .allMatches(e.key)
+            .map((m) => m.group(1))
+            .toSet();
+        final inVal = placeholder
+            .allMatches(e.value)
+            .map((m) => m.group(1))
+            .toSet();
         expect(
           inVal,
           inKey,
-          reason: '键「${e.key}」的占位符与译文不一致：'
+          reason:
+              '键「${e.key}」的占位符与译文不一致：'
               '键里 $inKey，译文里 $inVal——少一个就会把 {n} 原样显示给用户',
         );
       }
@@ -111,7 +118,8 @@ void main() {
       expect(
         pubspec.contains('- assets/locales/'),
         isTrue,
-        reason: 'pubspec.yaml 的 assets 段没有声明 assets/locales/，'
+        reason:
+            'pubspec.yaml 的 assets 段没有声明 assets/locales/，'
             '装出来的包读不到语言包，会静默回落中文',
       );
       expect(File('assets/locales/en.json').existsSync(), isTrue);
@@ -150,7 +158,8 @@ void main() {
       expect(
         orphans,
         isEmpty,
-        reason: '这些键在 lib/ 里找不到对应的中文字面量，'
+        reason:
+            '这些键在 lib/ 里找不到对应的中文字面量，'
             '永远不会被 t() 命中：$orphans',
       );
     });

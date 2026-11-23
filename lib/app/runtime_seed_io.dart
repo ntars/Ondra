@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 
 import 'bundled_runtime.dart';
 import 'home_dir.dart';
+import 'version.dart';
 
 /// 铺开结果。调用方拿它决定要不要在日志里留一行，以及要不要提示用户。
 enum RuntimeSeedOutcome {
@@ -50,7 +54,8 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
     return const RuntimeSeedResult(RuntimeSeedOutcome.noBundledRuntime);
   }
 
-  final home = dshHome ??
+  final home =
+      dshHome ??
       Platform.environment['ONDRA_DSH_HOME'] ??
       '$ondraUserHome/.ondra/dsh';
   final sep = Platform.pathSeparator;
@@ -62,20 +67,41 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
     //
     // 但「目录存在」不证明「铺设完成」——alpha.10 审查第 30 项：首次
     // 铺设中断留下的半套目录，永远停在半套。这里只做**补缺**：
-    // 源快照里有、目标里没有的文件补上；两边都有的不动。
+    // 源快照里有、目标里没有的文件补上；两边都有、且用户没改过的旧随包
+    // 文件，按逐文件摘要判断后再升级。
+    final changed = <String>{};
     try {
-      var filled = _fillMissing(Directory(runtime.profileDir), Directory(target));
-      if (filled > 0) {
-        return RuntimeSeedResult(RuntimeSeedOutcome.seeded, targetPath: target);
-      }
+      changed.addAll(
+        _fillMissing(Directory(runtime.profileDir), Directory(target)),
+      );
+      changed.addAll(
+        _upgradeOwnedFiles(Directory(runtime.profileDir), Directory(target)),
+      );
     } on FileSystemException {
-      // 补缺失败不覆盖已有内容，保持 alreadyPresent。
+      // 单个文件失败不覆盖已有内容；已经完成的补缺/升级仍按 seeded 返回，
+      // 下次启动会再次尝试剩下的文件。
     }
-    return RuntimeSeedResult(RuntimeSeedOutcome.alreadyPresent, targetPath: target);
+    if (changed.isNotEmpty) {
+      try {
+        _updateOwnedSnapshot(target, runtime.profileDir, changed);
+      } on FileSystemException {
+        // 摘要清单写不进去只影响下一次升级判断，不影响本次已铺开的文件。
+      }
+      return RuntimeSeedResult(RuntimeSeedOutcome.seeded, targetPath: target);
+    }
+    return RuntimeSeedResult(
+      RuntimeSeedOutcome.alreadyPresent,
+      targetPath: target,
+    );
   }
 
   try {
     _copyTree(Directory(runtime.profileDir), Directory(target));
+    try {
+      _writeOwnedSnapshot(Directory(target), runtime.profileDir);
+    } on FileSystemException {
+      // 文件已经完整铺开；摘要清单失败不应把成功启动报成 failed。
+    }
     return RuntimeSeedResult(RuntimeSeedOutcome.seeded, targetPath: target);
   } on FileSystemException catch (e) {
     return RuntimeSeedResult(
@@ -86,25 +112,165 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
   }
 }
 
+const String _ownedManifestName = '.ondra-seed.json';
+
+String _ownedManifestPath(String profileTarget) =>
+    '$profileTarget${Platform.pathSeparator}$_ownedManifestName';
+
+String _normalize(String path) =>
+    path.replaceAll('\\', '/').replaceAll(RegExp(r'/+'), '/');
+
+String _sha256OfFile(File file) =>
+    sha256.convert(file.readAsBytesSync()).toString();
+
+String? _snapshotPackageCount(String profileDir) {
+  try {
+    final manifest = jsonDecode(
+      File('$profileDir/package.json').readAsStringSync(),
+    );
+    if (manifest is Map) {
+      final snapshot = manifest['x-ondra-snapshot'];
+      if (snapshot is Map) return snapshot['packages']?.toString();
+    }
+  } catch (_) {}
+  return null;
+}
+
+/// 只替换仍与上次随包种子逐字节一致、且新快照确实不同的文件。
+List<String> _upgradeOwnedFiles(Directory source, Directory target) {
+  final manifest = File(_ownedManifestPath(target.path));
+  if (!manifest.existsSync()) return const [];
+  Map<String, Object?> parsed;
+  try {
+    parsed = jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
+  } catch (_) {
+    return const [];
+  }
+  final rawFiles = parsed['files'];
+  if (rawFiles is! Map) return const [];
+  final replaced = <String>[];
+  void walk(Directory dir) {
+    for (final entity in dir.listSync(followLinks: false)) {
+      final rel = _normalize(entity.path.substring(source.path.length + 1));
+      if (entity is Directory) {
+        walk(entity);
+        continue;
+      }
+      if (entity is! File) continue;
+      final destination = File(
+        '${target.path}${Platform.pathSeparator}${rel.replaceAll('/', Platform.pathSeparator)}',
+      );
+      if (!destination.existsSync()) continue;
+      final ownedHash = rawFiles[rel];
+      if (ownedHash is! String) continue;
+      if (_sha256OfFile(destination) != ownedHash) {
+        // 用户改过或自己升级过：保留本地版本。
+        continue;
+      }
+      if (_sha256OfFile(entity) == ownedHash) continue;
+      _copyFileContents(entity, destination);
+      replaced.add(rel);
+    }
+  }
+
+  walk(source);
+  return replaced;
+}
+
+/// 记录随包快照的归属与文件摘要。
+///
+/// 只替换「上次确实由本应用铺开、且此后没有被用户改过」的文件。用户自己
+/// 升级或手改的插件文件摘要不同，继续保留；半套安装缺的文件由补缺先补上。
+void _writeOwnedSnapshot(Directory target, String source) {
+  final files = <String, String>{};
+  void walk(Directory dir) {
+    for (final entity in dir.listSync(followLinks: false)) {
+      final rel = _normalize(entity.path.substring(target.path.length + 1));
+      if (rel == _ownedManifestName) continue;
+      if (entity is Directory) {
+        walk(entity);
+      } else if (entity is File) {
+        files[rel] = _sha256OfFile(entity);
+      }
+    }
+  }
+
+  walk(target);
+  _writeOwnedManifest(target.path, source, files);
+}
+
+/// 只更新本次确实由随包快照写下的文件摘要。
+///
+/// 用户改过的文件不能因为一次别的文件升级就被重新记成“随包所有”，否则
+/// 下一次升级会把用户版本盖掉。
+void _updateOwnedSnapshot(
+  String target,
+  String source,
+  Iterable<String> changed,
+) {
+  final files = <String, String>{};
+  final manifest = File(_ownedManifestPath(target));
+  if (manifest.existsSync()) {
+    try {
+      final parsed = jsonDecode(manifest.readAsStringSync());
+      if (parsed is Map && parsed['files'] is Map) {
+        for (final entry in (parsed['files'] as Map).entries) {
+          if (entry.key is String && entry.value is String) {
+            files[entry.key as String] = entry.value as String;
+          }
+        }
+      }
+    } catch (_) {
+      // 旧清单损坏时从空清单重建，只记录本次确认写入的文件。
+    }
+  }
+  for (final rel in changed) {
+    final file = File(
+      '$target${Platform.pathSeparator}'
+      '${rel.replaceAll('/', Platform.pathSeparator)}',
+    );
+    if (file.existsSync()) files[rel] = _sha256OfFile(file);
+  }
+  _writeOwnedManifest(target, source, files);
+}
+
+void _writeOwnedManifest(
+  String target,
+  String source,
+  Map<String, String> files,
+) {
+  File(_ownedManifestPath(target)).writeAsStringSync(
+    '${const JsonEncoder.withIndent('  ').convert({'seededBy': 'Ondra', 'appVersion': '$ondraVersion+$ondraBuild', 'source': _normalize(source), 'snapshot': _snapshotPackageCount(source), 'files': files})}\n',
+    flush: true,
+  );
+}
+
 /// 递归复制，保留符号链接。
 ///
 /// 不跟随链接的理由：pnpm 装的 profile 里 `node_modules/@ondra/*` 可能是指向
 /// 别处的链接。跟随会把目标内容整棵复制进来（体积翻倍且失去升级语义），
 /// 不复制又会丢包。原样搬过去才对。
-/// 只补目标里缺失的文件；两边都有的不覆盖。返回补上的文件数。
-int _fillMissing(Directory from, Directory to) {
-  var filled = 0;
+/// 只补目标里缺失的文件；两边都有的不覆盖。返回补上的相对路径。
+List<String> _fillMissing(Directory from, Directory to, {String? root}) {
+  root ??= from.path;
+  final filled = <String>[];
   for (final entity in from.listSync(followLinks: false)) {
     final name = entity.path.split(Platform.pathSeparator).last;
     final destination = '${to.path}${Platform.pathSeparator}$name';
     if (entity is Directory) {
       final child = Directory(destination);
       if (!child.existsSync()) child.createSync(recursive: true);
-      filled += _fillMissing(entity, child);
+      filled.addAll(_fillMissing(entity, child, root: root));
+    } else if (entity is Link) {
+      final targetType = FileSystemEntity.typeSync(destination);
+      if (targetType == FileSystemEntityType.notFound) {
+        Link(destination).createSync(entity.targetSync());
+        filled.add(_normalize(entity.path.substring(root.length + 1)));
+      }
     } else if (entity is File) {
       if (!File(destination).existsSync()) {
-        entity.copySync(destination);
-        filled++;
+        _copyFileContents(entity, File(destination));
+        filled.add(_normalize(entity.path.substring(root.length + 1)));
       }
     }
   }
@@ -122,20 +288,24 @@ void _copyTree(Directory from, Directory to) {
     } else if (entity is Directory) {
       _copyTree(entity, Directory(destination));
     } else if (entity is File) {
-      entity.copySync(destination);
-      // 可执行位：插件包里有 shell 脚本与原生小工具，丢了位就跑不起来。
-      // `File.copySync` 只搬内容不搬权限，得自己补。
-      //
-      // 掩到 0xFFF：Dart 的 `FileStat.mode` 带文件类型位（如 0o100644），
-      // 直接丢给 chmod 会被当成非法八进制串。Windows 上这段会抛异常，忽略即可。
-      try {
-        final perm = entity.statSync().mode & 0xFFF;
-        if (perm & 0x49 != 0) {
-          Process.runSync('chmod', [perm.toRadixString(8), destination]);
-        }
-      } on Object {
-        // 改不动就算了：多数文件不需要可执行位。
-      }
+      _copyFileContents(entity, File(destination));
     }
+  }
+}
+
+void _copyFileContents(File source, File destination) {
+  source.copySync(destination.path);
+  // 可执行位：插件包里有 shell 脚本与原生小工具，丢了位就跑不起来。
+  // `File.copySync` 只搬内容不搬权限，得自己补。
+  //
+  // 掩到 0xFFF：Dart 的 `FileStat.mode` 带文件类型位（如 0o100644），
+  // 直接丢给 chmod 会被当成非法八进制串。Windows 上这段会抛异常，忽略即可。
+  try {
+    final perm = source.statSync().mode & 0xFFF;
+    if (perm & 0x49 != 0) {
+      Process.runSync('chmod', [perm.toRadixString(8), destination.path]);
+    }
+  } on Object {
+    // 改不动就算了：多数文件不需要可执行位。
   }
 }

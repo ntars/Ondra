@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:archive/archive.dart';
 
 import '../../../../../../app/home_dir.dart';
@@ -517,9 +518,7 @@ class PersonaStore {
           name.codeUnits.any((c) => c < 32 || c == 127)) {
         throw FormatException('ZIP 内有不安全的路径：$name');
       }
-      final parts = name
-          .replaceAll(RegExp(r'/+$'), '')
-          .split('/');
+      final parts = name.replaceAll(RegExp(r'/+$'), '').split('/');
       for (final part in parts) {
         if (part.isEmpty ||
             part == '.' ||
@@ -560,7 +559,7 @@ class PersonaStore {
     }
   }
 
-  static String _basename(String path) => path.split('/').last;
+  static String _basename(String path) => personaBasename(path);
   static String _archiveStem(String path) => _basename(path).replaceFirst(
     RegExp(r'\.(skill\.zip|zip|skill|ondra)$', caseSensitive: false),
     '',
@@ -603,4 +602,3 @@ class PersonaInstall {
   final String? slug;
   final String? id;
 }
-

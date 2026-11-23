@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:ondra/app/keychain.dart';
@@ -42,7 +43,10 @@ void main() {
     PlatformActions.probe = const PlatformActionsProbe();
   });
   test('只有 macOS 有原生玻璃', () {
-    expect(_onPlatform(TargetPlatform.macOS, () => ondraHasNativeGlass), isTrue);
+    expect(
+      _onPlatform(TargetPlatform.macOS, () => ondraHasNativeGlass),
+      isTrue,
+    );
     for (final p in [
       TargetPlatform.windows,
       TargetPlatform.linux,
@@ -62,11 +66,7 @@ void main() {
     for (final dark in [false, true]) {
       final painted = dark ? OndraSkin.darkSkin.shell : OndraSkin.light.shell;
       // 实色必须完全不透明：alpha 255。深色深、浅色浅，但都不能透。
-      expect(
-        painted.a,
-        1.0,
-        reason: '${dark ? "深色" : "浅色"}侧栏兜底色必须不透明',
-      );
+      expect(painted.a, 1.0, reason: '${dark ? "深色" : "浅色"}侧栏兜底色必须不透明');
       expect(painted, dark ? OndraColor.darkSideGlass : OndraColor.sidebar);
     }
   });
@@ -92,18 +92,16 @@ void main() {
         }),
       );
       final box = tester.widget<ColoredBox>(
-        find.descendant(
-          of: find.byType(BootScreen),
-          matching: find.byType(ColoredBox),
-        ).first,
+        find
+            .descendant(
+              of: find.byType(BootScreen),
+              matching: find.byType(ColoredBox),
+            )
+            .first,
       );
       // 关键断言：alpha 必须是 255。85% 半透明（splashGlass）在 Windows 上
       // 会露出窗口底色，深色下就是一片白——而启动屏正是第一帧。
-      expect(
-        box.color.a,
-        1.0,
-        reason: '${dark ? "深色" : "浅色"}启动屏底色必须不透明',
-      );
+      expect(box.color.a, 1.0, reason: '${dark ? "深色" : "浅色"}启动屏底色必须不透明');
     }
   });
 

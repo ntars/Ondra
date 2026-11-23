@@ -26,11 +26,17 @@ Future<void> showFloatingWindow(
         builder: (context, constraints) {
           final w = width == null
               ? null
-              : math.min(width, constraints.maxWidth - 32).clamp(0.0, double.infinity);
+              : math
+                    .min(width, constraints.maxWidth - 32)
+                    .clamp(0.0, double.infinity);
           final h = height == null
               ? null
-              : math.min(height, constraints.maxHeight - 32).clamp(0.0, double.infinity);
-          return Center(child: SizedBox(width: w, height: h, child: child));
+              : math
+                    .min(height, constraints.maxHeight - 32)
+                    .clamp(0.0, double.infinity);
+          return Center(
+            child: SizedBox(width: w, height: h, child: child),
+          );
         },
       ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {

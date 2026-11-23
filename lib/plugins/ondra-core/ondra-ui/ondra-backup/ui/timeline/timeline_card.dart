@@ -39,7 +39,9 @@ class TimelineCard extends StatelessWidget {
       height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: focused ? TimelinePalette.frontSurface : TimelinePalette.ghostSurface,
+          color: focused
+              ? TimelinePalette.frontSurface
+              : TimelinePalette.ghostSurface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: focused
@@ -165,7 +167,11 @@ class _GhostBody extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: TimelinePalette.ghostLine),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: TimelinePalette.ghostLine,
+        ),
         const Expanded(
           child: Padding(
             padding: EdgeInsets.fromLTRB(18, 18, 18, 0),
@@ -198,7 +204,9 @@ class _FrontBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final snap = card.snapshot;
     final isNow = snap == null;
-    final groups = snap == null ? const <SnapshotGroup>[] : summarizeSnapshot(snap);
+    final groups = snap == null
+        ? const <SnapshotGroup>[]
+        : summarizeSnapshot(snap);
     final files = snap?.fileCount ?? card.overview.liveFiles;
     final bytes = snap?.sourceBytes ?? card.overview.liveBytes;
 
@@ -249,7 +257,11 @@ class _FrontBody extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: TimelinePalette.frontLine),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: TimelinePalette.frontLine,
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
           child: Row(
@@ -262,7 +274,11 @@ class _FrontBody extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1, thickness: 1, color: TimelinePalette.frontLine),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: TimelinePalette.frontLine,
+        ),
         Expanded(
           child: isNow
               ? const _NowHint()
@@ -298,12 +314,14 @@ class _FrontBody extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           alignment: Alignment.centerLeft,
           child: Text(
-            isNow
-                ? '这一刻还没有存成快照'
-                : '恢复会覆盖上面这些路径；快照里没有的文件会保留，不会被删',
+            isNow ? '这一刻还没有存成快照' : '恢复会覆盖上面这些路径；快照里没有的文件会保留，不会被删',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: ondraText(10.5, color: const Color(0x8A000000), height: 14 / 10.5),
+            style: ondraText(
+              10.5,
+              color: const Color(0x8A000000),
+              height: 14 / 10.5,
+            ),
           ),
         ),
       ],
@@ -324,8 +342,8 @@ class _NowHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Text(
         '现在不是一份快照——它是本机此刻的样子。\n'
         '要回到过去，在右侧时间轴上选一份；要留住此刻，先按「备份现在」。',
@@ -334,7 +352,7 @@ class _NowHint extends StatelessWidget {
           fontFamilyFallback: ondraFontFallback,
           fontSize: 11.5,
           height: 19 / 11.5,
-          color: Color(0x73000000),
+          color: const Color(0x73000000),
         ),
       ),
     );
@@ -423,7 +441,11 @@ class _FileRow extends StatelessWidget {
               entry.path,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: ondraText(10.5, color: const Color(0x8A000000), height: 14 / 10.5),
+              style: ondraText(
+                10.5,
+                color: const Color(0x8A000000),
+                height: 14 / 10.5,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -433,8 +455,11 @@ class _FileRow extends StatelessWidget {
               backupBytes(entry.size),
               textAlign: TextAlign.right,
               maxLines: 1,
-              style: ondraText(10.5, color: const Color(0x66000000), height: 14 / 10.5)
-                  .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+              style: ondraText(
+                10.5,
+                color: const Color(0x66000000),
+                height: 14 / 10.5,
+              ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
         ],
@@ -462,7 +487,11 @@ class _GroupRow extends StatelessWidget {
               group.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: ondraText(11.5, color: const Color(0xC7000000), height: 16 / 11.5),
+              style: ondraText(
+                11.5,
+                color: const Color(0xC7000000),
+                height: 16 / 11.5,
+              ),
             ),
           ),
           Expanded(
@@ -487,8 +516,11 @@ class _GroupRow extends StatelessWidget {
               '${group.files} 个',
               textAlign: TextAlign.right,
               maxLines: 1,
-              style: ondraText(10.5, color: const Color(0x73000000), height: 16 / 10.5)
-                  .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+              style: ondraText(
+                10.5,
+                color: const Color(0x73000000),
+                height: 16 / 10.5,
+              ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
           SizedBox(
@@ -497,8 +529,11 @@ class _GroupRow extends StatelessWidget {
               backupBytes(group.bytes),
               textAlign: TextAlign.right,
               maxLines: 1,
-              style: ondraText(10.5, color: const Color(0x73000000), height: 16 / 10.5)
-                  .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+              style: ondraText(
+                10.5,
+                color: const Color(0x73000000),
+                height: 16 / 10.5,
+              ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
         ],

@@ -33,7 +33,8 @@ class MemoryPage extends StatefulWidget {
   State<MemoryPage> createState() => _MemoryPageState();
 }
 
-class _MemoryPageState extends State<MemoryPage> with SingleTickerProviderStateMixin {
+class _MemoryPageState extends State<MemoryPage>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 12),
@@ -80,8 +81,10 @@ class _MemoryPageState extends State<MemoryPage> with SingleTickerProviderStateM
     var bestDistance = 14.0;
     for (var i = 0; i < _points.length; i++) {
       final p = _points[i];
-      final d = (Offset(rect.left + p.x * rect.width, rect.top + p.y * rect.height) - local)
-          .distance;
+      final d =
+          (Offset(rect.left + p.x * rect.width, rect.top + p.y * rect.height) -
+                  local)
+              .distance;
       if (d < bestDistance) {
         bestDistance = d;
         best = i;
@@ -195,7 +198,10 @@ class _Legend extends StatelessWidget {
               Container(
                 width: 7,
                 height: 7,
-                decoration: BoxDecoration(color: kind.color, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: kind.color,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 6),
               Text(kind.label, style: ondraText(11, color: s.ink45)),
@@ -231,7 +237,10 @@ class _MemoryDetail extends StatelessWidget {
               child: Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: point.kind.color, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: point.kind.color,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
           ),
@@ -244,7 +253,12 @@ class _MemoryDetail extends StatelessWidget {
                   point.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: ondraText(14, weight: 500, color: s.ink, height: 20 / 14),
+                  style: ondraText(
+                    14,
+                    weight: 500,
+                    color: s.ink,
+                    height: 20 / 14,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -257,7 +271,10 @@ class _MemoryDetail extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text('最近回想 ${point.recalledAt}', style: ondraText(11, color: s.ink30)),
+          Text(
+            '最近回想 ${point.recalledAt}',
+            style: ondraText(11, color: s.ink30),
+          ),
         ],
       ),
     );
@@ -310,7 +327,9 @@ class _NeuronPainter extends CustomPainter {
         final a = at(i);
         final b = at(j);
         final strength = (points[i].strength + points[j].strength) / 2;
-        final dim = hovered != null && !(neighbours.contains(i) && neighbours.contains(j));
+        final dim =
+            hovered != null &&
+            !(neighbours.contains(i) && neighbours.contains(j));
         final paint = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.6 + strength * 0.9
@@ -366,7 +385,11 @@ class _NeuronPainter extends CustomPainter {
         );
       }
 
-      canvas.drawCircle(center, radius, Paint()..color = p.kind.color.withValues(alpha: alpha));
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()..color = p.kind.color.withValues(alpha: alpha),
+      );
       canvas.drawCircle(
         center,
         radius * 0.42,
@@ -449,7 +472,8 @@ class _EmptyMemory extends StatelessWidget {
     // 另一种是「这个环境压根读不到库」。混成一句话会让人以为插件坏了。
     final why = note;
     final title = why == null ? '还没有记忆点' : '读不到记忆';
-    final body = why ??
+    final body =
+        why ??
         '对话里值得留下的东西会在这里长成节点。提炼由 memory-intake 在每轮'
             '结束时完成，写进内核的 memory_fact 表。';
     return OndraPage(
@@ -463,7 +487,10 @@ class _EmptyMemory extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title, style: ondraText(13, color: s.ink60, height: 18 / 13)),
+            Text(
+              title,
+              style: ondraText(13, color: s.ink60, height: 18 / 13),
+            ),
             const SizedBox(height: 6),
             SizedBox(
               width: 300,

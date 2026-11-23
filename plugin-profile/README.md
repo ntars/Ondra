@@ -39,6 +39,13 @@ git diff plugin-profile/cordis.patch.yml     # 装配结构变了没有
 **不要手动改这里的文件。** 它会被下次同步整体覆盖。要改插件行为，改
 `~/Downloads/plugins` 里的源码、重新装进 profile，再同步。
 
+例外（TTS Windows 后端）：本机没有那棵插件源码树时，为了在当前工作区修掉
+`cordis-plugin-ondra-tts` 的 Windows 无系统后端问题，直接改了这里编译后的
+`lib/*.js` 与 `package.json`（新增 `lib/branches/windows-sapi.js`，并把
+`enable` 默认改为 `false`）。下次跑 `sync_plugin_profile.mjs` 之前，必须先把
+这几处改动合回插件源码；否则同步会把修复覆盖掉。`runtime/<平台>/profile` 是
+由本目录装配出的产物，出包前需重跑 `tool/assemble_runtime.mjs`。
+
 ## 为什么不能省
 
 去掉它，四件事同时坏掉：新机器第一次打开就抛

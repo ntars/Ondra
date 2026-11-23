@@ -104,8 +104,12 @@ class LlamaClient extends ChangeNotifier {
       // UTF-8 解码会抛 FormatException，把已经扫到的 GGUF 列表一起毁掉。
       // 这里只关心退出码和路径，交给系统编码并兜住解码/启动异常。
       try {
-        final where = await Process.run('where', ['llama-server.exe'],
-            stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
+        final where = await Process.run(
+          'where',
+          ['llama-server.exe'],
+          stdoutEncoding: systemEncoding,
+          stderrEncoding: systemEncoding,
+        );
         if (where.exitCode == 0) {
           final first = (where.stdout as String)
               .split('\n')
@@ -123,14 +127,14 @@ class LlamaClient extends ChangeNotifier {
     }
     for (final shell in ['/bin/zsh', '/bin/bash']) {
       try {
-        final result = await Process.run(shell, [
-          '-lc',
-          'command -v llama-server',
-        ],
-        // Windows 检测走 git-bash 时，路径可能含中文目录；显式 UTF-8。
-        stdoutEncoding: utf8,
-        stderrEncoding: utf8,
-        environment: _environment).timeout(const Duration(seconds: 4));
+        final result = await Process.run(
+          shell,
+          ['-lc', 'command -v llama-server'],
+          // Windows 检测走 git-bash 时，路径可能含中文目录；显式 UTF-8。
+          stdoutEncoding: utf8,
+          stderrEncoding: utf8,
+          environment: _environment,
+        ).timeout(const Duration(seconds: 4));
         final path = (result.stdout as String).trim();
         if (result.exitCode == 0 &&
             path.isNotEmpty &&

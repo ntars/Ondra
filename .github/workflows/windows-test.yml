@@ -14,6 +14,18 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      # alpha.15 的 WebView2 后端是 Windows 原生代码；仅跑 flutter test 不会
+      # 实例化 C++ runner，必须在 Windows runner 上实际编译一次才能发现
+      # SDK 头、COM 调用、纹理注册和链接错误。
+      - name: 编译 Windows runner（检出 WebView2 后端）
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          # 检查 runner C++/CMake 不必下载接近 1GB 的内核闭包；仅编译测试
+          # 使用这个显式豁免，发布 job 仍保留 FATAL 检查。
+          $env:ONDRA_ALLOW_NO_RUNTIME = '1'
+          flutter build windows --debug
       - run: flutter test
         env:
           ONDRA_TEST_HEADLESS: '1'

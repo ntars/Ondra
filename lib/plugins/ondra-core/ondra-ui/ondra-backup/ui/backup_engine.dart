@@ -5,5 +5,4 @@
 /// 页面只 import 这一行，不需要知道自己在哪。
 library;
 
-export 'backup_engine_stub.dart'
-    if (dart.library.io) 'backup_engine_io.dart';
+export 'backup_engine_stub.dart' if (dart.library.io) 'backup_engine_io.dart';

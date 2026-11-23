@@ -10,6 +10,8 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-browser/ui/browser_clien
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-browser/ui/browser_store_io.dart'
     as disk;
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-browser/ui/web_view.dart';
+import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-browser/ui/web_view_io.dart'
+    as io_view;
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-browser/ui/web_view_stub.dart'
     as preview;
 
@@ -227,7 +229,10 @@ void main() {
     testWidgets('$platform 平台能力与不可用占位一致', (tester) async {
       debugDefaultTargetPlatformOverride = platform;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
-      final supported = Platform.isMacOS && platform == TargetPlatform.macOS;
+      final supported =
+          platform == TargetPlatform.macOS ||
+          platform == TargetPlatform.android ||
+          platform == TargetPlatform.windows;
       expect(embeddedBrowserAvailable, supported);
       if (supported) return;
       await tester.pumpWidget(
@@ -239,6 +244,7 @@ void main() {
         ),
       );
       expect(find.byType(AppKitView), findsNothing);
+      expect(find.byType(io_view.WindowsView), findsNothing);
       expect(find.text('这个平台没有内嵌浏览器'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -255,6 +261,7 @@ void main() {
       ),
     );
     expect(find.byType(AppKitView), findsNothing);
+    expect(find.byType(io_view.WindowsView), findsNothing);
     expect(find.text('这个平台没有内嵌浏览器'), findsOneWidget);
   });
 
@@ -329,4 +336,82 @@ void main() {
     expect(calls, contains('${creations.last['id']}:stop'));
     expect(tester.takeException(), isNull);
   }, skip: !Platform.isMacOS);
+
+  // 这里只验证 Dart 的平台分支与协议；不模拟 WebView2 运行时，也不宣称
+  // Windows 原生构建/渲染已验证。宿主 create 在测试里返回假纹理 ID。
+  testWidgets('Windows 分支复用白名单协议并可被 macOS 单元测试覆盖', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    expect(embeddedBrowserAvailable, isTrue);
+
+    final messenger = tester.binding.defaultBinaryMessenger;
+    const host = MethodChannel(io_view.ondraWebViewHostChannel);
+    final creations = <Map<dynamic, dynamic>>[];
+    final calls = <String>[];
+    final channels = <MethodChannel>[];
+    messenger.setMockMethodCallHandler(host, (call) async {
+      if (call.method == 'create') {
+        final args = call.arguments as Map;
+        creations.add(args);
+        final viewId = args['id'] as int;
+        final channel = MethodChannel('ondra/webview/$viewId');
+        channels.add(channel);
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add('$viewId:${call.method}');
+          return null;
+        });
+        return args['id'] as int;
+      }
+      return null;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(host, null);
+      for (final channel in channels) {
+        messenger.setMockMethodCallHandler(channel, null);
+      }
+    });
+
+    Widget view(List<String> sites) => MaterialApp(
+      home: OndraWebView(url: 'https://example.com', allowedSites: sites),
+    );
+    await tester.pumpWidget(view(['https://example.com']));
+    await tester.pumpAndSettle();
+    expect(find.byType(io_view.WindowsView), findsOneWidget);
+    expect(find.byType(AppKitView), findsNothing);
+    expect(creations, hasLength(1));
+    expect(creations.single['viewType'], 'ondra/webview');
+    final params = const StandardMessageCodec().decodeMessage(
+      ByteData.sublistView(creations.single['params'] as Uint8List),
+    ) as Map;
+    expect(params['url'], 'https://example.com');
+    expect(params['allowedSites'], ['https://example.com']);
+    expect(calls, contains('${creations.single['id']}:start'));
+
+    const reason = '已阻止导航：目标的协议、主机或端口不在白名单里。';
+    final reply = Completer<ByteData?>();
+    tester.binding.channelBuffers.push(
+      channels.single.name,
+      const StandardMethodCodec().encodeMethodCall(
+        const MethodCall('navigationRejected', {'reason': reason}),
+      ),
+      reply.complete,
+    );
+    await reply.future;
+    await tester.pump();
+    expect(find.text(reason), findsOneWidget);
+
+    await tester.pumpWidget(view([]));
+    await tester.pumpAndSettle();
+    expect(creations, hasLength(2));
+    expect(calls, contains('${creations.first['id']}:stop'));
+    expect(find.text(reason), findsNothing);
+    final changed = const StandardMessageCodec().decodeMessage(
+      ByteData.sublistView(creations.last['params'] as Uint8List),
+    ) as Map;
+    expect(changed['allowedSites'], isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(calls, contains('${creations.last['id']}:stop'));
+    expect(tester.takeException(), isNull);
+  });
 }

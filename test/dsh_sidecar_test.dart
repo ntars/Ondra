@@ -25,7 +25,8 @@ void main() {
   // `which` under runInShell sees the login PATH while Process.start does not
   // necessarily use that shell. Pass the absolute path to both so a detected
   // executable is the exact one we launch.
-  var resolvedBinary = binary.contains(Platform.pathSeparator) || File(binary).existsSync()
+  var resolvedBinary =
+      binary.contains(Platform.pathSeparator) || File(binary).existsSync()
       ? binary
       : _which(binary) ?? binary;
 
@@ -83,7 +84,10 @@ void main() {
     final client = ChatClient(
       transport: StdioDshTransport(
         binary: resolvedBinary,
-        environment: {...Platform.environment, 'MAGPIE_API_KEY': 'magpie-local'},
+        environment: {
+          ...Platform.environment,
+          'MAGPIE_API_KEY': 'magpie-local',
+        },
       ),
     );
     await client.connect();
@@ -132,7 +136,8 @@ void main() {
 
 /// Resolve an executable from PATH without relying on a shell/subprocess.
 String? _which(String name) {
-  final path = Platform.environment['PATH']?.split(Platform.pathSeparator) ?? const [];
+  final path =
+      Platform.environment['PATH']?.split(Platform.pathSeparator) ?? const [];
   for (final dir in path) {
     if (dir.isEmpty) continue;
     final candidate = '$dir${Platform.pathSeparator}$name';
@@ -144,8 +149,11 @@ String? _which(String name) {
 /// magpie 是否在本机环回上听着。1 秒超时——它是本机服务，不该等。
 Future<bool> _magpieListening() async {
   try {
-    final socket = await Socket.connect('127.0.0.1', 3425,
-        timeout: const Duration(seconds: 1));
+    final socket = await Socket.connect(
+      '127.0.0.1',
+      3425,
+      timeout: const Duration(seconds: 1),
+    );
     socket.destroy();
     return true;
   } catch (_) {

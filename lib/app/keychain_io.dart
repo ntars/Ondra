@@ -39,20 +39,18 @@ export 'keychain_secret.dart';
 class Keychain {
   const Keychain._();
 
-
-
-
-
-
   /// mac 用系统钥匙串；安卓没有可比的钥匙串，密钥退到**应用私有目录**的
   /// 文件（`/data/user/0/<包名>/…`，系统沙箱保证其他应用读不到，风险是
   /// 设备被 root）——「完全填不了」比「知情降级」更伤人，界面会如实说明。
   /// Windows 用 DPAPI（当前用户级加密，PowerShell ProtectedData）+ 应用
   /// 私有目录落盘——alpha.10 审查第 24 项：设置页无法保存云模型密钥。
   /// Web 保持如实拒绝。
-  static bool get supported => !kIsWeb && (Platform.isMacOS || Platform.isAndroid || Platform.isWindows || Platform.isLinux);
-
-
+  static bool get supported =>
+      !kIsWeb &&
+      (Platform.isMacOS ||
+          Platform.isAndroid ||
+          Platform.isWindows ||
+          Platform.isLinux);
 
   /// 读一条。读不到返回 null。
   static Future<String?> read(String key) async {
@@ -94,8 +92,7 @@ class Keychain {
   /// 删除路径的测试注入点，与 `keychain_stub.dart` 同形。
   static Future<bool> Function(String key)? eraseProbe;
 
-  static File get _credentialsFile =>
-      File('$_dshHome/.credentials.yaml');
+  static File get _credentialsFile => File('$_dshHome/.credentials.yaml');
 
   /// 读全部 refs。空文件/不存在 → 空表。
   static Map<String, String> _readRefs() => _parse(_credentialsText()).refs;
@@ -163,8 +160,9 @@ class Keychain {
   static void _writeRefs(Map<String, String> refs) {
     final f = _credentialsFile;
     f.parent.createSync(recursive: true);
-    String quote(String v) =>
-        RegExp(r'^[A-Za-z0-9._/@+-]+$').hasMatch(v) ? v : "'${v.replaceAll("'", "''")}'";
+    String quote(String v) => RegExp(r'^[A-Za-z0-9._/@+-]+$').hasMatch(v)
+        ? v
+        : "'${v.replaceAll("'", "''")}'";
 
     final block = StringBuffer('refs:\n');
     if (refs.isEmpty) {
@@ -229,7 +227,12 @@ class Keychain {
     if (!Platform.isMacOS) return null;
     try {
       final r = Process.runSync('security', [
-        'find-generic-password', '-s', 'Ondra', '-a', key, '-w',
+        'find-generic-password',
+        '-s',
+        'Ondra',
+        '-a',
+        key,
+        '-w',
       ]);
       if (r.exitCode != 0) return null;
       final out = (r.stdout as String);
@@ -238,7 +241,6 @@ class Keychain {
       return null;
     }
   }
-
 
   /// 读旧存储（macOS 钥匙串）里某一条，供 ModelClient 做一次性迁移。
   ///

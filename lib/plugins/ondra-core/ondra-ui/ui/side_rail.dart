@@ -133,8 +133,7 @@ class _SideHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Stack(
         children: [
-          if (showDots)
-            const Positioned(left: 0, top: 18, child: WindowDots()),
+          if (showDots) const Positioned(left: 0, top: 18, child: WindowDots()),
         ],
       ),
     );
@@ -180,7 +179,11 @@ class _OndraRailToggleState extends State<OndraRailToggle> {
             color: _hover ? s.fill : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Glyph(Glyphs.railToggle, size: 19, color: widget.color ?? s.ink80),
+          child: Glyph(
+            Glyphs.railToggle,
+            size: 19,
+            color: widget.color ?? s.ink80,
+          ),
         ),
       ),
     );
@@ -214,7 +217,12 @@ class _GroupBlock extends StatelessWidget {
         if (label != null)
           Padding(
             // mt-17 / pb-12 / pl-8 pr-12，11px/700 40% 黑。
-            padding: const EdgeInsets.only(left: 8, right: 12, top: 17, bottom: 12),
+            padding: const EdgeInsets.only(
+              left: 8,
+              right: 12,
+              top: 17,
+              bottom: 12,
+            ),
             child: Text(
               label,
               style: ondraText(
@@ -259,9 +267,7 @@ class _MenuItemState extends State<_MenuItem> {
     final s = OndraSkin.of(context);
     final selected = st.activeId == widget.module.id;
     // 参考应用：hover 6% 黑、按下 4% 黑、选中 6% 黑——hover 与选中同深。
-    final bg = selected
-        ? s.accentWash
-        : (_hover ? s.fill : Colors.transparent);
+    final bg = selected ? s.accentWash : (_hover ? s.fill : Colors.transparent);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 1),
@@ -356,9 +362,9 @@ class _AccountRowState extends State<_AccountRow> {
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: () {
-    st.settingsPane = ShellPane.persona;
-    st.settingsOpen = true;
-  },
+            st.settingsPane = ShellPane.persona;
+            st.settingsOpen = true;
+          },
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -377,7 +383,12 @@ class _AccountRowState extends State<_AccountRow> {
                       ondraPersonaName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: ondraText(13, weight: 500, color: s.ink85, height: 16 / 13),
+                      style: ondraText(
+                        13,
+                        weight: 500,
+                        color: s.ink85,
+                        height: 16 / 13,
+                      ),
                     ),
                   ),
                 ),

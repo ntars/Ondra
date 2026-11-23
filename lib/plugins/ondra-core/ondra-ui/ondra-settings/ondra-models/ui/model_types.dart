@@ -16,7 +16,7 @@ class OndraProvider {
     this.launchHint = '',
     String? protocol,
     List<OndraModelEntry>? models,
-  // ignore: prefer_initializing_formals -- const 构造不能用私有 initializing formal
+    // ignore: prefer_initializing_formals -- const 构造不能用私有 initializing formal
   }) : _protocol = protocol,
        models = models ?? [];
 
@@ -104,7 +104,7 @@ class OndraReasoningLevel {
     required this.label,
     required this.apiValue,
     String? level,
-  // ignore: prefer_initializing_formals -- 同上，const 构造的限制
+    // ignore: prefer_initializing_formals -- 同上，const 构造的限制
   }) : _level = level;
 
   final String label;

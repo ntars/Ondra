@@ -11,19 +11,17 @@ class BackupEngine {
   String get home => '';
   String get root => '';
 
-  Future<BackupOverview> load() async => BackupOverview.empty.copyWithNote(
-    '浏览器预览读不到本机文件系统；桌面版会显示真实快照。',
-  );
+  Future<BackupOverview> load() async =>
+      BackupOverview.empty.copyWithNote('浏览器预览读不到本机文件系统；桌面版会显示真实快照。');
 
   Future<BackupSettings> readSettings() async => const BackupSettings();
 
   Future<void> writeSettings(BackupSettings settings) async {}
 
-  Future<BackupOpResult> create({BackupTrigger trigger = BackupTrigger.manual}) async =>
-      const BackupOpResult(
-        ok: false,
-        message: '浏览器预览不能读写本机备份目录，请在桌面版里备份。',
-      );
+  Future<BackupOpResult> create({
+    BackupTrigger trigger = BackupTrigger.manual,
+  }) async =>
+      const BackupOpResult(ok: false, message: '浏览器预览不能读写本机备份目录，请在桌面版里备份。');
 
   Future<BackupOpResult> restore(String id) async =>
       const BackupOpResult(ok: false, message: '浏览器预览不能还原到本机。');

@@ -99,42 +99,43 @@ class _TransferPageState extends State<TransferPage> {
   bool _pickerAvailable() => DesktopPicker.supported;
 
   Future<void> _noticeNoPicker() async {
-    OndraToast.show(
-      context,
-      '这台系统还没有文件选择面板：导入导出需要桌面版。',
-      ok: false,
-    );
+    OndraToast.show(context, '这台系统还没有文件选择面板：导入导出需要桌面版。', ok: false);
   }
 
-  Future<void> _exportMemories(TransferFormat format) =>
-      !_pickerAvailable() ? _noticeNoPicker() : _run(() async {
-    final dir = await transferPickDirectory('选择要把记忆导出到哪里');
-    return dir == null ? null : await transferExportMemory(dir, format);
-  });
+  Future<void> _exportMemories(TransferFormat format) => !_pickerAvailable()
+      ? _noticeNoPicker()
+      : _run(() async {
+          final dir = await transferPickDirectory('选择要把记忆导出到哪里');
+          return dir == null ? null : await transferExportMemory(dir, format);
+        });
 
-  Future<void> _exportBundle() =>
-      !_pickerAvailable() ? _noticeNoPicker() : _run(() async {
-    final dir = await transferPickDirectory('选择要把人设与偏好导出到哪里');
-    return dir == null ? null : await transferExportBundle(dir);
-  });
+  Future<void> _exportBundle() => !_pickerAvailable()
+      ? _noticeNoPicker()
+      : _run(() async {
+          final dir = await transferPickDirectory('选择要把人设与偏好导出到哪里');
+          return dir == null ? null : await transferExportBundle(dir);
+        });
 
-  Future<void> _exportArchive() =>
-      !_pickerAvailable() ? _noticeNoPicker() : _run(() async {
-    final dir = await transferPickDirectory('选择要把全部数据导出到哪里');
-    return dir == null ? null : await transferExportArchive(dir);
-  });
+  Future<void> _exportArchive() => !_pickerAvailable()
+      ? _noticeNoPicker()
+      : _run(() async {
+          final dir = await transferPickDirectory('选择要把全部数据导出到哪里');
+          return dir == null ? null : await transferExportArchive(dir);
+        });
 
-  Future<void> _importFile(List<String> extensions) =>
-      !_pickerAvailable() ? _noticeNoPicker() : _run(() async {
-    final path = await transferPickFile('选择要导入的文件', extensions);
-    return path == null ? null : await transferImport(path);
-  });
+  Future<void> _importFile(List<String> extensions) => !_pickerAvailable()
+      ? _noticeNoPicker()
+      : _run(() async {
+          final path = await transferPickFile('选择要导入的文件', extensions);
+          return path == null ? null : await transferImport(path);
+        });
 
-  Future<void> _importDir() =>
-      !_pickerAvailable() ? _noticeNoPicker() : _run(() async {
-    final path = await transferPickDirectory('选择要导入的人设包目录');
-    return path == null ? null : await transferImport(path);
-  });
+  Future<void> _importDir() => !_pickerAvailable()
+      ? _noticeNoPicker()
+      : _run(() async {
+          final path = await transferPickDirectory('选择要导入的人设包目录');
+          return path == null ? null : await transferImport(path);
+        });
 
   @override
   Widget build(BuildContext context) {

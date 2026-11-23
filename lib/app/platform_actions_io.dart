@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/services.dart'
-    show MethodChannel, PlatformException;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 
 /// 桌面端的平台行为。
 ///
@@ -67,20 +66,22 @@ class PlatformActions {
   static bool get canAutoLaunch =>
       probe?.canAutoLaunch ??
       (_isWindows && _executable.isNotEmpty) ||
-      (_isMacOS &&
-          (Platform.environment['HOME'] ?? '').startsWith('/') &&
-          (debugProcessRunner != null || File('/bin/launchctl').existsSync()));
+          (_isMacOS &&
+              (Platform.environment['HOME'] ?? '').startsWith('/') &&
+              (debugProcessRunner != null ||
+                  File('/bin/launchctl').existsSync()));
 
   static bool get canPreventSleep =>
       probe?.canPreventSleep ??
-      (Platform.isAndroid || (_isMacOS && File('/usr/bin/caffeinate').existsSync()));
+      (Platform.isAndroid ||
+          _isWindows ||
+          (_isMacOS && File('/usr/bin/caffeinate').existsSync()));
 
   /// 当前应用的绝对路径。写进 plist 的 `ProgramArguments` 要能在登录时
   /// 被 `launchd` 直接执行，相对路径在登录阶段没有意义（工作目录不确定）。
   static String get _executable => Platform.resolvedExecutable;
 
-  static const _runKey =
-      r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
+  static const _runKey = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
   static const _runValueName = 'Ondra';
 
   static Future<bool?> autoLaunchEnabled() async {
@@ -91,12 +92,12 @@ class PlatformActions {
       // 强按 UTF-8 解会在错误输出上抛 FormatException（「错误」的 GBK
       // 字节 B4EDCE F3 不是合法 UTF-8），alpha.10 审查第 4b 项。system
       // 编码是 Dart 对 OEM 代码页的正确请求。
-      final query = await Process.run('reg', [
-        'query',
-        _runKey,
-        '/v',
-        _runValueName,
-      ], stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
+      final query = await Process.run(
+        'reg',
+        ['query', _runKey, '/v', _runValueName],
+        stdoutEncoding: systemEncoding,
+        stderrEncoding: systemEncoding,
+      );
       if (query.exitCode != 0) return false;
       final out = (query.stdout as String);
       if (!out.contains(_executable)) {
@@ -143,15 +144,30 @@ class PlatformActions {
         // reg.exe 的成功提示在中文 Windows 上是 GBK（「操作成功完成」），
         // 强按 UTF-8 解会抛 FormatException，明明写成功却报告失败。
         // 和查询路径一样按系统 OEM 代码页解码；退出码才是操作结果。
-        final add = await Process.run('reg', [
-          'add', _runKey, '/v', _runValueName, '/t', 'REG_SZ',
-          '/d', exe, '/f',
-        ], stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
+        final add = await Process.run(
+          'reg',
+          [
+            'add',
+            _runKey,
+            '/v',
+            _runValueName,
+            '/t',
+            'REG_SZ',
+            '/d',
+            exe,
+            '/f',
+          ],
+          stdoutEncoding: systemEncoding,
+          stderrEncoding: systemEncoding,
+        );
         return add.exitCode == 0;
       }
-      final del = await Process.run('reg', [
-        'delete', _runKey, '/v', _runValueName, '/f',
-      ], stdoutEncoding: systemEncoding, stderrEncoding: systemEncoding);
+      final del = await Process.run(
+        'reg',
+        ['delete', _runKey, '/v', _runValueName, '/f'],
+        stdoutEncoding: systemEncoding,
+        stderrEncoding: systemEncoding,
+      );
       return del.exitCode == 0;
     }
     try {
@@ -234,9 +250,10 @@ class PlatformActions {
     if (probe != null) return probe!.beginPreventSleep();
     // 安卓：FLAG_KEEP_SCREEN_ON 由原生侧开关窗口 flag（见 MainActivity.kt
     // 的 ondra/platform handler），不驻留子进程。
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || _isWindows) {
       try {
-        return await _platformChannel.invokeMethod<bool>('beginPreventSleep') ?? false;
+        return await _platformChannel.invokeMethod<bool>('beginPreventSleep') ??
+            false;
       } on PlatformException {
         return false;
       }
@@ -259,7 +276,7 @@ class PlatformActions {
   static Future<void> endPreventSleep() => _sleepAction(() async {
     if (!canPreventSleep) throw UnsupportedError('当前平台不支持阻止睡眠');
     if (probe != null) return probe!.endPreventSleep();
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || _isWindows) {
       try {
         await _platformChannel.invokeMethod<void>('endPreventSleep');
       } on PlatformException {

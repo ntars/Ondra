@@ -4,5 +4,4 @@
 /// 两边导出同名同形的 `PersonaStore` 与 `PersonaInstall`，页面只 import 这一行。
 library;
 
-export 'persona_store_stub.dart'
-    if (dart.library.io) 'persona_store_io.dart';
+export 'persona_store_stub.dart' if (dart.library.io) 'persona_store_io.dart';

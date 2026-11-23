@@ -46,8 +46,7 @@ void main() {
     final client = ChatClient(transport: StdioDshTransport());
     try {
       await client.connect();
-      expect(client.offlineReason, isNull,
-          reason: '内核连上了就不该报离线；理由非空说明启动失败');
+      expect(client.offlineReason, isNull, reason: '内核连上了就不该报离线；理由非空说明启动失败');
     } finally {
       client.stop();
     }

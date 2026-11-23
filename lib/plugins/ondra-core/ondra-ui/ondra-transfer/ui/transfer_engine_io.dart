@@ -1,6 +1,9 @@
 import 'dart:convert';
+
 import 'package:archive/archive.dart';
+
 import 'dart:io';
+
 import '../../../../../app/desktop_picker.dart';
 
 import '../../../../../app/sqlite_cli.dart';
@@ -11,6 +14,7 @@ import '../../ondra-settings/ui/maintenance_io.dart'
     show maintenanceDataIsOffline, maintenanceOfflineHint;
 import '../../../../../app/home_dir.dart';
 import '../../../../../app/data_maintenance.dart';
+import '../../../../../app/runtime_seed.dart';
 
 /// 本机的 `sqlite3` 命令行。解析交给 `app/sqlite_cli.dart`：
 /// 从前这里写死 `/usr/bin/sqlite3`，在 Windows 上导入导出会直接失败。
@@ -38,19 +42,44 @@ const String _prefix = '空谷';
 /// 导入是**会写库**的，因此有一条硬规矩：写之前先存一份备份。记忆是用户的东西，
 /// 一次写坏就是永久损失，而这个动作的成本只有几百毫秒。
 class TransferEngine {
-  TransferEngine({String? home, DateTime Function()? now, this.dataIsOffline})
-    : _home = home ?? ondraUserHome,
-      _now = now ?? DateTime.now;
+  /// [home] 是桌面壳数据根所在的 OS 用户目录；[dshHome] 是内核 DSH_HOME。
+  ///
+  /// 两者不能强行合并：设置了 `ONDRA_DSH_HOME` 的用户可以让内核数据与
+  /// `~/.ondra/user/ondra.db` 分居不同卷。显式参数用于隔离测试，生产不传。
+  TransferEngine({
+    String? home,
+    String? dshHome,
+    DateTime Function()? now,
+    this.dataIsOffline,
+  }) : _home = home ?? ondraUserHome,
+       _dshHome =
+           dshHome ??
+           (home != null
+               ? '$home/.ondra/dsh'
+               : Platform.environment['ONDRA_DSH_HOME'] ??
+                     '$ondraUserHome/.ondra/dsh'),
+       _now = now ?? DateTime.now;
 
   final bool Function()? dataIsOffline;
   bool get _offline =>
       dataIsOffline?.call() ?? maintenanceDataIsOffline(dataRoot);
   final String _home;
+  final String _dshHome;
   final DateTime Function() _now;
 
   String get home => _home;
   String get dataRoot => '$_home/.ondra';
   String get dbPath => '$dataRoot/user/ondra.db';
+  String get dshHome => _dshHome;
+
+  String get _profilePatch =>
+      '$_dshHome/profiles/$ondraRuntimeProfileName/cordis.patch.yml';
+
+  /// 暂存区里的固定键。真实 profile 可能位于 dataRoot 外，不能用它直接
+  /// 拼暂存路径；提交时再由 [_targetPath] 映射到内核实际读取的位置。
+  static const _profileStageKey = '.profile/cordis.patch.yml';
+
+  String get _personaSubdir => _readPersonaSubdir(_profilePatch);
 
   // ── 读取 ────────────────────────────────────────────────────────────────
 
@@ -322,6 +351,7 @@ class TransferEngine {
     }
     final staged = await Directory.systemTemp.createTemp('ondra-transfer-');
     final targets = <String>[];
+    var personaSubdir = _personaSubdir;
     try {
       if (prefs == null) {
         for (final relative in ['偏好.json', '人设配置.yml', '头像.png', 'personas']) {
@@ -349,6 +379,20 @@ class TransferEngine {
         stageText('prefs.json', jsonEncode(merged));
       }
       if (prefs == null) {
+        final config = File('$path/人设配置.yml');
+        if (config.existsSync()) {
+          final profileFile = File(_profilePatch);
+          final merged = _mergePersonaConfig(
+            profileFile.existsSync()
+                ? profileFile.readAsStringSync()
+                : '- insert:\n',
+            config.readAsStringSync(),
+          );
+          // loader 下一次启动读的是合并后的配置；ZIP 必须和它写在同一个
+          // user 子目录，不能继续用本机导入前的旧值。
+          personaSubdir = _readPersonaSubdirText(merged);
+          stageText(_profileStageKey, merged);
+        }
         final personas = Directory('$path/personas');
         if (personas.existsSync()) {
           for (final pack in personas.listSync(followLinks: false)) {
@@ -361,32 +405,20 @@ class TransferEngine {
             // 只复制 UI 解压目录会让换机后的内核看不到人设（alpha.10 审查
             // 第 14 项）。UI 目录里有 SKILL.md 就现场重打一份内核 ZIP；
             // 导出目录里已有 .skill.zip 的也一并带上。
-            final kernelDir = Directory('${staged.path}/user/personas');
+            final kernelDir = Directory('${staged.path}/user/$personaSubdir');
             await kernelDir.create(recursive: true);
             final existingZip = File('${pack.path}/$name.skill.zip');
             if (existingZip.existsSync()) {
               await existingZip.copy('${kernelDir.path}/$name.skill.zip');
-              targets.add('user/personas/$name.skill.zip');
+              targets.add('user/$personaSubdir/$name.skill.zip');
             } else if (File('${pack.path}/SKILL.md').existsSync()) {
               final packed = await _packSkillZip(pack, name);
               if (packed != null) {
                 await packed.copy('${kernelDir.path}/$name.skill.zip');
-                targets.add('user/personas/$name.skill.zip');
+                targets.add('user/$personaSubdir/$name.skill.zip');
               }
             }
           }
-        }
-        final config = File('$path/人设配置.yml');
-        if (config.existsSync()) {
-          const relative = 'dsh/profiles/ondra/cordis.patch.yml';
-          final local = File('$dataRoot/$relative');
-          stageText(
-            relative,
-            _mergePersonaConfig(
-              local.existsSync() ? local.readAsStringSync() : '- insert:\n',
-              config.readAsStringSync(),
-            ),
-          );
         }
         final avatar = File('$path/头像.png');
         if (avatar.existsSync()) {
@@ -412,8 +444,15 @@ class TransferEngine {
         message: '导入了 ${targets.length} 项人设与偏好，重启后生效。',
         path: path,
         // kernel zip 是 UI 人设目录的伴随产物，不计入迁移条目数。
-        count: targets.where((t) => t.startsWith('personas/')).length +
-            targets.where((t) => !t.startsWith('personas/') && !t.startsWith('user/personas/')).length,
+        count:
+            targets.where((t) => t.startsWith('personas/')).length +
+            targets
+                .where(
+                  (t) =>
+                      !t.startsWith('personas/') &&
+                      !t.startsWith('user/$personaSubdir/'),
+                )
+                .length,
       );
     } finally {
       if (staged.existsSync()) await staged.delete(recursive: true);
@@ -432,11 +471,14 @@ class TransferEngine {
   }
 
   void _checkTarget(String relative) {
-    var current = Directory(dataRoot).absolute.path;
+    final isProfile = relative == _profileStageKey;
+    var current = isProfile ? _dshHome : dataRoot;
+    final parts = isProfile
+        ? ['profiles', ondraRuntimeProfileName, 'cordis.patch.yml']
+        : relative.split('/');
     if (FileSystemEntity.isLinkSync(current)) {
       throw const FileSystemException('数据根目录是符号链接');
     }
-    final parts = relative.split('/');
     for (var i = 0; i < parts.length; i++) {
       current = '$current/${parts[i]}';
       final type = FileSystemEntity.typeSync(current, followLinks: false);
@@ -447,6 +489,11 @@ class TransferEngine {
         throw FileSystemException('目标路径不是安全的目录/文件', current);
       }
     }
+  }
+
+  String _targetPath(String relative) {
+    if (relative == _profileStageKey) return _profilePatch;
+    return '$dataRoot/$relative';
   }
 
   Future<void> _commitBundle(
@@ -463,10 +510,11 @@ class TransferEngine {
     final originals = <String>[];
     var safeToDelete = false;
     try {
-      // 复制到同一文件系统再提交，跨卷 rename 也不会导致半份导入。
       for (final relative in targets) {
         final src = '${staged.path}/$relative';
-        final next = '${transaction.path}/new/$relative';
+        // 目标可能在 dataRoot 外（自定义 DSH_HOME），因此新副本必须放在
+        // 目标所在卷；否则跨卷 rename 会在提交中途失败。
+        final next = _stagingPath(transaction, relative);
         Directory(File(next).parent.path).createSync(recursive: true);
         if (FileSystemEntity.isDirectorySync(src)) {
           await _copyTree(Directory(src), Directory(next));
@@ -476,7 +524,7 @@ class TransferEngine {
       }
       for (final relative in targets) {
         _checkTarget(relative);
-        final target = '$dataRoot/$relative';
+        final target = _targetPath(relative);
         File(target).parent.createSync(recursive: true);
         if (relative == 'prefs.json' && preferences != null) {
           // 备份/暂存期间 UI 可能又改了偏好，提交前同步重读合并，避免覆盖新值。
@@ -485,23 +533,23 @@ class TransferEngine {
               ? _prefsFromJson(jsonDecode(local.readAsStringSync()))
               : <String, String>{};
           merged.addAll(preferences);
-          File('${transaction.path}/new/$relative')
+          File(_stagingPath(transaction, relative))
               .writeAsStringSync(jsonEncode(merged), flush: true);
         }
         if (FileSystemEntity.typeSync(target) !=
             FileSystemEntityType.notFound) {
-          final old = '${transaction.path}/old/$relative';
+          final old = _backupPath(transaction, relative);
           File(old).parent.createSync(recursive: true);
           _rename(target, old);
           originals.add(relative);
         }
-        _rename('${transaction.path}/new/$relative', target);
+        _rename(_stagingPath(transaction, relative), target);
         committed.add(relative);
       }
       safeToDelete = true;
     } catch (_) {
       for (final relative in committed.reversed) {
-        final target = '$dataRoot/$relative';
+        final target = _targetPath(relative);
         if (FileSystemEntity.isDirectorySync(target)) {
           Directory(target).deleteSync(recursive: true);
         } else {
@@ -509,18 +557,54 @@ class TransferEngine {
         }
       }
       for (final relative in originals.reversed) {
-        _rename('${transaction.path}/old/$relative', '$dataRoot/$relative');
+        _rename(_backupPath(transaction, relative), _targetPath(relative));
       }
       safeToDelete = true;
       rethrow;
     } finally {
       // 回滚失败时保留 old，不能在 finally 里把唯一旧副本也删掉。
       if (safeToDelete) {
+        for (final relative in targets) {
+          for (final path in [
+            _stagingPath(transaction, relative),
+            _backupPath(transaction, relative),
+          ]) {
+            try {
+              final entity = FileSystemEntity.typeSync(
+                path,
+                followLinks: false,
+              );
+              if (entity == FileSystemEntityType.directory) {
+                Directory(path).deleteSync(recursive: true);
+              } else if (entity != FileSystemEntityType.notFound) {
+                File(path).deleteSync();
+              }
+            } catch (_) {
+              // 清理失败不改变已经提交成功的结果；事务目录仍会保留。
+            }
+          }
+        }
         try {
           transaction.deleteSync(recursive: true);
         } catch (_) {}
       }
     }
+  }
+
+  String _stagingPath(Directory transaction, String relative) {
+    if (relative == _profileStageKey) {
+      final target = File(_profilePatch);
+      return '${target.parent.path}/.ondra-transfer-new-$pid-${transaction.uri.pathSegments.last}';
+    }
+    return '${transaction.path}/new/$relative';
+  }
+
+  String _backupPath(Directory transaction, String relative) {
+    if (relative == _profileStageKey) {
+      final target = File(_profilePatch);
+      return '${target.parent.path}/.ondra-transfer-old-$pid-${transaction.uri.pathSegments.last}';
+    }
+    return '${transaction.path}/old/$relative';
   }
 
   void _rename(String source, String target) {
@@ -609,7 +693,9 @@ class TransferEngine {
     try {
       // 去重键 = 正文 + 人物：同一句话 A 和 B 各说一遍是两条独立记忆，
       // 只比正文会把 B 的记录吞掉（alpha.10 审查第 8 项）。
-      final existing = await _query('select id, text, subject from memory_fact');
+      final existing = await _query(
+        'select id, text, subject from memory_fact',
+      );
       String dedupeKey(String text, String subject) =>
           '${text.trim()}\u{1}\u{1}${subject.trim()}';
       final byId = {
@@ -617,8 +703,9 @@ class TransferEngine {
       };
       final byText = {
         for (final row in existing)
-          dedupeKey(_text(row['text']), _text(row['subject'])):
-              _text(row['id']),
+          dedupeKey(_text(row['text']), _text(row['subject'])): _text(
+            row['id'],
+          ),
       };
       final remapped = <String, String>{};
       final toWrite = <TransferFact>[];
@@ -840,12 +927,12 @@ class TransferEngine {
       // （刚被杀进程、或库是拷贝来的）时会报 CANTOPEN。这时退回 URI 只读，
       // 读主库里的内容——宁可少一条刚落盘的，也不该显示成「没有记忆」。
       r = await Process.run(
-      _sqlite,
-      ['-json', 'file:$dbPath?mode=ro', sql],
-      // 同 memory_source_io：UTF-8 输出显式解码，防 Windows 代码页 936 乱码。
-      stdoutEncoding: utf8,
-      stderrEncoding: utf8,
-    );
+        _sqlite,
+        ['-json', 'file:$dbPath?mode=ro', sql],
+        // 同 memory_source_io：UTF-8 输出显式解码，防 Windows 代码页 936 乱码。
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+      );
     }
     if (r.exitCode != 0) {
       throw ProcessException(
@@ -944,7 +1031,9 @@ class TransferEngine {
         ..write('sealed=${f.sealed ? 1 : 0}, ')
         ..write('revisions=${f.revisions}, ')
         ..write('old_text=${f.oldText.isEmpty ? 'null' : _q(f.oldText)}, ')
-        ..write('source_raw_id=${f.sourceRawId.isEmpty ? 'null' : _q(f.sourceRawId)}, ')
+        ..write(
+          'source_raw_id=${f.sourceRawId.isEmpty ? 'null' : _q(f.sourceRawId)}, ',
+        )
         ..write('times_said=${f.timesSaid}, hits=${f.hits}, ')
         ..write('last_seen_at=$seen where id=${_q(f.id)};\n');
     }
@@ -1311,7 +1400,7 @@ class TransferEngine {
   }
 
   int _sessionCount() {
-    final root = Directory('$dataRoot/dsh/sessions');
+    final root = Directory('$_dshHome/sessions');
     if (!root.existsSync()) return 0;
     var n = 0;
     for (final project in root.listSync().whereType<Directory>()) {
@@ -1343,9 +1432,11 @@ class TransferEngine {
   /// 只抓 `- id: ondra-persona*` 起的整块（含其下的 `name` / `config` / `inject`），
   /// 抓到下一个同缩进的 `- id:` 为止。这是「人设是怎么组装的」唯一的事实来源。
   String _personaConfig() {
-    final file = File('$dataRoot/dsh/profiles/ondra/cordis.patch.yml');
-    if (!file.existsSync()) return '';
-    final parsed = _profileEntries(file.readAsStringSync());
+    final source = File(_profilePatch).existsSync()
+        ? File(_profilePatch).readAsStringSync()
+        : '';
+    if (source.isEmpty) return '';
+    final parsed = _profileEntries(source);
     return parsed.entries
         .where((e) => e.id.startsWith('ondra-persona'))
         .map(
@@ -1359,6 +1450,56 @@ class TransferEngine {
               .join('\n'),
         )
         .join('\n');
+  }
+
+  /// 与 persona loader 的 `completeConfig` 同口径：空值、路径分隔符和
+  /// `..` 都回退到 `personas`，防止迁移把 ZIP 写进内核不会扫描的位置。
+  String _readPersonaSubdir(String patchPath) {
+    try {
+      return _readPersonaSubdirText(File(patchPath).readAsStringSync());
+    } catch (_) {
+      return 'personas';
+    }
+  }
+
+  String _readPersonaSubdirText(String source) {
+    try {
+      final parsed = _profileEntries(source);
+      final entry = parsed.entries
+          .where((e) => e.id == 'ondra-persona-loader')
+          .firstOrNull;
+      if (entry == null) return 'personas';
+      final configAt = parsed.lines
+          .sublist(entry.start, entry.end)
+          .indexWhere((line) => RegExp(r'^\s*config:\s*$').hasMatch(line));
+      if (configAt < 0) return 'personas';
+      final configIndent =
+          parsed.lines[entry.start + configAt].length -
+          parsed.lines[entry.start + configAt].trimLeft().length;
+      for (var i = entry.start + configAt + 1; i < entry.end; i++) {
+        final line = parsed.lines[i];
+        if (line.trim().isEmpty || line.trimLeft().startsWith('#')) continue;
+        final indent = line.length - line.trimLeft().length;
+        if (indent <= configIndent) break;
+        final match = RegExp(
+          r'''^\s*(?:user-subdir|userSubdir):\s*['"]?([^'"\s#]+)['"]?\s*(?:#.*)?$''',
+        ).firstMatch(line);
+        if (match == null) continue;
+        final raw = match[1]!.trim();
+        if (raw.isEmpty ||
+            raw == '.' ||
+            raw == '..' ||
+            raw.contains('/') ||
+            raw.contains(r'\') ||
+            raw.contains('\x00')) {
+          return 'personas';
+        }
+        return raw;
+      }
+    } catch (_) {
+      // 配置不完整或无法解析时与 loader 一致，回退默认目录。
+    }
+    return 'personas';
   }
 
   ({
@@ -1484,7 +1625,6 @@ class TransferEngine {
     }
     return '${result.join('\n').trimRight()}\n';
   }
-
 
   Future<void> _copyTree(Directory from, Directory to) async {
     if (FileSystemEntity.isLinkSync(from.path)) {

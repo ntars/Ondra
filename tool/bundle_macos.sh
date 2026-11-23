@@ -74,6 +74,12 @@ mkdir -p "$(dirname "$DEST")"
 ditto "$SRC" "$DEST"
 
 # 复制后自检：路径算错、复制失败都在这里停下，而不是等用户双击闪退。
+# 云同步客户端可能在源码 runtime 里留下 .bak / .baiduyun.uploading.cfg 之类
+# 隐藏残留；它们会混进签名清单，稍后被客户端清理后外层签名就会失效。
+# 在签名前统一剔除，别把这种外部状态带进可分发的 app。
+find "$DEST" \( -name '.DS_Store' -o -name '*.bak' -o -name '*.swp' \
+  -o -name '*~' -o -name '*.uploading.cfg' -o -name '.baiduyun.uploading.cfg' \
+  -o -name '._*' \) -type f -delete
 for required in "$DEST/node" "$DEST/dsh/lib/bin.js" "$DEST/profile/cordis.yml"; do
   if [[ ! -e "$required" ]]; then
     echo "  缺少 ${required} —— 复制不完整" >&2

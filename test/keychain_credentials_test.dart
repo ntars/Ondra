@@ -109,8 +109,11 @@ records:
         .trim()
         .split(':')
         .first;
-    expect(RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(key), isTrue,
-        reason: '写进凭据文件的键名必须能被内核解析，实际为 $key');
+    expect(
+      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(key),
+      isTrue,
+      reason: '写进凭据文件的键名必须能被内核解析，实际为 $key',
+    );
   });
 
   test('refs 段在 records 之后时，写密钥不会把 records 误当成 refs', () async {

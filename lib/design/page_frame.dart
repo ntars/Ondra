@@ -52,7 +52,10 @@ class OndraPage extends StatelessWidget {
         children: [
           // 48 与左栏表头 `h-12` 同高：两侧表头在同一条水平线上，下面才开始正文。
           // 参考应用 mac 端不自绘标题栏（红绿灯浮在侧栏上），所以这条只负责拖窗与留白。
-          const DragStrip(height: 48, padding: EdgeInsets.fromLTRB(16, 9, 16, 0)),
+          const DragStrip(
+            height: 48,
+            padding: EdgeInsets.fromLTRB(16, 9, 16, 0),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
             child: Row(
@@ -69,7 +72,12 @@ class OndraPage extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         // 20/600/28 是参考应用的页面标题档（`text-[20px] font-semibold leading-7`）。
-                        style: ondraText(20, weight: 600, color: s.ink, height: 28 / 20),
+                        style: ondraText(
+                          20,
+                          weight: 600,
+                          color: s.ink,
+                          height: 28 / 20,
+                        ),
                       ),
                       if (subtitle != null) ...[
                         const SizedBox(height: 2),
@@ -153,7 +161,12 @@ class OndraPanel extends StatelessWidget {
                     title!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: ondraText(14, weight: 500, color: s.ink, height: 20 / 14),
+                    style: ondraText(
+                      14,
+                      weight: 500,
+                      color: s.ink,
+                      height: 20 / 14,
+                    ),
                   ),
                 ),
                 if (meta != null)

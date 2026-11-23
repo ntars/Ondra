@@ -12,17 +12,40 @@
 
 - 出厂只有一条：`https://platform.deepseek.com`（填 API Key 要去的地方）。
   别的站点由用户自己加——预置一堆「常用网站」等于替用户做隐私决定。
-- 判定：本域与子域放行，其他一律拒绝；只接受 `http(s)`。
+- 判定：**精确 origin 相等**（scheme + host + port，默认端口归一化）。子域、
+  后缀伪装、其他协议/端口、带凭据或编码含糊的地址一律拒绝。
 - 唯一写入者是 `ui/browser_client.dart`，后续读网页的工具也走 `allowed()`。
 
 ## 内嵌实现
 
 macOS 用系统 **WKWebView**，注册为 Flutter 平台视图 `ondra/webview`
 （`macos/Runner/MainFlutterWindow.swift` 的 `OndraBrowserFactory`）。
+Android 用系统 **WebView**，同一平台视图协议
+（`android/app/src/main/kotlin/cn/ntars/ai/OndraWebView.kt`）。
 
-**不引第三方 WebView 插件**：`flutter_inappwebview` / `desktop_webview_window`
-都带原生依赖，需要 CocoaPods 或 SPM；本机这两条路都不通（见根 README「构建与分发」）。
-WebKit 是系统框架，零依赖。
+Windows 用 **WebView2 Win32 COM**（`windows/runner/web_view_win.cpp`）：
+
+- Dart 侧 `WindowsView` 是本地 shim——Flutter 3.50 的 Windows embedder 尚未
+  实现 HWND PlatformView 工厂，不能把 `AppKitView` 那套直接搬过去。
+- 创建参数仍为 `{url, allowedSites}`，宿主通道 `ondra/webview/host/create`
+  承载该次视图创建；每视图仍用 `ondra/webview/<id>` 收发 `start` / `stop` /
+  `navigationRejected` / `loadFailed`（`{reason: string}`）。
+- WebView2 导航（含 iframe、新窗口请求）按同一 origin 规则拦截；HTTPS 页面
+  不允许降级到 HTTP；拒绝只回 reason，不把 URL 写进错误栏。
+- WebView2 SDK 由 `windows/runner/CMakeLists.txt` 从 NuGet
+  `Microsoft.Web.WebView2` 下载静态 loader（版本可缓存/覆盖）。运行时本身
+  是系统共享组件，不打进发布包；缺运行时时按协议报告 `loadFailed`。
+- SDK 下载/解包失败时构建 fallback 变体：不加载任何网页，`start` 返回错误；
+  可用 `-DONDRA_ENABLE_WEBVIEW2=OFF` 显式离线构建。
+- 页面像素通过 `ICoreWebView2::CapturePreview(PNG)` 由后台线程抓取，经 WIC
+  解码、缩放成 BGRA/RGBA 后写入 Flutter 外部像素纹理，并以 5fps 标记新帧；
+  顶层窗口 `WM_SIZE` 会同步 WebView2 的 bounds 与纹理尺寸。初次创建时先给
+  不透明占位帧，避免纹理未解码前显示为透明。
+- **限制**：当前是 PNG 抓帧路径，不等同于 D3D11 共享纹理的逐帧合成；滚动、
+  动画以约 5fps 更新。macOS 构建不能验证 Windows 原生编译或运行时。
+
+**不引第三方 Flutter WebView 插件**：系统 WebKit / Android WebView / WebView2
+分别由各平台原生侧直接接入，不为此改动 `pubspec.yaml`。
 
 ## 不做
 

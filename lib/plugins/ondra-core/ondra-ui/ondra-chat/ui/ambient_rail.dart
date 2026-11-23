@@ -283,7 +283,11 @@ class _RailIconButtonState extends State<_RailIconButton> {
                   color: _hover ? const Color(0x0F000000) : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
-                child: Glyph(widget.glyph, size: widget.glyphSize, color: s.ink80),
+                child: Glyph(
+                  widget.glyph,
+                  size: widget.glyphSize,
+                  color: s.ink80,
+                ),
               ),
             ),
           ),
@@ -591,8 +595,56 @@ class _RailMenuRowState extends State<_RailMenuRow> {
 ///
 /// 消息只有三种：用户（右侧蓝底气泡）、TA（左侧白底卡片）、系统（居中小字）。
 /// 系统消息用来如实交代「为什么没有回复」，不做假装成 TA 说的话。
-class _Conversation extends StatelessWidget {
+class _Conversation extends StatefulWidget {
   const _Conversation();
+
+  @override
+  State<_Conversation> createState() => _ConversationState();
+}
+
+class _ConversationState extends State<_Conversation> {
+  final _scroll = ScrollController();
+
+  /// 用户是否还停在底部。滚上去看旧消息时不抢滚动位置；
+  /// 停在底部时，新气泡和流式回复都继续跟到底。
+  bool _stickToBottom = true;
+  bool _followScheduled = false;
+  int _lastMessageCount = 0;
+  bool _hasSeenMessages = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_trackScrollPosition);
+  }
+
+  void _trackScrollPosition() {
+    if (!_scroll.hasClients) return;
+    final position = _scroll.position;
+    _stickToBottom = position.pixels >= position.maxScrollExtent - 1;
+  }
+
+  /// 内容高度变化只能等这一帧布局结束后再量，否则跳到的还是旧底部。
+  void _scheduleFollowBottom() {
+    if (_followScheduled) return;
+    _followScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _followScheduled = false;
+      if (!mounted || !_scroll.hasClients || !_stickToBottom) return;
+      final position = _scroll.position;
+      if ((position.pixels - position.maxScrollExtent).abs() > 0.5) {
+        _scroll.jumpTo(position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll
+      ..removeListener(_trackScrollPosition)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -602,13 +654,27 @@ class _Conversation extends StatelessWidget {
     return AnimatedBuilder(
       animation: Listenable.merge([chatClient, settingsClient]),
       builder: (context, _) {
-        if (!chatClient.hasConversation) return const _Welcome();
+        if (!chatClient.hasConversation) {
+          _lastMessageCount = 0;
+          _hasSeenMessages = false;
+          _stickToBottom = true;
+          return const _Welcome();
+        }
         final msgs = chatClient.messages;
+        // 新消息（用户发送或新一轮回答）总是带到底部；流式增量只刷新
+        // 已有气泡，不改变条数，因此不会把已经向上翻看的用户拽回去。
+        if (!_hasSeenMessages || msgs.length > _lastMessageCount) {
+          _stickToBottom = true;
+        }
+        _hasSeenMessages = true;
+        _lastMessageCount = msgs.length;
+        _scheduleFollowBottom();
         // 对话流上下各留 28 的羽化：滚动时消息从表头与输入盒底下「化开」，
         // 而不是被一条硬边切断。这是整条对话流里最容易被忽略、又最影响
         // 「是否精致」的一处——截图看不出来，滚起来立刻有感。
         return OndraScrollFade(
           child: ListView.builder(
+            controller: _scroll,
             // 对话流 `padding: 0 12px`，整块离表头再留 22（`.xu-flow{margin:22px auto 0}`），
             // 每条之间 20（`.xu-flow-item{margin-top:20px}`）。
             padding: const EdgeInsets.fromLTRB(12, 22, 12, 12),
@@ -938,11 +1004,7 @@ class _RailComposerState extends State<_RailComposer> {
     // 如实说明比假装点了有用强。
     if (!DesktopPicker.supported) {
       if (mounted) {
-        OndraToast.show(
-          context,
-          '这台系统还没有文件选择面板，附件发送需要桌面版。',
-          ok: false,
-        );
+        OndraToast.show(context, '这台系统还没有文件选择面板，附件发送需要桌面版。', ok: false);
       }
       return;
     }

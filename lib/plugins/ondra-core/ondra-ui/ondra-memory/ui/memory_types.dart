@@ -46,11 +46,7 @@ class MemoryLinkRecord {
 /// 查询报错都写这里。界面用它区分「还没有记忆」与「读不到记忆」，
 /// 这两种空态给用户的信息完全不同。
 class MemorySnapshot {
-  const MemorySnapshot({
-    required this.facts,
-    required this.links,
-    this.note,
-  });
+  const MemorySnapshot({required this.facts, required this.links, this.note});
 
   final List<MemoryRecord> facts;
   final List<MemoryLinkRecord> links;

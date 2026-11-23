@@ -37,10 +37,18 @@ void main() {
   });
 
   test('侧栏三组的文案与顺序', () {
-    expect(
-      OndraRegistry.all.map((m) => m.label).toList(),
-      ['状态面板', '记忆星图', '历史对话', '插件扩展', '备份还原', '导入导出', '使用教程', '对话日志', '插件日志', '系统日志'],
-    );
+    expect(OndraRegistry.all.map((m) => m.label).toList(), [
+      '状态面板',
+      '记忆星图',
+      '历史对话',
+      '插件扩展',
+      '备份还原',
+      '导入导出',
+      '使用教程',
+      '对话日志',
+      '插件日志',
+      '系统日志',
+    ]);
     expect(OndraGroup.primary.label, isNull);
     expect(OndraGroup.logs.label, '日志');
     expect(OndraGroup.life.label, '空谷生命');

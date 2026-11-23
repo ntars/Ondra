@@ -37,11 +37,22 @@ Future<List<SessionSummary>> readSessions({String? dshHome}) =>
 
 /// 一条历史消息：只保留能显示的正文，工具与系统事件不进这里。
 class HistoryEntry {
-  const HistoryEntry({required this.role, required this.text});
+  const HistoryEntry({
+    required this.role,
+    required this.text,
+    this.hasImage = false,
+  });
 
   /// `user` 或 `assistant`；别的角色在读的时候就跳过了。
   final String role;
   final String text;
+
+  /// 这条消息带图片块。纯图片消息没有正文，但仍是用户真正发过的一句话，
+  /// 历史列表与详情都不能把它当成空消息丢掉。
+  final bool hasImage;
+
+  /// 详情里实际显示的文字：纯图片消息给一个可辨认的占位。
+  String get displayText => text.trim().isEmpty && hasImage ? '[图片]' : text;
 }
 
 /// 读一份会话的完整对话。找不到或读不动返回空列表——

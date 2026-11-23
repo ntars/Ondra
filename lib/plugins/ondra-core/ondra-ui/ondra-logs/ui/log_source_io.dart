@@ -26,7 +26,10 @@ const int _maxBytes = 512 * 1024;
 ///
 /// [maxLines] 由设置「性能与用量」决定：简洁档少读些、详细档多读些。
 /// 之前这个开关只写 prefs 没人消费——切了档页面纹丝不动。
-Future<List<LogEntry>> loadLogEntries(LogKind kind, {int maxLines = _maxLines}) async {
+Future<List<LogEntry>> loadLogEntries(
+  LogKind kind, {
+  int maxLines = _maxLines,
+}) async {
   final home = ondraUserHome;
   final dir = Directory('$home/.ondra/logs');
   if (!dir.existsSync()) return const [];
@@ -51,7 +54,9 @@ Future<List<LogEntry>> loadLogEntries(LogKind kind, {int maxLines = _maxLines}) 
 
   // 最新的在上。排序用完整时间戳而不是显示用的「时:分:秒」——
   // 只比时分秒的话，昨天的 23:50 会排到今天的 08:00 前面。
-  out.sort((a, b) => (b.stamp ?? DateTime(0)).compareTo(a.stamp ?? DateTime(0)));
+  out.sort(
+    (a, b) => (b.stamp ?? DateTime(0)).compareTo(a.stamp ?? DateTime(0)),
+  );
   return out.take(_maxLines).map((s) => s.entry).toList(growable: false);
 }
 
@@ -81,18 +86,22 @@ Future<List<String>> _tailLines(File file, int max) async {
     final lines = text.split('\n');
     // 截断处的那一行可能断在中间，丢掉：半行日志比没有更容易误导。
     if (start > 0 && lines.isNotEmpty) lines.removeAt(0);
-    return lines.length > max
-        ? lines.sublist(lines.length - max)
-        : lines;
+    return lines.length > max ? lines.sublist(lines.length - max) : lines;
   } finally {
     await raf.close();
   }
 }
 
 /// ISO / 空格两种时间戳都认。第三段是正文。
-final RegExp _iso = RegExp(r'^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?\s+(.*)$');
-final RegExp _bracketTime = RegExp(r'^\[(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})[^\]]*\]\s*(.*)$');
-final RegExp _levelWord = RegExp(r'^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE)\b\s*(.*)$');
+final RegExp _iso = RegExp(
+  r'^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?\s+(.*)$',
+);
+final RegExp _bracketTime = RegExp(
+  r'^\[(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})[^\]]*\]\s*(.*)$',
+);
+final RegExp _levelWord = RegExp(
+  r'^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE)\b\s*(.*)$',
+);
 final RegExp _tagPrefix = RegExp(r'^\[([^\]]+)\]\s*(.*)$');
 
 List<_Stamped> _parse(String fileName, List<String> lines) {
@@ -112,7 +121,8 @@ List<_Stamped> _parse(String fileName, List<String> lines) {
       time = match.group(2) ?? '';
       // `2026-11-17 12:49:13 +0000` 里的时区不参与显示，只用于排序；
       // 日志是同一台机器写的，统一按本地时间比较不会错位。
-      stamp = DateTime.tryParse('${match.group(1)} ${match.group(2)}') ?? lastStamp;
+      stamp =
+          DateTime.tryParse('${match.group(1)} ${match.group(2)}') ?? lastStamp;
       lastTime = time;
       lastStamp = stamp;
       rest = match.group(3)?.trim() ?? '';

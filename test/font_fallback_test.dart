@@ -53,4 +53,15 @@ void main() {
     expect(style.fontFamily, ondraFontFamily);
     expect(style.fontFamilyFallback, ondraFontFallback);
   });
+
+  test('字体族选择会切到真实系统族，未知值保持原选择', () {
+    addTearDown(() => setOndraFontChoice('misans'));
+    expect(setOndraFontChoice('serif'), isTrue);
+    expect(ondraText(14).fontFamily, 'Songti SC');
+    expect(ondraText(14).fontFamilyFallback, contains('SimSun'));
+    expect(setOndraFontChoice('sans'), isTrue);
+    expect(ondraText(14).fontFamily, 'Microsoft YaHei');
+    expect(setOndraFontChoice('invented'), isFalse);
+    expect(ondraText(14).fontFamily, 'Microsoft YaHei');
+  });
 }

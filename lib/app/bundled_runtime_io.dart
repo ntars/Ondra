@@ -132,9 +132,7 @@ OndraBundledRuntime? _androidRuntime() {
     rootDir: _androidRuntimeDir,
     nodePath: node.path,
     dshEntry: dshEntry.path,
-    profileDir: profile.existsSync()
-        ? profile.path
-        : '$_androidRuntimeDir/dsh',
+    profileDir: profile.existsSync() ? profile.path : '$_androidRuntimeDir/dsh',
     libDir: libDir,
   );
 }
@@ -152,7 +150,8 @@ Future<void> initAndroidRuntimeAssets() async {
   _androidLibDirCache = await androidNativeLibDir();
   final zipDir = Directory(_androidRuntimeDir);
   final manifestFile = File('$_androidRuntimeDir/MANIFEST');
-  final flockPath = '$_androidRuntimeDir/node_modules/@deepseek-ai/node-addon-system/lib/flock.js';
+  final flockPath =
+      '$_androidRuntimeDir/node_modules/@deepseek-ai/node-addon-system/lib/flock.js';
   try {
     // Gradle 把 `app/src/main/assets` 原样放进 APK 根的 assets/，而
     // rootBundle 只映射 Flutter 自己的 flutter_assets/。这个闭包不放在
@@ -194,15 +193,16 @@ Future<void> initAndroidRuntimeAssets() async {
 /// 留下半份闭包，而缺失的常常正是 `profile/package.json` 这种启动
 /// 必需文件。用几个入口文件当完整性代理，成本只有几次 stat。
 bool _androidRuntimeLayoutComplete(Directory zipDir) => [
-      'lib/bin.js',
-      'profile/package.json',
-      'profile/cordis.yml',
-      'node_modules/@deepseek-ai/dsh-app-boot/package.json',
-    ].every((name) => File('${zipDir.path}/$name').existsSync());
+  'lib/bin.js',
+  'profile/package.json',
+  'profile/cordis.yml',
+  'node_modules/@deepseek-ai/dsh-app-boot/package.json',
+].every((name) => File('${zipDir.path}/$name').existsSync());
 
 void _patchAndroidFlockPlatform(String path) {
   const guard = "if (platform !== 'linux' && platform !== 'darwin') {";
-  const patched = "if (platform !== 'linux' && platform !== 'darwin' && platform !== 'android') {";
+  const patched =
+      "if (platform !== 'linux' && platform !== 'darwin' && platform !== 'android') {";
   const marker = "&& platform !== 'android'";
   final file = File(path);
   if (!file.existsSync()) return;
@@ -265,9 +265,7 @@ OndraBundledRuntime? _pickIn(String base) {
       // 一旦写错就整条链路找不到。
       '${entry.path}${_sep}node',
     ]);
-    final dshEntry = File(
-      '${entry.path}${_sep}dsh${_sep}lib${_sep}bin.js',
-    );
+    final dshEntry = File('${entry.path}${_sep}dsh${_sep}lib${_sep}bin.js');
     if (node == null || !dshEntry.existsSync()) continue;
 
     return OndraBundledRuntime(

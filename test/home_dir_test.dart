@@ -17,8 +17,11 @@ void main() {
   test('主目录是绝对路径且不为空', () {
     final home = ondraUserHome;
     expect(home.isNotEmpty, isTrue, reason: '退回当前目录也比空串好，但不能是空串');
-    expect(home.startsWith('/') || home.contains(':'), isTrue,
-        reason: '相对路径会让数据目录跟着「当前在哪」漂移');
+    expect(
+      home.startsWith('/') || home.contains(':'),
+      isTrue,
+      reason: '相对路径会让数据目录跟着「当前在哪」漂移',
+    );
   });
 
   test(r'与 $HOME 一致（POSIX 上 HOME 总是存在）', () {

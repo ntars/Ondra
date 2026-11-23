@@ -87,6 +87,19 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
     unit: 'px',
   ),
   OndraSettingSpec(
+    key: 'general.fontFamily',
+    label: '字体',
+    description: '影响整个界面；系统缺少所选字体时按平台中文回退链显示',
+    kind: OndraSettingKind.choice,
+    defaultValue: 'misans',
+    options: [
+      OndraSettingOption('misans', '默认黑体'),
+      OndraSettingOption('sans', '无衬线'),
+      OndraSettingOption('serif', '宋体 / 衬线'),
+      OndraSettingOption('kai', '楷体'),
+    ],
+  ),
+  OndraSettingSpec(
     key: 'general.launchAtLogin',
     label: '开机自启动',
     description: '登录系统后自动打开空谷',
@@ -104,7 +117,11 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
     description: '任务完成、插件报错时提醒',
     defaultValue: true,
   ),
-  OndraSettingSpec(key: 'general.notifySound', label: '通知提示音', defaultValue: true),
+  OndraSettingSpec(
+    key: 'general.notifySound',
+    label: '通知提示音',
+    defaultValue: true,
+  ),
   // general.focusMute 已移除：它的真实语义是「通知不响」，但应用当前
   // 没有任何系统通知场景（唯一调用方是设置页的测试按钮），也没有应用内
   // 声音播放。挂一个可拨但永不生效的开关比没有更糟。
@@ -169,7 +186,6 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
       OndraSettingOption('detailed', '详细'),
     ],
   ),
-
 
   // channels.*（QQ 适配器）已按产品决定推迟：设置项与通道面板一并移除，
   // 适配器落地时随内核 ondra-channel 一起恢复。
@@ -268,7 +284,7 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'privacy.redactLogs',
     label: '日志脱敏',
-    description: '写日志前去掉路径、邮箱、密钥等敏感片段',
+    description: '写日志前去掉邮箱和密钥；用户目录路径始终匿名化',
     defaultValue: true,
   ),
   OndraSettingSpec(

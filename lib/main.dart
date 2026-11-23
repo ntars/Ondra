@@ -4,6 +4,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:material_ui/material_ui.dart';
 
 import 'app/crash_log.dart';
+import 'app/background_startup.dart';
 import 'app/data_maintenance.dart';
 import 'app/bundled_runtime.dart';
 import 'app/home_dir.dart';
@@ -58,64 +59,26 @@ Future<void> main() async {
     return true; // 已处理：不要让它在控制台再抛一次
   };
 
-  // 字体要在 runApp 之前装：字体族一旦被首帧用过，中途注册会让已排好版的
-  // 文字按旧字体测量、按新字体绘制，出现一次跳变。装不上就降级到系统字体。
-  // 安卓的持久数据目录要在任何数据落盘之前定好（prefs / 密钥 / 模型清单
-  // 都以 ondraUserHome 为根）。桌面平台是空操作。
+  // 只做「首帧必须已经知道」的事。开屏卡死的根因就在这一段：内核连接、
+  // 插件扫描和首次解压曾经全部排在 `runApp()` 前面，而 Windows runner
+  // 要等第一帧才显示窗口，用户因此只能看到一块不动的启动层。
+  //
+  // 字体要在首帧前装：字体族一旦被首帧用过，中途注册会让已排好版的文字
+  // 按旧字体测量、按新字体绘制，出现一次跳变。装不上就降级到系统字体。
+  // 安卓持久数据目录要在任何数据落盘之前定好（prefs / 密钥 / 模型清单都
+  // 以 ondraUserHome 为根）。桌面平台是空操作。
   await initAndroidHome();
-  // 内核闭包解压：必须在第一次连接内核（seed / bundledRuntime 探测）之前
-  // 完成。桌面是空操作；解压失败不影响启动，界面按「内核不可用」处理。
-  await initAndroidRuntimeAssets();
   await OndraFont.load();
   // 桌面端在这里把窗口定成 960×600；web 上是空实现。
   await applyWindowGeometry();
-
-  // ── 首帧前的初始化：每一步独立兜底，任何一步失败界面照起 ──
-  // 安卓首启白屏（真机反馈）的教训：这些 await 若有任何一个抛出，
-  // 下面的 runApp 就不会执行——错误钩子只负责记录，main 会静默结束，
-  // 用户看到的就是一块永远白着的屏幕。初始化失败的正确姿势是降级
-  // （内核不可用/没有数据），不是整块白板。
-  Future<void> guarded(String name, Future<void> Function() step) async {
-    try {
-      await step();
-    } catch (error, stack) {
-      _logCrash('main/init:$name', error, stack);
-    }
-  }
 
   // 偏好在首帧之前读回来：字号与语言一旦晚一步，界面会先按默认值排一次版
   // 再重排，肉眼能看见一次抖。文件只有几百字节，同步读不会拖慢启动。
   settingsClient.load();
 
-  // 运行时（Cordis 宿主）接通前，先把内置人设包读进来，首帧就有名字。
-  // 接上运行时后这一行换成 personaClient.connect()，界面不用动。
-  await guarded('personaClient.load', personaClient.load);
-  // 插件清单读的是 `~/.ondra/dsh/profiles/ondra`，所以种子必须在它之前铺。
-  // 装在包里的是**首次运行的种子**：目录已存在就原样不动，用户自己更新过的
-  // 插件不会被包里的旧快照盖掉（见 lib/app/runtime_seed.dart）。
-  await guarded('seedRuntimeProfile', () async => seedRuntimeProfile());
-  await guarded('pluginsClient.load', pluginsClient.load);
-
   // 模型基座先读回上一次的提供商与默认模型，再建传输层——
   // 顺序反了的话，传输层会拿着出厂默认选路，读完配置又得重连一次。
   modelClient.load();
-
-  // 右栏接内核：桌面端起 `dsh --profile ondra` 子进程；Web 端如实报错。
-  // connect 失败不算启动失败——应用照常起，右栏会显示具体原因。
-  // 桌面端这个构造不是 const（要持有进程与订阅），Web 端的空实现才是；
-  // 条件导出让两边同名，所以这里不能用 const。
-  final runtimeBinding = ModelRuntimeBinding(
-    models: modelClient,
-    chat: chatClient,
-  );
-  // 首帧不等内核：连接慢或失败都不该让窗口空着。
-  await guarded(
-    'runtimeBinding.start',
-    () => runtimeBinding.start().timeout(
-          const Duration(seconds: 8),
-          onTimeout: () {},
-        ),
-  );
 
   // 数据维护（备份恢复/清空/迁移）需要先停内核再动用户数据——把聊天
   // 客户端的停机协调接进 DataMaintenance。alpha.10 Windows 审查第 2 项：
@@ -127,6 +90,34 @@ Future<void> main() async {
     ..reload = () async => pluginsClient.load();
 
   runApp(const OndraApp());
+
+  // 首帧已经交出去了，下面这些才可以慢。`initAndroidRuntimeAssets` 在
+  // 安卓首启要解压内核闭包；`seedRuntimeProfile` 要铺插件树；内核连接
+  // 最长等 8 秒。任何一个都可能是数秒级，绝不能挡在首帧前面。
+  final startup = BackgroundStartup(
+    onError: (name, error, stack) => _logCrash('main/init:$name', error, stack),
+    steps: [
+      const StartupStep('initAndroidRuntimeAssets', initAndroidRuntimeAssets),
+      StartupStep('personaClient.load', personaClient.load),
+      // 插件清单读的是 `~/.ondra/dsh/profiles/ondra`，所以种子必须先铺。
+      // 装在包里的是首次运行的种子：目录已存在就原样不动，用户自己更新过
+      // 的插件不会被包里的旧快照盖掉（见 lib/app/runtime_seed.dart）。
+      StartupStep('seedRuntimeProfile', () async => seedRuntimeProfile()),
+      StartupStep('pluginsClient.load', pluginsClient.load),
+      StartupStep('runtimeBinding.start', () {
+        final runtimeBinding = ModelRuntimeBinding(
+          models: modelClient,
+          chat: chatClient,
+        );
+        return runtimeBinding.start().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {},
+        );
+      }),
+    ],
+  );
+  // 不 await：主壳已经可以绘制，内核稍后接通或如实显示失败原因。
+  unawaited(startup.startAfterFirstFrame());
 
   // 自动备份在首帧之后才开始：开机第一秒不该和首帧抢磁盘。
   // 它只在应用活着的时候工作——空谷不常驻后台，见 `BackupScheduler` 的注释。
@@ -141,7 +132,6 @@ class ModelRuntimeBinding {
     required this.chat,
     this._createTransport,
   });
-
 
   final ModelClient models;
   final ChatClient chat;

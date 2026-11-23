@@ -235,6 +235,38 @@ void main() {
     expect(ChatAttachment.fromPath(r'C:\Pictures\photo.png').name, 'photo.png');
   });
 
+  test('模型/过滤错误但连接仍在：不置离线，也不重复显示错误', () async {
+    final transport = _FailingConnectedTransport('输出过滤后没有可发送正文');
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    await client.connect();
+
+    await client.send('在吗');
+
+    expect(client.connected, isTrue);
+    expect(client.offlineReason, isNull);
+    expect(
+      client.messages.where((message) => message.text.contains('输出过滤后没有可发送正文')),
+      hasLength(1),
+    );
+  });
+
+  test('传输层真正断开：置离线并保留本轮错误', () async {
+    final transport = _FailingDisconnectedTransport('内核进程已退出');
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    await client.connect();
+
+    await client.send('在吗');
+
+    expect(client.connected, isFalse);
+    expect(client.offlineReason, contains('内核进程已退出'));
+    expect(
+      client.messages.where((message) => message.text.contains('内核进程已退出')),
+      hasLength(1),
+    );
+  });
+
   test('通知开关：关掉就不发，提示音单独控制', () async {
     final probe = NotifierProbe();
     Notifier.probe = probe;
@@ -410,6 +442,26 @@ class _ConnectingTransport extends _EchoTransport {
 
   @override
   Future<void> connect() => gate.future;
+}
+
+class _FailingConnectedTransport extends _EchoTransport {
+  _FailingConnectedTransport(this.message);
+  final String message;
+
+  @override
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
+    throw StateError(message);
+  }
+}
+
+class _FailingDisconnectedTransport extends _FailingConnectedTransport {
+  _FailingDisconnectedTransport(super.message);
+
+  @override
+  bool get isConnected => false;
 }
 
 class _EchoTransport implements DshTransport {

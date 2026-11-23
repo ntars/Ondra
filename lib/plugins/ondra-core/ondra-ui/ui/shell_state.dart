@@ -14,8 +14,8 @@ class ShellState extends ChangeNotifier {
     this._themeMode = ThemeMode.system,
     this.onThemeModeChanged,
     bool initialSidebarOpen = true,
-  })  : _activeId = initialId,
-        _sidebarOpen = initialSidebarOpen;
+  }) : _activeId = initialId,
+       _sidebarOpen = initialSidebarOpen;
 
   final ValueChanged<ThemeMode>? onThemeModeChanged;
 
@@ -48,6 +48,7 @@ class ShellState extends ChangeNotifier {
     onThemeModeChanged?.call(value);
     notifyListeners();
   }
+
   bool get sidebarOpen => _sidebarOpen;
   bool get railOpen => _railOpen;
 
@@ -154,11 +155,8 @@ class ShellState extends ChangeNotifier {
 
 /// 向下传递 [ShellState] 的作用域。
 class ShellScope extends InheritedNotifier<ShellState> {
-  const ShellScope({
-    super.key,
-    required ShellState state,
-    required super.child,
-  }) : super(notifier: state);
+  const ShellScope({super.key, required ShellState state, required super.child})
+    : super(notifier: state);
 
   static ShellState of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<ShellScope>();

@@ -37,7 +37,7 @@ class OndraWebView extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '仅 macOS 构建支持 WKWebView；当前平台不支持内嵌网页。\n$url',
+              '仅 macOS / Android / Windows 构建支持内嵌网页；当前平台不支持。\n$url',
               textAlign: TextAlign.center,
               style: ondraText(11, color: s.ink30, height: 17 / 11),
             ),

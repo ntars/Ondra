@@ -79,7 +79,11 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
       // 端点不在本次取到的事实里就丢掉：画一条指向空处的线是假的。
       if (!ids.contains(from) || !ids.contains(to) || from == to) continue;
       links.add(
-        MemoryLinkRecord(from: from, to: to, weight: _number(row['weight'], 0.5)),
+        MemoryLinkRecord(
+          from: from,
+          to: to,
+          weight: _number(row['weight'], 0.5),
+        ),
       );
     }
 
@@ -101,13 +105,13 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
 /// 「读不到记忆库」。
 Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
   var result = await Process.run(
-      _sqlite,
-      ['-readonly', '-json', dbPath, sql],
-      // sqlite3 的 JSON 输出是 UTF-8；Windows 上不指定就是系统编码
-      //（代码页 936），中文记忆直接乱码（alpha.2 审查第 20 项）。
-      stdoutEncoding: utf8,
-      stderrEncoding: utf8,
-    );
+    _sqlite,
+    ['-readonly', '-json', dbPath, sql],
+    // sqlite3 的 JSON 输出是 UTF-8；Windows 上不指定就是系统编码
+    //（代码页 936），中文记忆直接乱码（alpha.2 审查第 20 项）。
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,
+  );
   if (result.exitCode != 0) {
     result = await Process.run(
       _sqlite,
@@ -120,7 +124,9 @@ Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
     throw ProcessException(
       _sqlite,
       const [],
-      '${result.stderr}'.trim().isEmpty ? 'exit ${result.exitCode}' : '${result.stderr}'.trim(),
+      '${result.stderr}'.trim().isEmpty
+          ? 'exit ${result.exitCode}'
+          : '${result.stderr}'.trim(),
       result.exitCode,
     );
   }
@@ -129,10 +135,14 @@ Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
   if (text.isEmpty) return const [];
   final decoded = jsonDecode(text);
   if (decoded is! List) return const [];
-  return [for (final row in decoded) if (row is Map) row.cast<String, dynamic>()];
+  return [
+    for (final row in decoded)
+      if (row is Map) row.cast<String, dynamic>(),
+  ];
 }
 
-String _text(Object? value) => value is String ? value : (value?.toString() ?? '');
+String _text(Object? value) =>
+    value is String ? value : (value?.toString() ?? '');
 
 double _number(Object? value, double fallback) {
   if (value is num) return value.toDouble();
