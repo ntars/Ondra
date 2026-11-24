@@ -44,9 +44,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-      # 与 DSH_VERSION 的 engines.node（>=24.9.0）对齐。Node 22 会装出
-      # 运行时但 dsh 启动即无输出，握手自检超时，等于发布 job 必红。
-      node-version: "24"
+          # 与 DSH_VERSION 的 engines.node（>=24.9.0）对齐。Node 22 会装出
+          # 运行时但 dsh 启动即无输出，握手自检超时，等于发布 job 必红。
+          node-version: "24"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
