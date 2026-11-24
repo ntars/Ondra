@@ -11,14 +11,20 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 OUT="${1:-$REPO/build/android-addons}"
 NODE_HEADERS_VERSION="${NODE_HEADERS_VERSION:-26.13.1}"
-CURL=(curl -sSL --max-time 120)
+# GitHub Actions 的 runner 偶尔会在 npm/nodejs.org 下载上抖一下；一次失败
+# 就让整条发布链红掉，代价远大于重试几次。
+CURL=(curl -sSL --fail --max-time 120 --retry 5 --retry-delay 2 --retry-all-errors)
 
 # CI（Linux）与本机（macOS）的 NDK 路径不同；优先用显式环境变量，
 # 其次从 ANDROID_HOME/ANDROID_SDK_ROOT 下取唯一 NDK。
 NDK=""
-if [[ -n "${ANDROID_NDK_HOME:-}" && -d "$ANDROID_NDK_HOME" ]]; then
-  NDK=$ANDROID_NDK_HOME
-else
+for candidate in "${ANDROID_NDK_HOME:-}" "${ANDROID_NDK_LATEST_HOME:-}"; do
+  if [[ -n "$candidate" && -d "$candidate" ]]; then
+    NDK=$candidate
+    break
+  fi
+done
+if [[ -z "$NDK" ]]; then
   SDK_ROOT=""
   for candidate in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Android/Sdk"; do
     if [[ -d "$candidate/ndk" ]]; then
@@ -50,7 +56,12 @@ mkdir -p "$CACHE" "$OUT"
 fetch_tar() {
   local url=$1 dest=$2
   if [[ ! -f "$dest" ]]; then
-    "${CURL[@]}" "$url" -o "$dest"
+    # 不留下半截 tar 包：下次重试必须重新下载，不能从截断文件解包。
+    if ! "${CURL[@]}" "$url" -o "$dest.tmp"; then
+      rm -f "$dest.tmp"
+      return 1
+    fi
+    mv "$dest.tmp" "$dest"
   fi
 }
 

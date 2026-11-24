@@ -169,14 +169,17 @@ jobs:
       - name: 打内核闭包与 node（安卓）
         run: |
           # 闭包：与桌面同一份装配逻辑（仓库快照 plugin-profile/ 当种子）。
-          npm install -g "@deepseek-ai/dsh@0.2.2-rc.1"
+          npm install --global --fetch-retries=5 --fetch-retry-mintimeout=2000 \
+            "@deepseek-ai/dsh@0.2.2-rc.1"
           node tool/assemble_runtime.mjs --closure-only
           # 官方没有 Android arm64 的 Node 原生绑定，启动时 require-builtin
           # 与 flock 会失败；先用 NDK 从上游源码现编，再打进闭包。
           bash tool/build_android_addons.sh build/android-addons
           # node 运行时（Termux bionic ELF）+ 闭包 zip → jniLibs/assets。
           # node 二进制的 NEEDED 版本名要用 pyelftools 改短。
-          pip3 install pyelftools
+          # Ubuntu runner 把系统 Python 标成 externally managed 时，普通 pip
+          # 会直接拒绝安装；先走普通路径，兼容旧镜像，再走显式覆盖。
+          pip3 install pyelftools || pip3 install --break-system-packages pyelftools
           node tool/pack_android_kernel.mjs
       - name: Build arm64
         run: |
