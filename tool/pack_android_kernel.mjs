@@ -237,6 +237,14 @@ async function main() {
   };
   walk(orig);
   for (const p of pruneDirs) fs.rmSync(p, { recursive: true, force: true });
+  // profile 种子跟闭包一起进包：安卓端解压后靠它 seed，来源与桌面同一份
+  //（仓库快照 plugin-profile/，CI 上不需要本机 profile）。
+  // 必须**先**复制再补 cordis.yml：下面的兜底要往 orig/profile 里写文件，
+  // 目录不存在时 copyFileSync 会报 ENOENT。
+  const profileSrc = path.join(closure, '..', 'profile');
+  if (fs.existsSync(profileSrc)) {
+    fs.cpSync(profileSrc, path.join(orig, 'profile'), { recursive: true });
+  }
   // dsh 的 profile 模板必须叫 cordis.yml；plugin-profile 仓库快照在
   // 本机装配时可能只有 cordis.patch.yml（叠加层），单独用它会报
   // `profile "ondra" does not exist`。补一份与插件快照合成后的基文件。
@@ -247,6 +255,7 @@ async function main() {
       die('闭包 profile 里没有 cordis.yml',
         '先确认 plugin-profile/cordis.yml 存在，或手工提供 profile 基文件');
     }
+    fs.mkdirSync(path.dirname(packagedProfile), { recursive: true });
     fs.copyFileSync(pluginProfile, packagedProfile);
     manifest.push('cordis.yml ← plugin-profile/cordis.yml');
   }
@@ -256,12 +265,6 @@ async function main() {
   fs.rmSync(zipDest, { force: true });
   // cpSync(closure, orig) 把 dsh 的**内容**拷到 orig 根（dest 不存在时
   // cpSync 直接成为副本），所以 zip 的源是当前目录本身。
-  // profile 种子跟闭包一起进包：安卓端解压后靠它 seed，来源与桌面同一份
-  //（仓库快照 plugin-profile/，CI 上不需要本机 profile）。
-  const profileSrc = path.join(closure, '..', 'profile');
-  if (fs.existsSync(profileSrc)) {
-    fs.cpSync(profileSrc, path.join(orig, 'profile'), { recursive: true });
-  }
   run('zip', ['-rqy', zipDest, '.'], {
     cwd: orig,
   });
