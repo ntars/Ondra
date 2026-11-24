@@ -77,17 +77,28 @@ fi
 NARB_SRC="$CACHE/require-builtin-src"
 if [[ ! -f "$NARB_SRC/packages/native/binding.gyp" ]]; then
   mkdir -p "$NARB_SRC"
-  # raw.githubusercontent.com 在部分网络不可达；GitHub contents API
-  # 返回 base64，稳定但需要从 JSON 解析。
+  # GitHub Contents API 对较大文件只给 download_url，不再内嵌 base64
+  # content；先跟着下载链接走，只有小文件才回退到 content。
   python3 - "$CACHE/require-builtin-src.zip" <<'PY'
 import base64
 import json
 import subprocess
 import sys
 url = 'https://api.github.com/repos/kai6666666/deepseek-harness/contents/native/require-builtin-src.zip'
-raw = subprocess.check_output(['curl', '-sSL', '--max-time', '60', url])
-with open(sys.argv[1], 'wb') as f:
-    f.write(base64.b64decode(json.loads(raw)['content']))
+meta = json.loads(subprocess.check_output([
+    'curl', '-fsSL', '--max-time', '60',
+    '-H', 'Accept: application/vnd.github+json', url,
+]))
+if meta.get('download_url'):
+    subprocess.check_call([
+        'curl', '-fsSL', '--max-time', '120', meta['download_url'],
+        '-o', sys.argv[1],
+    ])
+elif 'content' in meta:
+    with open(sys.argv[1], 'wb') as f:
+        f.write(base64.b64decode(meta['content']))
+else:
+    raise SystemExit('require-builtin-src.zip 既没有 download_url 也没有 content')
 PY
   unzip -q "$CACHE/require-builtin-src.zip" -d "$NARB_SRC"
 fi
