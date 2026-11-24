@@ -165,6 +165,37 @@ void main() {
     expect(raws.first['text'], '我叫小林');
   });
 
+  test('Markdown 迁移也带回原文表，不留下悬空的来源编号', () async {
+    final out = await Directory('${tmp.path}/md-raw').create();
+    final exported = await engine.exportMemory(out.path, TransferFormat.markdown);
+    final text = File(exported.path!).readAsStringSync();
+    expect(text, contains('<!-- ondra:memory_raw '));
+
+    final otherDir = await Directory('${tmp.path}/md-raw-other').create();
+    final other = TransferEngine(home: otherDir.path, now: () => fixedNow);
+    await _seedDb(other.dbPath, withRows: false);
+    final imported = await other.importPath(exported.path!);
+    expect(imported.ok, isTrue, reason: imported.message);
+    expect(imported.message, contains('2 条原文随行'));
+    expect((await other.load()).raws, 2);
+
+    final json = await other.exportMemory(out.path, TransferFormat.json);
+    final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
+    final raws = (data['memory_raw'] as List).cast<Map<String, dynamic>>();
+    expect(
+      raws.map((r) => {'id': r['id'], 'text': r['text']}).toList(),
+      containsAll([
+        {'id': 'r-1', 'text': '我叫小林'},
+        {'id': 'r-2', 'text': '记住了。'},
+      ]),
+    );
+    final rows = await _sql(
+      other.dbPath,
+      "select id from memory_fact where text='用户名叫小林。';",
+    );
+    expect(rows.trim(), isNotEmpty);
+  });
+
   test('目标已有同文事实时，重新导入会同步封存、修订与使用记录', () async {
     final input = File('${tmp.path}/duplicate-state.json')
       ..writeAsStringSync(
@@ -200,7 +231,160 @@ void main() {
     expect(restored['sourceRawId'], 'r-1');
     expect(restored['timesSaid'], 8);
     expect(restored['hits'], 3);
-    expect(restored['lastSeenAt'], 1700000060000);
+    // 本机已见过更晚的时间，旧文件不能把时间倒回去。
+    expect(
+      restored['lastSeenAt'],
+      DateTime(2026, 11, 17, 20, 0).millisecondsSinceEpoch,
+    );
+  });
+
+  test('旧文件不会倒退本机更新、封存、时间与独立摘要', () async {
+    final localAt = DateTime(2026, 11, 18, 10).millisecondsSinceEpoch;
+    await _sql(
+      engine.dbPath,
+      'update memory_fact set revisions=7, hits=30, times_said=12, sealed=1, '
+      "last_seen_at=$localAt, last_hit_at=$localAt, summary='本机摘要', "
+      "channel='gist', old_text='较新的旧文' where id='m-a8f1fdb5c240';",
+    );
+    final input = File('${tmp.path}/stale-state.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {
+              'id': 'remote-id',
+              'category': 'person',
+              'text': '用户名叫小林。',
+              'revisions': 2,
+              'hits': 0,
+              'times_said': 1,
+              'sealed': false,
+              'oldText': '很旧的文字',
+              'summary': '',
+              'channel': 'import',
+              'lastSeenAt': 1700000060000,
+              'lastHitAt': 1700000010000,
+            },
+          ],
+        }),
+      );
+    final result = await engine.importPath(input.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(result.skipped, 1);
+    final json = await engine.exportMemory(tmp.path, TransferFormat.json);
+    final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
+    final restored = (data['facts'] as List)
+        .cast<Map<String, dynamic>>()
+        .firstWhere((f) => f['text'] == '用户名叫小林。');
+    expect(restored['revisions'], 7);
+    expect(restored['hits'], 30);
+    expect(restored['timesSaid'], 12);
+    expect(restored['sealed'], isTrue);
+    expect(restored['lastSeenAt'], localAt);
+    expect(restored['lastHitAt'], localAt);
+    expect(restored['summary'], '本机摘要');
+    expect(restored['channel'], 'gist');
+    expect(restored['oldText'], '较新的旧文');
+  });
+
+  test('旧文件仍可补回本机缺失的摘要与来源编号', () async {
+    final input = File('${tmp.path}/incoming-fields.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {
+              'id': 'remote-id',
+              'category': 'person',
+              'text': '用户名叫小林。',
+              'summary': '对方补的摘要',
+              'channel': 'gist',
+              'sourceRawId': 'r-2',
+              'oldText': '对方补的旧文',
+            },
+          ],
+        }),
+      );
+    final result = await engine.importPath(input.path);
+    expect(result.ok, isTrue, reason: result.message);
+    final json = await engine.exportMemory(tmp.path, TransferFormat.json);
+    final data = jsonDecode(File(json.path!).readAsStringSync()) as Map;
+    final restored = (data['facts'] as List)
+        .cast<Map<String, dynamic>>()
+        .firstWhere((f) => f['text'] == '用户名叫小林。');
+    expect(restored['summary'], '对方补的摘要');
+    expect(restored['channel'], 'gist');
+    expect(restored['sourceRawId'], 'r-2');
+    expect(restored['oldText'], '对方补的旧文');
+  });
+
+  test('原文编号撞车时事实与原文一起改号，同号同文仍原样保留', () async {
+    final input = File('${tmp.path}/raw-collision.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'facts': [
+            {
+              'id': 'remote-fact',
+              'category': 'person',
+              'text': '对方记住了我叫小林。',
+              'sourceRawId': 'r-conflict',
+            },
+          ],
+          'memory_raw': [
+            {
+              'id': 'r-conflict',
+              'turnId': 't-remote',
+              'role': 'user',
+              'text': '对方版本',
+              'createdAt': 1700000000000,
+            },
+            {
+              'id': 'r-shared',
+              'turnId': 't-shared',
+              'role': 'user',
+              'text': '对方另一句原文',
+              'createdAt': 1700000000000,
+            },
+          ],
+        }),
+      );
+    await _sql(
+      engine.dbPath,
+      "insert into memory_raw (id, turn_id, role, text, created_at) values "
+      "('r-conflict','t-local','user','本机版本',1700000000000), "
+      "('r-shared','t-local','user','同一句原文',1700000000000);",
+    );
+    final result = await engine.importPath(input.path);
+    expect(result.ok, isTrue, reason: result.message);
+    expect(result.message, contains('2 条原文随行'));
+
+    final decoded = jsonDecode(
+      await _sql(
+        engine.dbPath,
+        "select json_object('id', id, 'text', text, 'turn', turn_id) as row "
+        "from memory_raw where id like 'r-conflict-import-%';",
+      ),
+    );
+    final rows = decoded is List
+        ? decoded
+        : (decoded == null ? const [] : [decoded]);
+    expect(rows, hasLength(1));
+    final remapped = rows.single as Map;
+    expect(remapped['text'], '对方版本');
+    expect(remapped['turn'], 't-remote');
+    expect(
+      (await _sql(
+        engine.dbPath,
+        "select source_raw_id from memory_fact where id='remote-fact';",
+      )).trim(),
+      remapped['id'],
+    );
+    // 同号同文不改名：r-shared 原样留下，另一条导入后另起编号。
+    expect(
+      (await _sql(
+        engine.dbPath,
+        "select count(*) from memory_raw where id like 'r-shared%';",
+      )).trim(),
+      '2',
+    );
   });
 
   test('手写的 Markdown 也能导入：没有注释的段落当成一条新记忆', () async {

@@ -185,5 +185,77 @@ void main() {
         reason: '升级其他文件不能把用户改过的文件重新记成随包所有',
       );
     });
+
+    test('无清单老安装：白名单插件代码升级并补写清单', () {
+      if (runtime == null) markTestSkipped('没有 runtime/ 产物');
+      final r = runtime!;
+      const rel =
+          'node_modules/@ondra/cordis-plugin-ondra-persona-loader/lib/settings.js';
+      final target = '${tempHome.path}/profiles/$ondraRuntimeProfileName';
+      final bundled = File(
+        '${r.profileDir}/${rel.replaceAll('/', Platform.pathSeparator)}',
+      );
+
+      // 先铺一份完整安装，再抹掉清单模拟老用户；白名单里的那份插件代码
+      // 留成「旧版本」（与随包字节不同），应被当前快照替换。
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
+      File('$target/.ondra-seed.json').deleteSync();
+      final installed = File(
+        '$target/${rel.replaceAll('/', Platform.pathSeparator)}',
+      );
+      installed.writeAsStringSync('// 老版本插件代码\n');
+
+      final result = seedRuntimeProfile(dshHome: tempHome.path);
+
+      expect(result.outcome, RuntimeSeedOutcome.seeded);
+      expect(installed.readAsStringSync(), bundled.readAsStringSync());
+      final manifestFile = File('$target/.ondra-seed.json');
+      expect(manifestFile.existsSync(), isTrue, reason: '迁移后应写出清单');
+      final manifest =
+          jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+      expect(
+        (manifest['files'] as Map<String, dynamic>)[rel],
+        sha256.convert(bundled.readAsBytesSync()).toString(),
+      );
+
+      // 写进清单后，用户再手改这份文件也不能被下一次升级覆盖。
+      installed.writeAsStringSync('// 用户改动\n');
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.alreadyPresent,
+      );
+      expect(installed.readAsStringSync(), '// 用户改动\n');
+    });
+
+    test('无清单老安装：非白名单文件即使与包内不同也保留', () {
+      if (runtime == null) markTestSkipped('没有 runtime/ 产物');
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
+      final target = '${tempHome.path}/profiles/$ondraRuntimeProfileName';
+      File('$target/.ondra-seed.json').deleteSync();
+      final userFile = File('$target/cordis.yml');
+      userFile.writeAsStringSync('# 用户自己的 cordis\n');
+
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+        reason: '清单缺失本身要在本次迁移补写',
+      );
+      expect(userFile.readAsStringSync(), '# 用户自己的 cordis\n');
+
+      final manifest = jsonDecode(
+        File('$target/.ondra-seed.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(
+        (manifest['files'] as Map<String, dynamic>).containsKey('cordis.yml'),
+        isFalse,
+        reason: '改动过的非白名单文件不能被记成随包所有',
+      );
+    });
   });
 }

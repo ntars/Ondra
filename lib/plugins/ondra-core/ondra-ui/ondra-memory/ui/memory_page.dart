@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
@@ -27,18 +28,26 @@ MemorySnapshotLoader memorySnapshotLoader = loadMemorySnapshot;
 /// - 空闲时：连线上有缓慢移动的脉冲。它是**氛围动画**，不是活动指示——
 ///   内核目前没有对外暴露「正在回想」的事件流，接上之前这里不冒充状态。
 class MemoryPage extends StatefulWidget {
-  const MemoryPage({super.key});
+  const MemoryPage({
+    super.key,
+    this.refreshInterval = const Duration(seconds: 12),
+  });
+
+  /// 停留在本页时的重读间隔。默认 12 秒：够及时，又不会反复读库。
+  final Duration refreshInterval;
 
   @override
   State<MemoryPage> createState() => _MemoryPageState();
 }
 
 class _MemoryPageState extends State<MemoryPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 12),
   )..repeat();
+
+  Timer? _refreshTimer;
 
   /// 记忆点：从内核的 `memory_fact` / `memory_link` 读出来再排版，
   /// 坐标由 `memory_layout` 按 id 确定性算出，重绘不跳。
@@ -54,7 +63,14 @@ class _MemoryPageState extends State<MemoryPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshTimer = Timer.periodic(widget.refreshInterval, (_) => _load());
     _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
   }
 
   Future<void> _load() async {
@@ -70,6 +86,8 @@ class _MemoryPageState extends State<MemoryPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
     _pulse.dispose();
     super.dispose();
   }

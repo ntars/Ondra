@@ -178,7 +178,7 @@ class TransferEngine {
       // 只带 facts 会让换机后的 source_raw_id 变成悬空编号。
       final rawTexts = await _readRawTexts();
       final text = format == TransferFormat.markdown
-          ? _markdownOf(facts, links)
+          ? _markdownOf(facts, links, rawTexts)
           : _jsonOf(facts, links, rawTexts);
 
       await file.writeAsString(text, flush: true);
@@ -690,6 +690,7 @@ class TransferEngine {
       return _importFacts(
         _parseMarkdown(text),
         links: _markdownLinks(text),
+        rawTexts: _rawsFromMarkdown(text),
         source: file.path,
       );
     }
@@ -704,10 +705,11 @@ class TransferEngine {
           decoded is Map &&
               (decoded.containsKey('facts') ||
                   decoded['format'] == 'ondra.memory')) {
+        final incomingRaws = _rawsFromJson(decoded);
         return _importFacts(
           _factsFromJson(decoded),
           links: _linksFromJson(decoded),
-          rawTexts: _rawsFromJson(decoded),
+          rawTexts: incomingRaws,
           source: file.path,
         );
       }
@@ -753,10 +755,47 @@ class TransferEngine {
     }
 
     try {
+      // 原话编号撞车时重建编号；事实和原话都按映射后的编号落库，
+      // 否则 insert or ignore 会让事实指向别人的对话。
+      final localRawTexts = await _query('select id, text from memory_raw');
+      final collidingRawIds = <String>{};
+      for (final raw in rawTexts) {
+        final id = _text(raw['id']);
+        if (id.isEmpty) continue;
+        final local = localRawTexts.where((r) => _text(r['id']) == id);
+        if (local.isEmpty) continue;
+        for (final r in local) {
+          if (_text(r['text']) != _text(raw['text'])) {
+            collidingRawIds.add(id);
+            break;
+          }
+        }
+      }
+      final mappedRaws = _remapRawTexts(
+        incoming: rawTexts,
+        usedRawIds: {
+          for (final row in localRawTexts) _text(row['id']): _text(row['text']),
+        },
+      );
+      // 空库导入不改名；只有本地同号异文才换号。
+      final rawIdMap = <String, String>{};
+      for (final id in collidingRawIds) {
+        final index = mappedRaws.indexWhere((r) => _text(r['id']) == id);
+        if (index < 0) continue;
+        final mappedId = '$id-import-${_factId(id).substring(2)}';
+        mappedRaws[index] = {...mappedRaws[index], 'id': mappedId};
+        rawIdMap[id] = mappedId;
+      }
+      for (final raw in mappedRaws) {
+        final from = _text(raw['_sourceId']);
+        rawIdMap.putIfAbsent(from, () => _text(raw['id']));
+      }
       // 去重键 = 正文 + 人物：同一句话 A 和 B 各说一遍是两条独立记忆，
       // 只比正文会把 B 的记录吞掉（alpha.10 审查第 8 项）。
       final existing = await _query(
-        'select id, text, subject from memory_fact',
+        'select id, text, subject, channel, summary, source_raw_id, old_text, '
+        'sealed, revisions, times_said, hits, last_seen_at, last_hit_at '
+        'from memory_fact',
       );
       String dedupeKey(String text, String subject) =>
           '${text.trim()}\u{1}\u{1}${subject.trim()}';
@@ -772,7 +811,35 @@ class TransferEngine {
       final remapped = <String, String>{};
       final toWrite = <TransferFact>[];
       final stateUpdates = <TransferFact>[];
-      for (final f in facts) {
+      TransferFact remapSource(TransferFact f) {
+        final source = rawIdMap[f.sourceRawId];
+        if (source == null) return f;
+        return TransferFact(
+          id: f.id,
+          category: f.category,
+          text: f.text,
+          salience: f.salience,
+          createdAt: f.createdAt,
+          evidence: f.evidence,
+          subject: f.subject,
+          archived: f.archived,
+          sealed: f.sealed,
+          revisions: f.revisions,
+          oldText: f.oldText,
+          sourceRawId: source,
+          timesSaid: f.timesSaid,
+          hits: f.hits,
+          lastSeenAt: f.lastSeenAt,
+          summary: f.summary,
+          channel: f.channel,
+          arousal: f.arousal,
+          stabilityHours: f.stabilityHours,
+          stabilityMult: f.stabilityMult,
+          lastHitAt: f.lastHitAt,
+        );
+      }
+      final incoming = [for (final f in facts) remapSource(f)];
+      for (final f in incoming) {
         if (byId.containsKey(f.id) && byId[f.id] != f.text.trim()) {
           return TransferResult.fail('记忆编号 ${f.id} 的内容冲突，整份导入已取消，未覆盖本机记忆。');
         }
@@ -780,27 +847,10 @@ class TransferEngine {
         final target = byText[key];
         if (target != null) {
           remapped[f.id] = target;
-          stateUpdates.add(
-            TransferFact(
-              id: target,
-              category: f.category,
-              text: f.text,
-              salience: f.salience,
-              createdAt: f.createdAt,
-              evidence: f.evidence,
-              subject: f.subject,
-              archived: f.archived,
-              sealed: f.sealed,
-              revisions: f.revisions,
-              oldText: f.oldText,
-              sourceRawId: f.sourceRawId,
-              timesSaid: f.timesSaid,
-              hits: f.hits,
-              lastSeenAt: f.lastSeenAt,
-            ),
-          );
+          final local = existing.firstWhere((r) => _text(r['id']) == target);
+          stateUpdates.add(_mergeFactState(local, f));
         } else {
-          toWrite.add(f);
+          toWrite.add(remapSource(f));
           remapped[f.id] = f.id;
           byText[key] = f.id;
         }
@@ -819,7 +869,13 @@ class TransferEngine {
       final guard = await backupCreate();
       if (!guard.ok) return TransferResult.fail('写前备份失败，未写库：${guard.message}');
       final result = await _exec(
-        _insertSql(toWrite, links, remapped, rawTexts, stateUpdates),
+        _insertSql(
+          toWrite,
+          links,
+          remapped,
+          _stripRawMeta(mappedRaws),
+          stateUpdates,
+        ),
       );
       final written = _int(result['facts']);
       final linked = _int(result['links']);
@@ -960,6 +1016,82 @@ class TransferEngine {
     ];
   }
 
+  /// 原话编号与正文不同就是撞车：改用新编号，避免事实关联到别人的对话。
+  /// `_sourceId` 只用于本次导入重映射事实，落库前会剥掉。
+  List<Map<String, Object?>> _remapRawTexts({
+    required List<Map<String, Object?>> incoming,
+    required Map<String, String> usedRawIds,
+  }) {
+    final used = {...usedRawIds.keys};
+    final out = <Map<String, Object?>>[];
+    for (final raw in incoming) {
+      final id = _text(raw['id']);
+      if (id.isEmpty) continue;
+      final mapped = id;
+      used.add(mapped);
+      out.add({...raw, 'id': mapped, '_sourceId': id});
+    }
+    return out;
+  }
+
+  List<Map<String, Object?>> _stripRawMeta(
+    List<Map<String, Object?>> rawTexts,
+  ) => [
+    for (final raw in rawTexts)
+      Map<String, Object?>.from(raw)..remove('_sourceId'),
+  ];
+
+  /// 合并同文事实：只接纳更新、更全的状态，本机封存与较新时间不倒退。
+  TransferFact _mergeFactState(Map<String, dynamic> local, TransferFact incoming) {
+    final localSealed = _int(local['sealed']) == 1;
+    final localHits = _int(local['hits']);
+    final localLastSeen = _int(local['last_seen_at']);
+    final localLastHit = _int(local['last_hit_at']);
+    final incomingSummary = incoming.summary.trim();
+    return TransferFact(
+      id: _text(local['id']),
+      category: incoming.category,
+      text: incoming.text,
+      salience: incoming.salience,
+      createdAt: incoming.createdAt,
+      evidence: incoming.evidence,
+      subject: incoming.subject,
+      archived: incoming.archived,
+      sealed: localSealed || incoming.sealed,
+      revisions: _int(local['revisions']) > incoming.revisions
+          ? _int(local['revisions'])
+          : incoming.revisions,
+      // 旧文随修订次数走：修订倒退时不让更早的旧文覆盖较新的旧文。
+      oldText: incoming.revisions < _int(local['revisions']) ||
+              (incoming.revisions == _int(local['revisions']) &&
+                  incoming.oldText.isEmpty)
+          ? _text(local['old_text'])
+          : incoming.oldText,
+      sourceRawId: incoming.sourceRawId.isEmpty
+          ? _text(local['source_raw_id'])
+          : incoming.sourceRawId,
+      timesSaid: _int(local['times_said']) > incoming.timesSaid
+          ? _int(local['times_said'])
+          : incoming.timesSaid,
+      hits: localHits > incoming.hits ? localHits : incoming.hits,
+      lastSeenAt: localLastSeen > incoming.lastSeenAt
+          ? localLastSeen
+          : incoming.lastSeenAt,
+      summary: _text(local['summary']).isEmpty
+          ? incomingSummary
+          : _text(local['summary']),
+      channel: _text(local['channel']).isEmpty
+          ? incoming.channel
+          : _text(local['channel']),
+      arousal: incoming.arousal,
+      stabilityHours: incoming.stabilityHours,
+      stabilityMult: incoming.stabilityMult,
+      lastHitAt: localLastHit > incoming.lastHitAt
+          ? localLastHit
+          : incoming.lastHitAt,
+    );
+  }
+
   List<Map<String, Object?>> _rawsFromJson(Object? decoded) {
     if (decoded is! Map || decoded['memory_raw'] is! List) return const [];
     final out = <Map<String, Object?>>[];
@@ -975,6 +1107,18 @@ class TransferEngine {
       });
     }
     return out;
+  }
+
+  List<Map<String, Object?>> _rawsFromMarkdown(String text) {
+    final encoded = RegExp(r'<!--\s*ondra:memory_raw\s+([A-Za-z0-9+/=]+)\s*-->')
+        .firstMatch(text);
+    if (encoded == null) return const [];
+    try {
+      return _rawsFromJson(jsonDecode(utf8.decode(base64Decode(encoded[1]!))));
+    } catch (_) {
+      // 注释被手改坏时只丢原话，不影响同份文件里的记忆正文。
+      return const [];
+    }
   }
 
   Future<int> _count(String sql) async {
@@ -1095,9 +1239,6 @@ class TransferEngine {
     // 目标库已有同文同人的事实时不插新行，但封存/修订/溯源与使用记录
     // 仍要由这份导出同步；否则两台都已用过的电脑永远停在各自旧状态。
     for (final f in stateUpdates) {
-      final seen = f.lastSeenAt > 0
-          ? f.lastSeenAt
-          : f.createdAt.millisecondsSinceEpoch;
       b
         ..write('update memory_fact set ')
             ..write('channel=${_q(f.channel.isEmpty ? 'import' : f.channel)}, ')
@@ -1113,7 +1254,7 @@ class TransferEngine {
           'source_raw_id=${f.sourceRawId.isEmpty ? 'null' : _q(f.sourceRawId)}, ',
         )
         ..write('times_said=${f.timesSaid}, hits=${f.hits}, ')
-        ..write('last_seen_at=$seen where id=${_q(f.id)};\n');
+        ..write('last_seen_at=${f.lastSeenAt} where id=${_q(f.id)};\n');
     }
     for (final raw in rawTexts) {
       b
@@ -1156,14 +1297,19 @@ class TransferEngine {
 
   // ── 内部：两种读法 ──────────────────────────────────────────────────────
 
-  String _markdownOf(List<TransferFact> facts, List<TransferLink> links) {
+  String _markdownOf(
+    List<TransferFact> facts,
+    List<TransferLink> links, [
+    List<Map<String, Object?>> rawTexts = const [],
+  ]) {
     final at = _stampHuman(_now());
     final b = StringBuffer()
       ..writeln('# 空谷记忆')
       ..writeln()
       ..writeln(
         '$at 导出于本机。共 ${facts.length} 条记忆'
-        '${links.isEmpty ? '' : '、${links.length} 条关联'}。',
+        '${links.isEmpty ? '' : '、${links.length} 条关联'}'
+        '${rawTexts.isEmpty ? '' : '、${rawTexts.length} 条原文'}。',
       )
       ..writeln()
       ..writeln(
@@ -1235,6 +1381,26 @@ class TransferEngine {
       }
       b.writeln();
     }
+    // 只写来源编号而不带原文，换库后事实就会指向不存在的编号；
+    // 与关联注释同样的 base64 行格式，既不影响阅读也能原样导回。
+    if (rawTexts.isNotEmpty) {
+      b
+        ..writeln('## 原文')
+        ..writeln()
+        ..writeln(
+          '<!-- ondra:memory_raw ${base64Encode(utf8.encode(jsonEncode({'memory_raw': rawTexts})))} -->',
+        )
+        ..writeln()
+        ..writeln('| 编号 | 角色 | 原文 |')
+        ..writeln('| --- | --- | --- |');
+      for (final raw in rawTexts) {
+        b.writeln(
+          '| `${_text(raw['id'])}` | ${_text(raw['role'])} | '
+          '${_text(raw['text']).replaceAll(RegExp(r'[\r\n]+'), ' ').replaceAll('|', r'\|')} |',
+        );
+      }
+      b.writeln();
+    }
     return b.toString();
   }
 
@@ -1298,7 +1464,7 @@ class TransferEngine {
       // 只有没有正规记忆编号的章节才是表格/标题。若标题本身就是一条
       // 记忆（例如用户真的记了「关联」「空谷记忆」），不能整条丢掉。
       final meta = _metaOf(body.toString());
-      if ((t == '关联' || t == '空谷记忆') &&
+      if ((t == '关联' || t == '空谷记忆' || t == '原文') &&
           meta['id'] == null &&
           meta['id_b64'] == null) {
         title = null;

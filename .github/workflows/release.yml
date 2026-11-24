@@ -42,6 +42,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 资产名取 tag 的 alpha.N，应用内版本取 pubspec 的 +N；两处漂移
+      # 曾让 alpha.17 装出 alpha+15，这里在出包前直接失败。
+      - name: 校验 tag 与 pubspec 构建号一致
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $tag = $env:GITHUB_REF_NAME
+            if ($tag -notmatch '\.(\d+)$') {
+              throw "发布 tag 缺少 .N 构建号：$tag"
+            }
+            $tagBuild = $Matches[1]
+            $versionLine = Get-Content pubspec.yaml |
+              Where-Object { $_ -match '^\s*version:\s*[^#]+' } |
+              Select-Object -First 1
+            if ($versionLine -notmatch '\+(\d+)\s*$') {
+              throw "pubspec.yaml 缺少 +N 构建号：$versionLine"
+            }
+            $pubBuild = $Matches[1]
+            if ($tagBuild -ne $pubBuild) {
+              throw "tag 构建号 $tagBuild 与 pubspec 构建号 $pubBuild 不一致"
+            }
+          }
+
       - uses: actions/setup-node@v4
         with:
           # 与 DSH_VERSION 的 engines.node（>=24.9.0）对齐。Node 22 会装出

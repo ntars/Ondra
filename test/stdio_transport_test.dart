@@ -127,6 +127,85 @@ void main() {
     fixture.expectRetiredBeforeRestart();
   });
 
+  test('慢速取消的旧回执不会冒充 resume 后新问题的回答', () async {
+    final script = File('${fixture.home.path}/stale_cancel_fixture.mjs');
+    await script.writeAsString(r'''import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
+const root = process.env.FIXTURE_HOME;
+const tracePath = path.join(root, 'protocol.jsonl');
+const sessionsPath = path.join(root, 'sessions.json');
+let pending = null;
+const trace = (event, fields = {}) => fs.appendFileSync(tracePath, JSON.stringify({ event, pid: process.pid, ...fields }) + '\n');
+const write = (frame) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...frame }) + '\n');
+const result = (id, value = {}) => write({ id, result: value });
+const event = (sessionId, type, data = {}) => write({ method: 'session.event', params: { sessionId, event: { type, time: '2026-01-01T00:00:00Z', data } } });
+const message = (sessionId, text) => event(sessionId, 'assistant/message', { message: { content: [{ type: 'text', text }] } });
+const sessions = () => fs.existsSync(sessionsPath) ? JSON.parse(fs.readFileSync(sessionsPath)) : {};
+trace('start', { home: root });
+process.on('exit', (code) => trace('exit', { code }));
+process.on('SIGTERM', () => setTimeout(() => process.exit(0), 0));
+const lines = readline.createInterface({ input: process.stdin });
+lines.on('line', (line) => {
+  const { id, method, params } = JSON.parse(line);
+  trace('request', { id, method, params });
+  if (method === 'session/query') {
+    pending = () => {
+      event(params.sessionId, 'user/message', { message: { content: [{ type: 'text', text: '/cancel-turn' }] } });
+      message(params.sessionId, 'cancel-turn receipt must not answer the new question');
+      event(params.sessionId, 'turn/end', { reason: { kind: 'completed' } });
+      result(id, { kind: 'command', execution: { text: 'interrupted' } });
+    };
+    return;
+  }
+  if (method === 'session/wait') return;
+  if (method === 'initialize') { result(id, { protocolVersion: 1 }); return; }
+  if (method === 'session/resume') { result(id, { sessionId: params.sessionId }); return; }
+  if (method !== 'session/prompt') { result(id, {}); return; }
+  const sid = params.sessionId;
+  const text = params.contentBlocks.find((b) => b.type === 'text').text;
+  const saved = sessions();
+  const history = [...(saved[sid] ?? []), text];
+  saved[sid] = history;
+  fs.writeFileSync(sessionsPath, JSON.stringify(saved));
+  result(id, { accepted: true });
+  if (text === 'slow-cancel') { message(sid, 'partial'); return; }
+  if (text === 'fresh-question') {
+    message(sid, 'reply:fresh-question');
+    event(sid, 'turn/end', { reason: { kind: 'completed' } });
+    if (pending) { const replay = pending; pending = null; setTimeout(replay, 20); }
+    return;
+  }
+  message(sid, text === 'history' ? history.slice(0, -1).join('|') : 'reply:' + text);
+  event(sid, 'turn/end', { reason: { kind: 'completed' } });
+});
+''');
+    final transport = fixture.transport(binaryArgs: [script.path]);
+    await transport.send('first').drain<void>();
+    await fixture.waitForPrompt('first');
+    final finished = Completer<void>();
+    final received = Completer<void>();
+    final errors = <Object>[];
+    transport.send('slow-cancel').listen(
+      (chunk) {
+        if (chunk == 'partial') received.complete();
+      },
+      onError: errors.add,
+      onDone: finished.complete,
+    );
+    await received.future.timeout(const Duration(seconds: 3));
+    await fixture.waitForPrompt('slow-cancel');
+    transport.stop();
+    await fixture.waitForRequest('session/query');
+    await finished.future.timeout(const Duration(milliseconds: 250));
+    expect(errors.single, stateError('已停止'));
+    final next = transport.send('fresh-question').toList();
+    await fixture.waitForPrompt('fresh-question');
+    expect(await next, ['reply:fresh-question']);
+    expect(fixture.requests('session/query'), hasLength(1));
+    expect(fixture.requests('session/resume'), hasLength(1));
+  });
+
   test('初始化中 stop 结清 connect 和 send，下次发送可自动握手', () async {
     final transport = fixture.transport(scenario: 'hang-initialize-once');
     final connecting = expectLater(
@@ -511,6 +590,7 @@ class _Fixture {
     String scenario = '',
     int exitDelayMs = 0,
     String? dshHome,
+    List<String>? binaryArgs,
     Duration requestTimeout = const Duration(seconds: 3),
     Duration? startupTimeout,
     Duration turnTimeout = const Duration(seconds: 3),
@@ -524,8 +604,11 @@ class _Fixture {
       inheritLoginShellEnvironment: false,
       binary: node,
       binaryArgs: [
-        File('test/support/stdio_protocol_fixture.mjs').absolute.path,
-        '--fixture-argument',
+        ...?binaryArgs,
+        if (binaryArgs == null) ...[
+          File('test/support/stdio_protocol_fixture.mjs').absolute.path,
+          '--fixture-argument',
+        ],
       ],
       environment: {
         'HOME': home.path,
@@ -562,6 +645,12 @@ class _Fixture {
         (record) => record['event'] == 'request' && record['method'] == method,
       )
       .toList();
+
+  Future<void> waitForPrompt(String text) => waitFor(() => requests(
+    'session/prompt',
+  ).any((request) => (request['params'] as Map)['contentBlocks'].any(
+    (block) => block['text'] == text,
+  )));
 
   Future<void> waitForRequest(String method) =>
       waitFor(() => requests(method).isNotEmpty);

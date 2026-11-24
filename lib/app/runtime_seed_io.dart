@@ -40,8 +40,8 @@ const String ondraRuntimeProfileName = 'ondra';
 
 /// 把随包的 profile 种子铺到 `$DSH_HOME/profiles/ondra`。
 ///
-/// 幂等：已经有就什么都不做。**同步**执行——它发生在首帧之前，异步反而会让
-/// 「界面已出、profile 还没铺好」出现一个可被点到的空窗。
+/// 幂等：已经有就按摘要补缺、升级仍归应用所有的文件。**同步**执行——
+/// 现在它排在首帧之后，但必须在内核连接前铺好，否则会连到一个空 profile。
 ///
 /// [dshHome] 只为测试存在：`Platform.environment` 在进程内不可改，不开口子
 /// 就没法验证「铺到哪里」。生产调用一律不传，走 `ONDRA_DSH_HOME` / `~/.ondra/dsh`。
@@ -70,6 +70,7 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
     // 源快照里有、目标里没有的文件补上；两边都有、且用户没改过的旧随包
     // 文件，按逐文件摘要判断后再升级。
     final changed = <String>{};
+    final manifestMissing = !File(_ownedManifestPath(target)).existsSync();
     try {
       changed.addAll(
         _fillMissing(Directory(runtime.profileDir), Directory(target)),
@@ -81,9 +82,18 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
       // 单个文件失败不覆盖已有内容；已经完成的补缺/升级仍按 seeded 返回，
       // 下次启动会再次尝试剩下的文件。
     }
-    if (changed.isNotEmpty) {
+    if (changed.isNotEmpty || manifestMissing) {
       try {
-        _updateOwnedSnapshot(target, runtime.profileDir, changed);
+        if (manifestMissing) {
+          _seedOwnedSnapshot(
+            target,
+            runtime.profileDir,
+            Directory(runtime.profileDir),
+            changed,
+          );
+        } else {
+          _updateOwnedSnapshot(target, runtime.profileDir, changed);
+        }
       } on FileSystemException {
         // 摘要清单写不进去只影响下一次升级判断，不影响本次已铺开的文件。
       }
@@ -114,6 +124,18 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
 
 const String _ownedManifestName = '.ondra-seed.json';
 
+/// 老安装（alpha.10 之前）没有归属清单。这里只认这几份必然由应用铺开的
+/// 插件代码：人设/轮次控制的旧版本曾导致「升级后没有人设」，而它们不是用户配置。
+/// 因为拿不到全部旧版本摘要，迁移时按路径直接刷新这几份；别的相对路径
+/// 一律当作用户所有，绝不因为一次升级被覆盖。
+const Set<String> _legacyUpgradeAllowlist = {
+  'node_modules/@ondra/cordis-plugin-ondra-persona-loader/lib/settings.js',
+  'node_modules/@ondra/cordis-plugin-ondra-persona-core/lib/service.js',
+  'node_modules/@ondra/cordis-plugin-ondra-persona-core/lib/index.js',
+  'node_modules/@ondra/cordis-plugin-ondra-persona-loader/lib/index.js',
+  'node_modules/@ondra/cordis-plugin-ondra-turn-control/lib/index.js',
+};
+
 String _ownedManifestPath(String profileTarget) =>
     '$profileTarget${Platform.pathSeparator}$_ownedManifestName';
 
@@ -137,14 +159,20 @@ String? _snapshotPackageCount(String profileDir) {
 }
 
 /// 只替换仍与上次随包种子逐字节一致、且新快照确实不同的文件。
+///
+/// 清单缺失时只刷新 [_legacyUpgradeAllowlist] 里的随包代码（按路径视为应用
+/// 所有）；其余文件一律保留，绝不猜测归属。
 List<String> _upgradeOwnedFiles(Directory source, Directory target) {
   final manifest = File(_ownedManifestPath(target.path));
-  if (!manifest.existsSync()) return const [];
   Map<String, Object?> parsed;
-  try {
-    parsed = jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
-  } catch (_) {
-    return const [];
+  if (manifest.existsSync()) {
+    try {
+      parsed = jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
+    } catch (_) {
+      return const [];
+    }
+  } else {
+    parsed = {'files': _legacyOwnedHashes(source, target)};
   }
   final rawFiles = parsed['files'];
   if (rawFiles is! Map) return const [];
@@ -175,6 +203,43 @@ List<String> _upgradeOwnedFiles(Directory source, Directory target) {
 
   walk(source);
   return replaced;
+}
+
+/// 无清单老安装的最小归属表：用目标文件的当前摘要当作「上次随包摘要」，
+/// 好让白名单里的旧版本在本次被刷新（没有完整旧快照摘要可用）。
+Map<String, String> _legacyOwnedHashes(Directory source, Directory target) {
+  final files = <String, String>{};
+  for (final rel in _legacyUpgradeAllowlist) {
+    final bundled = File(
+      '${source.path}${Platform.pathSeparator}${rel.replaceAll('/', Platform.pathSeparator)}',
+    );
+    final installed = File(
+      '${target.path}${Platform.pathSeparator}${rel.replaceAll('/', Platform.pathSeparator)}',
+    );
+    if (!bundled.existsSync() || !installed.existsSync()) continue;
+    files[rel] = _sha256OfFile(installed);
+  }
+  return files;
+}
+
+/// 老安装迁移时写一份保守归属表。
+///
+/// 只认白名单与本次确实写入的文件；摘要不同的其他文件归用户，下一轮也不会被覆盖。
+void _seedOwnedSnapshot(
+  String target,
+  String source,
+  Directory sourceDir,
+  Iterable<String> changed,
+) {
+  final files = _legacyOwnedHashes(sourceDir, Directory(target));
+  for (final rel in changed) {
+    final file = File(
+      '$target${Platform.pathSeparator}'
+      '${rel.replaceAll('/', Platform.pathSeparator)}',
+    );
+    if (file.existsSync()) files[rel] = _sha256OfFile(file);
+  }
+  _writeOwnedManifest(target, source, files);
 }
 
 /// 记录随包快照的归属与文件摘要。

@@ -57,6 +57,16 @@ class _Turn {
   }
 }
 
+/// 事件里是否带着 `/cancel-turn` 命令原文。深度不大，但 user/message
+/// 可能套在 data/context 里，逐层找字符串而不是猜固定结构。
+bool _hasCancelCommandText(Object? value, [int depth = 0]) {
+  if (depth > 6) return false;
+  if (value is String) return value.contains('/cancel-turn');
+  if (value is Map) return value.values.any((v) => _hasCancelCommandText(v, depth + 1));
+  if (value is Iterable) return value.any((v) => _hasCancelCommandText(v, depth + 1));
+  return false;
+}
+
 /// 通过自有子进程收发按行分帧的 SDK JSON-RPC。
 class StdioDshTransport implements DshTransport {
   /// 本次连接的模型配置错误（缺密钥/配置无效）。非空时聊天栏提示
@@ -160,6 +170,9 @@ class StdioDshTransport implements DshTransport {
   static int _nextSession = 1;
   String? _sessionId;
   String? _lastError;
+  // stop 后的下一轮要排掉旧队列里的 /cancel-turn 命令收尾；成功/超时/失败
+  // 都可能留下它，所以标志在取消流程入口无条件置位。
+  bool _cancelPendingDrain = false;
 
   @override
   Stream<StepUsage> get usage => _usage.stream;
@@ -517,6 +530,9 @@ class StdioDshTransport implements DshTransport {
       final sessionId = _sessionId ??=
           'ondra-${DateTime.now().microsecondsSinceEpoch}-${_nextSession++}';
       _stepStart = null;
+      final mustDrainCancel = _cancelPendingDrain;
+      // 只作用于紧邻 stop 的下一轮；之后到达的回执已无归属，直接丢弃。
+      _cancelPendingDrain = false;
       // prompt 应答前的 turn/end 属于上一轮的取消收尾（stop() 经
       // /cancel-turn 中断的那一轮），不是本轮的——同一会话的事件流不区分
       // 轮次，不过滤的话取消收尾会被紧随其后的新轮消费掉，表现为「新消息
@@ -525,10 +541,24 @@ class StdioDshTransport implements DshTransport {
       // _call 返回后置位：事件先缓冲在 turn.events，await for 开始时按序
       // 读取，顺序不失真。
       var promptSettled = false;
+      var drainingCancelTurn = false;
       sub = connection.frames.stream.listen((frame) {
         if (turn.done || frame.method != 'session.event') return;
         final payload = frame.params;
         if (payload == null || payload['sessionId'] != sessionId) return;
+        // 旧命令的回执可能在 prompt 应答之后才到。按命令原文识别
+        // /cancel-turn 那一轮，连同它紧随的 turn/end 一起丢。
+        if (mustDrainCancel) {
+          final isCancel = _hasCancelCommandText(payload);
+          if (drainingCancelTurn) {
+            if (isTurnEnd(payload)) drainingCancelTurn = false;
+            return;
+          }
+          if (isCancel) {
+            drainingCancelTurn = true;
+            return;
+          }
+        }
         if (!promptSettled && isTurnEnd(payload)) return;
         turn.events.add(payload);
       });
@@ -676,6 +706,7 @@ class StdioDshTransport implements DshTransport {
   /// 2. session/wait 等 idle 10 秒——正常生成中 cancel 立刻 idle、连接
   ///    保持；agent 卡死在无法中断的调用里永不 idle 时杀进程保下一轮。
   Future<void> _cancelTurn(_Connection connection, String sessionId) async {
+    _cancelPendingDrain = true;
     try {
       await _call(connection, 'session/query', {
         'sessionId': sessionId,
