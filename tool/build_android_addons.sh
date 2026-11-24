@@ -88,30 +88,24 @@ fi
 NARB_SRC="$CACHE/require-builtin-src"
 if [[ ! -f "$NARB_SRC/packages/native/binding.gyp" ]]; then
   mkdir -p "$NARB_SRC"
-  # GitHub Contents API 对较大文件只给 download_url，不再内嵌 base64
-  # content；先跟着下载链接走，只有小文件才回退到 content。
-  python3 - "$CACHE/require-builtin-src.zip" <<'PY'
-import base64
-import json
-import subprocess
-import sys
-url = 'https://api.github.com/repos/kai6666666/deepseek-harness/contents/native/require-builtin-src.zip'
-meta = json.loads(subprocess.check_output([
-    'curl', '-fsSL', '--max-time', '60',
-    '-H', 'Accept: application/vnd.github+json', url,
-]))
-if meta.get('download_url'):
-    subprocess.check_call([
-        'curl', '-fsSL', '--max-time', '120', meta['download_url'],
-        '-o', sys.argv[1],
-    ])
-elif 'content' in meta:
-    with open(sys.argv[1], 'wb') as f:
-        f.write(base64.b64decode(meta['content']))
-else:
-    raise SystemExit('require-builtin-src.zip 既没有 download_url 也没有 content')
-PY
-  unzip -q "$CACHE/require-builtin-src.zip" -d "$NARB_SRC"
+  # 这份源码随仓库自带，发布链不该依赖 GitHub 未登录 API 的每小时额度。
+  # 上游来源：https://github.com/kai6666666/deepseek-harness/blob/main/native/require-builtin-src.zip
+  VENDORED="$REPO/tool/vendor/require-builtin-src.zip"
+  EXPECTED_SHA256="6701f6d0228e79ab5e0bfe1ad77c90e35a77292b19f5460f02fd2f8c1c2e59f7"
+  if [[ ! -f "$VENDORED" ]]; then
+    echo "缺少随包 require-builtin 源码：$VENDORED" >&2
+    exit 1
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_SHA256=$(sha256sum "$VENDORED" | awk '{print $1}')
+  else
+    ACTUAL_SHA256=$(shasum -a 256 "$VENDORED" | awk '{print $1}')
+  fi
+  if [[ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]]; then
+    echo "require-builtin 源码校验失败：$ACTUAL_SHA256" >&2
+    exit 1
+  fi
+  unzip -q "$VENDORED" -d "$NARB_SRC"
 fi
 
 # 本工程内核闭包：tools/pack_android_kernel.mjs 会把 node_modules 原样打进
