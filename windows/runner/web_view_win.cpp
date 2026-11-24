@@ -1,5 +1,6 @@
 #include "web_view_win.h"
 
+#include <flutter/standard_message_codec.h>
 #include <flutter/standard_method_codec.h>
 
 #include <algorithm>
@@ -28,6 +29,10 @@ namespace {
 constexpr char kHostChannel[] = "ondra/webview/host";
 constexpr char kRejectedReason[] =
     "已阻止导航：目标的协议、主机或端口不在白名单里。";
+
+// Keep the RGBA placeholder values in the vector's element type so MSVC's
+// /WX build does not turn std::fill's int-to-uint8_t conversion into an error.
+constexpr uint8_t kOpaqueAlpha = 255;
 constexpr char kInvalidReason[] =
     "已阻止导航：只允许合法且不含凭据的 http(s) 地址。";
 constexpr char kDowngradeReason[] = "已阻止导航：不允许从 HTTPS 降级到 HTTP。";
@@ -229,6 +234,15 @@ class OndraWebViewHost::View {
       }
     }
 
+    // Flutter 可能在第一次 WM_SIZE 或第一帧 CapturePreview 之前就向纹理
+    // 请求像素；先给一块不透明占位，避免把空 buffer 交给渲染线程。
+    frame_bytes_.assign(static_cast<size_t>(kTextureWidth) * kTextureHeight * 4,
+                        0);
+    std::fill(frame_bytes_.begin() + 3, frame_bytes_.end(), kOpaqueAlpha);
+    pixel_buffer_.buffer = frame_bytes_.data();
+    pixel_buffer_.width = kTextureWidth;
+    pixel_buffer_.height = kTextureHeight;
+
     FlutterDesktopTextureInfo info = {};
     info.type = kFlutterDesktopPixelBufferTexture;
 #ifdef ONDRA_WEBVIEW2_AVAILABLE
@@ -287,27 +301,38 @@ class OndraWebViewHost::View {
 #ifdef ONDRA_WEBVIEW2_AVAILABLE
     const auto w = width > 0 ? width : kTextureWidth;
     const auto h = height > 0 ? height : kTextureHeight;
+    if (w <= 0 || h <= 0) return;
+    Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller;
+    HWND host = nullptr;
     {
       std::lock_guard<std::mutex> lock(capture_mutex_);
-      if (frame_width_ == w && frame_height_ == h) return;
+      controller = controller_;
+      host = host_window_;
+      // 控件创建前 WM_SIZE 已可能到过；那时只能记下尺寸，不能因为尺寸
+      // 相同就跳过创建后的 bounds/host 同步。
+      if (frame_width_ == w && frame_height_ == h && controller && host) {
+        return;
+      }
       frame_width_ = w;
       frame_height_ = h;
-      // 尺寸变了先回退到不透明占位，避免旧帧被缩放到新尺寸造成花屏。
-      frame_bytes_.assign(static_cast<size_t>(w) * h * 4, 0);
-      std::fill(frame_bytes_.begin() + 3, frame_bytes_.end(), 255);
+      // 像素缓冲归渲染线程读取：重新分配 frame_bytes_ 与发布新指针、新尺寸
+      // 必须在同一把锁里完成，否则 CopyPixels 可能读到旧的 data() 或报告与
+      // vector 容量不一致的宽高。
+      {
+        std::lock_guard<std::mutex> buffer_lock(buffer_mutex_);
+        frame_bytes_.assign(static_cast<size_t>(w) * h * 4, 0);
+        std::fill(frame_bytes_.begin() + 3, frame_bytes_.end(), kOpaqueAlpha);
+        pixel_buffer_.buffer = frame_bytes_.data();
+        pixel_buffer_.width = w;
+        pixel_buffer_.height = h;
+      }
     }
-    {
-      std::lock_guard<std::mutex> lock(buffer_mutex_);
-      pixel_buffer_.buffer = frame_bytes_.data();
-      pixel_buffer_.width = w;
-      pixel_buffer_.height = h;
-    }
-    if (controller_ != nullptr) {
+    if (controller) {
       RECT rect = {0, 0, w, h};
-      controller_->put_Bounds(rect);
+      controller->put_Bounds(rect);
     }
-    if (host_window_ != nullptr) {
-      MoveWindow(host_window_, 0, 0, w, h, TRUE);
+    if (host != nullptr) {
+      MoveWindow(host, 0, 0, w, h, TRUE);
     }
     capture_width_.store(w);
     capture_height_.store(h);
@@ -393,10 +418,20 @@ class OndraWebViewHost::View {
                                                      void* user_data) {
     auto* view = static_cast<View*>(user_data);
     std::lock_guard<std::mutex> lock(view->buffer_mutex_);
-    // 渲染线程按需取尺寸；这里直接报告引擎请求的物理像素数，避免 1280x720
-    // 固定尺寸与容器不一致导致的拉伸。真正的图像由 CaptureFrame 缩放。
-    view->pixel_buffer_.width = width;
-    view->pixel_buffer_.height = height;
+    // 尺寸必须与 frame_bytes_ 实际容量一致：Flutter 会按这里的 width/height
+    // 读取像素，报告引擎请求值但缓冲仍是旧尺寸会越界读。真正的缩放由
+    // DecodePngToFrame 按 frame_width_/frame_height_ 完成。
+    if (view->pixel_buffer_.buffer == nullptr) {
+      // 首帧可能早于 View 构造完成后的任何 CapturePreview；临时返回不透明
+      // 占位，且不能把临时堆内存留给下一次回调使用。
+      static thread_local std::vector<uint8_t> placeholder;
+      if (width == 0 || height == 0) return nullptr;
+      placeholder.assign(width * height * 4, kOpaqueAlpha);
+      view->pixel_buffer_.buffer = placeholder.data();
+      view->pixel_buffer_.width = width;
+      view->pixel_buffer_.height = height;
+      return &view->pixel_buffer_;
+    }
     return &view->pixel_buffer_;
   }
 
@@ -569,10 +604,11 @@ class OndraWebViewHost::View {
   }
 
   void InitializeWebView() {
+#ifdef ONDRA_WEBVIEW2_AVAILABLE
     using namespace Microsoft::WRL;
     HRESULT hr = CreateCoreWebView2EnvironmentWithOptions(
         nullptr, nullptr, nullptr,
-        Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+        Microsoft::WRL::Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this](HRESULT result, ICoreWebView2Environment* environment)
                 -> HRESULT {
               if (FAILED(result) || environment == nullptr) {
@@ -595,9 +631,9 @@ class OndraWebViewHost::View {
               }
               environment->CreateCoreWebView2Controller(
                   host,
-                  Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                  Microsoft::WRL::Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
                       [this, host](HRESULT create_result,
-                             ICoreWebView2Controller* raw_controller) -> HRESULT {
+                                   ICoreWebView2Controller* raw_controller) -> HRESULT {
                         if (FAILED(create_result) || raw_controller == nullptr) {
                           SendError(messenger_, id_, "loadFailed",
                                     "WebView2 控件创建失败");
@@ -634,7 +670,7 @@ class OndraWebViewHost::View {
                         // alive until registration returns, then release.
                         {
                           auto frame_handler =
-                              Callback<ICoreWebView2NavigationStartingEventHandler>(
+                              Microsoft::WRL::Callback<ICoreWebView2NavigationStartingEventHandler>(
                                   [this](ICoreWebView2*,
                                          ICoreWebView2NavigationStartingEventArgs*
                                              args) -> HRESULT {
@@ -643,7 +679,7 @@ class OndraWebViewHost::View {
                           web_view->add_FrameNavigationStarting(
                               frame_handler.Get(), &frame_token_);
                           auto new_window_handler =
-                              Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+                              Microsoft::WRL::Callback<ICoreWebView2NewWindowRequestedEventHandler>(
                                   [this](ICoreWebView2*,
                                          ICoreWebView2NewWindowRequestedEventArgs*
                                              args) -> HRESULT {
@@ -653,7 +689,7 @@ class OndraWebViewHost::View {
                               new_window_handler.Get(), &new_window_token_);
                         }
                         web_view->add_NavigationCompleted(
-                            Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                            Microsoft::WRL::Callback<ICoreWebView2NavigationCompletedEventHandler>(
                                 [this](ICoreWebView2*,
                                        ICoreWebView2NavigationCompletedEventArgs*
                                            args) -> HRESULT {
@@ -680,15 +716,14 @@ class OndraWebViewHost::View {
                         // 由 OndraWebViewHost::OnParentWindowResized 同步。
                         Resize(capture_width_.load(), capture_height_.load());
                         return navigated;
-                      }).Get(),
-                  nullptr);
+                      }).Get());
               return S_OK;
-            }).Get(),
-        nullptr);
+            }).Get());
     if (FAILED(hr)) {
       SendError(messenger_, id_, "loadFailed",
                 "WebView2 环境初始化失败，请安装 WebView2 运行时");
     }
+#endif
   }
 
 #ifdef ONDRA_WEBVIEW2_AVAILABLE
@@ -714,7 +749,7 @@ class OndraWebViewHost::View {
     // target=_blank / window.open：合法请求留在同一视图，不弹新窗口。
     return web_view_->Navigate(Utf8ToUtf16(target).c_str());
   }
-#endif  // ONDRA_WEBVIEW2_AVAILABLE (navigation handlers)
+#endif  // ONDRA_WEBVIEW2_AVAILABLE (InitializeWebView)
 
 
 };  // class OndraWebViewHost::View
@@ -741,9 +776,36 @@ OndraWebViewHost::OndraWebViewHost(
           result->Error("bad-args", "creation args missing");
           return;
         }
+        // Windows 的 PlatformView shim 把 Dart 的 creationParams 用
+        // StandardMessageCodec 编成 Uint8List，放在 `params` 里。原生必须按
+        // 同一 codec 解码后再读 url/allowedSites；只查顶层字段会得到一个
+        // 初始 URL 为空、白名单为空的视图，表现为页面空白且没有 HTTP 请求。
+        flutter::EncodableValue decoded_value;
+        const flutter::EncodableMap* params = args;
+        const auto encoded_it = args->find(flutter::EncodableValue("params"));
+        if (encoded_it != args->end()) {
+          const auto* encoded =
+              std::get_if<std::vector<uint8_t>>(&encoded_it->second);
+          if (encoded == nullptr || encoded->empty()) {
+            result->Error("bad-args", "encoded creation params missing");
+            return;
+          }
+          auto decoded = flutter::StandardMessageCodec::GetInstance()
+                             .DecodeMessage(*encoded);
+          if (decoded == nullptr) {
+            result->Error("bad-args", "creation params could not be decoded");
+            return;
+          }
+          decoded_value = std::move(*decoded);
+          params = std::get_if<flutter::EncodableMap>(&decoded_value);
+          if (params == nullptr) {
+            result->Error("bad-args", "creation params are not a map");
+            return;
+          }
+        }
         const auto id = next_id_++;
         auto view = std::make_unique<View>(
-            messenger_, textures_, id, *args, parent_window_);
+            messenger_, textures_, id, *params, parent_window_);
         const int64_t texture_id = view->texture_id();
         views_[id] = std::move(view);
         result->Success(flutter::EncodableValue(texture_id));

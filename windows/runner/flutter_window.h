@@ -56,6 +56,11 @@ class FlutterWindow : public Win32Window {
       notify_channel_;
 
   std::unique_ptr<::OndraWebViewHost> web_view_host_;
+  // `ondra/webview` 不是 GeneratedPluginRegistrant 里的插件；若宿主构建拿不到
+  // texture registrar，也必须先占用方法通道，避免 Dart 把 MissingPlugin 误报成
+  // 「这个构建没有内嵌浏览器」。
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      web_view_host_error_channel_;
 
   UINT_PTR prevent_sleep_timer_ = 0;
 

@@ -12,6 +12,7 @@ import '../design/theme.dart';
 import '../design/motion.dart';
 import '../plugins/ondra-core/ondra-ui/ui/boot_screen.dart';
 import '../plugins/ondra-core/ondra-ui/ui/chassis.dart';
+import '../plugins/ondra-core/ondra-ui/ondra-browser/ui/browser_client.dart';
 import 'debug_launch.dart';
 import 'i18n.dart';
 import 'prefs.dart';
@@ -43,7 +44,9 @@ String _debugInitialId() {
   return OndraRegistry.initialId;
 }
 
-bool _debugSettings() => kIsWeb && Uri.base.queryParameters['settings'] == '1';
+bool _debugSettings() =>
+    (kIsWeb && Uri.base.queryParameters['settings'] == '1') ||
+    (!kIsWeb && debugLaunchSettings());
 
 /// 调试入口：`?timeline=1` 直接推开时间线。
 ///
@@ -98,6 +101,7 @@ class _OndraAppState extends State<OndraApp> {
   @override
   void initState() {
     super.initState();
+    _applyBrowserDebugLaunch();
     // 调试直达：`?timeline=1` 一开机就推开时间线（见 `_debugTimeline`）。
     _state.timelineOpen = _debugTimeline();
     // 头像读一次就好：文件在 `~/.ondra/avatar.png`，几十 KB，同步读完不会拖慢首帧。
@@ -108,6 +112,26 @@ class _OndraAppState extends State<OndraApp> {
     // 装不上就保持中文，界面不会因此空白——见 `i18n.dart` 的说明。
     // `readPref` 读不到时给空串，`load('')` 会当成「不认识的语言」回落中文。
     OndraI18n.instance.load(readPref('language'));
+  }
+
+  /// 调试入口：从命令行直达白名单页面，便于 WebView 实机核对。
+  ///
+  /// 只要 `ONDRA_BROWSER_URL` 显式给出，就走正式 BrowserClient 的校验；
+  /// `ONDRA_BROWSER_ADD=1` 仅用于一次性测试环境把该 URL 存入白名单。
+  /// 两者都不设置时，这里一行也不会改动用户状态。
+  void _applyBrowserDebugLaunch() {
+    if (kIsWeb) return;
+    final url = debugBrowserUrl();
+    if (url.isEmpty) return;
+    // 旧版本在这里把 add 的「已在白名单」提示当成失败，导致第二次启动
+    // 即使地址合法也不会打开；应始终按最终名单调用一次正式 open。
+    if (debugBrowserAddSite() && !browserClient.allowed(url)) {
+      browserClient.add(url);
+    }
+    final error = browserClient.open(url);
+    // 调试入口失败时必须可见，否则命令行用户只会看到一个空页面，误以为
+    // 又是原生 WebView2 白屏。GUI 里仍由 BrowserPage 显示同一错误。
+    if (error != null) debugPrint('ONDRA_BROWSER_URL 未打开：$error');
   }
 
   @override

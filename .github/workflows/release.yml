@@ -44,7 +44,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+      # 与 DSH_VERSION 的 engines.node（>=24.9.0）对齐。Node 22 会装出
+      # 运行时但 dsh 启动即无输出，握手自检超时，等于发布 job 必红。
+      node-version: "24"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -103,8 +105,11 @@ jobs:
             -Destination build/windows/x64/runner/Release/ -ErrorAction SilentlyContinue
           Copy-Item C:/Windows/System32/VCRUNTIME140_1.dll `
             -Destination build/windows/x64/runner/Release/ -ErrorAction SilentlyContinue
-          Compress-Archive -Path build/windows/x64/runner/Release/* `
-            -DestinationPath "Ondra-$tag-windows-x64.zip"
+          # PowerShell 5.1 的 Compress-Archive 遇到仓库文件里的旧时间戳会
+          # 抛「无法将 DateTimeOffset 转换为 Zip 文件时间」，并留下 0 字节 zip。
+          # 用仓库自带的 Node zip 工具写稳定的 DOS 时间，避免发布包偶发为空。
+          node tool/zip_windows_release.mjs `
+            build/windows/x64/runner/Release "Ondra-$tag-windows-x64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -127,7 +132,7 @@ jobs:
           channel: stable
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - run: flutter pub get
       - name: 解码签名密钥
         run: |
@@ -175,7 +180,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: 装内核（装配的闭包来源）
         run: npm install -g "@deepseek-ai/dsh@$DSH_VERSION"

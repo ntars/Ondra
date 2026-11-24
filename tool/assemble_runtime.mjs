@@ -7,7 +7,7 @@
 // 产出一个可以直接塞进应用包的目录 `runtime/<platform>-<arch>/`：
 //
 //   runtime/windows-x64/
-//   ├── node.exe          ← Node 22 可执行（单平台单架构）
+//   ├── node.exe          ← Node 24 可执行（单平台单架构；与 dsh engines 对齐）
 //   ├── sqlite3.exe       ← 只有 Windows 需要（系统里没有）
 //   ├── dsh/              ← dsh 核心 agent 的依赖闭包（已裁剪）
 //   │   ├── package.json
@@ -76,7 +76,7 @@
 //
 // 也可以走 `tool/assemble_runtime.sh`（三行转发，给习惯.sh 的人用）。
 //
-// 依赖：本机已装 node 与 @deepseek-ai/dsh（与开发环境同一套）。
+// 依赖：本机已装 Node.js 24.9+ 与 @deepseek-ai/dsh（与开发环境同一套）。
 // 它**不联网拉 npm 包**：内核只从现有安装里拷，产出的东西与开发时跑的是同一份
 // 版本。唯一的网络请求是 Windows 缺 sqlite3.exe 时向 sqlite.org 取一次官方
 // 二进制（带 SHA3-256 校验），可用 ONDRA_SQLITE3_BIN 或 ONDRA_SKIP_SQLITE=1 绕开。
@@ -1309,7 +1309,6 @@ function handshake(home, profile) {
     });
     const child = spawn(nodeOut, [dshEntry, '--profile', profile], {
       env: { ...envBase, DSH_HOME: home, MAGPIE_API_KEY: 'local-loopback' },
-      windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -1342,8 +1341,19 @@ function handshake(home, profile) {
       clearTimeout(timer);
       resolve({ out, err: `${err}\n[spawn 失败] ${e.message}` });
     });
-    child.stdin.write(`${req}\n`);
-    child.stdin.end();
+    // Windows 上 spawn 的 stdin 是异步管道。此前这里立刻 write/end，在慢速
+    // 来宾机里请求可能早于内核装配完成；内核启动时只等首行 JSON-RPC，
+    // 管道关闭后不会再收到请求，自检就固定 12 秒超时。短延时让监听器
+    // 先挂上，同时保持子进程可见——自检不应该把应用窗口隐藏起来。
+    setTimeout(() => {
+      try {
+        child.stdin.write(`${req}\n`, () => child.stdin.end());
+      } catch (e) {
+        resolve({ out, err: `${err}\n[写入请求失败] ${e.message}` });
+        clearTimeout(timer);
+        try { child.kill(); } catch { /* 已经退了 */ }
+      }
+    }, 50);
   });
 }
 

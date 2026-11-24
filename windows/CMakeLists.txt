@@ -106,11 +106,10 @@ if(DEFINED ENV{ONDRA_ALLOW_NO_RUNTIME} AND NOT "$ENV{ONDRA_ALLOW_NO_RUNTIME}" ST
 endif()
 
 set(ONDRA_RUNTIME_TARGET "windows-x64")
-if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-  set(ONDRA_RUNTIME_TARGET "windows-x86")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|arm64")
-  set(ONDRA_RUNTIME_TARGET "windows-arm64")
-endif()
+# x64 runner 必须始终寻找 windows-x64。Windows on ARM 的 MSVC 用 x64 交叉
+# 工具链编译（CMAKE_SIZEOF_VOID_P=8），但旧的 ARM64 分支会错误改找
+# windows-arm64 运行时，导致装配好的 x64 闭包被当成缺失、构建 FATAL。
+# 发布目标目前只有 windows-x64，不按构建机处理器改包名。
 set(ONDRA_RUNTIME_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/${ONDRA_RUNTIME_TARGET}")
 
 if(EXISTS "${ONDRA_RUNTIME_SRC}/node.exe")

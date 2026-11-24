@@ -297,16 +297,42 @@ bool FlutterWindow::OnCreate() {
     this->Show();
   });
 
-  // WebView2 纹理后端：在通知/睡眠/外观通道之后注册，互不干扰。
-  // 纹理 registrar 属于 engine。FlutterEngine 的底层 C 句柄是私有成员，
-  // 但 GetRegistrarForPlugin 返回的 registrar 也持有同一 engine；通过它取
-  // FlutterDesktopRegistrarGetTextureRegistrar 才是 Flutter 3.50 公开 API。
-  auto registrar =
+  // WebView2 纹理后端：必须在第一帧之前注册宿主方法通道，否则首屏已经构建
+  // 网页视图时才去调用 `ondra/webview/host/create`，会先收到 MissingPlugin，
+  // 页面把错误文案定格成「这个构建没有内嵌浏览器」，之后再也没有入口重试。
+  // 在通知/睡眠/外观通道之后注册，互不干扰。
+  // C++ engine wrapper 的底层 C 句柄是私有成员；通过 GetRegistrarForPlugin
+  // 拿到同一 engine 的公开 registrar。FlutterDesktopEngineRef 与
+  // FlutterDesktopPluginRegistrarRef 是不同句柄，不能互相 reinterpret_cast。
+  // 这里只借用 registrar 的纹理接口，不注册第三方插件。
+  auto* plugin_registrar =
       flutter_controller_->engine()->GetRegistrarForPlugin("ondra/webview");
-  if (registrar != nullptr) {
+  FlutterDesktopTextureRegistrarRef texture_registrar = nullptr;
+  if (plugin_registrar != nullptr) {
+    texture_registrar =
+        FlutterDesktopRegistrarGetTextureRegistrar(plugin_registrar);
+  }
+  if (texture_registrar != nullptr) {
     web_view_host_ = std::make_unique<OndraWebViewHost>(
-        flutter_controller_->engine()->messenger(),
-        FlutterDesktopRegistrarGetTextureRegistrar(registrar), GetHandle());
+        flutter_controller_->engine()->messenger(), texture_registrar,
+        GetHandle());
+  } else {
+    // 没有纹理后端时也要占用同一方法通道，让 Dart 收到明确错误码而不是
+    // MissingPluginException 的误导文案。
+    web_view_host_error_channel_ =
+        std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+            flutter_controller_->engine()->messenger(), "ondra/webview/host",
+            &flutter::StandardMethodCodec::GetInstance());
+    web_view_host_error_channel_->SetMethodCallHandler(
+        [](const flutter::MethodCall<flutter::EncodableValue>& call,
+           std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+               result) {
+          if (call.method_name() == "create") {
+            result->Error("webview-unavailable", "这个构建没有纹理 registrar");
+          } else {
+            result->NotImplemented();
+          }
+        });
   }
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -320,6 +346,7 @@ bool FlutterWindow::OnCreate() {
 void FlutterWindow::OnDestroy() {
   end_prevent_sleep();
   web_view_host_.reset();
+  web_view_host_error_channel_.reset();
   notify_channel_.reset();
   platform_channel_.reset();
   appearance_channel_.reset();
