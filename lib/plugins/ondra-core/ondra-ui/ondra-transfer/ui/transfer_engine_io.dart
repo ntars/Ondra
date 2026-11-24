@@ -326,6 +326,13 @@ class TransferEngine {
   }
 
   Future<TransferResult> _importDir(String path) async {
+    // 设置页「导出全部数据」产出的是 ondra-export/：完整用户数据 + 说明。
+    // 它和备份引擎的整包不是同一种形状，但都带 ondra-snapshot.json。
+    // 先按说明文件认出它，再把树下的 user/、sessions/ 等按相对路径还原。
+    final description = File('$path/ondra-export.json');
+    if (description.existsSync()) {
+      return _importFullExport(path);
+    }
     // 备份目录与「人设包目录」长得不一样：一个有 manifest，一个有偏好/人设文件。
     if (File('$path/ondra-snapshot.json').existsSync()) {
       final r = await backupImport(path);
@@ -337,6 +344,61 @@ class TransferEngine {
       );
     }
     return _importBundle(path);
+  }
+
+  /// 还原「设置 → 导出全部数据」的目录。
+  ///
+  /// 与备份引擎不同，这份导出没有快照编号、也没有回滚点；它按文件原样
+  /// 覆盖用户数据。导入前照例要求离线并先做一份备份，失败时逐项回滚。
+  Future<TransferResult> _importFullExport(String path) async {
+    if (!_offline) return const TransferResult.fail(maintenanceOfflineHint);
+    final staged = await Directory.systemTemp.createTemp('ondra-full-import-');
+    final targets = <String>[];
+    try {
+      final trees = ['user', 'sessions', 'dsh/sessions', 'personas', 'storages'];
+      final files = ['prefs.json', 'models.json', 'avatar.png'];
+      for (final name in trees) {
+        final src = Directory('$path/$name');
+        if (!src.existsSync()) continue;
+        if (src.listSync(recursive: true, followLinks: false).any((e) => e is Link)) {
+          throw const FormatException('导出目录含符号链接，拒绝导入');
+        }
+        await _copyTree(src, Directory('${staged.path}/$name'));
+        targets.add(name);
+      }
+      for (final name in files) {
+        final src = File('$path/$name');
+        if (!src.existsSync()) continue;
+        if (FileSystemEntity.isLinkSync(src.path)) {
+          throw const FormatException('导出文件是符号链接，拒绝导入');
+        }
+        await src.copy('${staged.path}/$name');
+        targets.add(name);
+      }
+      if (targets.isEmpty) {
+        return const TransferResult.fail('这份导出里没有可还原的用户数据。');
+      }
+      for (final relative in targets) {
+        _checkTarget(relative);
+      }
+      final guard = await backupCreate();
+      if (!guard.ok) return TransferResult.fail('写前备份失败，未导入：${guard.message}');
+      await _commitBundle(staged, targets);
+      return TransferResult(
+        ok: true,
+        message: '已还原 ${targets.length} 项用户数据，重启内核后生效。',
+        path: path,
+        count: targets.length,
+      );
+    } catch (e) {
+      return TransferResult.fail('还原失败（未提交半份）：${_clean(e)}');
+    } finally {
+      if (staged.existsSync()) {
+        try {
+          staged.deleteSync(recursive: true);
+        } catch (_) {}
+      }
+    }
   }
 
   /// 先校验、暂存全部内容，再逐项 rename；任何失败都恢复被替换的旧内容。
@@ -824,7 +886,8 @@ class TransferEngine {
     final rows = await _query(
       'select id, category, text, salience, created_at, subject, evidence, '
       'archived, sealed, revisions, old_text, source_raw_id, '
-      'times_said, hits, last_seen_at '
+      'times_said, hits, last_seen_at, summary, channel, arousal, '
+      'stability_hours, stability_mult, last_hit_at '
       'from memory_fact where text is not null and text <> \'\' '
       'order by created_at asc',
     );
@@ -847,6 +910,14 @@ class TransferEngine {
             timesSaid: _int(row['times_said']),
             hits: _int(row['hits']),
             lastSeenAt: _int(row['last_seen_at']),
+            summary: _text(row['summary']),
+            channel: _text(row['channel']).isEmpty
+                ? 'import'
+                : _text(row['channel']),
+            arousal: _number(row['arousal'], 0.5),
+            stabilityHours: _number(row['stability_hours'], 24),
+            stabilityMult: _number(row['stability_mult'], 1),
+            lastHitAt: _int(row['last_hit_at']),
           ),
     ];
   }
@@ -989,8 +1060,8 @@ class TransferEngine {
         ..write(
           'id, kind, category, channel, text, summary, subject, salience, '
           'arousal, stability_hours, stability_mult, times_said, hits, '
-          'revisions, created_at, last_seen_at, archived, sealed, evidence, '
-          'old_text, source_raw_id',
+          'revisions, created_at, last_seen_at, last_hit_at, archived, sealed, '
+          'evidence, old_text, source_raw_id',
         )
         ..write(') values (')
         ..write(
@@ -998,19 +1069,20 @@ class TransferEngine {
             _q(f.id),
             "'fact'",
             _q(f.category.isEmpty ? 'general' : f.category),
-            "'import'",
+            _q(f.channel.isEmpty ? 'import' : f.channel),
             _q(f.text),
-            _q(f.text),
+            f.summary.isEmpty ? 'null' : _q(f.summary),
             f.subject.isEmpty ? 'null' : _q(f.subject),
             _real(f.salience),
-            _real(0.5),
-            _real(24),
-            _real(1),
+            _real(f.arousal),
+            _real(f.stabilityHours),
+            _real(f.stabilityMult),
             '${f.timesSaid}',
             '${f.hits}',
             '${f.revisions}',
             '${f.createdAt.millisecondsSinceEpoch}',
             '${f.lastSeenAt > 0 ? f.lastSeenAt : f.createdAt.millisecondsSinceEpoch}',
+            f.lastHitAt > 0 ? '${f.lastHitAt}' : 'null',
             f.archived ? '1' : '0',
             f.sealed ? '1' : '0',
             f.evidence.isEmpty ? 'null' : _q(f.evidence),
@@ -1028,6 +1100,12 @@ class TransferEngine {
           : f.createdAt.millisecondsSinceEpoch;
       b
         ..write('update memory_fact set ')
+            ..write('channel=${_q(f.channel.isEmpty ? 'import' : f.channel)}, ')
+            ..write('summary=${f.summary.isEmpty ? 'null' : _q(f.summary)}, ')
+            ..write('arousal=${_real(f.arousal)}, ')
+            ..write('stability_hours=${_real(f.stabilityHours)}, ')
+            ..write('stability_mult=${_real(f.stabilityMult)}, ')
+            ..write('last_hit_at=${f.lastHitAt > 0 ? f.lastHitAt : 'null'}, ')
         ..write('sealed=${f.sealed ? 1 : 0}, ')
         ..write('revisions=${f.revisions}, ')
         ..write('old_text=${f.oldText.isEmpty ? 'null' : _q(f.oldText)}, ')
@@ -1118,7 +1196,13 @@ class TransferEngine {
           '${f.evidence.isEmpty ? '' : ' evidence_b64=${base64Encode(utf8.encode(f.evidence))}'}'
           '${f.archived ? ' archived=1' : ''}'
           '${f.sealed ? ' sealed=1' : ''}'
-          '${f.revisions > 0 ? ' revisions=${f.revisions}' : ''} -->',
+          '${f.revisions > 0 ? ' revisions=${f.revisions}' : ''}'
+          '${f.summary.isEmpty ? '' : ' summary_b64=${base64Encode(utf8.encode(f.summary))}'}'
+          ' channel_b64=${base64Encode(utf8.encode(f.channel))}'
+          ' arousal=${_real(f.arousal)}'
+          ' stability_hours=${_real(f.stabilityHours)}'
+          ' stability_mult=${_real(f.stabilityMult)}'
+          ' last_hit_at=${f.lastHitAt} -->',
         )
         ..writeln()
         ..writeln('- 类别：${f.category}')
@@ -1181,6 +1265,12 @@ class TransferEngine {
             if (f.timesSaid > 0) 'timesSaid': f.timesSaid,
             if (f.hits > 0) 'hits': f.hits,
             if (f.lastSeenAt > 0) 'lastSeenAt': f.lastSeenAt,
+            if (f.summary.isNotEmpty) 'summary': f.summary,
+            'channel': f.channel,
+            'arousal': f.arousal,
+            'stabilityHours': f.stabilityHours,
+            'stabilityMult': f.stabilityMult,
+            if (f.lastHitAt > 0) 'lastHitAt': f.lastHitAt,
           },
       ],
       'links': [for (final l in links) l.toJson()],
@@ -1251,6 +1341,16 @@ class TransferEngine {
           timesSaid: int.tryParse(meta['times_said'] ?? '') ?? 0,
           hits: int.tryParse(meta['hits'] ?? '') ?? 0,
           lastSeenAt: int.tryParse(meta['last_seen_at'] ?? '') ?? 0,
+          summary: meta['summary_b64'] == null
+              ? ''
+              : utf8.decode(base64Decode(meta['summary_b64']!)),
+          channel: meta['channel_b64'] == null
+              ? 'import'
+              : utf8.decode(base64Decode(meta['channel_b64']!)),
+          arousal: double.tryParse(meta['arousal'] ?? '') ?? 0.5,
+          stabilityHours: double.tryParse(meta['stability_hours'] ?? '') ?? 24,
+          stabilityMult: double.tryParse(meta['stability_mult'] ?? '') ?? 1,
+          lastHitAt: int.tryParse(meta['last_hit_at'] ?? '') ?? 0,
         ),
       );
       title = null;
@@ -1309,6 +1409,14 @@ class TransferEngine {
           timesSaid: _int(item['timesSaid']),
           hits: _int(item['hits']),
           lastSeenAt: _int(item['lastSeenAt']),
+          summary: _text(item['summary']),
+          channel: _text(item['channel']).isEmpty
+              ? 'import'
+              : _text(item['channel']),
+          arousal: _number(item['arousal'], 0.5),
+          stabilityHours: _number(item['stabilityHours'], 24),
+          stabilityMult: _number(item['stabilityMult'], 1),
+          lastHitAt: _int(item['lastHitAt']),
         ),
       );
     }

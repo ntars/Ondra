@@ -935,7 +935,7 @@ class _RailComposerState extends State<_RailComposer> {
     setState(() {});
   }
 
-  /// 「回车发送」。关掉后回车换行、⌘ Enter 才发送。
+  /// 「回车发送」。关掉后回车换行、⌘/Ctrl Enter 才发送。
   bool get _enterSend => settingsClient.boolean('dialog.enterSend');
 
   @override
@@ -1095,8 +1095,8 @@ class _RailComposerState extends State<_RailComposer> {
         children: [
           Expanded(
             child: CallbackShortcuts(
-              // 「回车发送」关掉时，回车只换行；发送交给 ⌘ Enter。
-              // 两种模式都保留 ⌘ Enter 作为发送键——它是 macOS 上的肌肉记忆，
+              // 「回车发送」关掉时，回车只换行；发送交给 ⌘/Ctrl Enter。
+              // 两种模式都保留 ⌘/Ctrl Enter 作为发送键——macOS 用 ⌘，
               // 关掉回车发送的人往往正是想用这个组合。
               //
               // ⇧ Enter / ⌥ Enter 在「回车发送」开着时是**换行**：那条路上
@@ -1106,6 +1106,10 @@ class _RailComposerState extends State<_RailComposer> {
               // 没有绑定，等于说了没做。
               bindings: <ShortcutActivator, VoidCallback>{
                 const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                    _submit,
+                // Windows/Linux 的键盘没有 ⌘；设置文案写的是 Cmd/Ctrl，
+                // 绑定却只认 meta，于是关掉回车发送后 Ctrl+Enter 什么都不做。
+                const SingleActivator(LogicalKeyboardKey.enter, control: true):
                     _submit,
                 if (_enterSend) ...{
                   const SingleActivator(LogicalKeyboardKey.enter, shift: true):
@@ -1126,7 +1130,7 @@ class _RailComposerState extends State<_RailComposer> {
                 // 回车键的语义由设置决定：
                 //  - 回车发送（默认）：textInputAction 为 send，软键盘上是「发送」，
                 //    按下即发；换行改用 ⇧ Enter / ⌥ Enter。
-                //  - 关掉：textInputAction 为 newline，回车就是换行，发送只能 ⌘ Enter。
+                //  - 关掉：textInputAction 为 newline，回车就是换行，发送只能 ⌘/Ctrl Enter。
                 textInputAction: _enterSend
                     ? TextInputAction.send
                     : TextInputAction.newline,

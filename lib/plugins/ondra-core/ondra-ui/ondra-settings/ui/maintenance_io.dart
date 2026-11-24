@@ -134,6 +134,9 @@ class OndraMaintenance {
   ///
   /// 用 `ditto` 而不是自己递归拷贝：它会保留时间戳与权限，
   /// 而且对中文文件名与资源叉的处理是对的。`--norsrc` 避免生成 `._*`。
+  ///
+  /// 说明文件带 `manifest` 字段，迁移页据此认出这是可还原的整包而不是
+  /// 只有人设的目录；用户不必自己选导入格式。
   Future<MaintenanceResult> exportAll(String targetDir) async {
     if (!_offline) {
       return const MaintenanceResult(
@@ -231,9 +234,16 @@ class OndraMaintenance {
             'cache': '可随时重建',
             'profiles': '插件装配层，属于安装而非数据',
           },
+          // 导入页认的是 ondra-snapshot.json（备份引擎的整包格式）。
+          // 这份目录虽然按用户数据原样导出，也要有一份能被导入页识别的
+          // 清单，否则「导出全部数据」在新电脑上只恢复人设、丢掉记忆与
+          // 会话（alpha.17 追加审查）。快照本体就是这份目录本身，
+          // 清单只声明形状，导入端据此逐项还原。
+          'manifest': 'ondra-snapshot.json',
           'note':
               '这是明文导出，可以直接读、直接改；它不含模型密钥'
-              '（密钥在 profiles/.credentials.yaml 里，未随本包导出）。',
+              '（密钥在 profiles/.credentials.yaml 里，未随本包导出）。'
+              '把整个 ondra-export 目录交给迁移页即可恢复。',
         }),
       );
 

@@ -64,6 +64,29 @@ test('Windows release zip keeps nested entries and old file times', () => {
     // First entry starts with a 30-byte local header; method is at +8.
     const method = fs.readFileSync(zipPath).readUInt16LE(8);
     assert.equal(method, 8, 'entries should be deflated');
+    const buf = fs.readFileSync(zipPath);
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= 0; i -= 1) {
+      if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+    }
+    assert.notEqual(eocd, -1);
+    let centralOffset = buf.readUInt32LE(eocd + 16);
+    const count = buf.readUInt16LE(eocd + 10);
+    for (let i = 0; i < count; i += 1) {
+      const nameLen = buf.readUInt16LE(centralOffset + 28);
+      const extraLen = buf.readUInt16LE(centralOffset + 30);
+      const commentLen = buf.readUInt16LE(centralOffset + 32);
+      const name = buf.subarray(centralOffset + 46, centralOffset + 46 + nameLen).toString('utf8');
+      const localOffset = buf.readUInt32LE(centralOffset + 42);
+      const compressedSize = buf.readUInt32LE(centralOffset + 20);
+      const originalSize = buf.readUInt32LE(centralOffset + 24);
+      assert.equal(buf.readUInt32LE(localOffset + 18), compressedSize, `${name}: local compressed size`);
+      assert.equal(buf.readUInt32LE(localOffset + 22), originalSize, `${name}: local original size`);
+      const diskSize = fs.statSync(path.join(root, name)).size;
+      assert.equal(originalSize, diskSize, `${name}: original size must match file on disk`);
+      assert.notEqual(compressedSize, originalSize, `${name}: compressed size must be real`);
+      centralOffset += 46 + nameLen + extraLen + commentLen;
+    }
     const data = entries.get('runtime/windows-x64/node.exe.txt');
     assert.equal(zlib.inflateRawSync(data).toString('utf8'), body);
   } finally {

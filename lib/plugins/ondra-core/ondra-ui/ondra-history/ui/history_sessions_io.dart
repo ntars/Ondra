@@ -7,13 +7,14 @@ import '../../../../../app/home_dir.dart';
 /// 会话库根目录。与 `stdio_transport_io.dart` 里的 `DSH_HOME` 同一个约定：
 /// 内核把会话写这儿，应用只读不写。
 Directory? _sessionsRoot(String? dshHome) {
-  final home =
-      dshHome ??
-      Platform.environment['ONDRA_DSH_HOME'] ??
-      '$ondraUserHome/.ondra/dsh';
-  final dir = Directory('$home/sessions');
+  final dir = Directory('${sessionsHome(dshHome: dshHome)}/sessions');
   return dir.existsSync() ? dir : null;
 }
+
+String sessionsHome({String? dshHome}) =>
+    dshHome ??
+    Platform.environment['ONDRA_DSH_HOME'] ??
+    '$ondraUserHome/.ondra/dsh';
 
 Future<List<SessionSummary>> readSessions({String? dshHome}) async {
   final root = _sessionsRoot(dshHome);
@@ -88,15 +89,19 @@ Future<SessionSummary?> _readOne(File file) async {
     messages: messages,
     updatedAt: latest ?? file.statSync().modified,
     cwd: cwd,
+    sourcePath: file.path,
   );
 }
 
 /// 一行坏数据不影响后续事件；摘要与详情使用同一套容错规则。
 Stream<Map> _readEvents(File file) async* {
+  // utf8.decoder 默认遇到截断的多字节字符会抛 FormatException，
+  // 一行坏字符就会让整份会话从列表消失。allowMalformed 让它变成替换字符，
+  // 逐行 JSON 解析仍会跳过真正坏掉的那一行，其他消息照常显示。
   await for (final line
       in file
           .openRead()
-          .transform(utf8.decoder)
+          .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter())) {
     if (line.trim().isEmpty) continue;
     final Object? json;
@@ -174,12 +179,20 @@ class _MessageReader {
     final text = _contentTextOf(message['content']);
     final hasImage = _contentHasImage(message['content']);
     if (text.trim().isEmpty && !hasImage) return null;
+    // stop 超时后，内核会把 /cancel-turn 作为 user 消息留在会话里。
+    // 它是内部指令，不是用户发过的话：计数与详情都要排除。
+    if (role == 'user' && _isInternalCommand(text)) return null;
     final id = message['id'];
     if (id is String && id.isNotEmpty && !_seenIds.add((role, id))) {
       return null;
     }
     return HistoryEntry(role: role, text: text, hasImage: hasImage);
   }
+}
+
+bool _isInternalCommand(String text) {
+  final trimmed = text.trimLeft();
+  return trimmed.startsWith('/cancel-turn') || trimmed.startsWith('/resume-turn');
 }
 
 /// 毫秒整数（新版）或 ISO 串（旧版）都认。
@@ -211,8 +224,14 @@ String _tidy(String text) {
 Future<List<HistoryEntry>> readSessionMessages(
   String sessionId, {
   String? dshHome,
+  String? sourcePath,
 }) async {
-  final file = await _findSessionFile(sessionId, dshHome: dshHome);
+  // 列表已经知道文件在哪：重号会话必须按列表点中的那份文件读，
+  // 不能只拿 id 全库找第一个（alpha.17 审查：「点第二份会打开第一份」）。
+  final cached = sourcePath == null ? null : File(sourcePath);
+  final file = cached != null && cached.existsSync()
+      ? cached
+      : await _findSessionFile(sessionId, dshHome: dshHome);
   if (file == null) return const [];
 
   final out = <HistoryEntry>[];
@@ -273,23 +292,13 @@ Future<File?> _findSessionFile(String sessionId, {String? dshHome}) async {
         return file;
       }
       // 目录名不一定等于会话 id（旧版会把 id 写在文件里），
-      // 扫第一行确认。
+      // 旧文件开头可能有空行，逐行跳过直到找到会话头（列表以同样规则读）。
       try {
-        final first = await file
-            .openRead()
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())
-            .first;
-        final Object? json;
-        try {
-          json = jsonDecode(first);
-        } catch (_) {
-          continue;
-        }
-        if (json is Map &&
-            json['type'] == 'session' &&
-            json['id'] == sessionId) {
-          return file;
+        await for (final json in _readEvents(file)) {
+          if (json['type'] == 'session' && json['id'] == sessionId) {
+            return file;
+          }
+          break; // 只有会话头能证明 id；第一条有效行不是就换下一份文件。
         }
       } catch (_) {
         continue;

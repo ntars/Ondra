@@ -12,6 +12,7 @@ class SessionSummary {
     required this.messages,
     required this.updatedAt,
     required this.cwd,
+    this.sourcePath = '',
   });
 
   final String id;
@@ -26,6 +27,9 @@ class SessionSummary {
 
   /// 会话绑定的工作目录。同名会话多起来时靠它分辨。
   final String cwd;
+
+  /// 会话文件在磁盘上的路径。详情必须按同一份文件读，不能只按 id 全库猜。
+  final String sourcePath;
 }
 
 /// 读 DSH_HOME 下的 `sessions/**/session.v4.jsonl`，按最后活动时间倒序。
@@ -34,6 +38,13 @@ class SessionSummary {
 /// 没有会话目录就返回空列表——那说明内核还没在这个 profile 下聊过。
 Future<List<SessionSummary>> readSessions({String? dshHome}) =>
     impl.readSessions(dshHome: dshHome);
+
+/// 会话详情使用与列表相同的 DSH_HOME 目录。
+///
+/// 列表页的 [SessionSummary] 只带 id；详情若另走默认目录，在
+/// `ONDRA_DSH_HOME` 自定义（命令行调试、迁移验证）时会找不到刚列出的会话，
+/// 点开就是空白。两处统一走同一函数，不给调用方留下第二个口径。
+String sessionsHome({String? dshHome}) => impl.sessionsHome(dshHome: dshHome);
 
 /// 一条历史消息：只保留能显示的正文，工具与系统事件不进这里。
 class HistoryEntry {
@@ -60,4 +71,9 @@ class HistoryEntry {
 Future<List<HistoryEntry>> readSessionMessages(
   String sessionId, {
   String? dshHome,
-}) => impl.readSessionMessages(sessionId, dshHome: dshHome);
+  String? sourcePath,
+}) => impl.readSessionMessages(
+      sessionId,
+      dshHome: dshHome,
+      sourcePath: sourcePath,
+    );

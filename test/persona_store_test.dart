@@ -674,4 +674,35 @@ if (!result.detail || result.detail.id !== 'hero' || result.detail.skillChars ==
     expect(resolvePersonaId({'name': '中文'}, 'My.Hero'), 'my-hero');
     expect(resolvePersonaId({'name': '中文'}, '123'), isNull);
   });
+
+  test('模型配置写成 JSON 数组时仍能读到 active-persona', () async {
+    await install(await archive());
+    final patch = File(debugProfileConfigFileOverride!)
+      ..writeAsStringSync('''
+- insert:
+    - id: ondra-persona-loader
+      name: '@ondra/cordis-plugin-ondra-persona-loader'
+      config:
+        active-persona: built-in
+    - id: ondra-models
+      name: '@ondra/cordis-plugin-ondra-models'
+      config: [{id: "custom", name: "本机模型"}]
+''');
+    expect(
+      readProfileConfigField('persona-loader', 'active-persona'),
+      'built-in',
+    );
+    final client = PersonaClient(
+      store: store,
+      bundle: _Bundle(),
+      configWriter: writeProfileConfigField,
+      configReader: readProfileConfigField,
+    );
+    addTearDown(client.dispose);
+    await client.load();
+    final result = await client.switchTo('hero');
+    expect(result.ok, isTrue, reason: result.message);
+    expect(readProfileConfigField('persona-loader', 'active-persona'), 'hero');
+    expect(patch.readAsStringSync(), contains('config: [{id: "custom"'));
+  });
 }

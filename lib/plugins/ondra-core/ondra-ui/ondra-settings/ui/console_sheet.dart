@@ -1149,9 +1149,10 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
     if (_checkingUpdate) return;
     setState(() => _checkingUpdate = true);
     final r = await UpdateChecker.check(
-      // 必须带构建号：ondraVersion 是 '3.0.0-alpha'（pre 无数字），与
-      // 标签 v3.0.0-alpha.8 比较时 preNum 0 < 8，nightly 通道会把
-      // 自己的版本误判成可升级（alpha.2 审查第 19 项）。
+      // 与官方标签 v3.0.0-alpha.17 同形：`versionCompare` 忽略 +build，
+      // 但会读 alpha 后面的数字。传 `alpha.17` 才能在 nightly 通道正确
+      // 判定「已是最新」，不再把 alpha.17 推荐给自己
+      //（alpha.17 审查：传 +15 时误报有新版本）。
       currentVersion: '$ondraVersion.$ondraBuild',
       channel: settingsClient.choice('about.channel'),
     );

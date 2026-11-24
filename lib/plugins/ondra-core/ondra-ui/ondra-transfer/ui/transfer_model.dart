@@ -155,6 +155,12 @@ class TransferFact {
     this.timesSaid = 0,
     this.hits = 0,
     this.lastSeenAt = 0,
+    this.summary = '',
+    this.channel = 'import',
+    this.arousal = 0.5,
+    this.stabilityHours = 24,
+    this.stabilityMult = 1,
+    this.lastHitAt = 0,
   });
 
   final String id;
@@ -180,6 +186,15 @@ class TransferFact {
   final int timesSaid;
   final int hits;
   final int lastSeenAt;
+
+  /// 内核 `memory_fact` 的派生列。迁移时原样带走，不能填默认值——
+  /// 独立摘要、唤醒度、稳定时长与倍率丢了会改变记忆以后怎么被想起。
+  final String summary;
+  final String channel;
+  final double arousal;
+  final double stabilityHours;
+  final double stabilityMult;
+  final int lastHitAt;
 }
 
 /// 一条要导出的关联。

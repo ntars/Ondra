@@ -403,4 +403,44 @@ void main() {
       isEmpty,
     );
   });
+
+  test('同编号的两份历史按列表点中的文件读，不串到第一份', () async {
+    final first = await writeSession('dup', [
+      _event('user/message', _message('user', '工作一')),
+    ], project: 'one');
+    final second = await writeSession('dup', [
+      _event('user/message', _message('user', '工作二')),
+    ], project: 'two');
+    final items = await readSessions(dshHome: dshHome);
+    expect(items.length, 2);
+    expect(items.any((s) => s.sourcePath == second.path), isTrue);
+    expect(first.path, isNot(second.path));
+
+    for (final item in items) {
+      final entries = await readSessionMessages(
+        item.id,
+        dshHome: dshHome,
+        sourcePath: item.sourcePath,
+      );
+      expect(entries.single.text, item.sourcePath == first.path ? '工作一' : '工作二');
+    }
+  });
+
+  test('会话头前有空行、末尾截断 UTF-8 与 /cancel-turn 都不影响正文', () async {
+    final file = await writeSession('legacy', [
+      _event('user/message', _message('user', '真实发言')),
+      _event('user/message', _message('user', '/cancel-turn', source: 'user')),
+    ]);
+    final text = await file.readAsString();
+    final bytes = utf8.encode('\n$text');
+    await file.writeAsBytes([...bytes, 0xe4]); // 半个「中」
+
+    final items = await readSessions(dshHome: dshHome);
+    expect(items.single.id, 'legacy');
+    expect(items.single.messages, 1);
+    expect(
+      await readSessionMessages('legacy', dshHome: dshHome, sourcePath: file.path),
+      hasLength(1),
+    );
+  });
 }

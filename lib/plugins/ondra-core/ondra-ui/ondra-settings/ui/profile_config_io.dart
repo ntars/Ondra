@@ -12,8 +12,18 @@ String? readProfileConfigField(String section, String key) {
     final config = entry.fields['config'];
     if (config == null) return null;
     if (_value(config.value).startsWith('{')) {
-      final data = jsonDecode(_value(config.value)) as Map;
-      final value = data[key];
+      final data = jsonDecode(_value(config.value));
+      if (data is! Map) return null;
+      // 发行包升级后，模型路由把一条 JSON 对象作为数组元素写进 config。
+      // 人设读取整份配置时不能被这种无关条目绊倒：扫嵌套的第一层映射，
+      // 取最后一个同名键，兼容读写器一直使用的“后者为准”语义。
+      Object? value = data[key];
+      if (value == null) {
+        for (final nested in data.values) {
+          final found = _findJsonKey(nested, key);
+          if (found != null) value = found;
+        }
+      }
       return value == null ? null : '$value';
     }
     final fields = document.configFields(entry, config);
@@ -22,6 +32,21 @@ String? readProfileConfigField(String section, String key) {
   } catch (_) {
     return null;
   }
+}
+
+/// 只在数组/映射的第一层找 key：足够识别被模型路由塞进 config 的
+/// `{"active-persona": ...}` 之类对象，不递归猜任意深层结构。
+Object? _findJsonKey(Object? value, String key) {
+  if (value is Map) return value[key];
+  if (value is List) {
+    Object? found;
+    for (final item in value) {
+      final nested = _findJsonKey(item, key);
+      if (nested != null) found = nested;
+    }
+    return found;
+  }
+  return null;
 }
 
 /// 兼容旧调用点；需要错误原因与待重启状态时用详细结果。

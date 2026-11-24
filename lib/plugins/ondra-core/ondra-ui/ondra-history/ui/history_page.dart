@@ -209,7 +209,11 @@ class _HistoryListState extends State<_HistoryList> {
   /// 之前整行有 hover 高亮与点击光标、点了却没有任何反应——用户会以为
   /// 坏了。看历史是历史页的本职，读文件就够，不需要动右栏的活会话。
   Future<void> _openSession(SessionSummary item) async {
-    final entries = await readSessionMessages(item.id);
+    final entries = await readSessionMessages(
+      item.id,
+      dshHome: sessionsHome(),
+      sourcePath: item.sourcePath,
+    );
     if (!mounted) return;
     await Navigator.of(context).push(
       PageRouteBuilder<void>(

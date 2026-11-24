@@ -38,14 +38,16 @@ function localHeader(name, data, crc) {
   head.writeUInt16LE(0, 10); // time
   head.writeUInt16LE(0x21, 12); // 1980-01-01
   head.writeUInt32LE(crc, 14);
+  // 18 是压缩大小，22 是原始大小；两者不能混用，否则解压端读错长度。
+  // 原始大小由调用方在写完头之前回填。
   head.writeUInt32LE(data.length, 18);
-  head.writeUInt32LE(data.length, 22);
+  head.writeUInt32LE(0, 22);
   head.writeUInt16LE(nameBuf.length, 26);
   head.writeUInt16LE(0, 28);
   return Buffer.concat([head, nameBuf, data]);
 }
 
-function centralHeader(name, data, crc, offset) {
+function centralHeader(name, compressedSize, originalSize, crc, offset) {
   const nameBuf = Buffer.from(name, 'utf8');
   const head = Buffer.alloc(46);
   head.writeUInt32LE(0x02014b50, 0);
@@ -56,8 +58,8 @@ function centralHeader(name, data, crc, offset) {
   head.writeUInt16LE(0, 12);
   head.writeUInt16LE(0x21, 14);
   head.writeUInt32LE(crc, 16);
-  head.writeUInt32LE(data.length, 20);
-  head.writeUInt32LE(data.length, 24);
+  head.writeUInt32LE(compressedSize, 20);
+  head.writeUInt32LE(originalSize, 24);
   head.writeUInt16LE(nameBuf.length, 28);
   head.writeUInt16LE(0, 30);
   head.writeUInt16LE(0, 32);
@@ -91,9 +93,10 @@ try {
     const data = zlib.deflateRawSync(raw, { level: 9 });
     const crc = crc32(raw);
     const head = localHeader(file.name, data, crc);
+    head.writeUInt32LE(raw.length, 22);
     fs.writeSync(out, head);
     fs.writeSync(out, data);
-    central.push(centralHeader(file.name, data, crc, offset));
+    central.push(centralHeader(file.name, data.length, raw.length, crc, offset));
     offset += head.length + data.length;
   }
   const centralSize = central.reduce((sum, item) => sum + item.length, 0);

@@ -48,12 +48,6 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
       'where archived = 0 and sealed = 0 and text is not null and text <> \'\' '
       'order by salience desc, created_at desc limit 64',
     );
-    final linkRows = await _query(
-      db.path,
-      'select from_id, to_id, weight from memory_link '
-      'where coalesce(approved, 1) = 1 limit 256',
-    );
-
     final ids = <String>{};
     final facts = <MemoryRecord>[];
     for (final row in factRows) {
@@ -71,6 +65,20 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
         ),
       );
     }
+
+    // 只取两端都在本次可见事实里的关联。以前先 limit 256 再过滤，
+    // 已归档记忆之间大量已批准关联把名额占满，活跃的记忆反而没有线
+    //（alpha.17 审查：「星图有真实关联却画不出线」）。
+    // SQL 过滤让 limit 用在真正会画出来的线上。
+    final linkRows = ids.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : await _query(
+            db.path,
+            'select from_id, to_id, weight from memory_link '
+            'where coalesce(approved, 1) = 1 '
+            'and from_id in (${_inClause(ids)}) '
+            'and to_id in (${_inClause(ids)}) limit 256',
+          );
 
     final links = <MemoryLinkRecord>[];
     for (final row in linkRows) {
@@ -143,6 +151,12 @@ Future<List<Map<String, dynamic>>> _query(String dbPath, String sql) async {
 
 String _text(Object? value) =>
     value is String ? value : (value?.toString() ?? '');
+
+/// SQLite 字符串字面量：只接受来自数据库 id 的文本，仍转义单引号。
+String _quote(String value) => "'${value.replaceAll("'", "''")}'";
+
+String _inClause(Iterable<String> values) =>
+    values.isEmpty ? "''" : values.map(_quote).join(',');
 
 double _number(Object? value, double fallback) {
   if (value is num) return value.toDouble();

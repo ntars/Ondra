@@ -129,7 +129,7 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'dialog.busySend',
     label: '繁忙时的发送行为',
-    description: '智能体运行时 Enter 键和发送按钮的行为；⌘ Enter 使用另一行为',
+    description: '智能体运行时 Enter 键和发送按钮的行为；⌘/Ctrl Enter 使用另一行为',
     kind: OndraSettingKind.choice,
     defaultValue: 'queue',
     options: [
@@ -140,7 +140,7 @@ const List<OndraSettingSpec> ondraSettingSpecs = [
   OndraSettingSpec(
     key: 'dialog.enterSend',
     label: '回车发送',
-    description: '关掉后用 ⌘ Enter 发送，回车换行',
+    description: '关掉后用 ⌘/Ctrl Enter 发送，回车换行',
     defaultValue: true,
   ),
   OndraSettingSpec(

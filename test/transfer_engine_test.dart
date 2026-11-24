@@ -671,6 +671,46 @@ void main() {
     expect(m.ok, isFalse, reason: '没有记忆库时不该写出空文件');
     expect(another.listSync(), isEmpty);
   });
+
+  test('摘要、唤醒度、稳定时长与来源渠道在两种格式往返中保留', () async {
+    await _sql(
+      engine.dbPath,
+      "update memory_fact set summary='独立摘要', channel='gist', arousal=0.9, "
+      "stability_hours=96, stability_mult=2, last_hit_at=123456 "
+      "where id='m-a8f1fdb5c240';",
+    );
+    for (final format in TransferFormat.values.where(
+      (f) => f == TransferFormat.json || f == TransferFormat.markdown,
+    )) {
+      final out = await Directory('${tmp.path}/attrs-${format.name}').create();
+      final exported = await engine.exportMemory(out.path, format);
+      expect(exported.ok, isTrue, reason: exported.message);
+      final other = TransferEngine(
+        home: '${tmp.path}/attrs-other-${format.name}',
+        now: () => fixedNow,
+      );
+      await _seedDb(other.dbPath, withRows: false);
+      final imported = await other.importPath(exported.path!);
+      expect(imported.ok, isTrue, reason: '$format: ${imported.message}');
+      final row = jsonDecode(
+        await _sql(
+          other.dbPath,
+          "select json_object('summary', summary, 'channel', channel, "
+          "'arousal', arousal, 'stability_hours', stability_hours, "
+          "'stability_mult', stability_mult, 'last_hit_at', last_hit_at) "
+          "from memory_fact where id='m-a8f1fdb5c240';",
+        ),
+      ) as Map;
+      expect(row, {
+        'summary': '独立摘要',
+        'channel': 'gist',
+        'arousal': 0.9,
+        'stability_hours': 96.0,
+        'stability_mult': 2.0,
+        'last_hit_at': 123456,
+      }, reason: '$format 迁移改变了记忆属性');
+    }
+  });
 }
 
 /// 造一个只有记忆三张表的库。
