@@ -256,6 +256,55 @@
 - VC++ DLL 打包、登录项重启、第二台 Windows 实体机仍无新证据。
 - 本轮没有提交、推送或清理工作区改动。
 
+## 追加：2026-11-24 第二轮 mac/Android 同源复核
+
+> 用户随后要求依据本报告逐项复查仍存在的 bug，已修复的直接跳过；macOS 与
+> Android 有相同缺陷时一并原地修复，并补回归测试与文档。不使用 PD / 蓝叠，
+> Android 只做代码级与本机编译器检查，不声称真机验收。
+
+### 复核范围与跳过项
+
+- 逐项对照报告的 30 余项缺陷与工作区/上游提交：共用 Dart 逻辑（人设路径、
+  GBK 解码、凭据 YAML、权限提示、英文导航、字体、历史、备份、状态统计、
+  聊天断线、Markdown/JSON 记忆、清空与导出、内核关停等）已在 `03e9bb6` /
+  `e812077` 及此前提交修复，既有测试覆盖；本轮不重复修改。
+- 上一轮 Windows 构建链、WebView2 参数解码、像素缓冲与可见启动证据已归档，
+  本轮不重跑 Windows 虚拟机验收。
+- macOS `OndraBrowserOrigin` 的 IPv6 疑点已用本机 Swift 6.4 / macOS SDK
+  编译并运行 `URLComponents` 探针验证：`https://[::1]/` 与
+  `http://[2001:db8::1]:8080/x` 的 `host` 均保留方括号，当前正则不会误判；
+  编码 host、凭据、模糊数字 IP 与端口 0 仍被拒绝。因此不改 macOS 原生代码。
+
+### 本轮修复
+
+- `browser_page.dart`：把「仅支持 macOS」和「macOS 使用系统 WebKit」
+  的过时文案改为中性描述，避免 Windows/Android 已支持内嵌浏览器后仍向用户
+  报错。新增 `test/browser_page_copy_test.dart`，渲染白名单页断言旧文案消失、
+  页面能正常构建。
+- `OndraWebView.kt`：Android origin 校验从只检查空白/userInfo/scheme/host，
+  收紧为与 Dart `BrowserClient._webUri` / macOS `OndraBrowserOrigin` 同源：
+  原始 authority 拒绝 `@`/`%`，拒绝控制字符，host 按 label、IPv6 与点分
+  十进制格式校验，长度/端口范围一致。`requiresHTTPS` 从 `val` 改为 `var`，
+  导航放行 HTTPS 后持续锁定 HTTP；`onPageFinished` 也补上状态升级，避免
+  初始 HTTP → HTTPS → HTTP 的降级绕过。
+- `web_view.dart` 与浏览器 README 更新过时注释与平台说明。
+
+### 验证
+
+- `flutter test test/browser_page_copy_test.dart --reporter compact`：1/1 通过。
+- Kotlin 源码用临时 API stub + Kotlin 2.1.20 编译器完成 JVM 17 语法检查，0 error。
+  这只证明语法与调用形状，不代表 Android 真机 WebView 行为已验收。
+- Swift origin 规则用独立探针编译运行，候选合法/非法样例结果符合 Dart 侧规则。
+- 全量 Dart 门禁：`flutter analyze` 为 `No issues found!`；`flutter test
+  --reporter compact` 为 539 passed / 3 skipped；`test/browser_client_test.dart`
+  为 17/17 通过。`git diff --check` 通过。
+
+### 边界
+
+- Android 未使用蓝叠或真机，未做 APK 构建与页面加载实测；Kotlin 只能在
+  本机做语法级检查，原生 WebView 的导航回调顺序仍需 Android CI/真机验收。
+- macOS 原生代码本轮没有功能改动；Swift 探针不是 RunnerTests 集成测试。
+
 ### 追加：越界导航与 `_blank` 拦截（2026-11-24）
 
 - 用一次性白名单只保留 `http://10.211.55.2:8766/`，把宿主服务换成

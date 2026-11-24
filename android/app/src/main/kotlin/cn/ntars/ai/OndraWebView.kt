@@ -30,12 +30,17 @@ class OndraWebViewFactory(private val messenger: BinaryMessenger) :
     }
 }
 
-/** 白名单 origin：与 mac 的 OndraBrowserOrigin 相同的字段与归一化。 */
-private data class BrowserOrigin(val scheme: String, val host: String, val port: Int) {
+/** 白名单 origin：与 Dart / macOS 的校验规则保持同源，不靠 Uri 的宽松归一化。 */
+internal data class BrowserOrigin(val scheme: String, val host: String, val port: Int) {
     companion object {
         fun parse(text: String?): BrowserOrigin? {
             if (text == null || text.isBlank()) return null
-            if (text.any { it.isWhitespace() || it == '\\' }) return null
+            if (text.any { it.isWhitespace() || it == '\\' || it.isISOControl() }) return null
+            // Uri 会解码 %xx 后再给 host；必须在原始 authority 上拒绝编码，
+            // 否则 https://%65xample.com 会变成合法白名单条目。
+            val authority = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]*)")
+                .find(text)?.groupValues?.get(1) ?: return null
+            if (authority.contains('@') || authority.contains('%')) return null
             val uri = try {
                 Uri.parse(text)
             } catch (_: Exception) {
@@ -47,6 +52,20 @@ private data class BrowserOrigin(val scheme: String, val host: String, val port:
             if (!uri.userInfo.isNullOrEmpty()) return null
             val host = uri.host?.lowercase() ?: return null
             if (host.isEmpty()) return null
+            if (!host.matches(Regex("^\\[[0-9a-f:]+\\]$"))) {
+                if (host.length > 253) return null
+                val labels = host.split(Regex("\\."))
+                if (!labels.all {
+                    it.matches(Regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"))
+                }) return null
+                // 不给模糊数字 IP 留空间：0177.0.0.1 / 127.1 都不能过。
+                if (host.matches(Regex("^[0-9.]+$"))) {
+                    if (labels.size != 4 || !labels.all {
+                        (it.length == 1 || !it.startsWith('0')) &&
+                            (it.toIntOrNull() ?: 256) <= 255
+                    }) return null
+                }
+            }
             val port = if (uri.port == -1) (if (scheme == "https") 443 else 80) else uri.port
             if (port !in 1..65535) return null
             return BrowserOrigin(scheme, host, port)
@@ -66,7 +85,7 @@ private class OndraWebPlatformView(
     private val initialUrl: Uri?
     private var started = false
     private var stopped = false
-    private val requiresHTTPS: Boolean
+    private var requiresHTTPS: Boolean
 
     init {
         val dict = args as? Map<*, *>
@@ -89,6 +108,14 @@ private class OndraWebPlatformView(
                     if (!stopped && permit(url)) return false
                     reject("已阻止导航：目标的协议、主机或端口不在白名单里。")
                     return true
+                }
+
+                override fun onPageFinished(view: WebView, url: String?) {
+                    // 与 macOS 的导航回调一致：加载过 HTTPS 后，本视图后续
+                    // 不再允许任何 HTTP 导航，包括重定向与页面内跳转。
+                    if (BrowserOrigin.parse(url)?.scheme == "https") {
+                        requiresHTTPS = true
+                    }
                 }
 
                 override fun onReceivedError(
@@ -146,6 +173,8 @@ private class OndraWebPlatformView(
             reject("已阻止导航：目标的协议、主机或端口不在白名单里。")
             return false
         }
+        // 导航被放行后才升级锁定；被拒绝的 HTTPS 不能反过来收紧页面。
+        if (origin.scheme == "https") requiresHTTPS = true
         return true
     }
 

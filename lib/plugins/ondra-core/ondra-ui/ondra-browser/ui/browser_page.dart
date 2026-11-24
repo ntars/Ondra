@@ -125,7 +125,7 @@ class _BrowserPageState extends State<BrowserPage> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
-                    '当前平台没有内嵌浏览器（仅支持 macOS），仍可管理白名单。',
+                    '当前平台没有内嵌浏览器，仍可管理白名单。',
                     style: ondraText(12, color: s.ink40, height: 18 / 12),
                   ),
                 ),
@@ -217,7 +217,7 @@ class _BrowserPageState extends State<BrowserPage> {
               Text(
                 '只允许清单中精确的协议、主机和端口，不隐含子域；其他站点需分别添加。'
                 '重定向和新窗口同样受限，不允许 HTTPS 降级或 URL 内嵌凭据。'
-                'macOS 使用系统 WebKit 渲染，不注入脚本、不读取页面内容。',
+                '应用内页面由系统浏览器组件渲染，不注入脚本、不读取页面内容。',
                 style: ondraText(11, color: s.ink30, height: 16 / 11),
               ),
             ],

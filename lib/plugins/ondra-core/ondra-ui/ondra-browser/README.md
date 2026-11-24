@@ -22,6 +22,9 @@ macOS 用系统 **WKWebView**，注册为 Flutter 平台视图 `ondra/webview`
 （`macos/Runner/MainFlutterWindow.swift` 的 `OndraBrowserFactory`）。
 Android 用系统 **WebView**，同一平台视图协议
 （`android/app/src/main/kotlin/cn/ntars/ai/OndraWebView.kt`）。
+Android 与 macOS/Dart 共用同一组 origin 规则：原始 authority 先拒绝凭据与
+`%` 编码，再按 label、IPv6 与点分十进制格式校验 host；端口按默认端口归一化。
+HTTPS 被允许加载后，本视图锁定后续 HTTP 导航，避免先 HTTP 后 HTTPS 再降级。
 
 Windows 用 **WebView2 Win32 COM**（`windows/runner/web_view_win.cpp`）：
 
