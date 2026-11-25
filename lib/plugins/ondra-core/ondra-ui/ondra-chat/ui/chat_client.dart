@@ -142,11 +142,16 @@ class ChatClient extends ChangeNotifier {
       await _transport.connect();
       if (generation != _connectionGeneration) return;
       _connected = true;
+      // 内核进程能握手不等于聊天可用。模型配置失败（缺密钥、路由未注册）
+      // 时必须明确离线，否则发送按钮亮着但每句话都失败——旧版本这里把
+      // 进程在线误当成会话在线。
+      final modelError = _transport.modelConfigError;
+      if (modelError != null && modelError.trim().isNotEmpty) {
+        _connected = false;
+      }
       // 连接成功后允许设置层做启动同步（首次启动 profile 刚 seed 完的场景）。
       settingsClient.markConnected();
-      // 内核已连上但模型不可用（缺密钥等）：连接是好的，聊天栏显示模型
-      // 原因——与「内核起不来」区分开。
-      _offlineReason = _transport.modelConfigError;
+      _offlineReason = modelError;
     } catch (e) {
       if (generation != _connectionGeneration) return;
       _connected = false;
@@ -245,12 +250,14 @@ class ChatClient extends ChangeNotifier {
       }
       if (stale()) return;
       reply.streaming = false;
-      _connected = true;
+      final modelError = _transport.modelConfigError;
+      _connected = modelError == null || modelError.trim().isEmpty;
       // 连接成功后允许设置层做启动同步（首次启动 profile 刚 seed 完的场景）。
       settingsClient.markConnected();
-      // 内核已连上但模型不可用（缺密钥等）：连接是好的，聊天栏显示模型
-      // 原因——与「内核起不来」区分开。
-      _offlineReason = _transport.modelConfigError;
+      _offlineReason = modelError;
+      if (!_connected) {
+        throw StateError(modelError!);
+      }
       answered = true;
       if (reply.text.isEmpty) {
         _messages.remove(reply);

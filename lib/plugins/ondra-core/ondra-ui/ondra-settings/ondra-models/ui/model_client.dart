@@ -174,6 +174,26 @@ class ModelClient extends ChangeNotifier {
         _defaultModelId = dm;
       }
       _ensureDefault();
+      // 旧版本允许把没有密钥的远端模型设为默认，结果内核照常启动、
+      // 聊天栏却发不出一句。这里做一次性迁移：用户没配密钥时回到随包
+      // 本机网关；用户已配密钥则保留原选择。迁移结果立即写回，界面与
+      // 下次启动都会看到同一个事实。
+      final selected = byId(_defaultProviderId);
+      if (selected != null &&
+          selected.category != ProviderCategory.gateway &&
+          selected.category != ProviderCategory.local &&
+          selected.apiKeyEnv.isNotEmpty &&
+          (selected.keyConfigured ||
+              (ondraPlatformEnv(selected.apiKeyEnv) ?? '').trim().isNotEmpty) ==
+              false) {
+        final gateway = byId('magpie');
+        final model = gateway?.models.firstOrNull;
+        if (gateway != null && model != null) {
+          _defaultProviderId = gateway.id;
+          _defaultModelId = model.id;
+          _persist();
+        }
+      }
       notifyListeners();
       _refreshKeyStates();
     } catch (_) {

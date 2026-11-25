@@ -301,6 +301,13 @@ class StdioDshTransport implements DshTransport {
           childEnvironment = environment;
         }
       }
+      // 没有可用模型路由时，宁可明确报「模型未就绪」，也不要带着旧 profile
+      // 的路由继续 initialize——那只会让界面显示已连接，用户发的每句话
+      // 都在内核里报 no adapter registered。
+      final modelError = _modelConfigError;
+      if (modelError != null && modelError.trim().isNotEmpty) {
+        throw StateError(modelError);
+      }
       final launch = await _resolveLaunch();
       _checkConnection(connection);
       _log('launch: $launch');

@@ -106,6 +106,47 @@ void main() {
     loaded.dispose();
   });
 
+  test('旧存档把无密钥远端设为默认时迁移到本机网关', () {
+    final file = File('${home.path}/config/models.json')
+      ..parent.createSync(recursive: true);
+    file.writeAsStringSync(jsonEncode({
+      'version': 1,
+      'defaultProviderId': 'deepseek',
+      'defaultModelId': 'deepseek-chat',
+      'providers': [
+        {
+          'id': 'magpie',
+          'name': 'Magpie 本地网关',
+          'category': 'gateway',
+          'baseUrl': 'http://127.0.0.1:3425/v1',
+          'apiKeyEnv': 'MAGPIE_API_KEY',
+          'builtIn': true,
+          'models': [
+            {'id': 'group/ntars', 'contextWindow': '1M', 'maxTokens': '8K'},
+          ],
+        },
+        {
+          'id': 'deepseek',
+          'name': 'DeepSeek',
+          'category': 'official',
+          'baseUrl': 'https://api.deepseek.com/v1',
+          'apiKeyEnv': 'DEEPSEEK_API_KEY',
+          'builtIn': true,
+          'models': [
+            {'id': 'deepseek-chat', 'contextWindow': '128K', 'maxTokens': '8K'},
+          ],
+        },
+      ],
+    }));
+    final loaded = ModelClient(storePath: file.path)..load();
+    expect(loaded.defaultProviderId, 'magpie');
+    expect(loaded.defaultModelId, 'group/ntars');
+    final saved = jsonDecode(file.readAsStringSync()) as Map;
+    expect(saved['defaultProviderId'], 'magpie');
+    expect(saved['defaultModelId'], 'group/ntars');
+    loaded.dispose();
+  });
+
   test('secret resolver 优先于环境；gateway 可无密钥，其他远端类别拒绝', () async {
     final p = client.byId('magpie')!;
     var config = client.currentRuntimeConfig();
