@@ -270,6 +270,26 @@ function findDshPkg(nodeBin) {
 
 const NODE_BIN = findNode();
 const DSH_PKG = findDshPkg(NODE_BIN);
+const OUT = path.join(REPO, 'runtime', TARGET);
+
+// 装配会先整目录删除 OUT。若任何输入源就在 OUT 里（例如误把当前
+// runtime/macos-arm64/node 当成源再装配回同一目录），删除动作会先毁掉
+// 输入，随后 copyFile 才会报 same path——实测已经把可用的随包运行时清空过
+// 一次。这里在删除之前拒绝重叠，让错误停在第一步且保留现场。
+function inside(dir, candidate) {
+  const rel = path.relative(dir, candidate);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+for (const [label, source] of [
+  ['node', NODE_BIN],
+  ['dsh', DSH_PKG],
+  ['profile', process.env.ONDRA_PROFILE_SRC ? path.resolve(process.env.ONDRA_PROFILE_SRC) : null],
+]) {
+  if (source && inside(OUT, path.resolve(source))) {
+    die(`${label} 源在产物目录内：${source}`,
+      `装配会先删除 ${OUT}；请改用仓库外的源或 plugin-profile/ 快照。`);
+  }
+}
 
 // ── profile 源 ──────────────────────────────────────────────────────────────
 //
@@ -480,6 +500,12 @@ const PRUNE_PREFIXES = [
 const PRUNE_EXACT = new Set([
   // 非持久版的 PowerShell 工具：内核在 sdk-minimal 里挂的是 persistent 版。
   '@deepseek-ai/dsh-tool-pwsh',
+  // pi-ai 把各家 SDK 做成惰性 API。Ondra 只声明 openai-completions /
+  // openai-responses / anthropic-messages 三种协议，Google Vertex/Gemini
+  // 与 AWS Bedrock 永远不会被选中；保留它们只会把整套云 SDK 塞进包。
+  '@google/genai',
+  '@aws-sdk/client-bedrock-runtime',
+  '@smithy/node-http-handler',
 ]);
 
 const NODE_MODULES = path.join(DSH_PKG, 'node_modules');
@@ -1011,8 +1037,6 @@ async function fetchSqlite(destDir) {
 
 // ── 落盘 ────────────────────────────────────────────────────────────────────
 
-const OUT = path.join(REPO, 'runtime', TARGET);
-
 // 依赖源在只读预检里已经确定；真实复制和 dry-run 共用同一份去重计划。
 const pkgRoots = new Map(CLOSURE.map((name) => [name, selectedPkgs.get(name)]));
 const plan = planNestedDedup(
@@ -1039,13 +1063,40 @@ function copySize(src, dropExt, skipLog = false, skipDirs = new Set()) {
   return bytes;
 }
 
-async function copyPayload(dest) {
+async function copyPayload(dest, { verifyNode = true } = {}) {
   fs.mkdirSync(dest, { recursive: true });
 
   // 1) node 可执行。只拷二进制，不拷 npm——应用只把它当解释器用。
   const nodeDest = path.join(dest, NODE_NAME);
   fs.copyFileSync(NODE_BIN, nodeDest);
   if (!IS_WIN) fs.chmodSync(nodeDest, 0o755);
+  if (!IS_WIN) {
+    // 官方 Node 二进制带完整本地符号。只保留导出符号后可从 116MB 降到约
+    // 93MB；不碰核心模块。strip 会使原签名失效，macOS 必须重新 ad-hoc 签名，
+    // 发行时再由应用包的 Developer ID 签名链覆盖。
+    const stripped = spawnSync('strip', ['-x', nodeDest], { encoding: 'utf8' });
+    if (stripped.status !== 0) {
+      warn(`  ! node strip 失败，继续使用原二进制：${stripped.stderr.trim() || stripped.error?.message || stripped.status}`);
+    } else if (PLATFORM === 'macos') {
+      const signed = spawnSync('codesign', ['--force', '--sign', '-', nodeDest], {
+        encoding: 'utf8',
+      });
+      if (signed.status !== 0) {
+        die('node strip 后无法重新签名',
+          signed.stderr.trim() || signed.error?.message || String(signed.status));
+      }
+    }
+    if (verifyNode) {
+      const version = spawnSync(nodeDest, ['--version'], { encoding: 'utf8' });
+      if (version.status !== 0) {
+        die('裁剪后的 node 无法执行',
+          version.stderr.trim() || version.error?.message || String(version.status));
+      }
+      say(`  node    : 裁剪后 ${mb(fs.statSync(nodeDest).size)}（${version.stdout.trim()}）`);
+    } else {
+      say(`  node    : 裁剪后 ${mb(fs.statSync(nodeDest).size)}（dry-run 不执行）`);
+    }
+  }
 
   // 2) dsh 自身的骨架：package.json + lib（bin.js 在这里）。
   const dshDest = path.join(dest, 'dsh');
@@ -1134,7 +1185,7 @@ if (process.argv.includes('--closure-only')) {
   const closureOut = path.join(REPO, 'runtime', 'closure');
   if (fs.existsSync(closureOut)) rimraf(closureOut);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ondra-closure-'));
-  await copyPayload(tmp);
+  await copyPayload(tmp, { verifyNode: false });
   fs.mkdirSync(path.join(closureOut), { recursive: true });
   fs.renameSync(path.join(tmp, 'dsh'), path.join(closureOut, 'dsh'));
   // profile 种子也要带上：安卓端解压后靠它 seed（CI 的 android job 没有
@@ -1156,7 +1207,7 @@ if (process.argv.includes('--closure-only')) {
 // 验证过的成品当赌注——中途失败就没得回退。
 if (dryRun) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ondra-runtime-'));
-  await copyPayload(tmp);
+  await copyPayload(tmp, { verifyNode: false });
   say('── dry-run 体积 ──');
   for (const item of ['node', 'dsh', 'profile']) {
     const p = path.join(tmp, IS_WIN ? 'node.exe' : 'node');

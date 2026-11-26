@@ -77,6 +77,13 @@
       name: '@ondra/cordis-plugin-ondra-expression-decide'
     - id: ondra-filter-chain
       name: '@ondra/cordis-plugin-ondra-filter-chain'
+      config:
+        # 基础聊天不能被模型评审卡死：评审说「重新生成」时当前内核没有
+        # 回环能力，最终只会给用户吐一条系统错误。九步过滤本身照常生效。
+        review-enabled: false
+        # “1+1 等于几？”这类正确答案可能只有一个字；默认 minChars=2
+        # 会把合法短答整段拒收，最终 turn/end 报过滤失败。
+        min-chars: 1
     - id: ondra-first-meet
       name: '@ondra/cordis-plugin-ondra-first-meet'
     - id: ondra-forget-right
@@ -331,3 +338,7 @@
               - id: group/ntars
                 name: 星玖优选
                 contextWindow: 1000000
+# BEGIN ONDRA APP-MANAGED MODEL v1
+- {"id":"llm-magpie","name":"@deepseek-ai/dsh-llm-pi-ai","config":{"providers":{"magpie":{"displayName":"Magpie 本地网关","api":"openai-completions","baseURL":"http://127.0.0.1:3425/v1","apiKeyEnv":"MAGPIE_API_KEY","defaultContextWindow":1000000,"defaultMaxTokens":8192,"models":[{"id":"group/ntars","name":"星玖优选","contextWindow":1000000,"maxTokens":8192}]},"ondra-ui-magpie":{"displayName":"Magpie 本地网关","api":"openai-completions","baseURL":"http://127.0.0.1:3425/v1","apiKeyEnv":"MAGPIE_API_KEY","defaultContextWindow":1000000,"defaultMaxTokens":8192,"models":[{"id":"group/ntars","name":"group/ntars","contextWindow":1048576,"maxTokens":8192,"input":["text"],"reasoningEfforts":{"medium":"medium"}}],"reasoning":"medium"},"local-qwen":{"displayName":"本地 Qwen3-Coder-Next","api":"openai-completions","baseURL":"http://127.0.0.1:1234/v1","apiKeyEnv":"QWEN_LOCAL_API_KEY","defaultContextWindow":262144,"defaultMaxTokens":32768,"models":[{"id":"qwen3-coder-next","name":"Qwen3-Coder-Next","contextWindow":262144,"maxTokens":32768}]}}}}
+- {"id":"ondra-llm-gateway","name":"@ondra/cordis-plugin-ondra-llm-gateway","config":{"sources":[{"id":"ondra-ui-current","kind":"local","provider":"ondra-ui-magpie","model":"group/ntars","credentialRef":"MAGPIE_API_KEY","priority":10,"timeoutMs":120000}]}}
+# END ONDRA APP-MANAGED MODEL v1

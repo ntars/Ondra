@@ -61,6 +61,12 @@ if [[ ! -d "$SRC" ]]; then
   exit 1
 fi
 
+# Cloud-sync clients (Baidu/iCloud/OneDrive) can drop temporary upload markers
+# into node_modules between copy and signing. They are not runtime files and
+# invalidate the outer signature if they appear or disappear after it is made.
+find "$SRC" \( -name '*.baiduyun.uploading.cfg' \
+  -o -name '.baiduyun.uploading.cfg' -o -name '._*' \) -type f -delete
+
 # ── 3. 复制 ────────────────────────────────────────────────────────────────
 #
 # 目标路径必须与 bundled_runtime_io.dart 的候选一致：
@@ -107,7 +113,11 @@ else
 fi
 
 echo "── 校验 ──"
-codesign --verify --deep --strict "$APP" && echo "  ✓ 签名有效"
+if ! codesign --verify --deep --strict "$APP"; then
+  echo "  ✗ 签名校验失败：构建目录可能被云同步客户端持续写入临时文件。" >&2
+  exit 1
+fi
+echo "  ✓ 签名有效"
 
 # ── 5. 结论 ────────────────────────────────────────────────────────────────
 echo ""

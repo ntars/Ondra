@@ -153,6 +153,18 @@ enum ProviderCategory {
   final String? plugin;
 }
 
+/// 同一端只启用一条内核路线；切换时必须显式重建传输。
+enum DshTransportRoute {
+  local('R1', '本机内核', '随应用启动的 stdio 内核，离线可用'),
+  remote('R3', '远程内核', '连接另一台机器的 dsh web（HTTP + WebSocket）');
+
+  const DshTransportRoute(this.code, this.label, this.note);
+
+  final String code;
+  final String label;
+  final String note;
+}
+
 /// 目录里的一个预设：点一下就变成一条 provider。
 ///
 /// 与 [OndraProvider] 分开是因为预设是**常量**（可以 const），而 provider 是可改的

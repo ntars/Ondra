@@ -38,21 +38,38 @@ void main() {
     expect(RpcFrame.decode(''), isNull);
   });
 
-  test('增量文本：text / delta / content[] 三种写法都能取到', () {
+  test('只有 assistant/message 的 data.message.content[] 能显示正文', () {
     String? text(Map<String, dynamic> event) =>
         textOfSessionEvent({'sessionId': 's1', 'event': event});
 
-    expect(text({'type': 'assistant/delta', 'text': '你'}), '你');
-    expect(text({'type': 'assistant/text', 'delta': '好'}), '好');
+    expect(text({'type': 'assistant/delta', 'text': '你'}), isNull);
+    expect(text({'type': 'assistant/text', 'delta': '好'}), isNull);
+    expect(
+      text({
+        'type': 'assistant/message',
+        'data': {
+          'message': {
+            'content': [
+              {'type': 'text', 'text': '在'},
+              {'type': 'text', 'text': '的'},
+            ],
+          },
+        },
+      }),
+      '在的',
+    );
     expect(
       text({
         'type': 'assistant/message',
         'content': [
-          {'type': 'text', 'text': '在'},
-          {'type': 'text', 'text': '的'},
+          {'type': 'text', 'text': '历史兼容位置'},
         ],
       }),
-      '在的',
+      isNull,
+    );
+    expect(
+      text({'type': 'assistant/message', 'text': '历史兼容字段', 'delta': '历史兼容增量'}),
+      isNull,
     );
     // 工具事件没有可显示文本，应返回 null 而不是空串
     expect(text({'type': 'tool/call', 'name': 'read'}), isNull);
@@ -137,6 +154,18 @@ void main() {
     });
     expect(errorOfSessionEvent(failure), 'quota exceeded（quota）');
     expect(textOfSessionEvent(failure), isNull);
+    expect(
+      errorOfSessionEvent(
+        payload({
+          'kind': 'error',
+          'error': {
+            'message': 'pi-ai detected context overflow for model "x"',
+            'code': 'CONTEXT_WINDOW_EXCEEDED',
+          },
+        }),
+      ),
+      '上下文超限，请缩短输入或开启新会话（CONTEXT_WINDOW_EXCEEDED）',
+    );
     expect(
       errorOfSessionEvent(
         payload({

@@ -48,6 +48,17 @@ class ChatClient extends ChangeNotifier {
 
   List<ChatAttachment> get attachments => List.unmodifiable(_attachments);
 
+  /// 最近一次失败提交的快照。只有界面明确认领后才清空，
+  /// 免得通知回调和界面重建各吞一次，最后草稿还是没了。
+  SendDraft? _lastFailedDraft;
+
+  /// 取出并清空失败草稿。返回 null 表示没有待恢复的内容。
+  SendDraft? takeFailedDraft() {
+    final draft = _lastFailedDraft;
+    _lastFailedDraft = null;
+    return draft;
+  }
+
   /// 正在生成时用户又发来的话。`queue` 策略下攒在这里，这一轮结束后依次发出。
   final List<({String text, List<ChatAttachment> attachments})> _queued = [];
 
@@ -60,8 +71,31 @@ class ChatClient extends ChangeNotifier {
   /// 下一句就该按新策略走，而不是等重启。
   String get busyPolicy => settingsClient.choice('dialog.busySend');
 
-  /// 清掉排队中的话。新建会话 / 停止生成时调用——
-  /// 那些句子属于「上一轮没说完的」，跟着新会话一起发出去会让它莫名接话。
+  /// 本次提交是否强制走互补策略。由输入框的 ⌘/Ctrl+Enter 设置，
+  /// 发完立即清零；普通 Enter 仍读设置里的默认策略。
+  bool _steerOverride = false;
+
+  /// 常规 Enter / 按钮使用的投递模式是否为插话。
+  bool get _normalIsSteer => busyPolicy == 'steer';
+
+  /// 首轮超过这个时间还没出字时，界面改用可解释的等待文案。
+  static const firstTurnPreparationDelay = Duration(seconds: 5);
+  static const preparingModelText = '正在准备模型（首次约 30 秒，之后几乎即时）';
+
+  Timer? _firstTurnHintTimer;
+  bool _hasCompletedTurn = false;
+
+  /// 当前会话是否已经成功完成过一轮。首轮等待文案只在这之前出现。
+  bool get hasCompletedTurn => _hasCompletedTurn;
+
+  /// 设置一次互补投递。`true` 表示本次按插话发送，即使默认策略是排队。
+  void setSteerOverride(bool value) {
+    _steerOverride = value;
+  }
+
+  /// 清掉排队中的话。只有「撤掉队列」和新建会话调用——
+  /// 停止生成不再自动清空：那些句子是用户已经提交的内容，按成熟客户端的
+  /// 语义要保留，等下一次主动提交再发。
   void clearQueue() {
     if (_queued.isEmpty) return;
     _queued.clear();
@@ -104,6 +138,9 @@ class ChatClient extends ChangeNotifier {
     stop();
     _usageSub?.cancel();
     _transport = transport;
+    // 换传输层意味着不再持有刚才那条连接。否则卸载后状态页仍读到
+    // 「内核在线」，而界面上已经没有任何通道能真的说话。
+    _connected = false;
     // 用量与文本走两条流：文本是「这一轮说了什么」，用量是「内核记了多少账」。
     // 合成一条会让 ChatClient 的 send 循环多一种元素类型，而这两件事的
     // 生命周期并不一致——用量在 turn/end 之后还可能补一条。
@@ -170,36 +207,54 @@ class ChatClient extends ChangeNotifier {
   /// 不提示，用户只看到「点了没反应」。这里把两条语义真的做出来，
   /// 而「排队」这件事必须在客户端做——内核的发送通道一次只接一轮，
   /// 它不知道用户在这一轮里又敲了几句。
-  Future<void> send(String text) async {
+  /// 返回本轮结果：界面据此决定是否把已清掉的草稿恢复回来。
+  Future<SendOutcome> send(String text) async {
     if (dataMaintenance.locked) {
       _offlineReason = '数据维护期间暂停发送，完成后可重试；输入与附件未清除。';
       notifyListeners();
-      return;
+      return SendOutcome.rejected;
     }
     final trimmed = text.trim();
-    if (trimmed.isEmpty && _attachments.isEmpty) return;
+    if (trimmed.isEmpty && _attachments.isEmpty) return SendOutcome.ignored;
+    final steer = _steerOverride;
+    _steerOverride = false;
+    final startedBusy = _busy;
     final attachments = List<ChatAttachment>.of(_attachments);
     _attachments.clear();
 
     if (_busy) {
-      if (busyPolicy == 'steer') {
+      if (steer || _normalIsSteer) {
+        // 当前传输层没有原生 steer。先取消当前轮再发下一轮是明确降级，
+        // 不冒充内核级插话；界面文案沿用设置里的「插话发送」。
         stop();
       } else {
         _queued.add((text: trimmed, attachments: attachments));
         notifyListeners();
-        return;
+        return SendOutcome.queued;
       }
     }
 
-    var pending = _sendNow(trimmed, attachments: attachments);
+    var pending = _sendNow(
+      trimmed,
+      attachments: attachments,
+      delivery: startedBusy && (steer || _normalIsSteer) ? 'steer' : 'plain',
+    );
     var generation = _generation;
-    await pending;
+    var outcome = await pending;
+    // stop() 把这一轮标记为作废；它的失败快照不能覆盖用户主动停止的决定。
+    // 队列里的句子仍保留，下一次主动提交时才发。
+    if (outcome == SendOutcome.superseded) return SendOutcome.stopped;
     while (generation == _generation && _queued.isNotEmpty) {
       final next = _queued.removeAt(0);
       pending = _sendNow(next.text, attachments: next.attachments);
       generation = _generation;
-      await pending;
+      final nextOutcome = await pending;
+      if (nextOutcome == SendOutcome.failed) outcome = nextOutcome;
+      if (nextOutcome == SendOutcome.superseded) {
+        return SendOutcome.stopped;
+      }
     }
+    return outcome;
   }
 
   /// 真正发一轮。调用方负责判断「现在能不能发」。
@@ -212,22 +267,33 @@ class ChatClient extends ChangeNotifier {
   /// 所以每一轮给自己领一个号，只有「当前号」才有资格改 [_busy]。
   /// 谁先把号丢掉，谁的收尾就一概不认——包括错误提示，否则旧轮被插话
   /// 打断时报的错会盖在新一轮的回答上。
-  Future<void> _sendNow(
+  Future<SendOutcome> _sendNow(
     String trimmed, {
     List<ChatAttachment> attachments = const [],
+    String delivery = 'plain',
   }) async {
     final gen = ++_generation;
     bool stale() => gen != _generation;
 
-    // 用户气泡把附件名列出来：它已经随消息发出去了，界面上得能看见带了什么。
-    if (attachments.isNotEmpty) {
-      final names = attachments.map((a) => a.name).join('、');
+    // 失败时要把**原文与附件**还给调用方。画布提前清草稿是成熟客户端的
+    // 乐观提交语义，失败却不该让用户重新打一遍——但也不能在用户已经
+    // 改写草稿后覆盖他的新内容，所以只交回快照，由输入框决定怎么合并。
+    final draft = SendDraft(text: trimmed, attachments: attachments);
+    SendDraft? draftSnapshotForFailure;
+    if (delivery == 'steer') {
       _messages.add(
-        ChatMessage(role: ChatRole.user, text: '$trimmed\n[附件] $names'),
+        ChatMessage(role: ChatRole.system, text: '插话发送（当前传输层降级为停止后重发）'),
       );
-    } else {
-      _messages.add(ChatMessage(role: ChatRole.user, text: trimmed));
     }
+
+    // 用户气泡把附件名列出来：它已经随消息发出去了，界面上得能看见带了什么。
+    final userMessage = ChatMessage(
+      role: ChatRole.user,
+      text: attachments.isEmpty
+          ? trimmed
+          : '$trimmed\n[附件] ${attachments.map((a) => a.name).join('、')}',
+    );
+    _messages.add(userMessage);
     final reply = ChatMessage(
       role: ChatRole.assistant,
       text: '',
@@ -235,6 +301,14 @@ class ChatClient extends ChangeNotifier {
     );
     _messages.add(reply);
     _busy = true;
+    if (!_hasCompletedTurn) {
+      _firstTurnHintTimer?.cancel();
+      _firstTurnHintTimer = Timer(firstTurnPreparationDelay, () {
+        if (stale() || !reply.streaming || reply.text.isNotEmpty) return;
+        reply.placeholder = preparingModelText;
+        notifyListeners();
+      });
+    }
     notifyListeners();
 
     // 这一轮是不是正常收尾。被作废 / 抛错时为 false，收尾时要把气泡撤掉。
@@ -244,11 +318,12 @@ class ChatClient extends ChangeNotifier {
         trimmed,
         attachments: attachments,
       )) {
-        if (stale()) return;
+        if (stale()) return SendOutcome.superseded;
+        if (chunk.isNotEmpty) reply.placeholder = null;
         reply.text += chunk;
         notifyListeners();
       }
-      if (stale()) return;
+      if (stale()) return SendOutcome.superseded;
       reply.streaming = false;
       final modelError = _transport.modelConfigError;
       _connected = modelError == null || modelError.trim().isEmpty;
@@ -259,7 +334,9 @@ class ChatClient extends ChangeNotifier {
         throw StateError(modelError!);
       }
       answered = true;
+      _hasCompletedTurn = true;
       if (reply.text.isEmpty) {
+        _hasCompletedTurn = false;
         _messages.remove(reply);
         answered = false;
         _messages.add(
@@ -268,7 +345,9 @@ class ChatClient extends ChangeNotifier {
             text: _offlineReason ?? '内核没有返回内容',
           ),
         );
-      } else if (!stale()) {
+        return SendOutcome.failed;
+      }
+      if (!stale()) {
         // 回答完成时说一句。只在「回到了别的事上」才有意义——
         // 用户正盯着这一屏时，通知是多余的；但这里拿不到窗口焦点，
         // 所以交给通知中心去合并（同一应用连发会被折叠成一条）。
@@ -276,8 +355,9 @@ class ChatClient extends ChangeNotifier {
         // 只在**正常有回答**时发：空回答与报错下面各有自己的分支。
         OndraNotify.tell('空谷回你了', _preview(reply.text));
       }
+      return SendOutcome.sent;
     } catch (e) {
-      if (stale()) return;
+      if (stale()) return SendOutcome.superseded;
       _messages.remove(reply);
       answered = false;
       // 一轮模型/网络异常不等于内核断线。把它同时写进离线原因和
@@ -295,6 +375,12 @@ class ChatClient extends ChangeNotifier {
       // 出错也要说：用户可能已经切走了，回来只看到一条红色的系统消息
       // 而不知道是几分钟前就发生了。
       OndraNotify.tell('这一轮没走通', '$e');
+      // 这一轮的用户气泡也撤掉：发送没被受理，留一条「我发过」的假记录，
+      // 再配上草稿恢复，用户会以为自己发了两遍。
+      _messages.removeWhere((message) => identical(message, userMessage));
+      draftSnapshotForFailure = draft;
+      notifyListeners();
+      return SendOutcome.failed;
     } finally {
       // 被作废那轮留下的半条流式气泡必须在这里撤掉。
       //
@@ -307,7 +393,10 @@ class ChatClient extends ChangeNotifier {
       }
       // 只有当前这一轮能改 _busy。旧轮被插话后走到这里时，_busy 属于新那轮。
       if (!stale()) {
+        _firstTurnHintTimer?.cancel();
+        _firstTurnHintTimer = null;
         _busy = false;
+        _lastFailedDraft = draftSnapshotForFailure;
         notifyListeners();
       }
     }
@@ -327,10 +416,10 @@ class ChatClient extends ChangeNotifier {
   void stop() {
     _generation += 1;
     _connectionGeneration += 1;
+    _firstTurnHintTimer?.cancel();
+    _firstTurnHintTimer = null;
     _transport.stop();
-    _connected = false;
     _busy = false;
-    _queued.clear();
     _messages.removeWhere((message) => message.streaming);
     notifyListeners();
   }
@@ -378,12 +467,17 @@ class ChatClient extends ChangeNotifier {
   void dispose() {
     _generation += 1;
     _connectionGeneration += 1;
+    _firstTurnHintTimer?.cancel();
     _usageSub?.cancel();
+    _transport.dispose();
     _transport.stop();
     super.dispose();
   }
 
   void clear() {
+    _firstTurnHintTimer?.cancel();
+    _firstTurnHintTimer = null;
+    _hasCompletedTurn = false;
     _messages.clear();
     notifyListeners();
   }
@@ -402,6 +496,9 @@ class ChatClient extends ChangeNotifier {
     // 正在生成时先停：留着一条永远不结束的 streaming 消息，
     // 界面会一直显示「正在输入」，而内核那边这一轮已经没人接了。
     if (_busy) stop();
+    _firstTurnHintTimer?.cancel();
+    _firstTurnHintTimer = null;
+    _hasCompletedTurn = false;
     _queued.clear();
     _attachments.clear();
     _messages.clear();
@@ -415,6 +512,25 @@ class ChatClient extends ChangeNotifier {
 }
 
 enum ChatRole { user, assistant, system }
+
+/// 一次提交的结果。UI 不再靠「busy 变了没」猜发送成没成。
+enum SendOutcome {
+  sent,
+  queued,
+  failed,
+  rejected,
+  ignored,
+  stopped,
+  superseded,
+}
+
+/// 失败时要还给输入框的原文与附件。
+class SendDraft {
+  const SendDraft({required this.text, required this.attachments});
+
+  final String text;
+  final List<ChatAttachment> attachments;
+}
 
 /// 一次对话里挂上的附件。
 ///
@@ -457,11 +573,19 @@ class ChatAttachment {
 
 /// 一条消息。[streaming] 为真时界面显示一个正在生成的占位。
 class ChatMessage {
-  ChatMessage({required this.role, required this.text, this.streaming = false});
+  ChatMessage({
+    required this.role,
+    required this.text,
+    this.streaming = false,
+    this.placeholder,
+  });
 
   final ChatRole role;
   String text;
   bool streaming;
+
+  /// 流式气泡还没收到正文时显示的等待文案；null 时用省略号。
+  String? placeholder;
 }
 
 /// 内核传输层。
@@ -502,6 +626,12 @@ abstract class DshTransport {
   /// 每一步模型调用的记账。内核不报（离线、适配器不支持）时就是空流，
   /// 界面因此显示「—」而不是 0——把「没测到」画成 0 是在编数据。
   Stream<StepUsage> get usage => const Stream.empty();
+}
+
+/// 支持跨连接恢复会话的传输层。`implements` 不会继承 DshTransport 的默认
+/// 成员，所以把可选能力拆出来，避免强制每个测试替身都写一个假 sessionId。
+abstract interface class ResumableDshTransport {
+  String? get sessionId;
 }
 
 /// 一次模型调用的 token 记账，字段与上游 `TokenUsage` 同名同义。

@@ -26,6 +26,7 @@
 //
 //   node tool/sync_plugin_profile.mjs                   # 从默认位置同步
 //   node tool/sync_plugin_profile.mjs --from <目录>      # 指定源
+//   node tool/sync_plugin_profile.mjs --dest <目录>      # 指定输出（测试用）
 //   node tool/sync_plugin_profile.mjs --check           # 只比对，不写（CI 用）
 //
 // 同步后 `plugin-profile/` 的变化应当**看起来合理**再提交：包数量、包名列表
@@ -39,7 +40,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
-const DEST = path.join(REPO, 'plugin-profile');
+const DEFAULT_DEST = path.join(REPO, 'plugin-profile');
 
 /** 运行时不需要的东西。与 `assemble_runtime.mjs` 的 DROP_EXT 保持一致。 */
 const DROP_EXT = new Set([
@@ -50,6 +51,11 @@ const DROP_EXT = new Set([
 const args = process.argv.slice(2);
 const checkOnly = args.includes('--check');
 const fromArg = args.indexOf('--from');
+const destArg = args.indexOf('--dest');
+const DEST =
+  destArg >= 0 && args[destArg + 1]
+    ? path.resolve(args[destArg + 1])
+    : DEFAULT_DEST;
 
 function homeDir() {
   // Windows 不设 HOME。写 `?? '.'` 会让路径跟着「当前在哪」漂移。
@@ -115,21 +121,31 @@ function collect(srcRoot) {
     files.set(f, full);
   }
 
-  // Exact-version compatibility grants live in profile-local compatibility.json.
-  // The bundled runtime pins dsh 0.2.1-rc.3 while profile plugins declare
-  // 0.2.2-rc.1 peers; without this file dsh disables the session/agent rows and
-  // every first launch fails with "sdk-jsonrpc-server did not activate".
-  // Keep the source's file when present, otherwise derive the grants from
-  // plugin manifests so a fresh profile snapshot is bootable by the bundled runtime.
-  const compatPath = path.join(srcRoot, 'compatibility.json');
-  if (fs.existsSync(compatPath)) {
-    files.set('compatibility.json', compatPath);
-  } else {
-    const grants = deriveVersionExemptions(srcRoot);
-    files.set('compatibility.json', {
-      buf: Buffer.from(`${JSON.stringify(grants, null, 2)}\n`, 'utf8'),
-    });
+  // Always derive the grants from the snapshot being written. Copying the
+  // source compatibility.json can preserve stale/wrong keys (the previous
+  // generator wrote dependency keys instead of plugin identities), which
+  // makes dsh silently disable incompatible rows despite an apparently valid
+  // exemptions file.
+  const derivedGrants = deriveVersionExemptions(srcRoot);
+  const existingCompatPath = path.join(srcRoot, 'compatibility.json');
+  let existingGrants = {};
+  try {
+    existingGrants = JSON.parse(fs.readFileSync(existingCompatPath, 'utf8'));
+  } catch { /* missing or malformed: derive-only is safe */ }
+  // Keep valid plugin-identity grants the source already carries, then add
+  // every derived grant. Old dependency-key records are discarded.
+  const grants = {};
+  for (const [key, versions] of Object.entries(existingGrants)) {
+    if (!key.startsWith('@ondra/') || !Array.isArray(versions)) continue;
+    grants[key] = versions;
   }
+  Object.assign(grants, derivedGrants);
+  files.set('compatibility.json', {
+    buf: Buffer.from(
+      `${JSON.stringify(Object.fromEntries(Object.keys(grants).sort().map(k => [k, grants[k]])), null, 2)}\n`,
+      'utf8',
+    ),
+  });
 
   const nm = path.join(srcRoot, 'node_modules', '@ondra');
   if (!fs.existsSync(nm)) {
@@ -178,32 +194,35 @@ function rewriteRootManifest(raw) {
 /**
  * Derive exact-version grants from plugin manifests.
  *
- * This runs at sync time only; runtime still reads a plain compatibility.json
- * copied into the profile seed. Only exact dsh peer/dependency versions are
- * granted, against the runtime version this repository bundles.
+ * The grant key is the *plugin identity* (`pluginName@pluginVersion`), not a
+ * dependency requirement. dsh-app-boot looks up exactly that key and denies a
+ * row whose @deepseek-ai/dsh peer cannot be met by the bundled runtime.
  */
 function deriveVersionExemptions(srcRoot) {
   const runtimeVersion = bundledRuntimeVersion();
   const grants = {};
-  const nm = path.join(srcRoot, 'node_modules');
-  for (const scope of ['@ondra', '@deepseek-ai']) {
-    const base = path.join(nm, scope);
-    if (!fs.existsSync(base)) continue;
-    for (const dir of fs.readdirSync(base)) {
-      const manifestPath = path.join(base, dir, 'package.json');
-      if (!fs.existsSync(manifestPath)) continue;
-      let manifest;
-      try {
-        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      } catch {
-        continue;
-      }
-      const requirements = { ...manifest.dependencies, ...manifest.peerDependencies };
-      for (const [name, version] of Object.entries(requirements)) {
-        if (!name.startsWith('@deepseek-ai/dsh-') || typeof version !== 'string') continue;
-        if (!/^[0-9]/.test(version)) continue;
-        grants[`${name}@${version}`] = [runtimeVersion];
-      }
+  const nm = path.join(srcRoot, 'node_modules', '@ondra');
+  if (!fs.existsSync(nm)) return grants;
+  for (const dir of fs.readdirSync(nm)) {
+    const manifestPath = path.join(nm, dir, 'package.json');
+    if (!fs.existsSync(manifestPath)) continue;
+    let manifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch {
+      continue;
+    }
+    if (typeof manifest.name !== 'string' || typeof manifest.version !== 'string') continue;
+    const requirements = { ...manifest.dependencies, ...manifest.peerDependencies };
+    const incompatibleExact = Object.entries(requirements).some(
+      ([name, version]) =>
+        name.startsWith('@deepseek-ai/dsh-') &&
+        typeof version === 'string' &&
+        /^[0-9]/.test(version) &&
+        version !== runtimeVersion,
+    );
+    if (incompatibleExact) {
+      grants[`${manifest.name}@${manifest.version}`] = [runtimeVersion];
     }
   }
   return Object.fromEntries(Object.keys(grants).sort().map((key) => [key, grants[key]]));
@@ -288,6 +307,20 @@ function plan(files) {
   return manifest;
 }
 
+/** Compute the full desired snapshot without writing anything. */
+function buildWanted() {
+  const files = collect(SRC);
+  const rootManifest = plan(files);
+  const wanted = new Map();
+  for (const [rel, abs] of files) {
+    if (abs === null) wanted.set(rel, { buf: rootManifest });
+    else if (typeof abs === 'object' && abs !== null && abs.buf) wanted.set(rel, abs);
+    else wanted.set(rel, { src: abs });
+  }
+  wanted.set('README.md', { buf: Buffer.from(README, 'utf8') });
+  return wanted;
+}
+
 async function main() {
   if (!fs.existsSync(SRC)) {
     die(`找不到 profile 源：${SRC}`,
@@ -298,16 +331,7 @@ async function main() {
   say(`目标    : ${DEST}`);
   say(checkOnly ? '模式    : 只比对（--check）' : '模式    : 同步');
 
-  const files = collect(SRC);
-  const rootManifest = plan(files);
-
-  // 计算目标状态：相对路径 → Buffer 或源路径
-  const wanted = new Map();
-  for (const [rel, abs] of files) {
-    if (abs === null) wanted.set(rel, { buf: rootManifest });
-    else wanted.set(rel, { src: abs });
-  }
-  wanted.set('README.md', { buf: Buffer.from(README, 'utf8') });
+  const wanted = buildWanted();
 
   let added = 0;
   let changed = 0;

@@ -88,7 +88,11 @@ void main() {
 
       final result = seedRuntimeProfile(dshHome: tempHome.path);
 
-      expect(result.outcome, RuntimeSeedOutcome.seeded);
+      // 迁移本身不写用户文件；这一轮的结果可以是 alreadyPresent。
+      expect(
+        result.outcome,
+        anyOf(RuntimeSeedOutcome.seeded, RuntimeSeedOutcome.alreadyPresent),
+      );
       final target = Directory(
         '${tempHome.path}${Platform.pathSeparator}profiles'
         '${Platform.pathSeparator}$ondraRuntimeProfileName',
@@ -168,7 +172,11 @@ void main() {
 
       final result = seedRuntimeProfile(dshHome: tempHome.path);
 
-      expect(result.outcome, RuntimeSeedOutcome.seeded);
+      // 迁移本身不写用户文件；这一轮的结果可以是 alreadyPresent。
+      expect(
+        result.outcome,
+        anyOf(RuntimeSeedOutcome.seeded, RuntimeSeedOutcome.alreadyPresent),
+      );
       expect(
         installed.readAsStringSync(),
         generated.readAsStringSync(),
@@ -256,6 +264,86 @@ void main() {
         isFalse,
         reason: '改动过的非白名单文件不能被记成随包所有',
       );
+    });
+
+    test('用户授权的 compatibility 与受管模型段不会被 seed 回写', () {
+      if (runtime == null) markTestSkipped('没有 runtime/ 产物');
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
+      final target = '${tempHome.path}/profiles/$ondraRuntimeProfileName';
+      final compat = File('$target/compatibility.json');
+      final patch = File('$target/cordis.patch.yml');
+      const compatText = '{"@ondra/test@1.0.0":["0.2.1-rc.3"]}\n';
+      const patchText = '# user model config\n';
+      compat.writeAsStringSync(compatText);
+      patch.writeAsStringSync(patchText);
+
+      seedRuntimeProfile(dshHome: tempHome.path);
+      expect(compat.readAsStringSync(), compatText);
+      expect(patch.readAsStringSync(), patchText);
+      final manifest = jsonDecode(
+        File('$target/.ondra-seed.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      final owned = manifest['files'] as Map<String, dynamic>;
+      expect(owned.containsKey('compatibility.json'), isFalse);
+      expect(owned.containsKey('cordis.patch.yml'), isFalse);
+    });
+
+    test('旧清单把用户配置记成应用所有时会迁移，且不会回写用户内容', () {
+      if (runtime == null) markTestSkipped('没有 runtime/ 产物');
+      final bundledRuntime = runtime!;
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        RuntimeSeedOutcome.seeded,
+      );
+      final target = '${tempHome.path}/profiles/$ondraRuntimeProfileName';
+      final manifestFile = File('$target/.ondra-seed.json');
+      final manifest =
+          jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+      final owned = manifest['files'] as Map<String, dynamic>;
+      final compat = File('$target/compatibility.json');
+      final patch = File('$target/cordis.patch.yml');
+      const compatText = '{"@ondra/test@1.0.0":["0.2.1-rc.3"]}\n';
+      const patchText = '# user model config\n';
+      compat.writeAsStringSync(compatText);
+      patch.writeAsStringSync(patchText);
+      // alpha.22 及更早版本的清单：这两份文件被错误标成随包所有。
+      owned['compatibility.json'] = sha256
+          .convert(
+            File('${bundledRuntime.profileDir}/compatibility.json')
+                .readAsBytesSync(),
+          )
+          .toString();
+      owned['cordis.patch.yml'] = sha256
+          .convert(
+            File('${bundledRuntime.profileDir}/cordis.patch.yml')
+                .readAsBytesSync(),
+          )
+          .toString();
+      manifestFile.writeAsStringSync(jsonEncode(manifest));
+
+      final result = seedRuntimeProfile(dshHome: tempHome.path);
+
+      // 迁移本身不写用户文件；这一轮的结果可以是 alreadyPresent。
+      expect(
+        result.outcome,
+        anyOf(RuntimeSeedOutcome.seeded, RuntimeSeedOutcome.alreadyPresent),
+      );
+      expect(compat.readAsStringSync(), compatText);
+      expect(patch.readAsStringSync(), patchText);
+      final migrated =
+          jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+      final migratedOwned = migrated['files'] as Map<String, dynamic>;
+      expect(migratedOwned.containsKey('compatibility.json'), isFalse);
+      expect(migratedOwned.containsKey('cordis.patch.yml'), isFalse);
+      expect(
+        seedRuntimeProfile(dshHome: tempHome.path).outcome,
+        anyOf(RuntimeSeedOutcome.seeded, RuntimeSeedOutcome.alreadyPresent),
+      );
+      expect(compat.readAsStringSync(), compatText);
+      expect(patch.readAsStringSync(), patchText);
     });
   });
 }

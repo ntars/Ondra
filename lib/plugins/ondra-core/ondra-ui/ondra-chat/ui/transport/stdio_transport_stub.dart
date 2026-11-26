@@ -2,7 +2,7 @@ import '../chat_client.dart';
 import '../../../ondra-settings/ondra-models/ui/runtime_model_config.dart';
 
 /// 浏览器里没有子进程，如实说明即可——不假装能连。
-class StdioDshTransport implements DshTransport {
+class StdioDshTransport implements DshTransport, ResumableDshTransport {
   @override
   String? get modelConfigError => null;
 
@@ -30,6 +30,8 @@ class StdioDshTransport implements DshTransport {
 
   @override
   Future<void> close() async {}
+
+  @override
   String? get sessionId => null;
 
   final String modelId;

@@ -184,20 +184,31 @@ class _Document {
       }
     }
     _sequence(0, lines.length, 0, (start, end) {
-      final fields = _fields(start, end, 2, firstSequence: true);
+      // 受管模型段可能让顶层出现第二个 `- insert:`（JSON flow 条目由生成器
+      // 写成独立的 insert 补丁）。它与本文件要编辑的 ondra-tts 无关，按
+      // 「不可安全编辑」整体拒绝会毁掉所有设置页写入；只读它、不写它。
+      final fields = _fields(
+        start,
+        end,
+        2,
+        firstSequence: true,
+        allowExtraInsert: true,
+      );
       if (fields.keys.any(
         (key) => !{'insert', 'before', 'after'}.contains(key),
       )) {
         _reject('存在覆盖补丁，无法确定最终配置');
       }
-      final insert = fields['insert'];
-      if (insert == null) _reject('只支持 insert 补丁');
-      if (_value(insert.value) == '[]') return;
-      if (_value(insert.value).isNotEmpty) _reject('insert 必须是块式列表');
-      final child = _first(insert.line + 1, insert.end);
-      if (child != null) {
-        _entries(child, insert.end, _indent(logical[child]), false);
+      for (final patch in fields.entries.where((e) => e.key == 'insert')) {
+        final value = patch.value;
+        if (_value(value.value) == '[]') continue;
+        if (_value(value.value).isNotEmpty) _reject('insert 必须是块式列表');
+        final child = _first(value.line + 1, value.end);
+        if (child != null) {
+          _entries(child, value.end, _indent(logical[child]), false);
+        }
       }
+      // 受管段里的 JSON flow 条目由 `_fields` 跳过，不进入条目树。
     });
   }
 
@@ -248,6 +259,7 @@ class _Document {
     int end,
     int indent, {
     bool firstSequence = false,
+    bool allowExtraInsert = false,
   }) {
     final fields = <String, _Field>{};
     _Field? previous;
@@ -262,8 +274,19 @@ class _Document {
         text = text.substring(indent);
       }
       final m = RegExp(r'^([a-zA-Z][\w-]*):(?:\s+(.*))?$').firstMatch(text);
-      if (m == null) _reject('第 ${i + 1} 行字段格式不受支持');
+      if (m == null) {
+        // 受管模型段把整条插件写成 JSON flow map（合法 YAML）。
+        // 这里只跳过它，保留原字节；不可把它当结构字段改写。
+        if (text.startsWith('{') && jsonDecode(text) is Map) continue;
+        _reject('第 ${i + 1} 行字段格式不受支持');
+      }
       if (fields.containsKey(m[1])) _reject('重复字段 ${m[1]}');
+      // 第二个 insert 是受管段的一部分；保留字节并把后续字段仍算作该块。
+      if (allowExtraInsert &&
+          m[1] == 'insert' &&
+          fields.containsKey('insert')) {
+        continue;
+      }
       previous?.end = i;
       fields[m[1]!] = previous = _Field(i, end, m[2] ?? '');
     }

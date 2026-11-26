@@ -124,6 +124,17 @@ RuntimeSeedResult seedRuntimeProfile({String? dshHome}) {
 
 const String _ownedManifestName = '.ondra-seed.json';
 
+/// 这两份文件不能按「随包所有」升级：
+/// - `compatibility.json` 是用户对本机插件版本的显式授权；
+/// - `cordis.patch.yml` 里有设置页写入的 APP-MANAGED MODEL 段。
+/// 老安装迁移时如果把它们记成应用所有，下一次启动会把用户/设置页的
+/// 登记内容悄悄抹掉（实测：修复 compatibility 后又被 seed 回写）。
+/// 缺文件仍然会由 [_fillMissing] 补回，所以不会挡住首次铺设/中断续铺。
+const Set<String> _userOwnedProfileFiles = {
+  'compatibility.json',
+  'cordis.patch.yml',
+};
+
 /// 老安装（alpha.10 之前）没有归属清单。这里只认这几份必然由应用铺开的
 /// 插件代码：人设/轮次控制的旧版本曾导致「升级后没有人设」，而它们不是用户配置。
 /// 因为拿不到全部旧版本摘要，迁移时按路径直接刷新这几份；别的相对路径
@@ -165,6 +176,7 @@ String? _snapshotPackageCount(String profileDir) {
 List<String> _upgradeOwnedFiles(Directory source, Directory target) {
   final manifest = File(_ownedManifestPath(target.path));
   Map<String, Object?> parsed;
+  var migrateLegacyManifest = false;
   if (manifest.existsSync()) {
     try {
       parsed = jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
@@ -173,9 +185,25 @@ List<String> _upgradeOwnedFiles(Directory source, Directory target) {
     }
   } else {
     parsed = {'files': _legacyOwnedHashes(source, target)};
+    migrateLegacyManifest = true;
   }
   final rawFiles = parsed['files'];
   if (rawFiles is! Map) return const [];
+  // alpha.22 之前，这两份文件被错误记成随包所有。清单里只要出现旧键就
+  // 迁移；哪怕当前文件丢失、稍后才由 [_fillMissing] 补回，也不能再留下
+  // 被应用接管的旧记录，否则下一次升级会把用户配置重新吞掉。
+  final hasLegacyKeys = rawFiles.keys.any(
+    (key) => _userOwnedProfileFiles.contains(key),
+  );
+  if (hasLegacyKeys) {
+    final migratedFiles = <String, Object?>{
+      for (final entry in rawFiles.entries)
+        if (!_userOwnedProfileFiles.contains(entry.key)) entry.key: entry.value,
+    };
+    rawFiles.clear();
+    rawFiles.addAll(migratedFiles);
+    migrateLegacyManifest = true;
+  }
   final replaced = <String>[];
   void walk(Directory dir) {
     for (final entity in dir.listSync(followLinks: false)) {
@@ -202,6 +230,9 @@ List<String> _upgradeOwnedFiles(Directory source, Directory target) {
   }
 
   walk(source);
+  if (migrateLegacyManifest) {
+    _updateOwnedSnapshot(target.path, source.path, const <String>{});
+  }
   return replaced;
 }
 
@@ -219,6 +250,9 @@ Map<String, String> _legacyOwnedHashes(Directory source, Directory target) {
     if (!bundled.existsSync() || !installed.existsSync()) continue;
     files[rel] = _sha256OfFile(installed);
   }
+  for (final rel in _userOwnedProfileFiles) {
+    files.remove(rel);
+  }
   return files;
 }
 
@@ -233,11 +267,15 @@ void _seedOwnedSnapshot(
 ) {
   final files = _legacyOwnedHashes(sourceDir, Directory(target));
   for (final rel in changed) {
+    if (_userOwnedProfileFiles.contains(rel)) continue;
     final file = File(
       '$target${Platform.pathSeparator}'
       '${rel.replaceAll('/', Platform.pathSeparator)}',
     );
     if (file.existsSync()) files[rel] = _sha256OfFile(file);
+  }
+  for (final rel in _userOwnedProfileFiles) {
+    files.remove(rel);
   }
   _writeOwnedManifest(target, source, files);
 }
@@ -252,6 +290,7 @@ void _writeOwnedSnapshot(Directory target, String source) {
     for (final entity in dir.listSync(followLinks: false)) {
       final rel = _normalize(entity.path.substring(target.path.length + 1));
       if (rel == _ownedManifestName) continue;
+      if (_userOwnedProfileFiles.contains(rel)) continue;
       if (entity is Directory) {
         walk(entity);
       } else if (entity is File) {
@@ -290,11 +329,15 @@ void _updateOwnedSnapshot(
     }
   }
   for (final rel in changed) {
+    if (_userOwnedProfileFiles.contains(rel)) continue;
     final file = File(
       '$target${Platform.pathSeparator}'
       '${rel.replaceAll('/', Platform.pathSeparator)}',
     );
     if (file.existsSync()) files[rel] = _sha256OfFile(file);
+  }
+  for (final rel in _userOwnedProfileFiles) {
+    files.remove(rel);
   }
   _writeOwnedManifest(target, source, files);
 }

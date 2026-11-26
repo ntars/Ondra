@@ -314,7 +314,7 @@ void main() {
         final updatedPatch = File(
           '${home.path}/.ondra/dsh/profiles/ondra/cordis.patch.yml',
         ).readAsStringSync();
-        expect(updatedPatch, contains('"reasoningEfforts":false'));
+        expect(updatedPatch, isNot(contains('"reasoningEfforts"')));
         expect(updatedPatch, isNot(contains('replacement-test-secret')));
       } catch (_) {
         final log = File('${home.path}/.ondra/logs/transport.log');

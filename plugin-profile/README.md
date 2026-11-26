@@ -46,6 +46,11 @@ git diff plugin-profile/cordis.patch.yml     # 装配结构变了没有
 这几处改动合回插件源码；否则同步会把修复覆盖掉。`runtime/<平台>/profile` 是
 由本目录装配出的产物，出包前需重跑 `tool/assemble_runtime.mjs`。
 
+例外（输出过滤链）：`plugin-profile/node_modules/@ondra/cordis-plugin-ondra-filter-chain`
+的 `settings.js` 在 O-005 尚未就绪时现在会同时接受 kebab-case 与 camelCase，
+避免 `min-chars` 被静默忽略后退回默认值。过滤判空时仍按原契约拒绝发送，不会
+绕过安全过滤。合回插件源码前不要无条件重跑同步。
+
 ## 为什么不能省
 
 去掉它，四件事同时坏掉：新机器第一次打开就抛

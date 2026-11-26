@@ -18,6 +18,8 @@ import 'runtime_model_config.dart';
 /// - 内置提供商不可删；删除自建提供商时连密钥一起清掉；
 /// - 默认模型若被删掉，回退到第一个可用模型。
 class ModelClient extends ChangeNotifier {
+  bool _disposed = false;
+
   ModelClient({
     String? storePath,
     Future<String?> Function(String)? secretResolver,
@@ -98,6 +100,27 @@ class ModelClient extends ChangeNotifier {
   final Future<KeychainSecret> Function(String, String) _secretWriter;
   final Map<String, int> _keyRevisions = {};
   String? persistenceError;
+  DshTransportRoute _transportRoute = Platform.isIOS
+      ? DshTransportRoute.remote
+      : DshTransportRoute.local;
+  String _remoteBaseUrl = '';
+  String _remoteLaunchToken = '';
+  int _remoteTokenRevision = 0;
+
+  static const remoteTokenRef = 'ONDRA_REMOTE_LAUNCH_TOKEN';
+
+  DshTransportRoute get transportRoute => _transportRoute;
+  String get remoteBaseUrl => _remoteBaseUrl;
+  bool get remoteTokenConfigured => _remoteLaunchToken.isNotEmpty;
+  String get remoteLaunchToken => _remoteLaunchToken;
+
+  bool get remoteConfigured {
+    final uri = Uri.tryParse(_remoteBaseUrl.trim());
+    return uri != null &&
+        ['http', 'https'].contains(uri.scheme) &&
+        uri.host.isNotEmpty &&
+        _remoteLaunchToken.isNotEmpty;
+  }
 
   /// UI 可监听这些状态，并用 applyPendingRuntime() 显式重连。
   /// 忙碌时只标记待应用，不中断生成；主装配层在空闲后自动应用。
@@ -142,6 +165,9 @@ class ModelClient extends ChangeNotifier {
       'provider': p == null ? null : _providerToJson(p),
       'model': defaultModelId,
       'keyRevision': _keyRevisions[defaultProviderId] ?? 0,
+      'route': _transportRoute.name,
+      'remoteBaseUrl': _remoteBaseUrl,
+      'remoteTokenRevision': _remoteTokenRevision,
     });
   }
 
@@ -150,7 +176,20 @@ class ModelClient extends ChangeNotifier {
 
   /// 启动时读回上一次的模型基座。文件坏了就当没存过，回到内置默认。
   ///
-  /// 密钥状态另查：钥匙串是异步的，回读完成后单独通知一次。
+  /// 密钥状态另查：钥匙串是异步的，回读完成后再判断是否要迁移默认模型。
+  /// 异步钥匙串回读可能在测试或热重载已经释放 ModelClient 后才返回。
+  /// 此时再 notifyListeners 会抛「used after being disposed」；这类回调
+  /// 只更新内存里的展示状态，没有监听器可通知，直接跳过即可。
+  void _notifyIfActive() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   void load() {
     try {
       final f = _storeFile;
@@ -173,19 +212,44 @@ class ModelClient extends ChangeNotifier {
         _defaultProviderId = dp;
         _defaultModelId = dm;
       }
+      final routeName = '${raw['runtimeRoute'] ?? ''}';
+      _transportRoute =
+          DshTransportRoute.values
+              .where((route) => route.name == routeName)
+              .firstOrNull ??
+          _transportRoute;
+      _remoteBaseUrl = '${raw['remoteBaseUrl'] ?? ''}';
       _ensureDefault();
+      _notifyIfActive();
+      unawaited(
+        Keychain.read(remoteTokenRef).then((token) {
+          if (token == null || token.isEmpty || _remoteLaunchToken == token) {
+            return;
+          }
+          _remoteLaunchToken = token;
+          _remoteTokenRevision++;
+          _notifyIfActive();
+        }),
+      );
       // 旧版本允许把没有密钥的远端模型设为默认，结果内核照常启动、
       // 聊天栏却发不出一句。这里做一次性迁移：用户没配密钥时回到随包
       // 本机网关；用户已配密钥则保留原选择。迁移结果立即写回，界面与
       // 下次启动都会看到同一个事实。
       final selected = byId(_defaultProviderId);
+      String? restoredProviderId;
+      String? restoredModelId;
       if (selected != null &&
           selected.category != ProviderCategory.gateway &&
           selected.category != ProviderCategory.local &&
+          !_isLoopbackProvider(selected) &&
           selected.apiKeyEnv.isNotEmpty &&
           (selected.keyConfigured ||
-              (ondraPlatformEnv(selected.apiKeyEnv) ?? '').trim().isNotEmpty) ==
+                  (ondraPlatformEnv(selected.apiKeyEnv) ?? '')
+                      .trim()
+                      .isNotEmpty) ==
               false) {
+        restoredProviderId = selected.id;
+        restoredModelId = _defaultModelId;
         final gateway = byId('magpie');
         final model = gateway?.models.firstOrNull;
         if (gateway != null && model != null) {
@@ -194,8 +258,10 @@ class ModelClient extends ChangeNotifier {
           _persist();
         }
       }
-      notifyListeners();
       _refreshKeyStates();
+      if (restoredProviderId != null && restoredModelId != null) {
+        _resolveMigratedDefault(restoredProviderId, restoredModelId);
+      }
     } catch (_) {
       // 文件坏了不拦启动：内置默认还能说话。
     }
@@ -213,10 +279,34 @@ class ModelClient extends ChangeNotifier {
         Keychain.exists(credentialRefOf(p)).then((ok) {
           if (p.keyConfigured == ok) return;
           p.keyConfigured = ok;
-          notifyListeners();
+          // 只有从 false 变 true 才可能影响默认模型选择；从 true 变 false
+          // 只是状态展示，不该让 ModelRuntimeBinding 误以为配置变了。
+          if (ok) _notifyIfActive();
         }),
       );
     }
+  }
+
+  /// 密钥回读后恢复用户原本选择的远端模型。
+  ///
+  /// 这里只在“确实有密钥”时恢复：没配密钥就保留刚才写回的本机网关，
+  /// 避免下次启动又回到一条发不出话的默认路线。notifyListeners() 会让
+  /// ModelRuntimeBinding 重连；启动阶段的首次连接仍以网关为准。
+  Future<void> _resolveMigratedDefault(
+    String providerId,
+    String modelId,
+  ) async {
+    final target = byId(providerId);
+    final model = target?.models.where((m) => m.id == modelId).firstOrNull;
+    if (target == null || model == null) return;
+    final secret = target.apiKeyEnv.isEmpty
+        ? null
+        : await Keychain.exists(credentialRefOf(target));
+    if (secret != true) return;
+    if ((ondraPlatformEnv(target.apiKeyEnv) ?? '').trim().isNotEmpty) return;
+    _defaultProviderId = providerId;
+    _defaultModelId = modelId;
+    _notifyIfActive();
   }
 
   void _persist() {
@@ -227,6 +317,8 @@ class ModelClient extends ChangeNotifier {
           'version': 1,
           'defaultProviderId': _defaultProviderId,
           'defaultModelId': _defaultModelId,
+          'runtimeRoute': _transportRoute.name,
+          'remoteBaseUrl': _remoteBaseUrl,
           'providers': [for (final p in _providers) _providerToJson(p)],
         }),
       );
@@ -234,6 +326,67 @@ class ModelClient extends ChangeNotifier {
     } catch (error) {
       persistenceError = '模型配置未保存：$error';
     }
+  }
+
+  /// 选择本机 R1 或远程 R3。远程必须先有 URL 与 token，缺一项就明确拒绝，
+  /// 不把“选择成功但永远连不上”写进配置文件。
+  String? configureRuntimeRoute(
+    DshTransportRoute route, {
+    String? remoteBaseUrl,
+    String? remoteLaunchToken,
+  }) {
+    var nextUrl = _remoteBaseUrl;
+    var nextToken = _remoteLaunchToken;
+    final urlInput = remoteBaseUrl?.trim();
+    final tokenInput = remoteLaunchToken?.trim();
+    if (urlInput != null) {
+      final parsed = Uri.tryParse(urlInput);
+      if (parsed == null ||
+          !['http', 'https'].contains(parsed.scheme) ||
+          parsed.host.isEmpty ||
+          parsed.userInfo.isNotEmpty) {
+        return '远程内核地址必须是完整的 HTTP(S) URL';
+      }
+      final queryToken = parsed.queryParameters['token'] ?? '';
+      nextUrl = Uri(
+        scheme: parsed.scheme,
+        userInfo: parsed.userInfo,
+        host: parsed.host,
+        port: parsed.hasPort ? parsed.port : null,
+        path: parsed.path.replaceAll(RegExp(r'/+$'), ''),
+      ).toString();
+      if (nextUrl.isEmpty) {
+        return '远程内核地址不能为空';
+      }
+      if (tokenInput == null || tokenInput.isEmpty) {
+        if (queryToken.isNotEmpty) {
+          nextToken = queryToken;
+        }
+      }
+    }
+    if (tokenInput != null && tokenInput.isNotEmpty) nextToken = tokenInput;
+    if (route == DshTransportRoute.remote) {
+      final parsed = Uri.tryParse(nextUrl);
+      if (parsed == null ||
+          !['http', 'https'].contains(parsed.scheme) ||
+          parsed.host.isEmpty) {
+        return '请先填写远程内核 HTTP(S) 地址';
+      }
+      if (nextToken.isEmpty) {
+        return '请填写 dsh web 打印的 launch token 或完整 URL';
+      }
+    }
+    _transportRoute = route;
+    _remoteBaseUrl = nextUrl;
+    _remoteLaunchToken = nextToken;
+    _remoteTokenRevision++;
+    if (nextToken.isEmpty) {
+      unawaited(Keychain.erase(remoteTokenRef));
+    } else {
+      unawaited(_secretWriter(remoteTokenRef, nextToken));
+    }
+    notifyListeners();
+    return null;
   }
 
   /// 密钥在 `.credentials.yaml` 里的**引用名**，与内核同源。
@@ -261,6 +414,14 @@ class ModelClient extends ChangeNotifier {
   /// 旧的键名（`provider.<id>.key`）。只用于一次性迁移：
   /// 老版本把密钥存在这个名下，改成 apiKeyEnv 之后要能读回旧值。
   static String legacyKeyName(String providerId) => 'provider.$providerId.key';
+
+  /// 自定义接口不一定属于 `local` 分类；只要地址实际指向本机，就不该
+  /// 因为没有钥匙串密钥被迁回 Magpie。LM Studio / Ollama 常以 custom
+  /// 保存，误判会让用户选中的模型在下次启动时静默消失。
+  static bool _isLoopbackProvider(OndraProvider provider) {
+    final uri = Uri.tryParse(provider.baseUrl.trim());
+    return uri != null && RuntimeModelConfig.isLoopbackHost(uri.host);
+  }
 
   Map<String, dynamic> _providerToJson(OndraProvider p) => {
     'id': p.id,

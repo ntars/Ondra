@@ -2,6 +2,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import '../../../../../app/desktop_picker.dart';
+import '../../../../../app/debug_chat_probe.dart';
+import '../../../../../app/model_warmup.dart';
 import '../../ui/shell_state.dart';
 import '../../../../../design/brand.dart';
 import '../../../../../design/dialog.dart';
@@ -32,7 +34,11 @@ import '../../ondra-settings/ui/settings_client.dart';
 /// 同一颗按钮触发的动作，物理规律却不一样。现在四条路径共用同一个连续量
 /// [focusAmount] 与同一个宽度值，中间态永远存在、且可被中途打断。
 class OndraAmbientRail extends StatelessWidget {
-  const OndraAmbientRail({super.key, this.focusAmount = 0});
+  const OndraAmbientRail({
+    super.key,
+    this.focusAmount = 0,
+    this.onPolicyChanged,
+  });
 
   /// 0 = 常驻第三栏，1 = 沉浸（右栏即整页）。
   ///
@@ -40,6 +46,9 @@ class OndraAmbientRail extends StatelessWidget {
   /// 特征，铺满整页时还画着就变成了第四块面板。宽度、留白、限宽都不看它，
   /// 由真实宽度自己算（见 `_RailBody`）。
   final double focusAmount;
+
+  /// 键盘投递策略变化的测试注入点；生产装配不传，ChatClient 自己读设置。
+  final void Function(bool steer)? onPolicyChanged;
 
   /// 常驻宽度，同时是**排版宽度下限**。
   ///
@@ -62,14 +71,18 @@ class OndraAmbientRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _RailBody(focusAmount: focusAmount);
+    return _RailBody(
+      focusAmount: focusAmount,
+      onPolicyChanged: onPolicyChanged,
+    );
   }
 }
 
 class _RailBody extends StatelessWidget {
-  const _RailBody({required this.focusAmount});
+  const _RailBody({required this.focusAmount, required this.onPolicyChanged});
 
   final double focusAmount;
+  final void Function(bool steer)? onPolicyChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +174,7 @@ class _RailBody extends StatelessWidget {
                       child: _RailComposer(
                         hint: '想聊点什么？',
                         onSend: chatClient.send,
+                        policyChanged: onPolicyChanged,
                       ),
                     ),
                     // 用量条压在输入盒下面（dsh 的 composer dock 位置）：
@@ -755,7 +769,9 @@ class _Bubble extends StatelessWidget {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Text(
-            message.streaming && message.text.isEmpty ? '…' : message.text,
+            message.streaming && message.text.isEmpty
+                ? (message.placeholder ?? '…')
+                : message.text,
             style: ondraText(
               16 * _scale,
               color: message.streaming && message.text.isEmpty
@@ -817,11 +833,45 @@ class _Welcome extends StatelessWidget {
                     ),
                   ),
                 ),
+                const _ModelWarmupStatus(),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 预热是后台工作，状态只能“顺带告知”，不能挡住欢迎区或输入框。
+class _ModelWarmupStatus extends StatelessWidget {
+  const _ModelWarmupStatus();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: modelWarmup,
+      builder: (context, _) {
+        final s = OndraSkin.of(context);
+        final text = switch (modelWarmup.phase) {
+          ModelWarmupPhase.warming => ChatClient.preparingModelText,
+          ModelWarmupPhase.failed =>
+            modelWarmup.error == null || modelWarmup.error!.isEmpty
+                ? '模型预热未完成；首次回复时会自动加载'
+                : '模型预热未完成：${modelWarmup.error}；首次回复时会自动加载',
+          ModelWarmupPhase.idle || ModelWarmupPhase.ready => null,
+        };
+        if (text == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: ondraText(11.5, color: s.ink40, height: 16 / 11.5),
+          ),
+        );
+      },
     );
   }
 }
@@ -891,10 +941,18 @@ class _OfflineBanner extends StatelessWidget {
 }
 
 class _RailComposer extends StatefulWidget {
-  const _RailComposer({required this.hint, required this.onSend});
+  const _RailComposer({
+    required this.hint,
+    required this.onSend,
+    this.policyChanged,
+  });
 
   final String hint;
-  final void Function(String text) onSend;
+  final Future<SendOutcome> Function(String text) onSend;
+
+  /// 键盘投递模式改变时调用，参数是是否「插话」。
+  /// 默认提交走设置里的普通模式，⌘/Ctrl+Enter 走互补模式。
+  final void Function(bool steer)? policyChanged;
 
   @override
   State<_RailComposer> createState() => _RailComposerState();
@@ -905,6 +963,13 @@ class _RailComposerState extends State<_RailComposer> {
   final _focus = FocusNode();
   bool _hasText = false;
   bool _busy = chatClient.busy;
+  bool _steerNext = false;
+  DateTime? _lastEscape;
+
+  /// 同一直觉按钮：有可发送内容时是 Send，运行时空草稿时是 Stop。
+  /// 二者共用同一个位置，成熟客户端就是这样在 busy 时保留「停止」出口的。
+  bool get _sendMode =>
+      _hasText || chatClient.attachments.isNotEmpty || !chatClient.busy;
 
   @override
   void initState() {
@@ -916,6 +981,14 @@ class _RailComposerState extends State<_RailComposer> {
     // 设置里的「回车发送」改了要立刻反映到输入框：这项只在按键那一刻判定，
     // 不需要重建整棵树，但要让 setState 触发一次以更新 textInputAction。
     settingsClient.addListener(_onSettingsChanged);
+    final debugText = debugChatInputText();
+    if (debugText.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _controller.text = debugText;
+        _submit();
+      });
+    }
   }
 
   void _onChatChanged() {
@@ -937,6 +1010,9 @@ class _RailComposerState extends State<_RailComposer> {
 
   /// 「回车发送」。关掉后回车换行、⌘/Ctrl Enter 才发送。
   bool get _enterSend => settingsClient.boolean('dialog.enterSend');
+
+  /// 普通提交当前的投递模式。⌘/Ctrl+Enter 用它的反面。
+  bool get _normalIsSteer => chatClient.busyPolicy == 'steer';
 
   @override
   void dispose() {
@@ -972,7 +1048,7 @@ class _RailComposerState extends State<_RailComposer> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final text = _controller.text.trim();
     final hasAttachments = chatClient.attachments.isNotEmpty;
     // 只带图不打字也允许：内核的 prompt 接受非文本块，图片本身就是一句话。
@@ -985,14 +1061,58 @@ class _RailComposerState extends State<_RailComposer> {
     // 不补这一句的话，发完第一条输入框就失焦，用户接着打字一个字也进不去
     // （得先点一下输入框），在实际使用里很像「发一条就卡住」。
     if (!_focus.hasFocus) _focus.requestFocus();
+    // 数据维护期间发送层会明确拒绝。这里不能先乐观清空，再等 rejected
+    // 后把原文塞回来：用户会看到草稿闪一下，附件也会短暂消失。
     if (chatClient.maintenance) {
-      widget.onSend(text);
+      await widget.onSend(text);
       return;
     }
+    debugChatCaptureReply(client: chatClient, userText: text);
     _controller.clear();
-    widget.onSend(text);
+    final steer = _steerNext;
+    _steerNext = false;
+    widget.policyChanged?.call(steer);
+    chatClient.setSteerOverride(steer);
+    final outcome = await widget.onSend(text);
+    if (outcome == SendOutcome.failed && mounted) {
+      final failed = chatClient.takeFailedDraft();
+      if (failed != null && _controller.text.isEmpty) {
+        _controller.text = failed.text;
+        for (final attachment in failed.attachments) {
+          chatClient.attach(attachment);
+        }
+      } else if (failed != null && mounted) {
+        // 失败发生在用户继续编辑之后：原文已经不在这条草稿里了，
+        // 附件仍可补回来，但不能把新输入覆盖掉。
+        for (final attachment in failed.attachments) {
+          chatClient.attach(attachment);
+        }
+      }
+    }
     // 附件的清理在 chatClient.send 里做：随消息一起发出，发完就撤——
     // 之前在发送前就清掉，附件从没真的交给内核，界面却像发过了。
+  }
+
+  /// 普通 Enter / 发送按钮用设置里的模式；⌘/Ctrl+Enter 用互补模式。
+  Future<void> _submitWithPolicy(bool steer) async {
+    _steerNext = steer;
+    await _submit();
+  }
+
+  void _requestStop() {
+    chatClient.stop();
+  }
+
+  void _handleEscape() {
+    final now = DateTime.now();
+    final previous = _lastEscape;
+    _lastEscape = now;
+    if (previous == null ||
+        now.difference(previous) > const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastEscape = null;
+    _requestStop();
   }
 
   /// 选附件。选完挂在 chatClient 上，输入盒上方会出现一行小标签。
@@ -1105,12 +1225,19 @@ class _RailComposerState extends State<_RailComposer> {
               // 桌面端与各家聊天软件都是这个约定，代码里原先只有注释提到，
               // 没有绑定，等于说了没做。
               bindings: <ShortcutActivator, VoidCallback>{
-                const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                    _submit,
+                const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
+                const SingleActivator(
+                  LogicalKeyboardKey.enter,
+                  meta: true,
+                ): () =>
+                    _submitWithPolicy(!_normalIsSteer),
                 // Windows/Linux 的键盘没有 ⌘；设置文案写的是 Cmd/Ctrl，
                 // 绑定却只认 meta，于是关掉回车发送后 Ctrl+Enter 什么都不做。
-                const SingleActivator(LogicalKeyboardKey.enter, control: true):
-                    _submit,
+                const SingleActivator(
+                  LogicalKeyboardKey.enter,
+                  control: true,
+                ): () =>
+                    _submitWithPolicy(!_normalIsSteer),
                 if (_enterSend) ...{
                   const SingleActivator(LogicalKeyboardKey.enter, shift: true):
                       _insertNewline,
@@ -1154,26 +1281,24 @@ class _RailComposerState extends State<_RailComposer> {
             tooltip: '上传文件',
             onTap: _pickAttachments,
           ),
-          if (_busy) ...[
-            const SizedBox(width: 6),
-            _InputIconButton(
-              glyph: Glyphs.close,
-              tooltip: '停止生成',
-              onTap: chatClient.stop,
-            ),
-          ],
           const SizedBox(width: 6),
-          _SendButton(
-            // 生成期间也能按：这正是「繁忙时的发送行为」两项设置生效的地方——
-            // 排队与插话都发生在 busy 的那一刻。上一版这里写了
-            // `&& !chatClient.busy`，那颗键在生成时一直是灰的，
-            // 于是那两个选项无论怎么设都没有机会被触发。
-            // 有文字或有附件都允许发送：只带图不打字是一条完整的消息。
-            // 附件状态在这里实时反映——这个 build 由输入区监听 chatClient
-            // 触发，见下面 _submit 的说明。
-            enabled: _hasText || chatClient.attachments.isNotEmpty,
-            onTap: _submit,
-          ),
+          _sendMode
+              ? _SendButton(
+                  // 生成期间也能按：这正是「繁忙时的发送行为」两项设置生效的地方——
+                  // 排队与插话都发生在 busy 的那一刻。上一版这里写了
+                  // `&& !chatClient.busy`，那颗键在生成时一直是灰的，
+                  // 于是那两个选项无论怎么设都没有机会被触发。
+                  // 有文字或有附件都允许发送：只带图不打字是一条完整的消息。
+                  // 附件状态在这里实时反映——这个 build 由输入区监听 chatClient
+                  // 触发，见下面 _submit 的说明。
+                  enabled: _sendMode,
+                  onTap: _submit,
+                )
+              : _InputIconButton(
+                  glyph: Glyphs.close,
+                  tooltip: '停止生成',
+                  onTap: _requestStop,
+                ),
         ],
       ),
     );

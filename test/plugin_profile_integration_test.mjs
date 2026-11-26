@@ -323,7 +323,10 @@ test('output waterfall filters once, preserves nontext/errors, excludes auxiliar
     const bOutput = await collect(h.ctx.waterfall('llm/stream', await request(b), () => textStream(input)));
     assert.equal(assembled(bOutput).blocks()[0].text, '今天天气真好，我们出去走走。');
     const repeated = { role: 'assistant', content: [{ type: 'text', text: '今天天气真好，我们出去走走。' }] };
-    await assert.rejects(collect(h.ctx.waterfall('llm/stream', await request(a, [repeated]), () => textStream(input))), { code: 'ONDRA_FILTER_REGENERATE_REQUIRED' });
+    await assert.rejects(
+        collect(h.ctx.waterfall('llm/stream', await request(a, [repeated]), () => textStream(input))),
+        error => error.code === 'ONDRA_FILTER_REGENERATE_REQUIRED',
+    );
     const before = filter.stats().runs;
     const failure = { type: 'finish', reason: { kind: 'error', failure: { code: 'FIXTURE', message: 'no model' } } };
     assert.deepEqual(await collect(h.ctx.waterfall('llm/stream', await request(a), () => (async function* () { yield failure; })())), [failure]);
@@ -340,6 +343,60 @@ test('output waterfall filters once, preserves nontext/errors, excludes auxiliar
     assert.ok(mixed.includes(tool)); assert.ok(mixed.includes(usage));
     assert.equal(mixed.at(-1).replayState, undefined);
     assert.equal(assembled(mixed).blocks()[0].type, 'reasoning');
+});
+
+test('filter accepts profile kebab keys without schema and keeps one-char replies', async () => {
+    const h = await harness();
+    // 出厂 profile 用 kebab 段键，而插件实例配置只认 camelCase。真实内核有
+    // O-005 配置段做双向映射；这里没有 schema，就必须按真实装配边界转换，
+    // 不能在测试里偷偷改 node_modules 的插件源码。
+    const profileRow = patch.match(/id: ondra-filter-chain[\s\S]*?config:\n((?:\s+.+\n)+)/)?.[1] ?? '';
+    const rawConfig = Object.fromEntries(
+        [...profileRow.matchAll(/^\s+([a-z-]+):\s*(\S+)\s*$/gm)]
+            .map(([, key, value]) => [key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), value === 'true' ? true : value === 'false' ? false : Number(value)]),
+    );
+    const filter = await h.plugin('filter-chain', rawConfig);
+    assert.equal(filter.settings.reviewEnabled, false);
+    assert.equal(filter.settings.minChars, 1);
+    const agent = fakeAgent(h.ctx, 'one-char');
+    const signal = new AbortController().signal;
+    const message = user('1+1等于几？只回答数字。');
+    await agentEvents(h.ctx, agent).waterfall(
+        'agent/pre-step',
+        { turn: 1, step: 1, signal, messages: [message] },
+        () => Promise.resolve({ kind: 'enter', messages: [] }),
+    );
+    const output = await collect(
+        h.ctx.waterfall(
+            'llm/stream',
+            markAgentLoopRequest({ sessionId: agent.session.id, signal, messages: [message] }),
+            () => textStream('2'),
+        ),
+    );
+    assert.equal(assembled(output).blocks()[0].text, '2');
+});
+
+test('filtered-empty output fails closed instead of leaking the original reply', async () => {
+    const h = await harness();
+    await h.plugin('filter-chain', { reviewEnabled: false, minChars: 3 });
+    const agent = fakeAgent(h.ctx, 'filter-closed');
+    const signal = new AbortController().signal;
+    const message = user('只回答一个数字。');
+    await agentEvents(h.ctx, agent).waterfall(
+        'agent/pre-step',
+        { turn: 1, step: 1, signal, messages: [message] },
+        () => Promise.resolve({ kind: 'enter', messages: [] }),
+    );
+    await assert.rejects(
+        collect(
+            h.ctx.waterfall(
+                'llm/stream',
+                markAgentLoopRequest({ sessionId: agent.session.id, signal, messages: [message] }),
+                () => textStream('2'),
+            ),
+        ),
+        error => error.code === 'ONDRA_FILTER_REGENERATE_REQUIRED',
+    );
 });
 
 test('review limits are per session/turn; urgent guidance is not truncated or forced into roleplay', async () => {
@@ -380,7 +437,7 @@ test('review limits are per session/turn; urgent guidance is not truncated or fo
 
 test('organ gate runs before real tool admission; unknown tools and other permissions survive', async () => {
     const h = await harness();
-    await h.core('dsh-system-prompt'); await h.core('dsh-tools'); await h.core('dsh-tool-executor-native');
+    await h.core('dsh-system-prompt'); await h.core('dsh-tools');
     for (const name of ['read', 'edit', 'bash', 'web_fetch', 'brand_new_capability']) h.ctx.tools.register({ name, description: name, parameters: { type: 'object', properties: {} }, output: { schema: { type: 'object' }, render: () => [] }, execute: async () => ({}) });
     const gate = await h.plugin('organ-gate', { mode: 'enforce', minToolsToGate: 1, minKeepTools: 1, maxDenyRatio: 0.9 });
     let toolContext;
@@ -390,18 +447,19 @@ test('organ gate runs before real tool admission; unknown tools and other permis
     start(h.ctx, a, 1);
     claim(h.ctx, a, 1, user('读文件'));
     const signal = new AbortController().signal;
-    const tools = await h.ctx.tools.resolve({ agent: a, signal, modelSelection: { provider: 'fixture', model: 'fixture' } });
-    const names = h.ctx.tools.schemas(a, tools).map(t => t.name);
+    // dsh-tools 当前版本把“可见性”与“执行准入”统一放在 view() 里；
+    // resolve() 是旧版 API，在本机内核里已经不存在。
+    const tools = h.ctx.tools.view(a);
+    const names = h.ctx.tools.schemas(a).map(t => t.name);
     assert.deepEqual(names.sort(), ['brand_new_capability', 'read']);
     const prompt = await h.ctx.systemPrompt.assemble({ ...assembleContextFor(a, signal), toolSet: tools });
     assert.deepEqual(prompt.tools.map(t => t.name).sort(), names, 'advertised schema equals executable admission');
-    assert.equal(h.ctx.tools.executable('edit', a, tools), undefined);
-    assert.ok(h.ctx.tools.executable('read', a, tools));
+    assert.equal(h.ctx.tools.resolveExecution('edit', a), undefined);
+    assert.ok(h.ctx.tools.resolveExecution('read', a));
     assert.equal(h.ctx.tools.schemas(b).length, 5);
     await agentEvents(h.ctx, a).waterfall('agent/pre-step', { turn: 1, step: 1, signal, messages: [user('读文件')] }, () => Promise.resolve({ kind: 'enter', messages: [] }));
-    assert.deepEqual(h.ctx.tools.schemas(a, tools).map(t => t.name).sort(), names);
+    assert.deepEqual(h.ctx.tools.schemas(a).map(t => t.name).sort(), names);
     assert.equal(gate.stats().enforced, 1);
-    tools.dispose();
     start(h.ctx, a, 2);
     assert.equal(h.ctx.tools.get('bash', a), undefined, 'permission guard never lifted');
     assert.ok(h.ctx.tools.get('edit', a));
@@ -410,7 +468,7 @@ test('organ gate runs before real tool admission; unknown tools and other permis
 
 test('real loop advertises and executes the same gated tools across a tool continuation', async () => {
     const h = await harness();
-    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-system-prompt', 'dsh-tools', 'dsh-tool-executor-native', 'dsh-llm', 'dsh-agent-loop']) await h.core(name);
+    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-system-prompt', 'dsh-tools', 'dsh-llm', 'dsh-agent-loop']) await h.core(name);
     let executions = 0;
     const requests = [], errors = [];
     for (const name of ['read', 'edit', 'web_fetch', 'brand_new_capability']) h.ctx.tools.register({
@@ -446,7 +504,7 @@ test('real loop advertises and executes the same gated tools across a tool conti
 
 test('real agent loop claims input, assembles persona/recall and commits only filtered output', async () => {
     const h = await harness();
-    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-system-prompt', 'dsh-tools', 'dsh-tool-executor-native', 'dsh-llm', 'dsh-agent-loop']) await h.core(name);
+    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-system-prompt', 'dsh-tools', 'dsh-llm', 'dsh-agent-loop']) await h.core(name);
     const queries = [], requests = [], errors = [], frames = [];
     h.ctx.provide('ondra-memory-recall', { available: true, search({ text }) { queries.push(text); return { ok: true, hits: [] }; } });
     h.ctx.provide('ondra-memory-core', { available: true, listFacts: () => [], getFact: () => undefined });

@@ -547,6 +547,23 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
 
     return _stack([
       _Section(
+        title: '会话内核',
+        children: [
+          _Row(
+            title:
+                '${modelClient.transportRoute.code} · ${modelClient.transportRoute.label}',
+            desc:
+                modelClient.transportRoute == DshTransportRoute.remote &&
+                    modelClient.remoteBaseUrl.isNotEmpty
+                ? '${modelClient.remoteBaseUrl} · '
+                      '${modelClient.remoteTokenConfigured ? "token 已配置" : "缺少 token"}'
+                : modelClient.transportRoute.note,
+            action: _LinkText(label: '配置', onTap: _configureRuntimeRoute),
+            showDivider: false,
+          ),
+        ],
+      ),
+      _Section(
         title: '提供商',
         children: [
           if (used.isEmpty)
@@ -622,6 +639,13 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         style: ondraText(11, color: s.ink30, height: 16 / 11),
       ),
     ]);
+  }
+
+  Future<void> _configureRuntimeRoute() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _RuntimeRouteDialog(client: modelClient),
+    );
   }
 
   // 模型条目的描述行，字段与官方模型目录一致：
@@ -3116,6 +3140,143 @@ class _InputRowState extends State<_InputRow> {
           Expanded(child: field),
         ],
       ),
+    );
+  }
+}
+
+/// 选择 R1（随包 stdio）或 R3（另一台机器的 dsh web）。
+///
+/// 远程 URL 只保存地址，launch token 单独写钥匙串。dsh web 每次重启通常会
+/// 打印新 token，所以这里明确告知“重启后需更新”，不假装能永久登录。
+class _RuntimeRouteDialog extends StatefulWidget {
+  const _RuntimeRouteDialog({required this.client});
+
+  final ModelClient client;
+
+  @override
+  State<_RuntimeRouteDialog> createState() => _RuntimeRouteDialogState();
+}
+
+class _RuntimeRouteDialogState extends State<_RuntimeRouteDialog> {
+  late DshTransportRoute _route = widget.client.transportRoute;
+  late final _url = TextEditingController(text: widget.client.remoteBaseUrl);
+  final _token = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _token.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final error = widget.client.configureRuntimeRoute(
+      _route,
+      remoteBaseUrl: _url.text,
+      remoteLaunchToken: _token.text.trim().isEmpty ? null : _token.text,
+    );
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = OndraSkin.of(context);
+    return OndraDialog(
+      title: '会话内核',
+      width: 460,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final route in DshTransportRoute.values)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _route = route),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _route == route
+                        ? s.fillSelected
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(OndraRadius.lg),
+                    border: Border.all(
+                      color: _route == route ? OndraColor.accent : s.line,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        route.code,
+                        style: ondraText(
+                          12,
+                          color: _route == route ? OndraColor.accent : s.ink45,
+                          weight: 600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${route.label} · ${route.note}',
+                          style: ondraText(12, color: s.ink, height: 18 / 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (_route == DshTransportRoute.remote) ...[
+            const SizedBox(height: 8),
+            _InputRow(
+              title: '远程地址',
+              hint: 'http://127.0.0.1:38472',
+              value: _url.text,
+              onChanged: (value) => _url.text = value,
+            ),
+            _InputRow(
+              title: 'Launch token',
+              hint: widget.client.remoteTokenConfigured
+                  ? '留空保留已配置 token'
+                  : 'dsh web 启动时打印的 token',
+              value: '',
+              controller: _token,
+              obscure: true,
+            ),
+            Text(
+              '桌面默认使用 R1。iOS 必须使用 R3；远程 token 通常只对当前 '
+              'dsh web 进程有效，重启后请重新获取。',
+              style: ondraText(11, color: s.ink30, height: 17 / 11),
+            ),
+          ],
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _error!,
+                style: ondraText(12, color: const Color(0xFFB42318)),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        const OndraDialogButton(label: '取消'),
+        OndraDialogButton(
+          label: '保存并切换',
+          filled: true,
+          onTap: _save,
+          closeAfter: false,
+        ),
+      ],
     );
   }
 }

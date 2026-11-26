@@ -1,10 +1,13 @@
 @Timeout(Duration(minutes: 4))
 library;
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/app/bundled_runtime.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/chat_client.dart';
 import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/stdio_transport_io.dart';
+import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/model_client.dart';
 
 /// **真机集成测试**：用随包的那份运行时（node + 裁剪过的 dsh 闭包）真的起一次内核。
 ///
@@ -50,5 +53,38 @@ void main() {
     } finally {
       client.stop();
     }
+  }, timeout: const Timeout(Duration(minutes: 4)));
+
+  test('真实聊天：发送“你好”必须收到正文', () async {
+    if (runtime == null) {
+      markTestSkipped('没有 runtime/ 产物（先跑 tool/assemble_runtime.sh）');
+      return;
+    }
+    final home = await Directory.systemTemp.createTemp('ondra-chat-hello-');
+    addTearDown(() => home.delete(recursive: true));
+    final dshHome = '${home.path}/.ondra/dsh';
+    Directory('$dshHome/profiles/ondra').createSync(recursive: true);
+    final models = ModelClient(storePath: '${home.path}/.ondra/models.json');
+    addTearDown(models.dispose);
+    final transport = StdioDshTransport(
+      modelConfig: models.currentRuntimeConfig,
+      secretResolver: (ref) async => 'magpie-local',
+      inheritLoginShellEnvironment: false,
+      environment: {
+        ...Platform.environment,
+        'HOME': home.path,
+        'USERPROFILE': home.path,
+        'ONDRA_DSH_HOME': dshHome,
+      },
+      turnTimeout: const Duration(minutes: 2),
+    );
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    await client.connect();
+    expect(client.offlineReason, isNull, reason: '基础聊天要求先连上可用模型，而不是只完成进程握手');
+    await client.send('你好');
+    final reply = client.messages.last;
+    expect(reply.role, ChatRole.assistant, reason: '回复变成了系统消息：${reply.text}');
+    expect(reply.text.trim(), isNotEmpty, reason: '“你好”必须拿到模型正文');
   }, timeout: const Timeout(Duration(minutes: 4)));
 }

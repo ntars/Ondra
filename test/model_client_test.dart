@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/app/keychain.dart';
+import 'package:ondra/app/model_warmup_controller.dart';
 import 'package:ondra/app/notifier_io.dart';
 import 'package:ondra/app/prefs.dart';
 import 'package:ondra/main.dart' show ModelRuntimeBinding;
@@ -106,44 +107,176 @@ void main() {
     loaded.dispose();
   });
 
+  test('本地模型只支持关闭推理时不写空 reasoningEfforts', () {
+    final provider = OndraProvider(
+      id: 'local-qwen',
+      name: '本地 Qwen',
+      category: ProviderCategory.local,
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      apiKeyEnv: 'QWEN_LOCAL_API_KEY',
+      builtIn: false,
+      models: [
+        OndraModelEntry(
+          id: 'qwen3-coder-next',
+          contextWindow: '256K',
+          maxTokens: '32K',
+          reasoning: const [
+            OndraReasoningLevel(label: '关', apiValue: '', level: 'off'),
+          ],
+        ),
+      ],
+    );
+    final config = RuntimeModelConfig.from(provider, provider.models.single);
+    final model = (config.profile['models'] as List).single as Map;
+    expect(model.containsKey('reasoningEfforts'), isFalse);
+    expect(config.profile.containsKey('reasoning'), isFalse);
+  });
+
   test('旧存档把无密钥远端设为默认时迁移到本机网关', () {
     final file = File('${home.path}/config/models.json')
       ..parent.createSync(recursive: true);
-    file.writeAsStringSync(jsonEncode({
-      'version': 1,
-      'defaultProviderId': 'deepseek',
-      'defaultModelId': 'deepseek-chat',
-      'providers': [
-        {
-          'id': 'magpie',
-          'name': 'Magpie 本地网关',
-          'category': 'gateway',
-          'baseUrl': 'http://127.0.0.1:3425/v1',
-          'apiKeyEnv': 'MAGPIE_API_KEY',
-          'builtIn': true,
-          'models': [
-            {'id': 'group/ntars', 'contextWindow': '1M', 'maxTokens': '8K'},
-          ],
-        },
-        {
-          'id': 'deepseek',
-          'name': 'DeepSeek',
-          'category': 'official',
-          'baseUrl': 'https://api.deepseek.com/v1',
-          'apiKeyEnv': 'DEEPSEEK_API_KEY',
-          'builtIn': true,
-          'models': [
-            {'id': 'deepseek-chat', 'contextWindow': '128K', 'maxTokens': '8K'},
-          ],
-        },
-      ],
-    }));
+    file.writeAsStringSync(
+      jsonEncode({
+        'version': 1,
+        'defaultProviderId': 'deepseek',
+        'defaultModelId': 'deepseek-chat',
+        'providers': [
+          {
+            'id': 'magpie',
+            'name': 'Magpie 本地网关',
+            'category': 'gateway',
+            'baseUrl': 'http://127.0.0.1:3425/v1',
+            'apiKeyEnv': 'MAGPIE_API_KEY',
+            'builtIn': true,
+            'models': [
+              {'id': 'group/ntars', 'contextWindow': '1M', 'maxTokens': '8K'},
+            ],
+          },
+          {
+            'id': 'deepseek',
+            'name': 'DeepSeek',
+            'category': 'official',
+            'baseUrl': 'https://api.deepseek.com/v1',
+            'apiKeyEnv': 'DEEPSEEK_API_KEY',
+            'builtIn': true,
+            'models': [
+              {
+                'id': 'deepseek-chat',
+                'contextWindow': '128K',
+                'maxTokens': '8K',
+              },
+            ],
+          },
+        ],
+      }),
+    );
     final loaded = ModelClient(storePath: file.path)..load();
     expect(loaded.defaultProviderId, 'magpie');
     expect(loaded.defaultModelId, 'group/ntars');
     final saved = jsonDecode(file.readAsStringSync()) as Map;
     expect(saved['defaultProviderId'], 'magpie');
     expect(saved['defaultModelId'], 'group/ntars');
+    loaded.dispose();
+  });
+
+  test('旧存档的远端已有密钥时，异步确认后恢复原选择', () async {
+    final file = File('${home.path}/config/models.json')
+      ..parent.createSync(recursive: true);
+    file.writeAsStringSync(
+      jsonEncode({
+        'version': 1,
+        'defaultProviderId': 'deepseek',
+        'defaultModelId': 'deepseek-chat',
+        'providers': [
+          {
+            'id': 'magpie',
+            'name': 'Magpie 本地网关',
+            'category': 'gateway',
+            'baseUrl': 'http://127.0.0.1:3425/v1',
+            'apiKeyEnv': 'MAGPIE_API_KEY',
+            'builtIn': true,
+            'models': [
+              {'id': 'group/ntars', 'contextWindow': '1M', 'maxTokens': '8K'},
+            ],
+          },
+          {
+            'id': 'deepseek',
+            'name': 'DeepSeek',
+            'category': 'official',
+            'baseUrl': 'https://api.deepseek.com/v1',
+            'apiKeyEnv': 'DEEPSEEK_API_KEY',
+            'builtIn': true,
+            'models': [
+              {
+                'id': 'deepseek-chat',
+                'contextWindow': '128K',
+                'maxTokens': '8K',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    Keychain.existsProbe = (ref) async {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      return ref == 'DEEPSEEK_API_KEY';
+    };
+    final loaded = ModelClient(storePath: file.path)..load();
+    // 同步读档阶段先按可聊天的网关出货，避免拿 DeepSeek 启动。
+    expect(loaded.defaultProviderId, 'magpie');
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    // 钥匙串确认有密钥后，恢复用户原选择，由 binding 触发重连。
+    expect(loaded.defaultProviderId, 'deepseek');
+    expect(loaded.defaultModelId, 'deepseek-chat');
+    loaded.dispose();
+  });
+
+  test('自定义 loopback 模型无需密钥，启动时不迁回本机网关', () {
+    final file = File('${home.path}/config/models.json')
+      ..parent.createSync(recursive: true);
+    file.writeAsStringSync(
+      jsonEncode({
+        'version': 1,
+        'defaultProviderId': 'local-qwen',
+        'defaultModelId': 'qwen3-coder-next',
+        'providers': [
+          {
+            'id': 'magpie',
+            'name': 'Magpie 本地网关',
+            'category': 'gateway',
+            'baseUrl': 'http://127.0.0.1:3425/v1',
+            'apiKeyEnv': 'MAGPIE_API_KEY',
+            'builtIn': true,
+            'models': [
+              {'id': 'group/ntars', 'contextWindow': '1M', 'maxTokens': '8K'},
+            ],
+          },
+          {
+            'id': 'local-qwen',
+            'name': '本地 Qwen3-Coder-Next',
+            'category': 'custom',
+            'baseUrl': 'http://127.0.0.1:1234/v1',
+            'apiKeyEnv': 'QWEN_LOCAL_API_KEY',
+            'builtIn': false,
+            'models': [
+              {
+                'id': 'qwen3-coder-next',
+                'contextWindow': '256K',
+                'maxTokens': '32K',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    final loaded = ModelClient(storePath: file.path)..load();
+    expect(loaded.defaultProviderId, 'local-qwen');
+    expect(loaded.defaultModelId, 'qwen3-coder-next');
+    expect(loaded.currentRuntimeConfig().route, 'ondra-ui-local-qwen');
+    expect(loaded.currentRuntimeConfig().modelId, 'qwen3-coder-next');
+    final saved = jsonDecode(file.readAsStringSync()) as Map;
+    expect(saved['defaultProviderId'], 'local-qwen');
+    expect(saved['defaultModelId'], 'qwen3-coder-next');
     loaded.dispose();
   });
 
@@ -219,6 +352,51 @@ void main() {
       final saved = File('${home.path}/keys/models.json').readAsStringSync();
       expect(saved, isNot(contains('secret')));
       expect(keyed.runtimeFingerprint, isNot(contains('secret')));
+    } finally {
+      keyed.dispose();
+    }
+  });
+
+  test('R3 路线持久化地址，launch token 只进密钥存储且切换即更换指纹', () async {
+    final written = <String, String>{};
+    final keyed = ModelClient(
+      storePath: '${home.path}/r3/models.json',
+      secretResolver: (ref) async => written[ref],
+      secretWriter: (ref, key) async {
+        written[ref] = key;
+        return const KeychainSecret(ok: true, message: 'ok');
+      },
+    );
+    try {
+      final before = keyed.runtimeFingerprint;
+      expect(
+        keyed.configureRuntimeRoute(
+          DshTransportRoute.remote,
+          remoteBaseUrl: 'http://127.0.0.1:38472/?token=launch-secret',
+        ),
+        isNull,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(keyed.transportRoute, DshTransportRoute.remote);
+      expect(keyed.remoteBaseUrl, 'http://127.0.0.1:38472');
+      expect(keyed.remoteTokenConfigured, isTrue);
+      expect(
+        written[ModelClient.remoteTokenRef],
+        'launch-secret',
+      );
+      expect(keyed.runtimeFingerprint, isNot(before));
+      final saved = File('${home.path}/r3/models.json').readAsStringSync();
+      final json = jsonDecode(saved) as Map<String, dynamic>;
+      expect(json['runtimeRoute'], 'remote');
+      expect(json['remoteBaseUrl'], 'http://127.0.0.1:38472');
+      expect(saved, isNot(contains('launch-secret')));
+      expect(
+        keyed.configureRuntimeRoute(
+          DshTransportRoute.remote,
+          remoteBaseUrl: 'ftp://bad',
+        ),
+        isNotNull,
+      );
     } finally {
       keyed.dispose();
     }
@@ -405,6 +583,200 @@ void main() {
       transports[1].closeGate.complete();
       await Future<void>.delayed(Duration.zero);
       expect(transports.last.opened, isTrue);
+    } finally {
+      for (final t in transports) {
+        if (!t.closeGate.isCompleted) t.closeGate.complete();
+      }
+      await binding.dispose();
+      chat.dispose();
+      Notifier.debugOperatingSystemOverride = oldNotifier;
+    }
+  });
+
+  test('本地模型重连只触发后台预热，不等待冷启动', () async {
+    final local = OndraProvider(
+      id: 'local-warm',
+      name: '本地预热',
+      category: ProviderCategory.local,
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      models: [OndraModelEntry(id: 'qwen3-coder-next')],
+    );
+    expect(client.addProvider(local), isNull);
+    expect(client.setDefaultModel(local, local.models.single), isNull);
+
+    final gate = Completer<ModelWarmupResult>();
+    final requests = <ModelWarmupRequest>[];
+    final warmup = ModelWarmupController(
+      run: (request) {
+        requests.add(request);
+        return gate.future;
+      },
+    );
+    final transports = <_BindingTransport>[];
+    final chat = ChatClient();
+    final binding = ModelRuntimeBinding(
+      models: client,
+      chat: chat,
+      warmup: warmup,
+      createTransport: (previous) {
+        final next = _BindingTransport(previous);
+        transports.add(next);
+        return next;
+      },
+    );
+    final oldNotifier = Notifier.debugOperatingSystemOverride;
+    Notifier.debugOperatingSystemOverride = 'test';
+    try {
+      // 假传输的 connect 立即返回；如果 start 等待预热，这里会永远不返回。
+      await binding.start();
+      expect(requests.single.baseUrl, 'http://127.0.0.1:1234/v1');
+      expect(requests.single.model, 'qwen3-coder-next');
+      expect(warmup.phase, ModelWarmupPhase.warming);
+    } finally {
+      if (!gate.isCompleted) {
+        gate.complete(const ModelWarmupResult(Duration(milliseconds: 1)));
+      }
+      for (final transport in transports) {
+        if (!transport.closeGate.isCompleted) transport.closeGate.complete();
+      }
+      await binding.dispose();
+      chat.dispose();
+      Notifier.debugOperatingSystemOverride = oldNotifier;
+    }
+  });
+
+  test('自定义本机 provider 也触发预热，本机网关不触发', () async {
+    final custom = OndraProvider(
+      id: 'custom-warm',
+      name: '自定义本机模型',
+      category: ProviderCategory.custom,
+      baseUrl: 'http://localhost:1234/v1',
+      models: [OndraModelEntry(id: 'qwen3-coder-next')],
+    );
+    final gateway = OndraProvider(
+      id: 'local-gateway-warm',
+      name: '本机网关',
+      category: ProviderCategory.gateway,
+      baseUrl: 'http://127.0.0.1:3425/v1',
+      models: [OndraModelEntry(id: 'group/ntars')],
+    );
+    expect(client.addProvider(custom), isNull);
+    expect(client.addProvider(gateway), isNull);
+    expect(client.setDefaultModel(custom, custom.models.single), isNull);
+
+    final requests = <ModelWarmupRequest>[];
+    final warmup = ModelWarmupController(
+      run: (request) async {
+        requests.add(request);
+        return const ModelWarmupResult(Duration(milliseconds: 1));
+      },
+    );
+    final transports = <_BindingTransport>[];
+    final chat = ChatClient();
+    final binding = ModelRuntimeBinding(
+      models: client,
+      chat: chat,
+      warmup: warmup,
+      createTransport: (previous) {
+        final next = _BindingTransport(previous);
+        transports.add(next);
+        return next;
+      },
+    );
+    final oldNotifier = Notifier.debugOperatingSystemOverride;
+    Notifier.debugOperatingSystemOverride = 'test';
+    try {
+      await binding.start();
+      expect(requests.single.baseUrl, 'http://localhost:1234/v1');
+      expect(requests.single.model, 'qwen3-coder-next');
+
+      expect(client.setDefaultModel(gateway, gateway.models.single), isNull);
+      await Future<void>.delayed(Duration.zero);
+      // 只新增了重连传输，没有为网关发第二次预热。
+      expect(transports, hasLength(2));
+      expect(requests, hasLength(1));
+    } finally {
+      for (final transport in transports) {
+        if (!transport.closeGate.isCompleted) transport.closeGate.complete();
+      }
+      await binding.dispose();
+      chat.dispose();
+      Notifier.debugOperatingSystemOverride = oldNotifier;
+    }
+  });
+
+  test('非可恢复传输层重连不会因类型转换崩溃', () async {
+    final transports = <_NonResumableTransport>[];
+    final chat = ChatClient();
+    final binding = ModelRuntimeBinding(
+      models: client,
+      chat: chat,
+      createTransport: (previous) {
+        final next = _NonResumableTransport(previous);
+        transports.add(next);
+        return next;
+      },
+    );
+    final oldNotifier = Notifier.debugOperatingSystemOverride;
+    Notifier.debugOperatingSystemOverride = 'test';
+    try {
+      await binding.start();
+      expect(transports, hasLength(1));
+      expect(chat.connected, isTrue);
+      client.updateProviderAddress('magpie', 'http://localhost:8899/v1');
+      for (var i = 0; i < 8; i++) {
+        await Future<void>.delayed(Duration.zero);
+        for (final t in transports) {
+          if (t.closeStarted && !t.closeGate.isCompleted) {
+            t.closeGate.complete();
+          }
+        }
+      }
+      expect(transports, hasLength(2));
+      expect(chat.connected, isTrue);
+    } finally {
+      for (final t in transports) {
+        if (!t.closeGate.isCompleted) t.closeGate.complete();
+      }
+      await binding.dispose();
+      chat.dispose();
+      Notifier.debugOperatingSystemOverride = oldNotifier;
+    }
+  });
+
+  test('切换 R1/R3 路线清空本地缓存，不把旧路线当成同一条会话', () async {
+    final transports = <_BindingTransport>[];
+    final chat = ChatClient();
+    final binding = ModelRuntimeBinding(
+      models: client,
+      chat: chat,
+      createTransport: (previous) {
+        final next = _BindingTransport(previous);
+        transports.add(next);
+        return next;
+      },
+    );
+    final oldNotifier = Notifier.debugOperatingSystemOverride;
+    Notifier.debugOperatingSystemOverride = 'test';
+    try {
+      await binding.start();
+      final reply = chat.send('hello');
+      transports.last.output.add('hi');
+      await transports.last.output.close();
+      await reply;
+      expect(chat.hasConversation, isTrue);
+
+      final error = client.configureRuntimeRoute(
+        DshTransportRoute.remote,
+        remoteBaseUrl: 'http://127.0.0.1:1234',
+        remoteLaunchToken: 'launch-token',
+      );
+      expect(error, isNull);
+      await _settle(transports);
+      expect(transports, hasLength(2));
+      expect(chat.connected, isTrue);
+      // 换路线必须清掉旧路线的消息缓存，避免两条事件流叠加。
+      expect(chat.hasConversation, isFalse);
     } finally {
       for (final t in transports) {
         if (!t.closeGate.isCompleted) t.closeGate.complete();
@@ -673,6 +1045,42 @@ class _BindingTransport extends StdioDshTransport {
   @override
   Future<void> close() async {
     closeStarted = true;
+    await closeGate.future;
+  }
+}
+
+/// 故意不实现 [ResumableDshTransport]：装配层不能用强制类型转换来获取
+/// sessionId，否则只要注入的实现不支持恢复就会在重连时崩溃。
+class _NonResumableTransport extends DshTransport {
+  _NonResumableTransport(this.previous);
+  final Future<void>? previous;
+  final closeGate = Completer<void>();
+  final output = StreamController<String>();
+  bool closeStarted = false;
+  bool _connected = false;
+
+  @override
+  bool get isConnected => _connected;
+
+  @override
+  Future<void> connect() async {
+    await previous;
+    _connected = true;
+  }
+
+  @override
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) => output.stream;
+
+  @override
+  void stop() {}
+
+  @override
+  Future<void> close() async {
+    closeStarted = true;
+    _connected = false;
     await closeGate.future;
   }
 }

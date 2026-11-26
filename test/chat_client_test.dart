@@ -43,8 +43,7 @@ void main() {
 
     await client.send('你好');
 
-    expect(client.messages.length, 2);
-    expect(client.messages.first.role, ChatRole.user);
+    expect(client.messages.length, 1);
     expect(client.messages.last.role, ChatRole.system);
     expect(client.messages.last.text, contains('未启动'));
     expect(client.busy, isFalse);
@@ -54,7 +53,10 @@ void main() {
     final client = ChatClient();
     await client.send('   ');
     expect(client.messages, isEmpty);
+  });
 
+  test('上一轮结束后还能接着发', () async {
+    final client = ChatClient(transport: _EchoTransport());
     await client.send('第一句');
     await client.send('第二句'); // 上一轮结束后 busy 为假，这里也应能发
     expect(client.messages.where((m) => m.role == ChatRole.user).length, 2);
@@ -123,13 +125,19 @@ void main() {
     expect(client.queued, isEmpty);
     // 被作废那轮的流式气泡不能挂在界面上。
     expect(client.messages.where((m) => m.streaming), isEmpty);
+    // 当前传输层没有原生 steer，降级要如实写进对话，不能冒充内核插话。
+    expect(
+      client.messages.where((m) => m.text.contains('降级为停止后重发')),
+      hasLength(1),
+    );
     expect(client.busy, isFalse);
   });
 
-  test('停止会清掉队列：上一轮没发出去的话不跟到下一轮', () async {
+  test('停止保留队列：取消当前轮不撤掉用户已经提交的话', () async {
     settingsClient.set('dialog.busySend', 'queue');
     final gate = Completer<void>();
     final client = ChatClient(transport: _GatedTransport(gate));
+    addTearDown(client.dispose);
 
     final first = client.send('第一句');
     await Future<void>.delayed(Duration.zero);
@@ -137,11 +145,53 @@ void main() {
     expect(client.queued, isNotEmpty);
 
     client.stop();
-    expect(client.queued, isEmpty);
+    expect(client.queued, ['第二句']);
     expect(client.busy, isFalse);
 
     gate.complete();
     await first;
+  });
+
+  test('停止后的队列不会自动续发，交给下一次主动提交', () async {
+    settingsClient.set('dialog.busySend', 'queue');
+    final gate = Completer<void>();
+    final transport = _GatedTransport(gate);
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+
+    final first = client.send('第一句');
+    await Future<void>.delayed(Duration.zero);
+    await client.send('第二句');
+    client.stop();
+    gate.complete();
+    await first;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(transport.sent.map((item) => item.text), ['第一句']);
+    expect(client.queued, ['第二句']);
+  });
+
+  test('失败后恢复原文与附件，不保留伪造的半截回答', () async {
+    final probe = NotifierProbe();
+    Notifier.probe = probe;
+    final transport = _FailingGatedTransport();
+    final client = ChatClient(transport: transport);
+    addTearDown(client.dispose);
+    client.attach(
+      const ChatAttachment(path: '/tmp/fail.png', name: 'fail.png'),
+    );
+
+    final result = await client.send('要重试的话');
+
+    expect(result, SendOutcome.failed);
+    expect(client.messages.where((m) => m.streaming), isEmpty);
+    expect(client.messages.where((m) => m.role == ChatRole.user), isEmpty);
+    expect(client.queued, isEmpty);
+    final restored = client.takeFailedDraft();
+    expect(restored?.text, '要重试的话');
+    expect(restored?.attachments.map((a) => a.name), ['fail.png']);
+    expect(client.messages.where((m) => m.text.contains('连接断了')), hasLength(1));
+    expect(probe.sent.last.title, '这一轮没走通');
   });
 
   test('仅图片也可发送，发送后立即清理本条附件', () async {
@@ -201,6 +251,18 @@ void main() {
     expect(client.messages, isEmpty);
   });
 
+  test('清空当前屏会重置首轮状态和准备模型计时器', () async {
+    final client = ChatClient(transport: _EchoTransport());
+    addTearDown(client.dispose);
+    await client.send('第一句');
+    expect(client.hasCompletedTurn, isTrue);
+
+    client.clear();
+
+    expect(client.messages, isEmpty);
+    expect(client.hasCompletedTurn, isFalse);
+  });
+
   test('构造时传入的传输层也接收用量', () async {
     final transport = _UsageTransport();
     final client = ChatClient(transport: transport);
@@ -249,6 +311,20 @@ void main() {
       client.messages.where((message) => message.text.contains('输出过滤后没有可发送正文')),
       hasLength(1),
     );
+  });
+
+  test('传输层报告模型配置错误时，连接不作为在线处理', () async {
+    final transport = _FailingConnectedTransport('当前远端模型缺少密钥');
+    // modelConfigError 是接口的一部分：用一个很薄的包装把它置上，
+    // 保持其余传输行为不变。
+    final client = ChatClient(
+      transport: _ModelConfigErrorTransport(transport, '当前远端模型缺少密钥'),
+    );
+    addTearDown(client.dispose);
+    await client.connect();
+
+    expect(client.connected, isFalse);
+    expect(client.offlineReason, contains('当前远端模型缺少密钥'));
   });
 
   test('传输层真正断开：置离线并保留本轮错误', () async {
@@ -382,6 +458,36 @@ class _FailingTransport implements DshTransport {
   Stream<StepUsage> get usage => const Stream.empty();
 }
 
+/// 第一块正文先到达，随后整轮失败：用来验证「半截回答不能留在界面上」。
+class _FailingGatedTransport implements DshTransport {
+  @override
+  bool get isConnected => true;
+  @override
+  String? get modelConfigError => null;
+  @override
+  void dispose() {}
+  @override
+  Future<void> connect() async {}
+
+  @override
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
+    yield '半截';
+    throw Exception('连接断了');
+  }
+
+  @override
+  void resetSession() {}
+  @override
+  void stop() {}
+  @override
+  Future<void> close() async {}
+  @override
+  Stream<StepUsage> get usage => const Stream.empty();
+}
+
 /// 一条流由测试控制的传输层：用来制造「生成还没结束」的那一刻。
 ///
 /// [stallFirst] 为真时**只有第一轮**会卡住，之后的轮次立刻返回。
@@ -462,6 +568,35 @@ class _FailingDisconnectedTransport extends _FailingConnectedTransport {
 
   @override
   bool get isConnected => false;
+}
+
+class _ModelConfigErrorTransport implements DshTransport {
+  _ModelConfigErrorTransport(this.inner, this.message);
+
+  final DshTransport inner;
+  final String message;
+
+  @override
+  bool get isConnected => inner.isConnected;
+  @override
+  String? get modelConfigError => message;
+  @override
+  Stream<StepUsage> get usage => inner.usage;
+  @override
+  void dispose() => inner.dispose();
+  @override
+  Future<void> connect() => inner.connect();
+  @override
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) => inner.send(text, attachments: attachments);
+  @override
+  void resetSession() => inner.resetSession();
+  @override
+  void stop() => inner.stop();
+  @override
+  Future<void> close() => inner.close();
 }
 
 class _EchoTransport implements DshTransport {

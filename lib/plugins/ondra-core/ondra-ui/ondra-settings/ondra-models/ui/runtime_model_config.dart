@@ -44,6 +44,10 @@ class RuntimeModelConfig {
         r.level: r.apiValue.isEmpty ? null : r.apiValue,
     };
     final thinking = efforts.keys.where((key) => key != 'off').toList();
+    // 只有“关”一档时不写 reasoningEfforts。LM Studio 的 qwen3-coder-next
+    // 没有声明 reasoning 能力，pi-ai 会拒绝空的 apiValue；不带这两个字段
+    // 才是关闭思考模式（手册 §8.0 硬结论 4）。
+    final hasReasoning = thinking.isNotEmpty;
     final profile = <String, Object?>{
       'displayName': provider.name.isEmpty ? provider.id : provider.name,
       'api': provider.protocol,
@@ -61,10 +65,10 @@ class RuntimeModelConfig {
           if (model.maxTokens.isNotEmpty)
             'maxTokens': capacity(model.maxTokens),
           'input': List<String>.of(model.inputs),
-          'reasoningEfforts': thinking.isEmpty ? false : efforts,
+          if (hasReasoning) 'reasoningEfforts': efforts,
         },
       ],
-      if (thinking.isNotEmpty)
+      if (hasReasoning)
         'reasoning': efforts.containsKey('medium') ? 'medium' : thinking.first,
     };
     return RuntimeModelConfig._(

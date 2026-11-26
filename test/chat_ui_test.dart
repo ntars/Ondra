@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:material_ui/material_ui.dart';
 import 'package:ondra/app/data_maintenance.dart';
 import 'package:ondra/app/notifier.dart';
@@ -24,6 +25,7 @@ void main() {
     shell = ShellState(initialId: 'status');
     transport = _ControlledTransport();
     chatClient.useTransport(transport);
+    chatClient.takeFailedDraft();
     await chatClient.newConversation();
     settingsClient.set('dialog.enterSend', true);
     settingsClient.set('dialog.busySend', 'queue');
@@ -93,6 +95,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('首轮 5 秒没出字时改成可解释的准备模型文案', (tester) async {
+    await pumpRail(tester);
+    await tester.enterText(find.byType(TextField), '第一句');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.text(ChatClient.preparingModelText), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text(ChatClient.preparingModelText), findsOneWidget);
+
+    transport.response!.add('热态回答');
+    await transport.response!.close();
+    await tester.pump();
+    expect(find.text(ChatClient.preparingModelText), findsNothing);
+    expect(find.text('热态回答'), findsOneWidget);
+    expect(chatClient.hasCompletedTurn, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('维护期间点击发送不清空输入或附件', (tester) async {
     await pumpRail(tester);
     await tester.enterText(find.byType(TextField), '稍后发送的内容');
@@ -135,6 +157,132 @@ void main() {
     expect(find.text('收到图片'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('运行时空草稿同一位置是 Stop，有内容时换成 Send', (tester) async {
+    await pumpRail(tester);
+    await tester.enterText(find.byType(TextField), '第一句');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(chatClient.busy, isTrue);
+    expect(find.byTooltip('停止生成'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '第二句');
+    await tester.pump();
+    expect(find.byTooltip('发送'), findsOneWidget);
+    expect(find.byTooltip('停止生成'), findsNothing);
+    expect(chatClient.queued, isEmpty);
+
+    await tester.tap(find.byTooltip('发送'));
+    await tester.pump();
+    expect(chatClient.queued, ['第二句']);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+    );
+
+    await tester.tap(find.byTooltip('停止生成'));
+    await tester.pump();
+    expect(chatClient.queued, ['第二句']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Cmd/Ctrl Enter 使用与回车互补的投递模式', (tester) async {
+    settingsClient.set('dialog.enterSend', true);
+    settingsClient.set('dialog.busySend', 'queue');
+    await pumpRail(tester);
+
+    await tester.enterText(find.byType(TextField), '第一句');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '插话');
+    await _sendMacShortcut(tester, LogicalKeyboardKey.enter, control: true);
+    await tester.pump();
+
+    expect(chatClient.queued, isEmpty);
+    expect(chatClient.busy, isTrue);
+    expect(
+      chatClient.messages
+          .where((m) => m.role == ChatRole.user && m.text == '插话')
+          .length,
+      1,
+    );
+    transport.response!.add('插话回答');
+    await transport.response!.close();
+    await tester.pump();
+    expect(chatClient.busy, isFalse);
+    expect(find.text('插话回答'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('发送失败恢复原文，不覆盖期间的新输入', (tester) async {
+    final failing = _DelayedFailingTransport();
+    chatClient.useTransport(failing);
+    await pumpRail(tester);
+
+    await tester.enterText(find.byType(TextField), '失败的句子');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '后来补的内容');
+    failing.error.complete();
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '后来补的内容',
+    );
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// `CallbackShortcuts` 走 RawKeyEvent；WidgetTester 只暴露了文本输入侧的
+/// 模拟键，测试里直接投递一条 macOS 原始按键来覆盖快捷键绑定。
+Future<void> _sendMacShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key, {
+  bool meta = false,
+  bool control = false,
+  bool shift = false,
+}) async {
+  if (meta) await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+  if (control) await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyEvent(key);
+  if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+  if (control) await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  if (meta) await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+}
+
+class _DelayedFailingTransport implements DshTransport {
+  final Completer<void> error = Completer<void>();
+
+  @override
+  bool get isConnected => true;
+  @override
+  String? get modelConfigError => null;
+  @override
+  void dispose() {}
+  @override
+  Future<void> connect() async {}
+
+  @override
+  Stream<String> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async* {
+    yield '半截';
+    await error.future;
+    throw StateError('连接断了');
+  }
+
+  @override
+  void resetSession() {}
+  @override
+  void stop() {}
+  @override
+  Future<void> close() async {}
+  @override
+  Stream<StepUsage> get usage => const Stream.empty();
 }
 
 class _ControlledTransport implements DshTransport {

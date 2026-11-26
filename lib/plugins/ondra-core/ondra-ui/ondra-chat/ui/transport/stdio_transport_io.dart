@@ -62,13 +62,17 @@ class _Turn {
 bool _hasCancelCommandText(Object? value, [int depth = 0]) {
   if (depth > 6) return false;
   if (value is String) return value.contains('/cancel-turn');
-  if (value is Map) return value.values.any((v) => _hasCancelCommandText(v, depth + 1));
-  if (value is Iterable) return value.any((v) => _hasCancelCommandText(v, depth + 1));
+  if (value is Map) {
+    return value.values.any((v) => _hasCancelCommandText(v, depth + 1));
+  }
+  if (value is Iterable) {
+    return value.any((v) => _hasCancelCommandText(v, depth + 1));
+  }
   return false;
 }
 
 /// 通过自有子进程收发按行分帧的 SDK JSON-RPC。
-class StdioDshTransport implements DshTransport {
+class StdioDshTransport implements DshTransport, ResumableDshTransport {
   /// 本次连接的模型配置错误（缺密钥/配置无效）。非空时聊天栏提示
   /// 「内核在跑，但当前模型不可用」，而不是让用户以为应用坏了。
   String? _modelConfigError;
@@ -177,6 +181,8 @@ class StdioDshTransport implements DshTransport {
   @override
   Stream<StepUsage> get usage => _usage.stream;
   String? get lastError => _lastError;
+
+  @override
   String? get sessionId => _sessionId;
 
   String get _home {

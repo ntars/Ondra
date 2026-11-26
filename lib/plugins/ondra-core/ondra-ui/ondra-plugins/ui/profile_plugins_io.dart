@@ -109,10 +109,22 @@ class _Document {
     _sequence(0, lines.length, 0, (start, end) {
       final fields = _fields(start, end, 0);
       final insert = fields['insert'];
+      final managedFlow = logical
+          .sublist(start, end)
+          .any(
+            (line) =>
+                line.trim().startsWith('- {') &&
+                jsonDecode(line.trim().substring(2)) is Map,
+          );
       if (insert == null) {
         // 覆盖补丁可能改变最终 disabled/inject，不能仅改某个 insert 就声称成功。
-        _unsupported('存在非 insert 覆盖补丁');
+        // 受管模型段会追加第二个 `- insert:`，里面是 JSON flow 条目；
+        // 它不是插件开关，但要允许解析通过，否则整份 profile 不可管理。
+        if (!managedFlow) {
+          _unsupported('存在非 insert 覆盖补丁');
+        }
       }
+      if (insert == null) return;
       final value = insert.value.split('#').first.trim();
       if (value == '[]') return;
       if (value.isNotEmpty) _unsupported('insert 必须是块式列表');
@@ -211,7 +223,12 @@ class _Document {
         text = text.substring(depth);
       }
       final m = RegExp(r'^([a-zA-Z][\w-]*):(?:\s+(.*))?$').firstMatch(text);
-      if (m == null) _unsupported('第 ${i + 1} 行结构字段无法识别');
+      if (m == null) {
+        // 受管模型段会写整条 `- {"id":...,"name":...}` JSON flow map。
+        // 它是合法 YAML 条目，但不是可开关的插件；跳过即可，保留原字节。
+        if (text.startsWith('{') && jsonDecode(text) is Map) continue;
+        _unsupported('第 ${i + 1} 行结构字段无法识别');
+      }
       final key = m[1]!;
       if (result.containsKey(key)) _unsupported('重复字段：$key');
       previous?.end = i;

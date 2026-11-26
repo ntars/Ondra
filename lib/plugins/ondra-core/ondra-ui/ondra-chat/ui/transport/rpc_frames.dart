@@ -54,48 +54,20 @@ class RpcFrame {
 
 /// 从 `session.event` 的 payload 里取可显示的文本。
 ///
-/// 上游的事件词汇很多（turn/start、tool/call、assistant/*…），这里**只认带文本的**，
-/// 其余一律跳过——宁可少显示一句，也不要把内部结构打到界面上。
+/// 真实协议没有 token 增量：只有 `assistant/message` 是完整正文。
+/// 正文位置固定为 `event.data.message.content[]`，且只取 `type == 'text'`。
+/// 其余事件与字段一律跳过——宁可少显示一句，也不要把内部结构打到界面上。
 String? textOfSessionEvent(Map<String, dynamic> payload) {
   final event = payload['event'];
   if (event is! Map) return null;
-  final type = event['type'];
-  if (!const {
-    'assistant/message',
-    'assistant/delta',
-    'assistant/text',
-    'text/delta',
-  }.contains(type)) {
-    return null;
-  }
-
-  final direct = event['text'];
-  if (direct is String && direct.isNotEmpty) return direct;
-
-  final delta = event['delta'];
-  if (delta is String && delta.isNotEmpty) return delta;
-
-  final content = event['content'];
-  if (content is List) {
-    final joined = _textOfBlocks(content);
-    if (joined != null) return joined;
-  }
-
-  // 真实 SDK 正文位于 event.data.message.content，只读取 text 块。
+  if (event['type'] != 'assistant/message') return null;
   final data = event['data'];
-  if (data is Map) {
-    final message = data['message'];
-    if (message is Map) {
-      final blocks = message['content'];
-      if (blocks is List) {
-        final joined = _textOfBlocks(blocks);
-        if (joined != null) return joined;
-      }
-    }
-    final dataDelta = data['delta'];
-    if (dataDelta is String && dataDelta.isNotEmpty) return dataDelta;
-  }
-  return null;
+  if (data is! Map) return null;
+  final message = data['message'];
+  if (message is! Map) return null;
+  final blocks = message['content'];
+  if (blocks is! List) return null;
+  return _textOfBlocks(blocks);
 }
 
 /// 把 `[{type:'text', text:'…'}, {type:'reasoning', …}]` 里的正文拼起来。
@@ -129,7 +101,11 @@ String? errorOfSessionEvent(Map<String, dynamic> payload) {
   final error = reason['error'];
   final message = error is Map ? error['message'] : null;
   final code = error is Map ? error['code'] : null;
-  final description = message is String && message.trim().isNotEmpty
+  // pi-ai 的上下文超限是正常的输入错误，不是「未知错误」。把它翻译成
+  // 用户能采取动作的文案；其它错误仍原样透出，避免吞掉排障信息。
+  final description = code == 'CONTEXT_WINDOW_EXCEEDED'
+      ? '上下文超限，请缩短输入或开启新会话'
+      : message is String && message.trim().isNotEmpty
       ? message
       : '内核生成失败';
   return '$description${code is String || code is num ? '（$code）' : ''}';

@@ -44,7 +44,7 @@ void main() {
     var snap = await loadStatus(home: tmp.path);
     expect(snap.kernelOnline, isTrue);
     expect(snap.kernelDetail, '对话内核已连接');
-    chatClient.stop();
+    chatClient.useTransport(const UnavailableTransport());
     snap = await loadStatus(home: tmp.path);
     expect(snap.kernelOnline, isFalse);
   });

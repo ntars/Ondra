@@ -8,13 +8,17 @@ import 'app/background_startup.dart';
 import 'app/data_maintenance.dart';
 import 'app/bundled_runtime.dart';
 import 'app/home_dir.dart';
+import 'app/model_warmup.dart';
 import 'app/ondra_app.dart';
 import 'app/runtime_seed.dart';
 import 'app/window_geometry.dart';
 import 'design/font_face.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-settings/ondra-persona/ui/persona_client.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/model_client.dart';
+import 'plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/model_types.dart';
+import 'plugins/ondra-core/ondra-ui/ondra-settings/ondra-models/ui/runtime_model_config.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-chat/ui/chat_client.dart';
+import 'plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/remote_transport.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/stdio_transport.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-plugins/ui/plugins_client.dart';
 import 'plugins/ondra-core/ondra-ui/ondra-backup/ui/backup_engine.dart';
@@ -108,6 +112,7 @@ Future<void> main() async {
         final runtimeBinding = ModelRuntimeBinding(
           models: modelClient,
           chat: chatClient,
+          warmup: modelWarmup,
         );
         return runtimeBinding.start().timeout(
           const Duration(seconds: 8),
@@ -130,13 +135,16 @@ class ModelRuntimeBinding {
   ModelRuntimeBinding({
     required this.models,
     required this.chat,
+    this.warmup,
     this._createTransport,
   });
 
   final ModelClient models;
   final ChatClient chat;
-  final StdioDshTransport Function(Future<void>?)? _createTransport;
-  StdioDshTransport? _transport;
+  final ModelWarmupController? warmup;
+  final DshTransport Function(Future<void>?)? _createTransport;
+  DshTransport? _transport;
+  DshTransportRoute? _lastRoute;
   String? _lastAttempt;
   bool _applying = false;
   bool _disposed = false;
@@ -183,17 +191,41 @@ class ModelRuntimeBinding {
     final bootConfiguration = settingsClient.captureKernelConfiguration();
     try {
       final previousClosed = _transport?.close();
-      final next =
+      final configuration = models.currentRuntimeConfig();
+      final previous = _transport;
+      final route = models.transportRoute;
+      // 换路线是一个显式动作：旧会话属于另一条事件流，不能带过去。
+      final routeChanged = _lastRoute != null && _lastRoute != route;
+      _lastRoute = route;
+      String? resumeSessionId;
+      if (!routeChanged && previous is ResumableDshTransport) {
+        resumeSessionId = (previous as ResumableDshTransport).sessionId;
+      }
+      final DshTransport next =
           _createTransport?.call(previousClosed) ??
-          StdioDshTransport(
-            modelConfig: models.currentRuntimeConfig,
-            secretResolver: models.readProviderSecret,
-            previousClosed: previousClosed,
-            resumeSessionId: _transport?.sessionId,
-          );
+          (route == DshTransportRoute.remote
+              ? RemoteDshTransport(
+                  baseUrl: models.remoteBaseUrl,
+                  launchToken: models.remoteLaunchToken,
+                  provider: configuration.providerId,
+                  model: configuration.modelId,
+                  workingDirectory: ondraUserHome,
+                  // R3 的 session/create 只能复用“空白”会话；普通历史会话
+                  // 不能靠 sessionId 原地重开，否则会把旧历史变成新会话。
+                  resumeSessionId: null,
+                )
+              : StdioDshTransport(
+                  modelConfig: () => configuration,
+                  secretResolver: models.readProviderSecret,
+                  previousClosed: previousClosed,
+                  resumeSessionId: resumeSessionId,
+                ));
       _transport = next;
+      // R1↔R3 切换时清空本地缓存，避免两条事件流叠加造成消息重复/消失。
+      if (routeChanged) chat.clear();
       // 先同步换到带 barrier 的传输，重连期间新发送也只能等旧进程退出。
       chat.useTransport(next);
+      _startWarmup(configuration);
       await chat.connect();
       // 连上了才算内核真的读了那份配置；没连上就保留待重载标记。
       if (chat.connected) settingsClient.markKernelApplied(bootConfiguration);
@@ -212,6 +244,29 @@ class ModelRuntimeBinding {
       _applying = false;
       _changed();
     }
+  }
+
+  void _startWarmup(RuntimeModelConfig configuration) {
+    final controller = warmup;
+    if (controller == null ||
+        !configuration.isLoopback ||
+        // 本机网关只是把多家模型合成一个路由，预热网关自身的目录
+        // 没有意义；真正跑在本机推理服务上的 provider 才需要预热。
+        configuration.providerCategory == ProviderCategory.gateway) {
+      return;
+    }
+    final profile = configuration.profile;
+    final baseUrl = '${profile['baseURL'] ?? ''}'.trim();
+    if ('${profile['api'] ?? ''}' != 'openai-completions' || baseUrl.isEmpty) {
+      return;
+    }
+    // 预热是首帧后的后台工作。这里必须不 await：本地模型冷启动约 30s，
+    // 等它会把设置页和后续启动步骤重新拖成“界面在但没反应”。
+    unawaited(
+      controller.start(
+        ModelWarmupRequest(baseUrl: baseUrl, model: configuration.modelId),
+      ),
+    );
   }
 
   Future<void> dispose() async {
