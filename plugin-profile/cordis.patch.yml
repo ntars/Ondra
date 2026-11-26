@@ -269,6 +269,41 @@
     - id: ondra-worldbook
       name: '@ondra/cordis-plugin-ondra-worldbook'
 
+    # ── 安全边界：普通用户默认只能写工作区，不能越界 ─────────────
+    # sdk-minimal 默认把 filesystem 挂成 dsh-fs-local，并给
+    # danger-full-access。普通用户发行版不能沿用开发机档位：这里按 id 覆盖
+    # 内核行，文件系统换成带策略栅栏的实现，bash 也改走沙箱执行器。
+    - id: filesystem
+      name: '@deepseek-ai/dsh-fs-sandbox'
+
+    - id: sandbox-policy
+      name: '@deepseek-ai/dsh-sandbox-policy'
+      config:
+        mode: workspace-write
+        workspaceRoot: !!js process.cwd()
+
+    # 持久 PTY bash 不经过 ctx.sandbox；禁用它，保留一次性 bash 的沙箱路径。
+    - id: persistent-bash
+      name: '@deepseek-ai/dsh-tool-bash-persistent'
+      disabled: true
+
+    - id: bash-sandbox
+      name: '@deepseek-ai/dsh-bash-sandbox'
+
+    - id: shell-env
+      name: '@deepseek-ai/dsh-shell-env'
+
+    - id: tool-bash
+      name: '@deepseek-ai/dsh-tool-bash'
+
+    - id: tool-fs
+      name: '@deepseek-ai/dsh-tool-fs'
+      config:
+        read: true
+        readImage: true
+        write: true
+        edit: true
+
     # ── L9：启动时序补丁（必须排在本列表最后）────────────────────
     # loader 对一个入口树是并发 apply 的；`ondra-store-sqlite` 要先开库才
     # `ctx.provide`，那几十毫秒里所有同步 `ctx.get('ondra-store-sqlite')` 的

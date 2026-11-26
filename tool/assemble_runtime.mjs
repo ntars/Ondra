@@ -93,6 +93,10 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  auditSecurityFiles,
+  restoreSecurityFiles,
+} from './runtime_security.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -1135,6 +1139,17 @@ async function copyPayload(dest, { verifyNode = true } = {}) {
       : '';
     say(`  去重 ${applied.linked} 处重复副本，省下 ${mb(plan.saved)}${tail}`);
   }
+
+  // 4.5) 恢复被 distribution purge 绕过安全实现的文件，并做审计。必须发生在
+  //      profile 种子复制之前，且只针对实际产物；源安装不被修改。
+  const restored = restoreSecurityFiles(nmDest);
+  if (restored.length) {
+    say(`  安全恢复：${restored.length} 个文件（${restored.join(', ')}）`);
+  } else {
+    say('  安全恢复：无需恢复');
+  }
+  auditSecurityFiles(nmDest);
+  say('  ✓ 沙箱/审批/权限安全审计通过');
 
   // 5) profile 种子。额外剔掉 .log：那是本机调试留下的，属于数据不属于装配层。
   const p = copyTree(PROFILE_SRC, path.join(dest, 'profile'), DROP_EXT, true);
