@@ -31,6 +31,12 @@ void main() {
     contains(message),
   );
 
+  String realPath(String path) =>
+      Directory(path).resolveSymbolicLinksSync().replaceFirst(
+        RegExp(r'^/private(?=/var/)'),
+        '',
+      );
+
   test('initialize 拒绝后清理进程，重连重新握手且清除旧错误', () async {
     final transport = fixture.transport(scenario: 'reject-initialize-once');
     await expectLater(
@@ -75,6 +81,66 @@ void main() {
     ]);
     await transport.connect();
     expect(fixture.requests('initialize'), hasLength(2));
+  });
+
+  test('预热使用独立会话，不改用户 sessionId、历史或用量', () async {
+    final transport = fixture.transport();
+    final usage = <StepUsage>[];
+    final usageSub = transport.usage.listen(usage.add);
+    addTearDown(usageSub.cancel);
+
+    expect(await transport.send('usage').toList(), ['reply:usage']);
+    final userSession = transport.sessionId;
+    expect(userSession, isNotNull);
+
+    await transport.warmupModel();
+
+    final prompts = fixture.requests('session/prompt');
+    expect(prompts, hasLength(2));
+    final warmupSession = (prompts.last['params'] as Map)['sessionId'] as String;
+    expect(warmupSession, startsWith('ondra-warmup-'));
+    expect(warmupSession, isNot(userSession));
+    expect(transport.sessionId, userSession);
+    expect(await transport.send('history').toList(), ['usage']);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    // 第二轮历史回复没有 usage 字段，所以总量必须仍是第一轮，预热
+    // 会话即使携带 token 也不能混进当前会话的账。
+    expect(usage, hasLength(1));
+  });
+
+  test('并发预热共享同一个任务，完成后可再次预热', () async {
+    final transport = fixture.transport();
+    await Future.wait([
+      transport.warmupModel(),
+      transport.warmupModel(),
+      transport.warmupModel(),
+    ]);
+    expect(fixture.requests('session/prompt'), hasLength(1));
+
+    await transport.warmupModel();
+    expect(fixture.requests('session/prompt'), hasLength(2));
+  });
+
+  test('预热无正文或内核报错时明确失败，后续真实对话仍可用', () async {
+    final empty = fixture.transport(scenario: 'warmup-empty');
+    await expectLater(
+      empty.warmupModel(),
+      throwsA(stateError('模型预热没有返回正文')),
+    );
+    expect(await empty.send('仍能聊').toList(), ['reply:仍能聊']);
+    await empty.close();
+
+    final nextFixture = _Fixture(
+      await Directory.systemTemp.createTemp('ondra-stdio-error-'),
+      node,
+    );
+    addTearDown(nextFixture.dispose);
+    final failed = nextFixture.transport(scenario: 'warmup-error');
+    await expectLater(
+      failed.warmupModel(),
+      throwsA(stateError('warmup failed')),
+    );
+    expect(await failed.send('仍能聊').toList(), ['reply:仍能聊']);
   });
 
   test('stop 立即结束活动流；下次发送等待旧进程退出并 resume 上下文', () async {
@@ -272,6 +338,56 @@ lines.on('line', (line) => {
     );
     expect(fixture.requests('initialize'), hasLength(1));
     expect(fixture.requests('session/resume'), isEmpty);
+  });
+
+  test('工作区优先使用环境变量，并统一用于进程、initialize 和沙箱', () async {
+    final envWorkspace = '${fixture.home.path}/env-workspace';
+    final explicitWorkspace = '${fixture.home.path}/explicit-workspace';
+    final transport = fixture.transport(
+      environment: {'ONDRA_WORKSPACE_ROOT': envWorkspace},
+      workingDirectory: explicitWorkspace,
+    );
+
+    await transport.connect();
+
+    final start = fixture.records.singleWhere((r) => r['event'] == 'start');
+    final childWorkspace = start['cwd'] as String;
+    expect(realPath(childWorkspace), envWorkspace);
+    expect(realPath(start['workspaceRoot'] as String), envWorkspace);
+    expect(
+      fixture.requests('initialize').single['params']['cwd'],
+      envWorkspace,
+    );
+    expect(Directory(envWorkspace).existsSync(), isTrue);
+  });
+
+  test('未配置环境变量时使用显式 workingDirectory 并保持三处一致', () async {
+    final explicitWorkspace = '${fixture.home.path}/explicit-workspace';
+    final transport = fixture.transport(workingDirectory: explicitWorkspace);
+
+    await transport.connect();
+
+    final start = fixture.records.singleWhere((r) => r['event'] == 'start');
+    final childWorkspace = start['cwd'] as String;
+    expect(realPath(childWorkspace), explicitWorkspace);
+    expect(realPath(start['workspaceRoot'] as String), explicitWorkspace);
+    expect(
+      fixture.requests('initialize').single['params']['cwd'],
+      explicitWorkspace,
+    );
+  });
+
+  test('未配置工作区时默认落在家目录下的应用私有目录', () async {
+    final transport = fixture.transport();
+
+    await transport.connect();
+
+    final expected = '${fixture.home.path}/.ondra/workspace';
+    final start = fixture.records.singleWhere((r) => r['event'] == 'start');
+    final childWorkspace = start['cwd'] as String;
+    expect(realPath(childWorkspace), expected);
+    expect(realPath(start['workspaceRoot'] as String), expected);
+    expect(fixture.requests('initialize').single['params']['cwd'], expected);
   });
 
   test('resetSession 会结束活动流，下一次发送建立全新上下文', () async {
@@ -596,6 +712,8 @@ class _Fixture {
     Duration turnTimeout = const Duration(seconds: 3),
     Duration closeTimeout = const Duration(seconds: 3),
     int shutdownDelayMs = 0,
+    Map<String, String> environment = const {},
+    String? workingDirectory,
   }) {
     final kernelHome = dshHome ?? '${home.path}/.ondra/dsh';
     // 预建隔离 profile，fixture 不加载真实内核或触发种子复制的权限操作。
@@ -622,11 +740,13 @@ class _Fixture {
         'FIXTURE_MARKER': 'isolated',
         'FIXTURE_EXIT_DELAY_MS': '$exitDelayMs',
         'FIXTURE_SHUTDOWN_DELAY_MS': '$shutdownDelayMs',
+        ...environment,
       },
       requestTimeout: requestTimeout,
       startupTimeout: startupTimeout,
       turnTimeout: turnTimeout,
       closeTimeout: closeTimeout,
+      workingDirectory: workingDirectory,
     );
   }
 

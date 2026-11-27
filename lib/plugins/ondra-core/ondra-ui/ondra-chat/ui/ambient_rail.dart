@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import '../../../../../app/desktop_picker.dart';
 import '../../../../../app/debug_chat_probe.dart';
 import '../../../../../app/model_warmup.dart';
+import '../../../../../app/platform_capabilities.dart';
 import '../../ui/shell_state.dart';
 import '../../../../../design/brand.dart';
 import '../../../../../design/dialog.dart';
@@ -1122,7 +1123,7 @@ class _RailComposerState extends State<_RailComposer> {
   Future<void> _pickAttachments() async {
     // 不加守卫时，安卓上 pickFiles 吞掉异常返回空表——点了毫无反应。
     // 如实说明比假装点了有用强。
-    if (!DesktopPicker.supported) {
+    if (!ondraCapabilities.filePicker) {
       if (mounted) {
         OndraToast.show(context, '这台系统还没有文件选择面板，附件发送需要桌面版。', ok: false);
       }

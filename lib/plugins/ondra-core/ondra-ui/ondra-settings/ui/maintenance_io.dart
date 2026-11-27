@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 
 import '../../../../../app/desktop_picker.dart';
 import '../../../../../app/home_dir.dart';
+import '../../../../../app/platform_capabilities.dart';
 import 'profile_config.dart';
 
 /// 应用级维护动作：导出全部数据、清空全部数据、清缓存、查系统权限。
@@ -466,13 +467,8 @@ class OndraMaintenance {
     out.add(
       PermissionStatus(
         name: '启动本机内核（子进程）',
-        // Linux/macOS 才用 `/bin/echo` 探针；Windows 没有这个路径，
-        // 探不到就报 false 会让已经跑起来的内核被说成「未授权」。
-        granted: Platform.isWindows
-            ? true
-            : Platform.isLinux || Platform.isMacOS
-            ? await _canSpawn()
-            : null,
+        // 能力来自宿主抽象；实际能否启动仍用一次真实子进程探针确认。
+        granted: ondraCapabilities.localSubprocess ? await _canSpawn() : null,
         detail: '需要执行 dsh 与 node',
       ),
     );
@@ -508,12 +504,22 @@ class OndraMaintenance {
   }
 
   Future<bool> _canSpawn() async {
-    try {
-      final r = await Process.run('/bin/echo', ['ok']);
-      return r.exitCode == 0;
-    } catch (_) {
-      return false;
+    final probes = <(String, List<String>)>[
+      if (File('/bin/echo').existsSync()) ('/bin/echo', <String>['ok']),
+      if (File('/system/bin/sh').existsSync())
+        ('/system/bin/sh', <String>['-c', 'exit 0']),
+      if (File(r'C:\Windows\System32\cmd.exe').existsSync())
+        (r'C:\Windows\System32\cmd.exe', <String>['/c', 'exit 0']),
+    ];
+    for (final (exe, args) in probes) {
+      try {
+        final result = await Process.run(exe, args);
+        if (result.exitCode == 0) return true;
+      } catch (_) {
+        // Try the next host-specific probe.
+      }
     }
+    return false;
   }
 
   static String _mb(int bytes) => bytes < 1024 * 1024

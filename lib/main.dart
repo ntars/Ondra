@@ -69,9 +69,9 @@ Future<void> main() async {
   //
   // 字体要在首帧前装：字体族一旦被首帧用过，中途注册会让已排好版的文字
   // 按旧字体测量、按新字体绘制，出现一次跳变。装不上就降级到系统字体。
-  // 安卓持久数据目录要在任何数据落盘之前定好（prefs / 密钥 / 模型清单都
+  // 移动端持久数据目录要在任何数据落盘之前定好（prefs / 密钥 / 模型清单都
   // 以 ondraUserHome 为根）。桌面平台是空操作。
-  await initAndroidHome();
+  await initMobileHome();
   await OndraFont.load();
   // 桌面端在这里把窗口定成 960×600；web 上是空实现。
   await applyWindowGeometry();
@@ -225,7 +225,7 @@ class ModelRuntimeBinding {
       if (routeChanged) chat.clear();
       // 先同步换到带 barrier 的传输，重连期间新发送也只能等旧进程退出。
       chat.useTransport(next);
-      _startWarmup(configuration);
+      _startWarmup(configuration, next);
       await chat.connect();
       // 连上了才算内核真的读了那份配置；没连上就保留待重载标记。
       if (chat.connected) settingsClient.markKernelApplied(bootConfiguration);
@@ -246,9 +246,10 @@ class ModelRuntimeBinding {
     }
   }
 
-  void _startWarmup(RuntimeModelConfig configuration) {
+  void _startWarmup(RuntimeModelConfig configuration, DshTransport transport) {
     final controller = warmup;
     if (controller == null ||
+        transport is! WarmableDshTransport ||
         !configuration.isLoopback ||
         // 本机网关只是把多家模型合成一个路由，预热网关自身的目录
         // 没有意义；真正跑在本机推理服务上的 provider 才需要预热。
@@ -262,9 +263,19 @@ class ModelRuntimeBinding {
     }
     // 预热是首帧后的后台工作。这里必须不 await：本地模型冷启动约 30s，
     // 等它会把设置页和后续启动步骤重新拖成“界面在但没反应”。
+    Future<ModelWarmupResult> runWarmup(ModelWarmupRequest _) async {
+      final started = Stopwatch()..start();
+      await (transport as WarmableDshTransport).warmupModel();
+      return ModelWarmupResult(started.elapsed);
+    }
+
     unawaited(
       controller.start(
-        ModelWarmupRequest(baseUrl: baseUrl, model: configuration.modelId),
+        ModelWarmupRequest(
+          baseUrl: baseUrl,
+          model: configuration.modelId,
+          run: runWarmup,
+        ),
       ),
     );
   }

@@ -634,6 +634,15 @@ abstract interface class ResumableDshTransport {
   String? get sessionId;
 }
 
+/// 支持真实内核预热的传输层。
+///
+/// 预热不能用裸 OpenAI 请求：系统提示词、工具集和输出上限只要不同，MLX
+/// 仍会在用户首句重新编译。实现必须使用独立会话，不写当前对话的消息、
+/// sessionId 或 token 用量。
+abstract interface class WarmableDshTransport {
+  Future<void> warmupModel();
+}
+
 /// 一次模型调用的 token 记账，字段与上游 `TokenUsage` 同名同义。
 ///
 /// 三个输入桶**互斥**：`inputTokens` 只含未命中的部分，命中的在

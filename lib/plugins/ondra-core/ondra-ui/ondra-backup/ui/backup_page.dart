@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:ondra/app/desktop_picker.dart';
+import 'package:ondra/app/platform_capabilities.dart';
 
 import '../../../../../design/dialog.dart';
 import '../../../../../design/glyph.dart';
@@ -151,7 +151,7 @@ class _BackupPageState extends State<BackupPage> {
   }
 
   Future<void> _export(String id) async {
-    if (!DesktopPicker.supported) {
+    if (!ondraCapabilities.filePicker) {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
@@ -165,7 +165,7 @@ class _BackupPageState extends State<BackupPage> {
   }
 
   Future<void> _import() async {
-    if (!DesktopPicker.supported) {
+    if (!ondraCapabilities.filePicker) {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
@@ -272,7 +272,7 @@ class _BackupPageState extends State<BackupPage> {
                   filled: false,
                   height: 34,
                   onTap: () async {
-                    if (!DesktopPicker.supported) {
+                    if (!ondraCapabilities.filePicker) {
                       OndraToast.show(
                         context,
                         '这台系统还没有文件管理面板：备份目录在应用数据文件夹里。',

@@ -81,10 +81,12 @@ Future<void> writeRuntimeModelPatch({
   );
   await errors;
   final body = await out;
+  if (code != 0) {
+    throw StateError('无法安全合并模型配置，请检查 profile YAML、网关条目与路由 ID');
+  }
   if (body.trim().isEmpty) {
     throw StateError('受管段生成失败：合并子进程没有输出（exit $code）');
   }
-  if (code != 0) throw StateError('无法安全合并模型配置，请检查 profile YAML、网关条目与路由 ID');
   final newline = original.contains('\r\n') ? '\r\n' : '\n';
   final separator = parts.before.isEmpty || parts.before.endsWith('\n')
       ? ''
@@ -118,6 +120,16 @@ const _compose = r'''
   const { pathToFileURL } = require('node:url');
   const req = createRequire(process.argv[1]);
   const yaml = req('js-yaml');
+  // DSH profile 支持 !!js 标量（例如 workspaceRoot: !!js process.cwd()）。
+  // 必须使用与内核相同的 entry-list schema；裸 DEFAULT_SCHEMA 会把
+  // 合法 profile 直接判成未知标签，导致每次模型配置合并都失败。
+  const JsExpr = new yaml.Type('tag:yaml.org,2002:js', {
+    kind: 'scalar',
+    resolve: (data) => typeof data === 'string',
+    construct: (data) => ({ __jsExpr: data }),
+    represent: (data) => data.__jsExpr,
+  });
+  const schema = yaml.JSON_SCHEMA.extend(JsExpr);
   // 动态 import 只接受 URL：Windows 盘符路径（C:\...）会被当成 URL 协议
   // 报 ERR_UNSUPPORTED_ESM_URL_SCHEME——必须先转成 file:// URL（alpha.10
   // Windows 审查第 1 项，聊天内核起不来的直接原因）。
@@ -125,7 +137,7 @@ const _compose = r'''
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const data = JSON.parse(input);
-  const patches = yaml.load(data.patch) ?? [];
+  const patches = yaml.load(data.patch, { schema }) ?? [];
   if (!Array.isArray(patches)) throw new Error('patch must be a list');
   const entries = applyEntryPatches([], patches, () => {});
   const flatten = entries => entries.flatMap(entry => [entry, ...(entry.group && Array.isArray(entry.config) ? flatten(entry.config) : [])]);

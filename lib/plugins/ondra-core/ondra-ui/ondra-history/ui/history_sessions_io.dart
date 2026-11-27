@@ -28,12 +28,18 @@ Future<List<SessionSummary>> readSessions({String? dshHome}) async {
       final file = File('${session.path}/session.v4.jsonl');
       if (!file.existsSync()) continue;
       final summary = await _readOne(file);
-      if (summary != null) out.add(summary);
+      if (summary != null && !_isWarmupSession(summary.id)) out.add(summary);
     }
   }
   out.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   return out;
 }
+
+/// 预热会话是内核真实落盘记录，但它不是用户对话。
+///
+/// 传输层必须用独立 session 才能得到与真实聊天相同的系统提示词/工具集；
+/// 历史页在这里统一隐藏，避免欢迎区预热在用户历史里留下一条“你好”。
+bool _isWarmupSession(String id) => id.startsWith('ondra-warmup-');
 
 /// 读一份会话文件：标题取第一句用户消息，条数数用户消息，
 /// 时间取文件最后写入时刻（会话是追加写，mtime 就是最后活动时间）。
@@ -192,7 +198,8 @@ class _MessageReader {
 
 bool _isInternalCommand(String text) {
   final trimmed = text.trimLeft();
-  return trimmed.startsWith('/cancel-turn') || trimmed.startsWith('/resume-turn');
+  return trimmed.startsWith('/cancel-turn') ||
+      trimmed.startsWith('/resume-turn');
 }
 
 /// 毫秒整数（新版）或 ISO 串（旧版）都认。
@@ -226,6 +233,7 @@ Future<List<HistoryEntry>> readSessionMessages(
   String? dshHome,
   String? sourcePath,
 }) async {
+  if (_isWarmupSession(sessionId)) return const [];
   // 列表已经知道文件在哪：重号会话必须按列表点中的那份文件读，
   // 不能只拿 id 全库找第一个（alpha.17 审查：「点第二份会打开第一份」）。
   final cached = sourcePath == null ? null : File(sourcePath);
@@ -276,6 +284,7 @@ bool _contentHasImage(Object? content) {
 /// 按 id 找会话文件。逐层扫目录与 [readSessions] 同一个口径；
 /// 找不到返回 null，调用方显示空态。
 Future<File?> _findSessionFile(String sessionId, {String? dshHome}) async {
+  if (_isWarmupSession(sessionId)) return null;
   final root = _sessionsRoot(dshHome);
   if (root == null) return null;
   for (final project in root.listSync()) {

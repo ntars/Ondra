@@ -11,11 +11,16 @@ class ModelWarmupRequest {
     required this.baseUrl,
     required this.model,
     this.apiKey,
+    this.run,
   });
 
   final String baseUrl;
   final String model;
   final String? apiKey;
+
+  /// 当前真实传输层的预热入口。由装配层在重连时注入，避免把静态全局
+  /// 传输误用到已经关闭的上一条内核连接。
+  final ModelWarmupRunner? run;
 
   String get key => '$baseUrl\u0000$model';
 }
@@ -70,8 +75,9 @@ class ModelWarmupController extends ChangeNotifier {
     _error = null;
     _duration = null;
     notifyListeners();
+    final run = request.run ?? _run;
     unawaited(
-      _run(request).then(
+      run(request).then(
         (result) {
           if (generation != _generation) return;
           _duration = result.duration;

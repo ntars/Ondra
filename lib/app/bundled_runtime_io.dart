@@ -42,6 +42,10 @@ class OndraBundledRuntime {
   /// profile 种子目录（`cordis.yml` + `node_modules/@ondra/*`）。
   final String profileDir;
 
+  /// 随包安全覆盖层；存在时由传输层以 `--patch` 追加，位于用户 profile 之后。
+  String get securityPatchPath =>
+      '$rootDir${Platform.pathSeparator}security.patch.yml';
+
   bool get hasProfile => Directory(profileDir).existsSync();
 
   @override

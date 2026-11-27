@@ -43,6 +43,8 @@ trace('start', {
   dshHome: process.env.DSH_HOME,
   path: process.env.PATH,
   marker: process.env.FIXTURE_MARKER,
+  cwd: process.cwd(),
+  workspaceRoot: process.env.ONDRA_WORKSPACE_ROOT,
   args: process.argv.slice(2),
 });
 process.on('exit', code => trace('exit', { code }));
@@ -128,6 +130,21 @@ lines.on('line', line => {
     return;
   }
   const text = params.contentBlocks.find(block => block.type === 'text')?.text ?? '';
+  if (sessionId.startsWith('ondra-warmup-')) {
+    result(id, { accepted: true });
+    if (scenario === 'warmup-hang') return;
+    if (scenario === 'warmup-empty') {
+      event(sessionId, 'turn/end', { reason: { kind: 'completed' } });
+      return;
+    }
+    if (scenario === 'warmup-error') {
+      event(sessionId, 'turn/end', { reason: { kind: 'error', error: { message: 'warmup failed', code: 'WARMUP_FAILED' } } });
+      return;
+    }
+    message(sessionId, 'warm', { inputTokens: 700, outputTokens: 70 });
+    event(sessionId, 'turn/end', { reason: { kind: 'completed' } });
+    return;
+  }
   const previous = loaded.get(sessionId) ?? [];
   const history = [...previous, text];
   loaded.set(sessionId, history);

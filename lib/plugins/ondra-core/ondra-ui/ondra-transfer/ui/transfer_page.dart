@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../../../../../app/desktop_picker.dart';
+import '../../../../../app/platform_capabilities.dart';
 import '../../../../../design/dialog.dart';
 
 import '../../../../../design/page_frame.dart';
@@ -96,7 +96,7 @@ class _TransferPageState extends State<TransferPage> {
 
   /// 安卓/没有文件面板的环境上，导入导出的五个入口全都依赖系统文件面板。
   /// 不加守卫的话用户看到的是 osascript 的 ProcessException 原文。
-  bool _pickerAvailable() => DesktopPicker.supported;
+  bool _pickerAvailable() => ondraCapabilities.filePicker;
 
   Future<void> _noticeNoPicker() async {
     OndraToast.show(context, '这台系统还没有文件选择面板：导入导出需要桌面版。', ok: false);

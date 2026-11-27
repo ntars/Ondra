@@ -6,7 +6,7 @@
 // 内核对话仍会重新编译十几秒。这里复用 stdio JSON-RPC 会话主链，确保
 // 用户真正开口时模型已按同一形状热好。
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -65,8 +65,15 @@ export async function warmupKernel() {
     process.env.KONGGU_DSH_HOME ??
     join(process.env.HOME ?? homedir(), '.ondra', 'dsh');
   const profile = process.env.KONGGU_PROFILE ?? 'ondra';
-  const provider = process.env.KONGGU_PROVIDER ?? 'local-qwen';
+  const provider = process.env.KONGGU_PROVIDER ?? 'ondra-ui-magpie'
   const model = process.env.KONGGU_MODEL ?? MODEL;
+  const securityPatch =
+    process.env.KONGGU_EXTRA_PATCH ??
+    join(process.cwd(), 'runtime', 'macos-arm64', 'security.patch.yml');
+  const workspace =
+    process.env.ONDRA_WORKSPACE_ROOT ??
+    join(process.env.HOME ?? homedir(), '.ondra', 'workspace');
+  mkdirSync(workspace, { recursive: true });
   // 预热用的用户句。默认使用短中文句，贴近用户真实首句；需要复现
   // 某一轮的首字延迟时，可用 KONGGU_WARMUP_PROMPT 传入完全相同的文本。
   const warmupPrompt = process.env.KONGGU_WARMUP_PROMPT ?? '你好';
@@ -79,11 +86,16 @@ export async function warmupKernel() {
   );
 
   return await new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(nodeExe, [bin, '--profile', profile], {
-      cwd: process.cwd(),
+    const launchArgs = [bin, '--profile', profile];
+    if (securityPatch && existsSync(securityPatch)) {
+      launchArgs.push('--patch', securityPatch);
+    }
+    const child = spawn(nodeExe, launchArgs, {
+      cwd: workspace,
       env: {
         ...process.env,
         DSH_HOME: dshHome,
+        ONDRA_WORKSPACE_ROOT: workspace,
         ...(process.env.KONGGU_API_KEY
           ? {
               MAGPIE_API_KEY: process.env.KONGGU_API_KEY,
@@ -220,7 +232,7 @@ export async function warmupKernel() {
     });
 
     send(1, 'initialize', {
-      cwd: process.cwd(),
+      cwd: workspace,
       provider,
       model,
     });

@@ -12,4 +12,4 @@ String get ondraUserHome => '浏览器预览';
 String get ondraUserDataRoot => '$ondraUserHome/.ondra';
 
 /// Web 没有 path_provider，也没有应用私有目录。
-Future<void> initAndroidHome() async {}
+Future<void> initMobileHome() async {}

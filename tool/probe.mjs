@@ -18,7 +18,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 
 const installedPkg =
   '/Applications/DeepSeek Harness.app/Contents/Resources/app/dsh/node_modules/@deepseek-ai/dsh';
@@ -32,12 +32,24 @@ const dshHome =
   join(process.env.HOME ?? homedir(), '.ondra', 'dsh');
 const profile = process.env.KONGGU_PROFILE ?? 'ondra';
 const node = process.env.KONGGU_NODE ?? process.execPath;
+const securityPatch =
+  process.env.KONGGU_EXTRA_PATCH ??
+  join(process.cwd(), 'runtime', 'macos-arm64', 'security.patch.yml');
+const workspace =
+  process.env.ONDRA_WORKSPACE_ROOT ??
+  join(process.env.HOME ?? homedir(), '.ondra', 'workspace');
+mkdirSync(workspace, { recursive: true });
 const provider = process.env.KONGGU_PROVIDER ?? 'ondra-ui-magpie';
 const model = process.env.KONGGU_MODEL ?? 'group/ntars';
 const prompt = process.env.KONGGU_PROMPT_FILE
   ? readFileSync(process.env.KONGGU_PROMPT_FILE, 'utf8')
   : (process.env.KONGGU_PROMPT ?? '');
-const sessionId = process.env.KONGGU_SESSION_ID ?? 'session-1';
+// 固定 sessionId 在真实内核里会被持久化；第二次验收再开同名会话会得到
+// “session already exists”。默认每次生成新 id，需要比对历史时显式传
+// KONGGU_SESSION_ID。
+const sessionId =
+  process.env.KONGGU_SESSION_ID ??
+  `ondra-probe-${Date.now()}-${process.pid}`;
 // P5 latency runs warmup and the measured prompt in one kernel process so the
 // local model's HTTP connection (and its prefix KV cache) survives between them.
 const warmupPrompt = process.env.KONGGU_PROBE_WARMUP_PROMPT ?? '';
@@ -50,15 +62,20 @@ if (!existsSync(bin)) {
   process.exit(2);
 }
 
-const extraPatch = process.env.KONGGU_EXTRA_PATCH ?? '';
 const launchArgs = [bin, '--profile', profile];
-if (extraPatch) launchArgs.push('--patch', extraPatch);
+if (securityPatch && existsSync(securityPatch)) {
+  launchArgs.push('--patch', securityPatch);
+}
 const apiKey = process.env.KONGGU_API_KEY ?? '';
-const childEnv = { ...process.env, DSH_HOME: dshHome };
+const childEnv = {
+  ...process.env,
+  DSH_HOME: dshHome,
+  ONDRA_WORKSPACE_ROOT: workspace,
+};
 if (apiKey) childEnv.MAGPIE_API_KEY = apiKey;
 if (apiKey) childEnv.QWEN_LOCAL_API_KEY = apiKey;
 const child = spawn(node, launchArgs, {
-  cwd: process.cwd(),
+  cwd: workspace,
   env: childEnv,
   stdio: ['pipe', 'pipe', 'pipe'],
 });
@@ -254,7 +271,7 @@ child.stdin.write(
     id: 1,
     method: 'initialize',
     params: {
-      cwd: process.cwd(),
+      cwd: workspace,
       provider,
       model,
     },

@@ -100,6 +100,7 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
+const SECURITY_OVERLAY = path.join(REPO, 'resources', 'security.patch.yml');
 
 // ── 小工具 ──────────────────────────────────────────────────────────────────
 
@@ -1155,6 +1156,15 @@ async function copyPayload(dest, { verifyNode = true } = {}) {
   const p = copyTree(PROFILE_SRC, path.join(dest, 'profile'), DROP_EXT, true);
   say(`  profile：保留 ${p.kept} 个文件，丢弃 ${p.dropped} 个`);
 
+  // 5.5) 安全覆盖层。必须放在 runtime 根目录而不是用户 profile：
+  // 旧安装的 profile 是用户所有，seed 不会覆盖其中的插件行；只有
+  // CLI `--patch` 能在所有既有安装上把沙箱策略补到最后。
+  if (!fs.existsSync(SECURITY_OVERLAY)) {
+    die(`缺少安全覆盖层：${SECURITY_OVERLAY}`);
+  }
+  fs.copyFileSync(SECURITY_OVERLAY, path.join(dest, 'security.patch.yml'));
+  say('  安全覆盖层：security.patch.yml');
+
   // 6) 把装配描述点名的内核包补进**拷贝出来的** package.json。
   //
   // 光把文件拷进 node_modules 不够：`dsh-app-boot` 的解析拦截只路由从内核
@@ -1208,11 +1218,20 @@ if (process.argv.includes('--closure-only')) {
   if (fs.existsSync(path.join(tmp, 'profile'))) {
     fs.renameSync(path.join(tmp, 'profile'), path.join(closureOut, 'profile'));
   }
+  if (fs.existsSync(path.join(tmp, 'security.patch.yml'))) {
+    fs.renameSync(
+      path.join(tmp, 'security.patch.yml'),
+      path.join(closureOut, 'security.patch.yml'),
+    );
+  }
   rimrafQuietly(tmp, '闭包临时目录');
   say(`── 产出 ${path.relative(REPO, closureOut)} ──`);
   say(`  dsh     : ${mb(sizeOf(path.join(closureOut, 'dsh')))}`);
   if (fs.existsSync(path.join(closureOut, 'profile'))) {
     say(`  profile : ${mb(sizeOf(path.join(closureOut, 'profile')))}`);
+  }
+  if (fs.existsSync(path.join(closureOut, 'security.patch.yml'))) {
+    say('  安全覆盖层：security.patch.yml');
   }
   say('完成。');
   process.exit(0);

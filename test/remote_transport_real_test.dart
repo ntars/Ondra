@@ -5,10 +5,19 @@ import 'package:ondra/plugins/ondra-core/ondra-ui/ondra-chat/ui/transport/remote
 
 /// 真实 dsh web + 本地 qwen 的 R3 验收。默认跳过，只在显式提供 URL 时运行：
 ///
-/// `ONDRA_R3_URL='http://127.0.0.1:38473/?token=…' flutter test \
+/// `ONDRA_R3_URL='http://127.0.0.1:38473/?token=…' \
+///   flutter test --no-pub \
+///   --dart-define=ONDRA_R3_URL='http://127.0.0.1:38473/?token=…' \
 ///   test/remote_transport_real_test.dart`
+///
+/// Flutter test launches tests in a separate Dart VM that does not inherit
+/// the shell environment, so the `dart-define` mirror is required. The process
+/// environment path remains useful for direct `flutter test` invocations that
+/// do forward it, and keeps the test usable under a custom runner.
 void main() {
-  final launchUrl = Platform.environment['ONDRA_R3_URL'] ?? '';
+  final launchUrl = const String.fromEnvironment('ONDRA_R3_URL').isNotEmpty
+      ? const String.fromEnvironment('ONDRA_R3_URL')
+      : (Platform.environment['ONDRA_R3_URL'] ?? '');
 
   test(
     'Dart R3 transport talks to a real dsh web and local qwen',

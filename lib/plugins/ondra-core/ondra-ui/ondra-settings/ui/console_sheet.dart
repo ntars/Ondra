@@ -6,7 +6,7 @@ import '../../../../../app/data_root.dart';
 import '../../../../../app/data_maintenance.dart';
 import '../../../../../app/desktop_picker.dart';
 import '../../../../../app/i18n.dart';
-import '../../../../../app/keychain.dart';
+import '../../../../../app/platform_capabilities.dart';
 import '../../../../../app/prefs.dart';
 import '../../../../../app/update_check.dart';
 import '../../../../../app/version.dart';
@@ -953,13 +953,13 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
         _specRow('privacy.imageCloud'),
         _specRow('privacy.screenRead'),
         _specRow('privacy.redactLogs'),
-        // 「API Key 存放」不给选择器：当前只有钥匙串一种实现，
+        // 「API Key 存放」不给选择器：当前只有共享凭据文件一种实现，
         // 「本地加密文件」这个选项背后没有代码。留一个选了会静默失效的
         // 单选，用户会以为密钥存到了别处。
         _Row(
           title: 'API Key 存放',
-          desc: '密钥只进系统钥匙串，不写进任何配置文件',
-          value: Keychain.supported ? '系统钥匙串' : '当前环境不可用',
+          desc: '密钥只进本机凭据文件，不写进任何配置文件',
+          value: ondraCapabilities.credentialStore ? '本机凭据文件' : '当前环境不可用',
           showDivider: false,
         ),
       ],
@@ -1028,7 +1028,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   /// 全在 `PersonaStore.install` 里做。界面层如果自己也判一遍，两处的规则
   /// 迟早会分叉——一处放行、另一处拒绝，用户看到的是「选完没反应」。
   Future<void> _importPersona() async {
-    if (!DesktopPicker.supported && mounted) {
+    if (!ondraCapabilities.filePicker && mounted) {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
@@ -1042,7 +1042,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   }
 
   Future<void> _exportPersona() async {
-    if (!DesktopPicker.supported) {
+    if (!ondraCapabilities.filePicker) {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
@@ -1115,7 +1115,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
 
   /// 导出全部数据：挑目录 → 复制成 `ondra-export/` → 报文件数与体积。
   Future<void> _exportAll() async {
-    if (!DesktopPicker.supported) {
+    if (!ondraCapabilities.filePicker) {
       OndraToast.show(context, '这台系统还没有接入文件选择面板', ok: false);
       return;
     }
@@ -1360,7 +1360,7 @@ class _ConsoleSheetState extends State<ConsoleSheet> {
   }
 
   Future<void> _pickAttachments() async {
-    if (!DesktopPicker.supported) {
+    if (!ondraCapabilities.filePicker) {
       OndraToast.show(context, '当前环境不支持选择附件。', ok: false);
       return;
     }
@@ -2672,17 +2672,13 @@ class _ProviderEditorState extends State<_ProviderEditor> {
   /// 填写 / 更换 API 密钥：收进钥匙串，状态由写入结果驱动。
   ///
   /// 之前这里只把 `keyConfigured` 置成 true——不弹输入框、不存任何东西，
-  /// 重启后布尔也丢。密钥属于「只写不读」的凭据，唯一去处是钥匙串。
-  /// 密钥的存储说明按平台如实：mac 是钥匙串；安卓没有钥匙串，
-  /// 落到应用私有目录（沙箱内其他应用读不到，root 设备除外）。
-  /// 不说清楚 = 用户以为都进了加密存储。
+  /// 重启后布尔也丢。密钥属于只写凭据，唯一去处是内核与壳共享的
+  /// 本机凭据文件。不说清楚路径与权限 = 用户会误以为它进了系统钥匙串。
   String _keyStorageNote(String apiKeyEnv) {
     final envNote = apiKeyEnv.isEmpty ? '' : '环境变量回退：$apiKeyEnv · ';
-    final storage = switch (defaultTargetPlatform) {
-      TargetPlatform.macOS => 'mac：写进系统钥匙串',
-      TargetPlatform.android => '安卓：应用私有目录（root 设备可读）',
-      _ => '当前平台不支持保存密钥',
-    };
+    final storage = ondraCapabilities.credentialStore
+        ? '本机 DSH_HOME/.credentials.yaml（权限 0600）'
+        : '当前平台不支持保存密钥';
     return '$envNote$storage，只写不读';
   }
 

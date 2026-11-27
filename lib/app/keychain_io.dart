@@ -45,12 +45,7 @@ class Keychain {
   /// Windows 用 DPAPI（当前用户级加密，PowerShell ProtectedData）+ 应用
   /// 私有目录落盘——alpha.10 审查第 24 项：设置页无法保存云模型密钥。
   /// Web 保持如实拒绝。
-  static bool get supported =>
-      !kIsWeb &&
-      (Platform.isMacOS ||
-          Platform.isAndroid ||
-          Platform.isWindows ||
-          Platform.isLinux);
+  static bool get supported => !kIsWeb;
 
   /// 读一条。读不到返回 null。
   static Future<String?> read(String key) async {

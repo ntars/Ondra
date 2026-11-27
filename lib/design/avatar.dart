@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:material_ui/material_ui.dart';
 
+import '../app/platform_capabilities.dart';
 import 'avatar_stub.dart' if (dart.library.io) 'avatar_io.dart' as platform;
 
 /// 人设头像的唯一来源。
@@ -39,7 +40,7 @@ class AvatarStore extends ChangeNotifier {
   /// 弹原生选择框。用户取消时什么都不变，成功了立刻换图。
   ///
   /// 返回 `false` 表示「没换」（取消 / 平台不支持），调用方不需要分辨原因。
-  bool get pickerSupported => platform.avatarPickerSupported;
+  bool get pickerSupported => ondraCapabilities.avatarPicker;
 
   Future<bool> pick() async {
     final changed = await platform.pickAvatar();

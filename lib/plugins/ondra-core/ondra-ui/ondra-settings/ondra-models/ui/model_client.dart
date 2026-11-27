@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart' show ChangeNotifier;
 
 import '../../../../../../app/home_dir.dart';
 import '../../../../../../app/keychain.dart';
+import '../../../../../../app/platform_capabilities.dart';
 import '../../../../../../app/platform_env.dart';
 import 'model_types.dart';
 import 'runtime_model_config.dart';
@@ -100,9 +101,9 @@ class ModelClient extends ChangeNotifier {
   final Future<KeychainSecret> Function(String, String) _secretWriter;
   final Map<String, int> _keyRevisions = {};
   String? persistenceError;
-  DshTransportRoute _transportRoute = Platform.isIOS
-      ? DshTransportRoute.remote
-      : DshTransportRoute.local;
+  DshTransportRoute _transportRoute = ondraCapabilities.localSubprocess
+      ? DshTransportRoute.local
+      : DshTransportRoute.remote;
   String _remoteBaseUrl = '';
   String _remoteLaunchToken = '';
   int _remoteTokenRevision = 0;
@@ -219,6 +220,29 @@ class ModelClient extends ChangeNotifier {
               .firstOrNull ??
           _transportRoute;
       _remoteBaseUrl = '${raw['remoteBaseUrl'] ?? ''}';
+      // R3 acceptance and CI can provide a process-scoped launch URL. Keep
+      // it out of models.json; the token still follows the normal credential
+      // path so the dialog can retain an earlier token when only the URL changes.
+      final remoteUrl = (ondraPlatformEnv('ONDRA_REMOTE_URL') ?? '').trim();
+      if (remoteUrl.isNotEmpty) {
+        final parsed = Uri.tryParse(remoteUrl);
+        if (parsed != null &&
+            ['http', 'https'].contains(parsed.scheme) &&
+            parsed.host.isNotEmpty &&
+            parsed.userInfo.isEmpty) {
+          _transportRoute = DshTransportRoute.remote;
+          _remoteBaseUrl = Uri(
+            scheme: parsed.scheme,
+            host: parsed.host,
+            port: parsed.hasPort ? parsed.port : null,
+            path: parsed.path.replaceAll(RegExp(r'/+$'), ''),
+          ).toString();
+          final queryToken = parsed.queryParameters['token'] ?? '';
+          if (queryToken.isNotEmpty) _remoteLaunchToken = queryToken;
+        }
+      }
+      final envToken = (ondraPlatformEnv('ONDRA_REMOTE_TOKEN') ?? '').trim();
+      if (envToken.isNotEmpty) _remoteLaunchToken = envToken;
       _ensureDefault();
       _notifyIfActive();
       unawaited(

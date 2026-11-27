@@ -604,12 +604,14 @@ void main() {
     expect(client.addProvider(local), isNull);
     expect(client.setDefaultModel(local, local.models.single), isNull);
 
-    final gate = Completer<ModelWarmupResult>();
+    final gate = Completer<void>();
     final requests = <ModelWarmupRequest>[];
     final warmup = ModelWarmupController(
       run: (request) {
         requests.add(request);
-        return gate.future;
+        return gate.future.then(
+          (_) => const ModelWarmupResult(Duration(milliseconds: 1)),
+        );
       },
     );
     final transports = <_BindingTransport>[];
@@ -619,7 +621,7 @@ void main() {
       chat: chat,
       warmup: warmup,
       createTransport: (previous) {
-        final next = _BindingTransport(previous);
+        final next = _BindingTransport(previous, warmupGate: gate.future);
         transports.add(next);
         return next;
       },
@@ -629,13 +631,11 @@ void main() {
     try {
       // 假传输的 connect 立即返回；如果 start 等待预热，这里会永远不返回。
       await binding.start();
-      expect(requests.single.baseUrl, 'http://127.0.0.1:1234/v1');
-      expect(requests.single.model, 'qwen3-coder-next');
       expect(warmup.phase, ModelWarmupPhase.warming);
+      expect(transports.single.warmups, 1);
+      expect(requests, isEmpty);
     } finally {
-      if (!gate.isCompleted) {
-        gate.complete(const ModelWarmupResult(Duration(milliseconds: 1)));
-      }
+      if (!gate.isCompleted) gate.complete();
       for (final transport in transports) {
         if (!transport.closeGate.isCompleted) transport.closeGate.complete();
       }
@@ -687,14 +687,12 @@ void main() {
     Notifier.debugOperatingSystemOverride = 'test';
     try {
       await binding.start();
-      expect(requests.single.baseUrl, 'http://localhost:1234/v1');
-      expect(requests.single.model, 'qwen3-coder-next');
-
       expect(client.setDefaultModel(gateway, gateway.models.single), isNull);
       await Future<void>.delayed(Duration.zero);
       // 只新增了重连传输，没有为网关发第二次预热。
       expect(transports, hasLength(2));
-      expect(requests, hasLength(1));
+      expect(transports.first.warmups, 1);
+      expect(requests, isEmpty);
     } finally {
       for (final transport in transports) {
         if (!transport.closeGate.isCompleted) transport.closeGate.complete();
@@ -1012,16 +1010,18 @@ Future<void> _settle(List<_BindingTransport> transports) async {
 }
 
 class _BindingTransport extends StdioDshTransport {
-  _BindingTransport(this.previous, {this.failOpen = false});
+  _BindingTransport(this.previous, {this.failOpen = false, this.warmupGate});
   final Future<void>? previous;
 
   /// `true` 时 `connect()` 抛错，用来模拟「内核没起来」。
   final bool failOpen;
+  final Future<void>? warmupGate;
   final closeGate = Completer<void>();
   final output = StreamController<String>();
   bool opened = false;
   bool closeStarted = false;
   int stops = 0;
+  int warmups = 0;
 
   @override
   Stream<StepUsage> get usage => const Stream.empty();
@@ -1037,6 +1037,12 @@ class _BindingTransport extends StdioDshTransport {
     String text, {
     List<ChatAttachment> attachments = const [],
   }) => output.stream;
+
+  Future<void> warmupModel() async {
+    warmups++;
+    await warmupGate;
+  }
+
   @override
   void stop() {
     stops++;

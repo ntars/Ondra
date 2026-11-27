@@ -16,11 +16,13 @@ class _KernelLaunch {
     required this.exe,
     required this.leadingArgs,
     this.bundledRoot,
+    this.securityPatch,
   });
 
   final String exe;
   final List<String> leadingArgs;
   final String? bundledRoot;
+  final String? securityPatch;
 
   @override
   String toString() =>
@@ -57,6 +59,24 @@ class _Turn {
   }
 }
 
+class _WarmupTurn {
+  _WarmupTurn({required this.onText});
+
+  final void Function() onText;
+  final done = Completer<void>();
+  bool finished = false;
+
+  void finish([Object? error, StackTrace? stack]) {
+    if (finished) return;
+    finished = true;
+    if (error == null) {
+      done.complete();
+    } else {
+      done.completeError(error, stack);
+    }
+  }
+}
+
 /// 事件里是否带着 `/cancel-turn` 命令原文。深度不大，但 user/message
 /// 可能套在 data/context 里，逐层找字符串而不是猜固定结构。
 bool _hasCancelCommandText(Object? value, [int depth = 0]) {
@@ -72,7 +92,8 @@ bool _hasCancelCommandText(Object? value, [int depth = 0]) {
 }
 
 /// 通过自有子进程收发按行分帧的 SDK JSON-RPC。
-class StdioDshTransport implements DshTransport, ResumableDshTransport {
+class StdioDshTransport
+    implements DshTransport, ResumableDshTransport, WarmableDshTransport {
   /// 本次连接的模型配置错误（缺密钥/配置无效）。非空时聊天栏提示
   /// 「内核在跑，但当前模型不可用」，而不是让用户以为应用坏了。
   String? _modelConfigError;
@@ -168,6 +189,8 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
   _Connection? _connection;
   Future<void> _retired = Future.value();
   _Turn? _active;
+  _WarmupTurn? _warming;
+  Future<void>? _warmupTask;
   final _usage = StreamController<StepUsage>.broadcast();
   DateTime? _stepStart;
   int _nextId = 1;
@@ -237,6 +260,101 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
     _connection = connection;
     unawaited(_open(connection, _retired));
     return connection.ready.future;
+  }
+
+  @override
+  Future<void> warmupModel() {
+    final running = _warmupTask;
+    if (running != null) return running;
+    final task = _runWarmup();
+    _warmupTask = task;
+    return task.whenComplete(() {
+      if (identical(_warmupTask, task)) _warmupTask = null;
+    });
+  }
+
+  Future<void> _runWarmup() async {
+    await connect();
+    final connection = _connection;
+    if (connection == null) throw StateError('内核未连接');
+    _checkConnection(connection);
+
+    final started = Stopwatch()..start();
+    final sessionId =
+        'ondra-warmup-${DateTime.now().microsecondsSinceEpoch}-${_nextSession++}';
+    late final _WarmupTurn warmup;
+    StreamSubscription<RpcFrame>? sub;
+    Timer? timer;
+    var promptSettled = false;
+    var sawText = false;
+    warmup = _WarmupTurn(
+      onText: () {
+        // 首块正文就是预热完成的时刻；剩余收尾不能拖住用户首句。
+        if (!sawText) {
+          sawText = true;
+          _log('warmup first text after ${started.elapsedMilliseconds}ms');
+        }
+      },
+    );
+    _warming = warmup;
+
+    try {
+      sub = connection.frames.stream.listen(
+        (frame) {
+          if (warmup.finished || frame.method != 'session.event') return;
+          final payload = frame.params;
+          if (payload == null || payload['sessionId'] != sessionId) return;
+          // prompt 应答之前的 turn/end 不可能属于本次预热；和普通轮次
+          // 一样先缓冲到 RPC 受理后再看，避免消费上一条取消回执。
+          if (!promptSettled && isTurnEnd(payload)) return;
+          final error = errorOfSessionEvent(payload);
+          if (error != null) {
+            warmup.finish(StateError(error));
+            return;
+          }
+          if (textOfSessionEvent(payload) != null) warmup.onText();
+          if (isTurnEnd(payload)) {
+            if (!sawText) {
+              warmup.finish(StateError('模型预热没有返回正文'));
+            } else {
+              warmup.finish();
+            }
+          }
+        },
+        onError: (Object error, StackTrace stack) {
+          warmup.finish(error, stack);
+        },
+      );
+      timer = Timer(turnTimeout, () {
+        warmup.finish(TimeoutException('模型预热超时（未收到 turn/end）', turnTimeout));
+      });
+      await _call(connection, 'session/prompt', {
+        'sessionId': sessionId,
+        'contentBlocks': [
+          {'type': 'text', 'text': '你好'},
+        ],
+      });
+      promptSettled = true;
+      await warmup.done.future;
+    } finally {
+      timer?.cancel();
+      await sub?.cancel();
+      if (identical(_warming, warmup)) _warming = null;
+    }
+  }
+
+  /// 所有内核进程共用同一个应用专用工作区。GUI 启动时 cwd 可能是 `/` 或
+  /// 用户主目录；沙箱不能把边界建立在这种不可控值上。
+  String get _workspace {
+    final configured = environment['ONDRA_WORKSPACE_ROOT'];
+    if (configured != null && configured.trim().isNotEmpty) {
+      return configured;
+    }
+    final explicit = workingDirectory;
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      return explicit;
+    }
+    return '$_home/.ondra/workspace';
   }
 
   void _checkConnection(_Connection connection) {
@@ -317,6 +435,12 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
       final launch = await _resolveLaunch();
       _checkConnection(connection);
       _log('launch: $launch');
+      final workspace = _workspace;
+      try {
+        Directory(workspace).createSync(recursive: true);
+      } on FileSystemException catch (error) {
+        throw StateError('无法创建工作区 $workspace：${error.message}');
+      }
       final path = [
         File(launch.exe).parent.path,
         childEnvironment['PATH'] ??
@@ -329,17 +453,23 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
           ...binaryArgs,
           '--profile',
           ondraRuntimeProfileName,
+          if (launch.securityPatch != null &&
+              File(launch.securityPatch!).existsSync()) ...[
+            '--patch',
+            launch.securityPatch!,
+          ],
         ],
         environment: {
           ...childEnvironment,
           'DSH_HOME': _dshHome,
+          'ONDRA_WORKSPACE_ROOT': workspace,
           'PATH': path,
           // 安卓：node 的动态依赖（openssl/icu/…）全在 nativeLibraryDir，
           // bionic linker 只看 LD_LIBRARY_PATH 与自己的默认路径。
           if (Platform.isAndroid)
             'LD_LIBRARY_PATH': ondraBundledRuntime?.libDir ?? '',
         },
-        workingDirectory: workingDirectory,
+        workingDirectory: workspace,
         includeParentEnvironment: false,
       );
       connection.process = process;
@@ -409,7 +539,7 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
       );
       _log('process started, pid=${process.pid}; sending initialize');
       await _call(connection, 'initialize', {
-        'cwd': workingDirectory ?? Directory.current.path,
+        'cwd': workspace,
         'provider': config?.route ?? provider,
         'model': config?.modelId ?? modelId,
         // 推理能力/默认档位由受管 profile 提供。SDK 的 adapterDefaults 投影
@@ -629,6 +759,7 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
         exe: bundled.nodePath,
         leadingArgs: [bundled.dshEntry],
         bundledRoot: bundled.rootDir,
+        securityPatch: bundled.securityPatchPath,
       );
     }
     return _KernelLaunch(exe: _systemDsh(), leadingArgs: const []);
@@ -760,6 +891,8 @@ class StdioDshTransport implements DshTransport, ResumableDshTransport {
       _stepStart = null;
       _active?.finish(error, stack);
       _active = null;
+      _warming?.finish(error, stack);
+      _warming = null;
       _log('disconnected: $error');
     }
     for (final pending in connection.pending.values) {

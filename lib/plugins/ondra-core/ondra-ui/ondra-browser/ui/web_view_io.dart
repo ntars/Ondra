@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../../app/platform_capabilities.dart';
 import '../../../../../design/skin.dart';
 import '../../../../../design/tokens.dart';
 import 'web_view_stub.dart' as fallback;
@@ -13,10 +14,7 @@ import 'web_view_stub.dart' as fallback;
 /// IO 不等于 AppKit；既检查实际系统，也支持 Flutter 的平台能力测试。
 /// 安卓走系统 WebView 的 PlatformView（OndraWebView.kt），Windows 走
 /// WebView2 后端（web_view_win.cpp），三者同一协议。
-bool get embeddedBrowserAvailable =>
-    defaultTargetPlatform == TargetPlatform.macOS ||
-    defaultTargetPlatform == TargetPlatform.android ||
-    defaultTargetPlatform == TargetPlatform.windows;
+bool get embeddedBrowserAvailable => ondraCapabilities.embeddedBrowser;
 
 /// Flutter 3.50 的 Windows embedder 还没有可用的 HWND PlatformView 工厂
 /// （FlutterDesktopEngineRegisterPlatformViewType 是未实现的 stub）。

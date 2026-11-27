@@ -1,0 +1,35 @@
+# Runtime safety overlay for the bundled macOS kernel.
+#
+# This file is applied last with `--patch`, after the profile seed and the
+# user's own profile. It deliberately does not depend on a writable or
+# up-to-date user profile: an old installation can still get the confined
+# filesystem and one-shot bash path.
+- id: filesystem
+  name: '@deepseek-ai/dsh-fs-sandbox'
+
+- id: sandbox-policy
+  name: '@deepseek-ai/dsh-sandbox-policy'
+  config:
+    mode: workspace-write
+    workspaceRoot: !!js process.env.ONDRA_WORKSPACE_ROOT ?? process.cwd()
+
+- id: persistent-bash
+  name: '@deepseek-ai/dsh-tool-bash-persistent'
+  disabled: true
+
+- id: bash-sandbox
+  name: '@deepseek-ai/dsh-bash-sandbox'
+
+- id: shell-env
+  name: '@deepseek-ai/dsh-shell-env'
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+  config:
+    read: true
+    readImage: true
+    write: true
+    edit: true

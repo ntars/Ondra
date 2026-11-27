@@ -16,6 +16,8 @@ class OndraBundledRuntime {
   final String dshEntry;
   final String profileDir;
 
+  String get securityPatchPath => '';
+
   /// 动态库目录（桌面/Web 恒 null）。
   final String? libDir;
 

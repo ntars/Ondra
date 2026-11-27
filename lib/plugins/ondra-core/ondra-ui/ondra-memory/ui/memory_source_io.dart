@@ -28,15 +28,12 @@ Future<MemorySnapshot> loadMemorySnapshot() async {
   final home = ondraUserHome;
   final db = File('$home/.ondra/user/ondra.db');
   if (!db.existsSync()) {
-    // 安卓的内核起不来（系统不允许启动 node 子进程），「等内核建库」
-    // 会变成永远等不到的承诺——文案必须如实。
-    const desktopNote = '还没有记忆库（内核第一次收到对话后才会建）';
-    const androidNote = '安卓版还没有内核运行时：记忆库要等远程网关接入后才有。';
-    return MemorySnapshot(
-      facts: const [],
-      links: const [],
-      note: Platform.isAndroid ? androidNote : desktopNote,
-    );
+    // 本机没有库时不要把平台名写进用户文案；远程内核的数据库也不在
+    // 当前设备上。统一说明库何时出现、由谁创建。
+    const note =
+        '还没有可供本机读取的记忆库；内核第一次收到对话后会创建，'
+        '远程内核的数据请到对应设备查看。';
+    return const MemorySnapshot(facts: [], links: [], note: note);
   }
 
   try {

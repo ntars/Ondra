@@ -169,6 +169,25 @@ test('tts Windows SAPI engine synthesizes WAV and removes the text file', async 
     }
 });
 
+test('filter config accepts section kebab-case before Cordis validation', async () => {
+    const settings = await import(
+        libUrl('cordis-plugin-ondra-filter-chain', 'settings.js'),
+    );
+    const fromKebab = settings.completeConfig({
+        'min-chars': 1,
+        'review-enabled': false,
+    });
+    assert.equal(fromKebab.minChars, 1);
+    assert.equal(fromKebab.reviewEnabled, false);
+
+    const fromCamel = settings.completeConfig({
+        minChars: 7,
+        reviewEnabled: true,
+    });
+    assert.equal(fromCamel.minChars, 7);
+    assert.equal(fromCamel.reviewEnabled, true);
+});
+
 async function* textStream(text) {
     yield { type: 'block-start', index: 0, blockType: 'text' };
     yield { type: 'text-delta', index: 0, text: text.slice(0, 5) };

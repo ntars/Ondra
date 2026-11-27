@@ -443,4 +443,25 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('内核预热的独立会话不进入用户历史', () async {
+    final user = await writeSession('user-session', [
+      _event('user/message', _message('user', '真实对话')),
+    ]);
+    final warmup = await writeSession('ondra-warmup-123', [
+      _event('user/message', _message('user', '你好')),
+    ]);
+
+    final items = await readSessions(dshHome: dshHome);
+    expect(items.map((item) => item.id), ['user-session']);
+    expect(items.single.sourcePath, user.path);
+    expect(
+      await readSessionMessages(
+        'ondra-warmup-123',
+        dshHome: dshHome,
+        sourcePath: warmup.path,
+      ),
+      isEmpty,
+    );
+  });
 }

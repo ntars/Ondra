@@ -1,10 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ondra/app/model_warmup_controller.dart';
-import 'package:ondra/app/model_warmup_transport_io.dart';
 
 void main() {
   test('预热启动立即返回，后台完成后状态才变为 ready', () async {
@@ -74,48 +71,28 @@ void main() {
     expect(controller.error, contains('模型未加载'));
   });
 
-  test('真实预热按 /models 校验后只请求一个输出 token', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    Map<String, dynamic>? completion;
-    server.listen((request) async {
-      if (request.uri.path == '/v1/models') {
-        request.response.headers.contentType = ContentType.json;
-        request.response.write(
-          jsonEncode({
-            'data': [
-              {'id': 'qwen3-coder-next'},
-            ],
-          }),
-        );
-        await request.response.close();
-        return;
-      }
-      if (request.uri.path == '/v1/chat/completions') {
-        completion = jsonDecode(
-          await utf8.decoder.bind(request).join(),
-        ) as Map<String, dynamic>;
-        request.response.headers.contentType = ContentType.json;
-        request.response.write(jsonEncode({'choices': <Object>[]}));
-        await request.response.close();
-        return;
-      }
-      request.response.statusCode = 404;
-      await request.response.close();
-    });
-    try {
-      final result = await warmupOpenAiCompatibleModel(
-        ModelWarmupRequest(
-          baseUrl: 'http://127.0.0.1:${server.port}/v1',
-          model: 'qwen3-coder-next',
-        ),
-      );
-      expect(result.duration.inMicroseconds, greaterThanOrEqualTo(0));
-      expect(completion, isNotNull);
-      expect(completion!['model'], 'qwen3-coder-next');
-      expect(completion!['max_tokens'], 1);
-      expect(completion!['stream'], isFalse);
-    } finally {
-      await server.close(force: true);
-    }
+  test('请求可注入当前真实传输层，避免预热落到已关闭的旧连接', () async {
+    var calls = 0;
+    final controller = ModelWarmupController(
+      run: (_) async {
+        calls += 100;
+        return const ModelWarmupResult(Duration(milliseconds: 1));
+      },
+    );
+    final request = ModelWarmupRequest(
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'qwen3-coder-next',
+      run: (_) async {
+        calls += 1;
+        return const ModelWarmupResult(Duration(milliseconds: 7));
+      },
+    );
+
+    await controller.start(request);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls, 1);
+    expect(controller.phase, ModelWarmupPhase.ready);
+    expect(controller.duration, const Duration(milliseconds: 7));
   });
 }

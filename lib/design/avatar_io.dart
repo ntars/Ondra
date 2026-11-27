@@ -3,8 +3,10 @@ import 'dart:io' show File, Platform, Process, ProcessResult;
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show MethodChannel;
+
 import '../app/desktop_picker_io.dart';
 import '../app/home_dir.dart';
+import '../app/platform_capabilities.dart';
 
 /// 头像文件：`~/.ondra/avatar.png`。
 ///
@@ -150,8 +152,7 @@ Uint8List? readAvatarBytes() {
 
 /// 原生头像通道是否可用：macOS（NSOpenPanel）与安卓（系统选图 + 原生
 /// 裁切落盘）实现了 `ondra/avatar`；Windows 用系统面板 + PowerShell 转换。
-bool get avatarPickerSupported =>
-    Platform.isMacOS || Platform.isAndroid || Platform.isWindows;
+bool get avatarPickerSupported => ondraCapabilities.avatarPicker;
 
 /// 弹系统选图面板。原生侧负责裁切、缩放、落盘，返回是否真的换了图。
 /// [avatarPickerSupported] 为 false 时不会真正调用。

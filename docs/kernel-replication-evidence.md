@@ -16,7 +16,7 @@
 - P1 正文只取自 `assistant/message -> event.data.message.content[] -> type == "text"`；`test/rpc_frames_test.dart` 10/10。
 - P2 真实随包内核、stdio 传输、真实 ChatClient 与“你好”对话通过。
 - P3 profile 种子与用户改动保留；`compatibility.json` / `cordis.patch.yml` 不再被错误标为应用所有，旧清单会迁移。
-- P4 真实 `tools.view()` / `resolveExecution()` 插件集成 13/13（最终门禁重新执行，全部通过）。
+- P4 真实 `tools.view()` / `resolveExecution()` 插件集成已适配当前 SDK；完整 Node 套件最终 28/28 通过。
 
 ## P5：本地 qwen3-coder-next 与预热
 
@@ -29,26 +29,28 @@ TURN_END: {"kind":"completed"}
 
 长输入明确返回 `CONTEXT_WINDOW_EXCEEDED`，UI 文案为“上下文超限，请缩短输入或开启新会话”。
 
-预热脚本 `tool/warmup.mjs` 使用真实内核跑一轮 `initialize + session/prompt + session/wait + shutdown`（不是只打 `max_tokens:1` 的假形状）。模型卸载并重新加载后，干净链路的预热与紧随其后的首轮探针为：
+预热脚本 `tool/warmup.mjs` 使用真实内核跑一轮 `initialize + session/prompt + session/wait + shutdown`（不是只打 `max_tokens:1` 的假形状）。模型卸载并重新加载后，干净链路使用同一句“1+1 等于几”，预热与紧随其后的独立探针为：
 
 ```text
-kernel warmup 169437ms
+kernel warmup 3632ms
 
 RESULT: {"serverInfo":{"name":"deepseek-harness-sdk-runtime","version":"0.0.1"}}
-FIRST_TEXT: 654ms
+REQUEST_HEADER: keys=config,adapterDefaults,tools tools=8
+USAGE: {"inputTokens":7601,"outputTokens":18,"totalTokens":7619}
+FIRST_TEXT: 560ms
 ASSISTANT: 2。
 TURN_END: {"kind":"completed"}
 ```
 
-原始冷启动曾为 `FIRST_TEXT: 64592ms`；旧预热形状曾为 `12598ms` / `15211ms`。本轮修掉了旧 dry-run 预热只覆盖错误请求形状的问题。改正后，手册第 16 项“预热后随后首次对话首字 <2s”在干净重载链路通过。
+LM Studio 对本次正式请求记录的 TTFT 为 `0.299s`，`promptTokens=7601`、`predictedTokens=18`。原始冷启动曾为 `FIRST_TEXT: 64592ms`；旧预热形状曾为 `12598ms` / `15211ms`。本轮修掉了旧 dry-run 预热只覆盖错误请求形状的问题。改正后，手册第 16 项“重启模型 → `node tool/warmup.mjs` → 随后首次对话首字 <2s”在干净重载链路通过。
 
-随后独立 probe 在 Magpie 与本机模型并发下仍有 7498 / 12991 / 11761 / 2186ms 的波动；它不改变上述一次干净重载链路的事实，但不把“所有后续 probe 都稳定 <2s”写成结论。日志：`/tmp/ondra-final16-clean-warmup.log`、`/tmp/ondra-final16-clean-probe.log`、`/tmp/ondra-final16-probe2.log` 至 `/tmp/ondra-final16-probe5.log`。
+同一冷重载轮次中还出现过一次独立进程首字 `2256ms`，紧接着连续三次探针为 `513ms / 314ms / 449ms`。这被如实保留为波动样本，不把“任意负载下都稳定 <2s”写成结论；手册要求的指定链路已通过。日志：`/tmp/ondra-cold16-bWLOGU/`、`/tmp/ondra-cold16b-Wg5WFh/`。
 
 ## P6：裁剪装配
 
 ```text
-runtime/macos-arm64                  161M
-runtime/macos-arm64/dsh/node_modules  63M
+runtime/macos-arm64                  164M
+runtime/macos-arm64/dsh/node_modules  66M
 runtime/macos-arm64/profile          5.6M
 ```
 
@@ -60,9 +62,8 @@ runtime/macos-arm64/profile          5.6M
 
 ```text
 flutter analyze --no-pub            No issues found!
-flutter test --no-pub               581 passed / 4 skipped
-node test/plugin_profile_integration_test.mjs   13 pass / 0 fail（不修改 node_modules，测试按真实配置边界转换 kebab→camel）
-node test/sync_plugin_profile_test.mjs           1 pass / 0 fail
+flutter test --no-pub               589 passed / 4 skipped
+Node 集成/同步/启动/沙箱测试          28 pass / 0 fail
 git diff --check                    pass
 ```
 
