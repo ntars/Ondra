@@ -19,7 +19,7 @@
 
 **一句话定位**：一个把「陪伴」拆成可装卸插件的桌面应用——同一份插件代码在桌面与手机上都跑，数据不离开本机。
 
-**仓库描述**：`空谷 Ondra —— 全插件式桌面 AI 陪伴体：Cordis 插件体系，情绪、记忆、上下文三大机制，数据全留本机 | A plugin-first desktop AI companion: Cordis plugins with emotion, memory and context, all data kept on your machine.`
+**仓库描述**：`空谷 Ondra：全插件式桌面 AI 陪伴体，情绪、记忆、上下文三大机制，数据全留本机 | A plugin-first desktop AI companion with emotion, memory and context, keeping all data on your machine.`
 
 **话题标签**（20 个，仅英文）：`ai-companion`、`virtual-companion`、`ai-persona`、`emotional-ai`、`affective-computing`、`digital-life`、`long-term-memory`、`plugin-architecture`、`plugin-system`、`cordis`、`llm`、`local-llm`、`local-first`、`privacy-first`、`text-to-speech`、`speech-recognition`、`flutter`、`dart`、`typescript`、`desktop-app`
 
@@ -586,7 +586,7 @@ Copyright © 2024-2026 星玖工作室 Ntarstudio. Licensed under Apache-2.0 / M
 | 功能 | macOS | Windows | Linux | Android | iOS | OHOS | Web |
 |---|---|---|---|---|---|---|---|
 | 对话 | ✓ 真实 App 可见窗口 + 真实回复 | 未复验 | 未复验 | 未复验 | 未复验（远程路径已有单测） | 未复验 | 未复验（R3 真实 `dsh web` 单测通过） |
-| 插件 | ✓ 13/13 插件集成 | 未复验 | 未复验 | 未复验 | 未复验 | 未复验 | 未复验 |
+| 插件 | ✓ 28/28 插件/内核集成 | 未复验 | 未复验 | 未复验 | 未复验 | 未复验 | 未复验 |
 | 终端工具 | ✓ 受控执行 + 沙箱档位测试 | 未复验 | 未复验 | 未复验 | ✗ 本轮无端上证据 | ✗ 本轮无端上证据 | ✗ 本轮无端上证据 |
 | 本地模型 | ✓ `local-qwen / qwen3-coder-next` 真跑 | 未复验 | 未复验 | ✗ 无本地子进程 | ✗ 无本地子进程 | ✗ 无本地子进程 | ✗ 无本地子进程 |
 | 附件 | ✓ 单测覆盖 base64/拒绝无效附件 | 未复验 | 未复验 | 未复验 | 未复验 | 未复验 | 未复验 |
