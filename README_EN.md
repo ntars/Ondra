@@ -2,10 +2,16 @@
 
 # Ondra (空谷)
 
-**A plugin-first desktop AI companion: the UI only reads state projected by plugins, while emotion, memory and context are the three core mechanisms, and all data stays on this machine.**
+**Let AI become anyone you long to see through Ondra — a lost loved one, someone out of reach, or any fictional character — with companionship that lasts and all data kept on your machine. Built for left-behind children, empty-nest elders and everyone who is lonely, Ondra is the answer to the companionship economy and the silver economy.**
+
+Most "AI companion" products are a chat box plus a persona prompt. The persona is re-described every turn, memory means stuffing history into the context window, and emotion is an adjective. None of them accumulate, and all reset with a new session. Ondra is not another chatbot: it lets AI become the person you want to see, and that relationship grows with every conversation instead of starting over.
+
+Technically, companionship is split into **separately engineered mechanisms**: emotion as a state variable with inertia, memory as a chained pipeline, and context as a budgeted assembly. The UI only reads state projected by plugins; capabilities, pages and services are all provided by plugins, and the implementations of emotion and memory can be replaced by third parties. All data stays on your machine — no account, no back end, no uploaded privacy.
+
+That value is immediate for left-behind children, empty-nest elders and others who are lonely: a companion that understands you better over time, while the data stays at home. This is Ondra's answer to the loneliness economy, the companionship economy and the silver economy.
 
 ![Status](https://img.shields.io/badge/status-alpha-fb8500?style=flat-square)
-[![Version](https://img.shields.io/badge/version-2.0.0--alpha-8957e5.svg?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.22-8957e5.svg?style=flat-square)](#)
 [![GitHub license](https://img.shields.io/github/license/ntars/Ondra?style=flat-square)](./LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-desktop-02569B.svg?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev/)
 [![Local](https://img.shields.io/badge/data-local--only-2ea44f.svg?style=flat-square)](#)
@@ -17,15 +23,15 @@
 
 **Name**: 空谷 Ondra. The application name (window title, web title, about page) uses the full form; the UI brand block uses the short form 空谷 because the sidebar is only 200 wide.
 
-**One-line positioning**: a desktop companion that breaks "companionship" into loadable plugins — the same plugin code runs on desktop and mobile, and data never leaves the machine.
+**One-line positioning**: Let AI become anyone you long to see through Ondra — a lost loved one, someone out of reach, or any fictional character — with lasting companionship and all data kept on your machine; for left-behind children, empty-nest elders and everyone who is lonely, Ondra is the answer to the loneliness economy, the companionship economy and the silver economy.
 
-**Repository description**: `空谷 Ondra —— 全插件式桌面 AI 陪伴体：Cordis 插件体系，情绪、记忆、上下文三大机制，数据全留本机 | A plugin-first desktop AI companion: Cordis plugins with emotion, memory and context, all data kept on your machine.`
+**Repository description**: `空谷 Ondra：让 AI 变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，长期陪伴且数据只留本机；面向留守儿童与空巢老人，是孤独经济、陪伴经济与银发经济的最佳解决方案 | Ondra: turn AI into anyone you long to see — lost loved ones, unreachable people or any fictional character — with lasting companionship and all data kept on your machine; a solution for left-behind children and empty-nest elders in the companionship and silver economy.`
 
-**Topics** (20, English only): `ai-companion`, `virtual-companion`, `ai-persona`, `emotional-ai`, `affective-computing`, `digital-life`, `long-term-memory`, `plugin-architecture`, `plugin-system`, `cordis`, `llm`, `local-llm`, `local-first`, `privacy-first`, `text-to-speech`, `speech-recognition`, `flutter`, `dart`, `typescript`, `desktop-app`
+**Topics** (20, English only): `affective-computing` `ai-companion` `ai-persona` `companionship` `dart` `desktop-app` `elderly-care` `emotional-ai` `emotion-model` `flutter` `llm` `local-first` `local-llm` `long-term-memory` `offline-ai` `plugin-architecture` `privacy-first` `silver-economy` `text-to-speech` `typescript`
 
 | Item | Value |
 |---|---|
-| Version | 2.0.0-alpha |
+| Version | 3.0.0-alpha.22 |
 | Status | Internal alpha: macOS builds and runs, web builds, Windows builds but the release package does not yet bundle the runtime |
 | Platforms | macOS (runs) · Web (builds) · Windows (builds, in progress) |
 | Repository | <https://github.com/ntars/Ondra> |
@@ -182,9 +188,9 @@ Installers for all three platforms live in [Releases](https://github.com/ntars/O
 
 | Platform | File | Notes |
 |---|---|---|
-| macOS (universal) | `Ondra-2.0.0-alpha-macos-universal.dmg` | One bundle for Intel and Apple Silicon |
-| Windows (x64) | `Ondra-2.0.0-alpha-windows-x64.zip` | Unzip, then run `ondra.exe`; extract the whole folder |
-| Android | `Ondra-2.0.0-alpha-android-arm64.apk` | Regular phones; `-universal.apk` adds 32-bit and emulators |
+| macOS (universal) | `Ondra-3.0.0-alpha.22-macos-universal.dmg` | One bundle for Intel and Apple Silicon |
+| Windows (x64) | `Ondra-3.0.0-alpha.22-windows-x64.zip` | Unzip, then run `ondra.exe`; extract the whole folder |
+| Android | `Ondra-3.0.0-alpha.22-android-arm64.apk` | Regular phones; `-universal.apk` adds 32-bit and emulators |
 
 Verify with `shasum -a 256 -c SHA256SUMS.txt`. None of the three is properly signed; see the release notes for bypassing each OS prompt.
 
@@ -361,7 +367,7 @@ Runtime: Flutter 3.32+ / Dart 3.14+; the kernel needs Node.js 18+. Missing fonts
 
 Follows Keep a Changelog and semantic versioning.
 
-### [2.0.0-alpha] - 2026-11-18
+### [3.0.0-alpha.22] - 2026-11-18
 
 - Changed: front end rewritten in Flutter; three-column shell, paper layer and four right-pane states complete.
 - Added: `ondra-boot-settle` boot-order patch; startup degradation 55 → 0.

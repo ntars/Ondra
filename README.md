@@ -2,10 +2,16 @@
 
 # 空谷 Ondra
 
-**全插件式桌面 AI 陪伴体：界面只读插件投影出来的状态，情绪、记忆与上下文是三个核心机制，数据全部留在这台机器上。**
+**让 AI 通过空谷变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，都能长期陪伴且数据只留本机；面向留守儿童、空巢老人等孤独人群，是孤独经济、陪伴经济与银发经济的最佳解决方案。**
+
+多数「AI 陪伴」产品停留在「聊天框 + 一句人设提示词」：人设靠每轮重新描述，记忆靠把历史全塞进上下文，情绪靠形容词，三者都不可累积，换个会话就归零。空谷要做的不是再一个聊天机器人，而是让 AI 成为你想见的那个"人"——逝去的亲人、见不到的人、任意虚拟角色，并且这份关系会随相处不断生长，不因换会话而消失。
+
+工程上，它把陪伴拆成**可分别工程化的机制**：情绪是带惯性的状态量，记忆是有链路的沉淀，上下文是有预算的装配；界面只读插件投影出来的状态，能力、页面、服务都由插件提供，情绪与记忆的实现可被第三方替换。所有数据留在本机——没有账号、没有后端、不上传任何隐私。
+
+这份价值对留守儿童、空巢老人等孤独人群尤为直接：一个随相处越来越懂自己的陪伴者，数据却始终留在家里。这正是空谷对孤独经济、陪伴经济与银发经济给出的答案。
 
 ![Status](https://img.shields.io/badge/status-alpha-fb8500?style=flat-square)
-[![Version](https://img.shields.io/badge/version-2.0.0--alpha-8957e5.svg?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.22-8957e5.svg?style=flat-square)](#)
 [![GitHub license](https://img.shields.io/github/license/ntars/Ondra?style=flat-square)](./LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-desktop-02569B.svg?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev/)
 [![Local](https://img.shields.io/badge/data-local--only-2ea44f.svg?style=flat-square)](#)
@@ -17,15 +23,15 @@
 
 **名称**：空谷 Ondra。应用名（窗口标题、Web 标题、关于页）写全名；界面里的品牌锁定只用短名「空谷」——侧栏仅 200 宽，全名会把菜单挤窄。
 
-**一句话定位**：一个把「陪伴」拆成可装卸插件的桌面应用——同一份插件代码在桌面与手机上都跑，数据不离开本机。
+**一句话定位**：让 AI 通过空谷变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，都能长期陪伴且数据只留本机；面向留守儿童、空巢老人等孤独人群，是孤独经济、陪伴经济与银发经济的最佳解决方案。
 
-**仓库描述**：`空谷 Ondra：全插件式桌面 AI 陪伴体，情绪、记忆、上下文三大机制，数据全留本机 | A plugin-first desktop AI companion with emotion, memory and context, keeping all data on your machine.`
+**仓库描述**：`空谷 Ondra：让 AI 变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，长期陪伴且数据只留本机；面向留守儿童与空巢老人，是孤独经济、陪伴经济与银发经济的最佳解决方案 | Ondra: turn AI into anyone you long to see — lost loved ones, unreachable people or any fictional character — with lasting companionship and all data kept on your machine; a solution for left-behind children and empty-nest elders in the companionship and silver economy.`
 
-**话题标签**（20 个，仅英文）：`ai-companion`、`virtual-companion`、`ai-persona`、`emotional-ai`、`affective-computing`、`digital-life`、`long-term-memory`、`plugin-architecture`、`plugin-system`、`cordis`、`llm`、`local-llm`、`local-first`、`privacy-first`、`text-to-speech`、`speech-recognition`、`flutter`、`dart`、`typescript`、`desktop-app`
+**话题标签**（20 个，仅英文）： `affective-computing`、`ai-companion`、`ai-persona`、`companionship`、`dart`、`desktop-app`、`elderly-care`、`emotional-ai`、`emotion-model`、`flutter`、`llm`、`local-first`、`local-llm`、`long-term-memory`、`offline-ai`、`plugin-architecture`、`privacy-first`、`silver-economy`、`text-to-speech`、`typescript`
 
 | 项 | 内容 |
 |---|---|
-| 版本 | 2.0.0-alpha |
+| 版本 | 3.0.0-alpha.22 |
 | 状态 | 内测阶段：三端（macOS / Windows / Android）CI 全绿并随版发布，Web 可构建 |
 | 平台 | macOS（可运行）· Windows（发布包自带运行时）· Android（内核已上机，待真机握手）· Web（可构建） |
 | 仓库 | <https://github.com/ntars/Ondra> |
@@ -506,7 +512,7 @@ Ondra/
 
 遵循 Keep a Changelog 与语义化版本。
 
-### [2.0.0-alpha] - 2026-11-18
+### [3.0.0-alpha.22] - 2026-11-18
 
 - 变更：前端由 Flutter 重写，三栏外壳、纸片层与右栏四态完成。
 - 新增：`ondra-boot-settle` 启动时序补丁，启动降级条目 55 → 0。

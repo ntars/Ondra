@@ -77,14 +77,22 @@ class _ToastLayer extends StatefulWidget {
 }
 
 class _ToastLayerState extends State<_ToastLayer> {
+  Timer? _gone;
+
   @override
   void initState() {
     super.initState();
     // 长文本多留一会儿：一句话 3.2 秒够读，三行不够。
     final hold = widget.text.length > 60 ? 5600 : 3200;
-    Future<void>.delayed(Duration(milliseconds: hold), () {
+    _gone = Timer(Duration(milliseconds: hold), () {
       if (mounted) widget.onGone();
     });
+  }
+
+  @override
+  void dispose() {
+    _gone?.cancel();
+    super.dispose();
   }
 
   @override
