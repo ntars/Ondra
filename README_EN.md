@@ -25,7 +25,7 @@ That value is immediate for left-behind children, empty-nest elders and others w
 
 **One-line positioning**: Let AI become anyone you long to see through Ondra — a lost loved one, someone out of reach, or any fictional character — with lasting companionship and all data kept on your machine; for left-behind children, empty-nest elders and everyone who is lonely, Ondra is the answer to the loneliness economy, the companionship economy and the silver economy.
 
-**Repository description**: `空谷 Ondra：让 AI 变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，长期陪伴且数据只留本机；面向留守儿童与空巢老人，是孤独经济、陪伴经济与银发经济的最佳解决方案 | Ondra: turn AI into anyone you long to see — lost loved ones, unreachable people or any fictional character — with lasting companionship and all data kept on your machine; a solution for left-behind children and empty-nest elders in the companionship and silver economy.`
+**Repository description**: `空谷 Ondra：让 AI 变成你想见的任何人——逝去的亲人、见不到的人或任意虚拟角色，长期陪伴且数据只留本机；面向留守儿童与空巢老人，孤独经济、陪伴经济与银发经济方案。 | Ondra: turn AI into anyone you long to see — lost loved ones, unreachable people or any fictional character — with lasting companionship and all data kept on your machine.`
 
 **Topics** (20, English only): `affective-computing` `ai-companion` `ai-persona` `companionship` `dart` `desktop-app` `elderly-care` `emotional-ai` `emotion-model` `flutter` `llm` `local-first` `local-llm` `long-term-memory` `offline-ai` `plugin-architecture` `privacy-first` `silver-economy` `text-to-speech` `typescript`
 
@@ -92,7 +92,7 @@ The UI is a runtime client, not a plugin framework. There is exactly one plugin 
 |---|---|---|
 | Three-column shell | Launch | 200 sidebar + 480 content + 280 chat, 960×600 content area |
 | Right-pane chat | Send a message | Spawns `dsh --profile ondra`, JSON-RPC over stdio, routed to the local gateway |
-| Plugin page | Open "Plugins" | Merges 18 bundled entries with 75 from the assembly layer; toggles apply on next kernel connection |
+| Plugin page | Open "Plugins" | Merges 18 bundled entries with 85 from the assembly layer; toggles apply on next kernel connection |
 | Memory map | Open "Memory" | Reads `memory_fact` / `memory_link` from `~/.ondra/user/ondra.db`, laid out deterministically by id hash |
 | History | Open "History" | Reads the kernel session store, titles from the first user message, newest activity first |
 | Backups and timeline | Open "Backups" | Content-addressed snapshots; the timeline takes the window, wheel / arrow keys to travel, `⏎` restore, `esc` exit |
@@ -373,7 +373,7 @@ Follows Keep a Changelog and semantic versioning.
 - Added: `ondra-boot-settle` boot-order patch; startup degradation 55 → 0.
 - Added: content-addressed backups and the timeline view; second snapshot adds 0 bytes.
 - Added: memory import/export (Markdown / JSON) with real writes and double dedup.
-- Added: plugin page merging 18 bundled entries with 75 assembly entries.
+- Added: plugin page merging 18 bundled entries with 85 assembly entries.
 - Tests: 96 `flutter test` cases passing.
 
 ---

@@ -25,7 +25,7 @@
 
 **一句话定位**：让 AI 通过空谷变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，都能长期陪伴且数据只留本机；面向留守儿童、空巢老人等孤独人群，是孤独经济、陪伴经济与银发经济的最佳解决方案。
 
-**仓库描述**：`空谷 Ondra：让 AI 变成你想见的任何人——逝去的亲人、见不到的人、任意虚拟角色，长期陪伴且数据只留本机；面向留守儿童与空巢老人，是孤独经济、陪伴经济与银发经济的最佳解决方案 | Ondra: turn AI into anyone you long to see — lost loved ones, unreachable people or any fictional character — with lasting companionship and all data kept on your machine; a solution for left-behind children and empty-nest elders in the companionship and silver economy.`
+**仓库描述**：`空谷 Ondra：让 AI 变成你想见的任何人——逝去的亲人、见不到的人或任意虚拟角色，长期陪伴且数据只留本机；面向留守儿童与空巢老人，孤独经济、陪伴经济与银发经济方案。 | Ondra: turn AI into anyone you long to see — lost loved ones, unreachable people or any fictional character — with lasting companionship and all data kept on your machine.`
 
 **话题标签**（20 个，仅英文）： `affective-computing`、`ai-companion`、`ai-persona`、`companionship`、`dart`、`desktop-app`、`elderly-care`、`emotional-ai`、`emotion-model`、`flutter`、`llm`、`local-first`、`local-llm`、`long-term-memory`、`offline-ai`、`plugin-architecture`、`privacy-first`、`silver-economy`、`text-to-speech`、`typescript`
 
@@ -92,7 +92,7 @@
 |---|---|---|
 | 三栏外壳 | 启动 | 左栏 200 导航 + 中栏 480 起页面 + 右栏 280 聊天，窗口内容 960×600 |
 | 右栏对话 | 在输入盒发送消息 | 拉起 `dsh --profile ondra` 子进程，JSON-RPC over stdio，默认路由到本机网关 |
-| 插件扩展页 | 打开「插件」 | 合并随包清单 18 条与装配层 78 条，可开关（改 YAML 注释，下次连内核生效） |
+| 插件扩展页 | 打开「插件」 | 合并随包清单 18 条与装配层 85 条，可开关（改 YAML 注释，下次连内核生效） |
 | 记忆星图 | 打开「记忆」 | 读 `~/.ondra/user/ondra.db` 的 `memory_fact` / `memory_link`，按 id 哈希确定性排布 |
 | 历史对话 | 打开「历史」 | 读内核会话库，标题取第一句用户消息，按最后活动倒序 |
 | 备份与时间线 | 打开「备份」 | 内容寻址快照；时间线整窗接管，滚轮/↑↓ 穿梭、`⏎` 恢复、`esc` 退出 |
@@ -518,7 +518,7 @@ Ondra/
 - 新增：`ondra-boot-settle` 启动时序补丁，启动降级条目 55 → 0。
 - 新增：内容寻址备份与时间线界面，第二份快照新增 0 字节。
 - 新增：记忆导入导出（Markdown / JSON），真写库并双重去重。
-- 新增：插件扩展页，合并随包 18 条与装配层 78 条。
+- 新增：插件扩展页，合并随包 18 条与装配层 85 条。
 - 测试：`flutter test` 96 项通过。
 
 ---
